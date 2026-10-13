@@ -1,9 +1,14 @@
 import asyncio
 import io
+import json
+import os
 import sys
+from pathlib import Path
 
 import pandas as pd
+import pytest
 
+from backend.common import instruments as instruments_module
 from backend.config import config
 from backend.routes import timeseries_admin
 
@@ -348,3 +353,122 @@ def test_refetch_clears_stale_caches_before_loading(monkeypatch):
 
     assert timeseries_admin.refetch_timeseries("xdeb", "l") == {"status": "ok", "rows": 3}
     assert calls == ["valid", "ts", "load"]
+
+
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [
+        ("2024-01-01", "2024-01-03"),  # Mon-Wed
+        ("2024-01-06", "2024-01-07"),  # Sat-Sun only
+        ("2024-01-05", "2024-01-08"),  # Fri-Mon across a weekend
+        ("2024-01-03", "2024-01-03"),  # single weekday
+        ("2024-01-06", "2024-01-06"),  # single Saturday
+        ("2015-03-02", "2026-10-13"),  # a decade of history
+    ],
+)
+def test_business_days_matches_bdate_range(start, end):
+    """``np.busday_count`` replaces the slow ``pd.bdate_range`` count (#10754)."""
+    expected = len(pd.bdate_range(start, end))
+    assert timeseries_admin._business_days(pd.Timestamp(start), pd.Timestamp(end)) == expected
+
+
+def _write_series(meta_dir, stem, dates, *, bump_ns=0):
+    path = meta_dir / f"{stem}.parquet"
+    pd.DataFrame({"Date": pd.to_datetime(dates), "Source": ["A"] * len(dates)}).to_parquet(path)
+    if bump_ns:
+        stat = path.stat()
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + bump_ns))
+    return path
+
+
+@pytest.fixture
+def local_series(monkeypatch, tmp_path):
+    """A local data root with one series ABC.L and its instrument file; counts parquet reads."""
+    meta_dir = tmp_path / "timeseries" / "meta"
+    meta_dir.mkdir(parents=True)
+    _write_series(meta_dir, "ABC_L", ["2024-01-01", "2024-01-02", "2024-01-03"])
+    instruments_dir = tmp_path / "instruments"
+    (instruments_dir / "L").mkdir(parents=True)
+    meta_file = instruments_dir / "L" / "ABC.json"
+    meta_file.write_text(json.dumps({"ticker": "ABC.L", "name": "Old name"}), encoding="utf-8")
+
+    monkeypatch.setattr(config, "app_env", "local")
+    monkeypatch.setattr(config, "data_root", tmp_path)
+    monkeypatch.delenv("METADATA_BUCKET", raising=False)
+    monkeypatch.setattr(instruments_module, "_INSTRUMENTS_DIR", instruments_dir)
+
+    reads: list[str] = []
+    real_read = pd.read_parquet
+
+    def counting_read(path, *args, **kwargs):
+        reads.append(Path(path).name)
+        return real_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(timeseries_admin.pd, "read_parquet", counting_read)
+    return meta_dir, meta_file, reads
+
+
+def test_timeseries_admin_reuses_unchanged_summaries(local_series):
+    _, _, reads = local_series
+
+    first = timeseries_admin.timeseries_admin()
+    second = timeseries_admin.timeseries_admin()
+
+    assert reads == ["ABC_L.parquet"]
+    assert second == first
+    assert first[0]["name"] == "Old name"
+
+
+def test_timeseries_admin_rereads_a_rewritten_parquet(local_series):
+    meta_dir, _, reads = local_series
+    timeseries_admin.timeseries_admin()
+
+    _write_series(meta_dir, "ABC_L", ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"], bump_ns=10**9)
+    [summary] = timeseries_admin.timeseries_admin()
+
+    assert summary["latest"] == "2024-01-04"
+    assert reads == ["ABC_L.parquet", "ABC_L.parquet"]
+
+
+def test_timeseries_admin_picks_up_a_renamed_instrument(local_series):
+    _, meta_file, _ = local_series
+    timeseries_admin.timeseries_admin()
+
+    meta_file.write_text(json.dumps({"ticker": "ABC.L", "name": "New name"}), encoding="utf-8")
+    stat = meta_file.stat()
+    os.utime(meta_file, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
+    # As save_instrument_meta does after writing the file.
+    instruments_module.get_instrument_meta.cache_clear()
+
+    assert timeseries_admin.timeseries_admin()[0]["name"] == "New name"
+
+
+def test_timeseries_admin_drops_deleted_series_and_returns_copies(local_series):
+    meta_dir, _, _ = local_series
+    timeseries_admin.timeseries_admin()[0]["name"] = "mutated by caller"
+    assert timeseries_admin.timeseries_admin()[0]["name"] == "Old name"
+
+    (meta_dir / "ABC_L.parquet").unlink()
+    assert timeseries_admin.timeseries_admin() == []
+    assert timeseries_admin._SUMMARY_CACHE == {}
+
+
+def test_timeseries_admin_caches_empty_series_as_skipped(local_series):
+    meta_dir, _, reads = local_series
+    pd.DataFrame({"Date": pd.Series([], dtype="datetime64[ns]")}).to_parquet(meta_dir / "EMPTY_L.parquet")
+
+    for _ in range(2):
+        assert [s["ticker"] for s in timeseries_admin.timeseries_admin()] == ["ABC"]
+    assert reads.count("EMPTY_L.parquet") == 1
+
+
+def test_timeseries_admin_does_not_cache_with_s3_metadata(local_series, monkeypatch):
+    """Metadata served from S3 can change without the local file changing."""
+    _, _, reads = local_series
+    monkeypatch.setenv("METADATA_BUCKET", "bucket")
+    monkeypatch.setattr(timeseries_admin, "get_instrument_meta", lambda *_: {"name": "S3 name"})
+
+    timeseries_admin.timeseries_admin()
+    timeseries_admin.timeseries_admin()
+
+    assert reads == ["ABC_L.parquet", "ABC_L.parquet"]

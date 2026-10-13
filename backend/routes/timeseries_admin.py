@@ -1,14 +1,18 @@
 import io
 import logging
 import os
+import threading
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends
 
 from backend.auth import get_current_user
-from backend.common.instruments import get_instrument_meta
+from backend.common.file_signature import FileSignature, file_signature
+from backend.common.instruments import METADATA_BUCKET_ENV, get_instrument_meta, instrument_meta_path
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
@@ -22,13 +26,39 @@ from backend.timeseries.ticker_validator import is_valid_ticker
 router = APIRouter(prefix="/timeseries", tags=["timeseries"], dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
 
+# Summary per local parquet, reused while neither the parquet nor the
+# instrument's metadata file has changed (#10754): re-reading ~1,000 parquets
+# on every visit made GET /timeseries/admin take ~50s. Keyed by parquet path;
+# the value is ``(signature, summary)`` and a ``None`` summary marks an empty
+# series.
+_SummarySignature = tuple[FileSignature, FileSignature]
+_SUMMARY_CACHE: dict[Path, tuple[_SummarySignature, dict[str, Any] | None]] = {}
+_SUMMARY_CACHE_LOCK = threading.Lock()
+
+
+def clear_summary_cache() -> None:
+    """Forget every cached per-parquet summary."""
+    with _SUMMARY_CACHE_LOCK:
+        _SUMMARY_CACHE.clear()
+
+
+def _business_days(earliest: pd.Timestamp, latest: pd.Timestamp) -> int:
+    """Weekdays from ``earliest`` to ``latest`` inclusive, like ``len(pd.bdate_range(...))``.
+
+    ``pd.bdate_range`` builds every date in Python and was most of this
+    endpoint's time across ~1,000 series (#10754).
+    """
+    start = pd.Timestamp(earliest).date()
+    end = pd.Timestamp(latest).date() + timedelta(days=1)
+    return int(np.busday_count(start, end)) if end > start else 0
+
 
 def _summarize(df: pd.DataFrame, ticker: str, exchange: str) -> dict[str, Any]:
     """Build a summary dict for a timeseries DataFrame."""
     df = df.sort_values("Date")
     earliest = df["Date"].min()
     latest = df["Date"].max()
-    bdays = len(pd.bdate_range(earliest, latest)) or 1
+    bdays = _business_days(earliest, latest) or 1
     completeness = len(df) / bdays * 100
     latest_source = df.iloc[-1]["Source"] if "Source" in df.columns else None
     main_source = (
@@ -98,20 +128,53 @@ def timeseries_admin() -> list[dict[str, Any]]:
     base = config.data_root / "timeseries" / "meta"
     if not base.exists():
         return summaries
-    for path in sorted(base.glob("*.parquet")):
+    paths = sorted(base.glob("*.parquet"))
+    for path in paths:
         stem = path.stem
         if "_" not in stem:
             continue
         ticker, exchange = stem.rsplit("_", 1)
-        try:
-            df = _ensure_schema(pd.read_parquet(path))
-        except (OSError, ValueError) as exc:  # pragma: no cover - defensive
-            logger.warning("Failed to load %s: %s", path, sanitise_log_value(exc))
-            continue
-        if df.empty:
-            continue
-        summaries.append(_summarize(df, ticker, exchange))
+        summary = _local_summary(path, ticker, exchange)
+        if summary is not None:
+            summaries.append(summary)
+    _prune_summary_cache(set(paths))
     return summaries
+
+
+def _meta_signature(ticker: str, exchange: str) -> FileSignature:
+    try:
+        return file_signature(instrument_meta_path(ticker, exchange))
+    except ValueError:
+        return None
+
+
+def _local_summary(path: Path, ticker: str, exchange: str) -> dict[str, Any] | None:
+    """Summary for one local parquet, served from the cache while its files are unchanged."""
+    # Metadata read from S3 can change without the local file changing.
+    cacheable = not os.getenv(METADATA_BUCKET_ENV)
+    signature = (file_signature(path), _meta_signature(ticker, exchange))
+    if cacheable:
+        with _SUMMARY_CACHE_LOCK:
+            cached = _SUMMARY_CACHE.get(path)
+        if cached is not None and cached[0] == signature:
+            return dict(cached[1]) if cached[1] is not None else None
+    try:
+        df = _ensure_schema(pd.read_parquet(path))
+    except (OSError, ValueError) as exc:  # pragma: no cover - defensive
+        logger.warning("Failed to load %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
+        return None
+    summary = None if df.empty else _summarize(df, ticker, exchange)
+    if cacheable:
+        with _SUMMARY_CACHE_LOCK:
+            _SUMMARY_CACHE[path] = (signature, summary)
+    return dict(summary) if summary is not None else None
+
+
+def _prune_summary_cache(present: set[Path]) -> None:
+    """Forget summaries for parquets that no longer exist."""
+    with _SUMMARY_CACHE_LOCK:
+        for stale in [p for p in _SUMMARY_CACHE if p not in present]:
+            del _SUMMARY_CACHE[stale]
 
 
 @router.post("/admin/{ticker}/{exchange}/refetch")

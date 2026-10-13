@@ -4,6 +4,7 @@ import importlib.util
 import inspect
 import os
 import shutil
+import sys
 from pathlib import Path
 
 try:
@@ -133,6 +134,25 @@ def isolate_prices_json(tmp_path_factory):
     config.prices_json = tmp_prices_json
     portfolio_utils._PRICES_PATH = tmp_prices_json
     yield tmp_prices_json
+
+
+@pytest.fixture(autouse=True)
+def clear_admin_file_caches():
+    """Drop the per-file admin caches (#10754) so no test sees another's parsed files.
+
+    Tests often monkeypatch the loaders while the files on disk stay the same,
+    which a cache keyed on file mtime/size would otherwise paper over. Only
+    modules a test already imported are cleared, so this adds no import cost.
+    """
+    yield
+    for module_name, clear_name in (
+        ("backend.common.instruments", "clear_list_instruments_cache"),
+        ("backend.routes.timeseries_admin", "clear_summary_cache"),
+        ("backend.data_quality.issues", "clear_series_issue_cache"),
+    ):
+        module = sys.modules.get(module_name)
+        if module is not None:
+            getattr(module, clear_name)()
 
 
 @pytest.fixture(autouse=True)

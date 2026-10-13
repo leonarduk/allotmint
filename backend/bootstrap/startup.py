@@ -93,6 +93,13 @@ class AppLifecycleService:
         if nav_task is not None:
             app.state.background_tasks.append(nav_task)
 
+        # Fill the admin pages' per-file caches off the event loop so the first
+        # Data Admin / Instrument Admin / Data Quality visit is fast (#10754).
+        from backend.bootstrap.admin_cache_warm import should_warm_admin_caches
+
+        if should_warm_admin_caches(self.cfg):
+            app.state.background_tasks.append(asyncio.create_task(self._warm_admin_caches_background()))
+
     async def shutdown(self, app: FastAPI) -> None:
         tasks = list(getattr(app.state, "background_tasks", []))
         for task in tasks:
@@ -168,6 +175,17 @@ class AppLifecycleService:
             # network unavailable on Lambda cold start) the app should still serve
             # requests.
             logger.exception("Failed to prime latest prices from warmed snapshot")
+
+    @staticmethod
+    async def _warm_admin_caches_background() -> None:
+        from backend.bootstrap.admin_cache_warm import warm_admin_caches
+
+        try:
+            with _timed_phase("admin_cache_warm"):
+                await asyncio.to_thread(warm_admin_caches)
+        except Exception:
+            # Non-fatal: the caches fill on the first request instead.
+            logger.exception("Failed to warm admin page caches")
 
     @staticmethod
     def _flush_logging() -> None:

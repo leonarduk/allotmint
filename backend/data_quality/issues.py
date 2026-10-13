@@ -12,18 +12,27 @@ Read path contract (mirrors backend/routes/data_quality.py):
 
 from __future__ import annotations
 
+import copy
 import logging
+import os
 import re
+import threading
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Sequence
+from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 
 import pandas as pd
 
+from backend.common.file_signature import FileSignature, file_signature
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, enrich_holding
 from backend.common.instrument_classification import ASSET_CLASSES, normalise_asset_class
-from backend.common.instruments import get_instrument_meta, resolve_instrument_ticker
+from backend.common.instruments import (
+    METADATA_BUCKET_ENV,
+    get_instrument_meta,
+    instrument_meta_path,
+    resolve_instrument_ticker,
+)
 from backend.config import config
 from backend.data_quality import price_scale
 from backend.logging_setup import sanitise_log_value
@@ -32,20 +41,30 @@ from backend.timeseries.cache import (
     has_cached_meta_timeseries,
     list_cached_meta_tickers,
     load_cached_meta_timeseries_full,
+    meta_timeseries_cache_path,
 )
-from backend.timeseries.corporate_actions import SPLIT, load_corporate_actions
+from backend.timeseries.corporate_actions import SPLIT, corporate_actions_path, load_corporate_actions
 from backend.timeseries.quality import (
     DEFAULT_GAP_THRESHOLD_DAYS,
     DEFAULT_OUTLIER_SIGMA,
     DEFAULT_ROLLING_WINDOW,
     compute_quality,
 )
-from backend.utils.timeseries_helpers import get_scaling_override, invalid_scaling_override
+from backend.utils.timeseries_helpers import (
+    get_scaling_override,
+    invalid_scaling_override,
+    scaling_override_paths,
+)
 
 logger = logging.getLogger(__name__)
 
 # A cached series is STALE when its last date is older than this many days.
 DEFAULT_STALE_SERIES_MAX_AGE_DAYS = 10
+
+# An OUTLIERS preview lists only the most recent points; the description
+# carries the full count. Listing every point made GET /data-quality/issues
+# ~2 MB, most of it outlier previews (#10754).
+MAX_PREVIEW_OUTLIERS = 20
 
 _NON_HOLDINGS_FILES = frozenset({"person.json", "settings.json", "approvals.json"})
 
@@ -679,6 +698,67 @@ def single_day_move_suspect(
     )
 
 
+@dataclass(frozen=True)
+class _SeriesCheckOptions:
+    stale_max_age_days: int
+    gap_threshold_days: int
+    outlier_sigma: float
+    rolling_window: int
+    large_move_threshold: float
+
+
+# Issues per cached series, reused while none of the inputs they are derived
+# from has changed (#10754): re-checking ~1,000 series on every visit made
+# GET /data-quality/issues take well over a minute. Keyed by (ticker,
+# exchange); the value is ``(key, issues)`` with ``key`` from
+# :func:`_series_cache_key`.
+_SERIES_ISSUE_CACHE: dict[tuple[str, str], tuple[tuple[Any, ...], list[DataQualityIssue]]] = {}
+_SERIES_ISSUE_CACHE_LOCK = threading.Lock()
+
+
+def clear_series_issue_cache() -> None:
+    """Forget every cached per-series result."""
+    with _SERIES_ISSUE_CACHE_LOCK:
+        _SERIES_ISSUE_CACHE.clear()
+
+
+def _signature_of(path_fn: Callable[[str, str], Any], ticker: str, exchange: str) -> FileSignature:
+    try:
+        return file_signature(path_fn(ticker, exchange))
+    except ValueError:
+        return None
+
+
+def _series_cache_key(
+    ticker: str,
+    exchange: str,
+    *,
+    today: date,
+    tracked: bool,
+    options: _SeriesCheckOptions,
+    overrides: tuple[FileSignature, ...],
+) -> tuple[Any, ...] | None:
+    """Everything one series' issues depend on, or ``None`` when they must not be cached.
+
+    A series with no local parquet (S3) or metadata read from S3 is never
+    cached: its inputs can change without a local file changing.
+    """
+    if config.app_env == "aws" or os.getenv(METADATA_BUCKET_ENV):
+        return None
+    series = _signature_of(meta_timeseries_cache_path, ticker, exchange)
+    if series is None:
+        return None
+    return (
+        series,
+        _signature_of(corporate_actions_path, ticker, exchange),
+        _signature_of(instrument_meta_path, ticker, exchange),
+        overrides,
+        today,
+        tracked,
+        options,
+    )
+
+
 def aggregate_series_issues(
     *,
     stale_max_age_days: int = DEFAULT_STALE_SERIES_MAX_AGE_DAYS,
@@ -694,160 +774,224 @@ def aggregate_series_issues(
 
     A stale series is ``STALE_SERIES`` only when the scheduled refresh is
     responsible for it; otherwise it is ``UNTRACKED_STALE_SERIES`` (#8599).
+
+    Each series' issues are cached until its parquet, corporate actions,
+    instrument metadata or the scaling-override tables change, or the day,
+    its tracked status or the options differ, so a repeat visit re-checks
+    only the series that changed.
     """
     issues: list[DataQualityIssue] = []
     today = date.today()
     tracked = _tracked_series_keys(accounts_root)
+    options = _SeriesCheckOptions(
+        stale_max_age_days=stale_max_age_days,
+        gap_threshold_days=gap_threshold_days,
+        outlier_sigma=outlier_sigma,
+        rolling_window=rolling_window,
+        large_move_threshold=large_move_threshold,
+    )
+    overrides = tuple(file_signature(p) for p in scaling_override_paths())
+    seen: set[tuple[str, str]] = set()
     for ticker, exchange in list_cached_meta_tickers():
+        seen.add((ticker, exchange))
+        key = _series_cache_key(
+            ticker,
+            exchange,
+            today=today,
+            tracked=_is_tracked(ticker, exchange, tracked),
+            options=options,
+            overrides=overrides,
+        )
+        if key is not None:
+            with _SERIES_ISSUE_CACHE_LOCK:
+                cached = _SERIES_ISSUE_CACHE.get((ticker, exchange))
+            if cached is not None and cached[0] == key:
+                issues.extend(copy.deepcopy(cached[1]))
+                continue
         try:
             df = load_cached_meta_timeseries_full(ticker, exchange)
         except Exception:
             continue
-        if df is None or df.empty:
-            continue
-
-        quality = compute_quality(
-            df,
-            ticker,
-            exchange,
-            gap_threshold_days=gap_threshold_days,
-            outlier_sigma=outlier_sigma,
-            rolling_window=rolling_window,
-        )
-        meta = get_instrument_meta(f"{ticker}.{exchange}")
-        has_meta = bool(meta and meta.get("name"))
-        entity: dict[str, Any] = {"ticker": ticker, "exchange": exchange}
-
-        if not has_meta:
-            issues.append(
-                DataQualityIssue(
-                    id=_issue_id(IssueType.MISSING_METADATA, ticker, exchange),
-                    type=IssueType.MISSING_METADATA,
-                    severity=SEVERITY[IssueType.MISSING_METADATA],
-                    entity=entity,
-                    description=(f"Cached series {ticker}.{exchange} has no instrument metadata."),
-                    suggested_fix="Auto-create metadata via refresh.",
-                    preview={
-                        "before": {"metadata": "missing"},
-                        "after": {"metadata": "created"},
-                    },
-                    fix_payload={
-                        "kind": "missing_metadata",
-                        "ticker": ticker,
-                        "exchange": exchange,
-                    },
-                )
-            )
-
-        closes = price_scale.close_series(df)
-        split_dates = _split_dates(ticker, exchange)
-        move_threshold = price_scale.large_move_threshold(meta, large_move_threshold)
-        for detected in (
-            _price_scale_issue(ticker, exchange, closes, meta, split_dates),
-            _large_move_issue(ticker, exchange, closes, move_threshold, split_dates),
-            single_day_move_suspect(ticker, exchange, closes, move_threshold, split_dates),
-        ):
-            if detected is not None:
-                issues.append(detected)
-
-        if quality.get("gap_count", 0) > 0:
-            issues.append(
-                DataQualityIssue(
-                    id=_issue_id(IssueType.GAPS, ticker, exchange),
-                    type=IssueType.GAPS,
-                    severity=SEVERITY[IssueType.GAPS],
-                    entity=entity,
-                    description=(
-                        f"{quality['gap_count']} gap(s) in {ticker}.{exchange} "
-                        f"covering {len(quality.get('gaps', []))} period(s)."
-                    ),
-                    suggested_fix="Refetch / fill the missing range.",
-                    preview={
-                        "before": {"gap_count": quality["gap_count"]},
-                        "after": {"gap_count": 0},
-                    },
-                    fix_payload={
-                        "kind": "refetch",
-                        "ticker": ticker,
-                        "exchange": exchange,
-                    },
-                )
-            )
-
-        duplicate_dates = quality.get("duplicate_dates", [])
-        if duplicate_dates:
-            issues.append(
-                DataQualityIssue(
-                    id=_issue_id(IssueType.DUPLICATES, ticker, exchange),
-                    type=IssueType.DUPLICATES,
-                    severity=SEVERITY[IssueType.DUPLICATES],
-                    entity=entity,
-                    description=(f"{len(duplicate_dates)} duplicate date(s) in " f"{ticker}.{exchange} cache."),
-                    suggested_fix="Dedupe cache (keep latest row per date).",
-                    preview={
-                        "before": {"duplicate_dates": duplicate_dates},
-                        "after": {"duplicate_dates": []},
-                    },
-                    fix_payload={
-                        "kind": "dedupe",
-                        "ticker": ticker,
-                        "exchange": exchange,
-                    },
-                )
-            )
-
-        outliers = quality.get("outliers", [])
-        if outliers:
-            issues.append(
-                DataQualityIssue(
-                    id=_issue_id(IssueType.OUTLIERS, ticker, exchange),
-                    type=IssueType.OUTLIERS,
-                    severity=SEVERITY[IssueType.OUTLIERS],
-                    entity=entity,
-                    description=(f"{len(outliers)} outlier point(s) in {ticker}.{exchange}."),
-                    suggested_fix="Review/edit points in the Time Series editor.",
-                    preview={
-                        "before": {"outliers": outliers},
-                        "after": {"reviewed": True},
-                    },
-                    fixable=False,
-                )
-            )
-
-        last_date = quality.get("last_date")
-        if last_date is not None:
-            last = last_date if isinstance(last_date, date) else date.fromisoformat(str(last_date))
-            age_days = (today - last).days
-            if age_days > stale_max_age_days:
-                issues.append(_stale_series_issue(ticker, exchange, last, age_days, tracked))
-
-        # Ticker column in the cache rows must match the cache key.
-        if "Ticker" in df.columns:
-            row_tickers = {str(v).strip().upper() for v in df["Ticker"].dropna().unique() if str(v).strip()}
-            if row_tickers and row_tickers != {ticker}:
-                issues.append(
-                    DataQualityIssue(
-                        id=_issue_id(IssueType.TICKER_MISMATCH, ticker, exchange),
-                        type=IssueType.TICKER_MISMATCH,
-                        severity=SEVERITY[IssueType.TICKER_MISMATCH],
-                        entity=entity,
-                        description=(
-                            f"Cache rows for {ticker}.{exchange} carry ticker "
-                            f"value(s) {sorted(row_tickers)} instead of {ticker}."
-                        ),
-                        suggested_fix="Normalize rows to the cache key.",
-                        preview={
-                            "before": {"tickers": sorted(row_tickers)},
-                            "after": {"tickers": [ticker]},
-                        },
-                        fix_payload={
-                            "kind": "ticker_mismatch",
-                            "ticker": ticker,
-                            "exchange": exchange,
-                        },
-                    )
-                )
+        found = _series_issues(ticker, exchange, df, today=today, tracked=tracked, options=options)
+        if key is not None:
+            with _SERIES_ISSUE_CACHE_LOCK:
+                _SERIES_ISSUE_CACHE[(ticker, exchange)] = (key, copy.deepcopy(found))
+        issues.extend(found)
+    with _SERIES_ISSUE_CACHE_LOCK:
+        for gone in [k for k in _SERIES_ISSUE_CACHE if k not in seen]:
+            del _SERIES_ISSUE_CACHE[gone]
     return issues
+
+
+def _series_issues(
+    ticker: str,
+    exchange: str,
+    df: pd.DataFrame | None,
+    *,
+    today: date,
+    tracked: tuple[set[str], set[str]] | None,
+    options: _SeriesCheckOptions,
+) -> list[DataQualityIssue]:
+    """All series-side issues for one cached series, in a stable order."""
+    if df is None or df.empty:
+        return []
+    quality = compute_quality(
+        df,
+        ticker,
+        exchange,
+        gap_threshold_days=options.gap_threshold_days,
+        outlier_sigma=options.outlier_sigma,
+        rolling_window=options.rolling_window,
+    )
+    meta = get_instrument_meta(f"{ticker}.{exchange}")
+    closes = price_scale.close_series(df)
+    split_dates = _split_dates(ticker, exchange)
+    move_threshold = price_scale.large_move_threshold(meta, options.large_move_threshold)
+    detected = (
+        None if meta and meta.get("name") else _missing_metadata_issue(ticker, exchange),
+        _price_scale_issue(ticker, exchange, closes, meta, split_dates),
+        _large_move_issue(ticker, exchange, closes, move_threshold, split_dates),
+        single_day_move_suspect(ticker, exchange, closes, move_threshold, split_dates),
+        _gaps_issue(ticker, exchange, quality),
+        _duplicates_issue(ticker, exchange, quality),
+        _outliers_issue(ticker, exchange, quality),
+        _stale_issue(ticker, exchange, quality, today, options.stale_max_age_days, tracked),
+        _ticker_mismatch_issue(ticker, exchange, df),
+    )
+    return [issue for issue in detected if issue is not None]
+
+
+def _missing_metadata_issue(ticker: str, exchange: str) -> DataQualityIssue:
+    return DataQualityIssue(
+        id=_issue_id(IssueType.MISSING_METADATA, ticker, exchange),
+        type=IssueType.MISSING_METADATA,
+        severity=SEVERITY[IssueType.MISSING_METADATA],
+        entity={"ticker": ticker, "exchange": exchange},
+        description=(f"Cached series {ticker}.{exchange} has no instrument metadata."),
+        suggested_fix="Auto-create metadata via refresh.",
+        preview={
+            "before": {"metadata": "missing"},
+            "after": {"metadata": "created"},
+        },
+        fix_payload={
+            "kind": "missing_metadata",
+            "ticker": ticker,
+            "exchange": exchange,
+        },
+    )
+
+
+def _gaps_issue(ticker: str, exchange: str, quality: Mapping[str, Any]) -> DataQualityIssue | None:
+    if quality.get("gap_count", 0) <= 0:
+        return None
+    return DataQualityIssue(
+        id=_issue_id(IssueType.GAPS, ticker, exchange),
+        type=IssueType.GAPS,
+        severity=SEVERITY[IssueType.GAPS],
+        entity={"ticker": ticker, "exchange": exchange},
+        description=(
+            f"{quality['gap_count']} gap(s) in {ticker}.{exchange} "
+            f"covering {len(quality.get('gaps', []))} period(s)."
+        ),
+        suggested_fix="Refetch / fill the missing range.",
+        preview={
+            "before": {"gap_count": quality["gap_count"]},
+            "after": {"gap_count": 0},
+        },
+        fix_payload={
+            "kind": "refetch",
+            "ticker": ticker,
+            "exchange": exchange,
+        },
+    )
+
+
+def _duplicates_issue(ticker: str, exchange: str, quality: Mapping[str, Any]) -> DataQualityIssue | None:
+    duplicate_dates = quality.get("duplicate_dates", [])
+    if not duplicate_dates:
+        return None
+    return DataQualityIssue(
+        id=_issue_id(IssueType.DUPLICATES, ticker, exchange),
+        type=IssueType.DUPLICATES,
+        severity=SEVERITY[IssueType.DUPLICATES],
+        entity={"ticker": ticker, "exchange": exchange},
+        description=(f"{len(duplicate_dates)} duplicate date(s) in " f"{ticker}.{exchange} cache."),
+        suggested_fix="Dedupe cache (keep latest row per date).",
+        preview={
+            "before": {"duplicate_dates": duplicate_dates},
+            "after": {"duplicate_dates": []},
+        },
+        fix_payload={
+            "kind": "dedupe",
+            "ticker": ticker,
+            "exchange": exchange,
+        },
+    )
+
+
+def _outliers_issue(ticker: str, exchange: str, quality: Mapping[str, Any]) -> DataQualityIssue | None:
+    outliers = quality.get("outliers", [])
+    if not outliers:
+        return None
+    return DataQualityIssue(
+        id=_issue_id(IssueType.OUTLIERS, ticker, exchange),
+        type=IssueType.OUTLIERS,
+        severity=SEVERITY[IssueType.OUTLIERS],
+        entity={"ticker": ticker, "exchange": exchange},
+        description=(f"{len(outliers)} outlier point(s) in {ticker}.{exchange}."),
+        suggested_fix="Review/edit points in the Time Series editor.",
+        preview={
+            "before": {"outliers": outliers[-MAX_PREVIEW_OUTLIERS:], "outlier_count": len(outliers)},
+            "after": {"reviewed": True},
+        },
+        fixable=False,
+    )
+
+
+def _stale_issue(
+    ticker: str,
+    exchange: str,
+    quality: Mapping[str, Any],
+    today: date,
+    stale_max_age_days: int,
+    tracked: tuple[set[str], set[str]] | None,
+) -> DataQualityIssue | None:
+    last_date = quality.get("last_date")
+    if last_date is None:
+        return None
+    last = last_date if isinstance(last_date, date) else date.fromisoformat(str(last_date))
+    age_days = (today - last).days
+    if age_days <= stale_max_age_days:
+        return None
+    return _stale_series_issue(ticker, exchange, last, age_days, tracked)
+
+
+def _ticker_mismatch_issue(ticker: str, exchange: str, df: pd.DataFrame) -> DataQualityIssue | None:
+    """Flag cache rows whose Ticker column does not match the cache key."""
+    if "Ticker" not in df.columns:
+        return None
+    row_tickers = {str(v).strip().upper() for v in df["Ticker"].dropna().unique() if str(v).strip()}
+    if not row_tickers or row_tickers == {ticker}:
+        return None
+    return DataQualityIssue(
+        id=_issue_id(IssueType.TICKER_MISMATCH, ticker, exchange),
+        type=IssueType.TICKER_MISMATCH,
+        severity=SEVERITY[IssueType.TICKER_MISMATCH],
+        entity={"ticker": ticker, "exchange": exchange},
+        description=(
+            f"Cache rows for {ticker}.{exchange} carry ticker " f"value(s) {sorted(row_tickers)} instead of {ticker}."
+        ),
+        suggested_fix="Normalize rows to the cache key.",
+        preview={
+            "before": {"tickers": sorted(row_tickers)},
+            "after": {"tickers": [ticker]},
+        },
+        fix_payload={
+            "kind": "ticker_mismatch",
+            "ticker": ticker,
+            "exchange": exchange,
+        },
+    )
 
 
 def aggregate_issues(

@@ -118,10 +118,10 @@ export default function Support() {
   const [savedMcpTools, setSavedMcpTools] = useState<Record<string, boolean>>({});
   const [mcpError, setMcpError] = useState<string | null>(null);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
-  // A picked owner wins; until then follow the signed-in user (#10815).
+  // A picked owner wins while it is still listed; otherwise follow the
+  // signed-in user (#10815).
   const [pickedOwner, setOwner] = useState("");
-  const defaultOwner = useDefaultOwner(owners);
-  const owner = pickedOwner || defaultOwner;
+  const owner = useDefaultOwner(owners, pickedOwner);
   const [health, setHealth] = useState<Finding[]>([]);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [healthRunning, setHealthRunning] = useState(false);

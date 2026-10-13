@@ -141,6 +141,47 @@ describe("TimeseriesEdit page", () => {
     );
   });
 
+  async function loadDailySeries(length: number) {
+    const start = Date.UTC(2013, 0, 1);
+    const rows = Array.from({ length }, (_, i) => ({
+      Date: new Date(start + i * 86_400_000).toISOString().slice(0, 10),
+      Close: i,
+    }));
+    (getTimeseries as unknown as vi.Mock).mockResolvedValue(rows);
+    renderWithI18n(<TimeseriesEdit />);
+    fireEvent.change(screen.getByLabelText("Ticker"), {
+      target: { value: "ABC" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /load/i }));
+    expect(await screen.findByText(`Loaded ${length} rows`)).toBeInTheDocument();
+    return rows;
+  }
+
+  it("jumps to the page holding a newly added row", async () => {
+    await loadDailySeries(120);
+    fireEvent.click(screen.getByRole("button", { name: /add row/i }));
+    expect(
+      screen.getByText("Page 3 of 3 (rows 101–121 of 121)"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Date for undated row 121")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
+    expect(
+      screen.getByText("Page 2 of 3 (rows 51–100 of 121)"),
+    ).toBeInTheDocument();
+  });
+
+  it("stays on the current page after deleting a row", async () => {
+    const rows = await loadDailySeries(120);
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    const target = rows[rows.length - 51].Date;
+    fireEvent.click(screen.getByRole("button", { name: `Delete on ${target}` }));
+    expect(screen.queryByLabelText(`Close on ${target}`)).toBeNull();
+    expect(
+      screen.getByText("Page 2 of 3 (rows 51–100 of 119)"),
+    ).toBeInTheDocument();
+  });
+
   it("prefills ticker and exchange from URL", async () => {
     const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
     getTimeseriesMock.mockResolvedValue([]);

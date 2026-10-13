@@ -706,9 +706,12 @@ export function TimeseriesEdit() {
                   ? trimmedTicker
                   : `${trimmedTicker}.${exchange}`
                 : trimmedTicker;
-            // Undated rows sort last in either direction; jump to the last
-            // page (clamped on render) so the new row is visible.
-            setPage(Number.MAX_SAFE_INTEGER);
+            // Undated rows sort last in either direction, so jump to the page
+            // the new row lands on. An active date filter hides undated rows,
+            // so stay put in that case.
+            if (!startDate && !endDate) {
+              setPage(Math.floor(displayRows.length / TIMESERIES_PAGE_SIZE));
+            }
             setRows((rs) => [
               ...rs,
               {

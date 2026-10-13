@@ -26,6 +26,8 @@ import type {
 } from '../types';
 import i18n from '../i18n';
 import { useGroupedOwners } from '../hooks/useGroupedOwners';
+import { useAuth } from '../AuthContext';
+import { pickDefaultOwner } from '../utils/owners';
 import {
   buildPlotSnapshot,
   type AllowanceMap,
@@ -230,7 +232,10 @@ async function loadProgress(): Promise<ProgressState> {
 }
 
 interface PlotDataProviderProps {
-  /** Owner to show; when omitted the first owner from /owners is used. */
+  /**
+   * Owner to show; when omitted the signed-in user's owner is used, falling
+   * back to the first owner from /owners (#10753).
+   */
   requestedOwner?: string | null;
   children: ReactNode;
 }
@@ -247,6 +252,13 @@ export function PlotDataProvider({
     'pending' | 'ready' | 'error'
   >('pending');
   const [owner, setOwner] = useState(requestedOwner ?? '');
+  // Read through a ref so a user change doesn't refetch /owners.
+  const { user } = useAuth();
+  const userRef = useRef(user);
+  userRef.current = user;
+  // The owner this provider last picked by default (not via ?owner= or the
+  // picker), so a late-arriving signed-in user can still replace it (#10753).
+  const autoOwnerRef = useRef<string | null>(null);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [allowances, setAllowances] = useState<AllowanceMap | null>(null);
   const [allowancesUnavailable, setAllowancesUnavailable] = useState(false);
@@ -270,7 +282,9 @@ export function PlotDataProvider({
         if (cancelled) return;
         setOwners(list);
         setOwnersStatus('ready');
-        setOwner((current) => current || list[0]?.owner || '');
+        const initial = pickDefaultOwner(list, userRef.current);
+        autoOwnerRef.current = initial;
+        setOwner((current) => current || initial);
       })
       .catch(() => {
         // Owner discovery failing is not fatal on its own: an explicit
@@ -283,6 +297,17 @@ export function PlotDataProvider({
       cancelled = true;
     };
   }, [reloadToken]);
+
+  // Re-resolve a default-picked owner when the signed-in user changes (e.g.
+  // auth settling after /owners resolved). An explicit ?owner= or a picker
+  // choice differs from autoOwnerRef and is left alone.
+  useEffect(() => {
+    if (requestedOwner || ownersStatus !== 'ready') return;
+    if (owner && owner !== autoOwnerRef.current) return;
+    const next = pickDefaultOwner(owners, user);
+    autoOwnerRef.current = next;
+    if (next !== owner) setOwner(next);
+  }, [owners, ownersStatus, user, requestedOwner, owner]);
 
   // `/groups` defines the real household membership (e.g. "adults",
   // "children"); it is what keeps accounts with no household membership —

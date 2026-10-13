@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import ScenarioTester from "@/pages/ScenarioTester";
+import { AuthContext } from "@/AuthContext";
 
 // Create mocks before vi.mock call
 const mockGetEvents = vi.fn();
@@ -25,6 +26,29 @@ const renderPage = () =>
       <ScenarioTester />
     </MemoryRouter>,
   );
+
+const renderPageAs = (email: string) =>
+  render(
+    <AuthContext.Provider
+      value={{
+        user: { email },
+        setUser: () => {},
+        logout: null,
+        setLogout: () => {},
+        demoReadOnly: false,
+        setDemoReadOnly: () => {},
+      }}
+    >
+      <MemoryRouter>
+        <ScenarioTester />
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  );
+
+const familyOwners = [
+  { owner: "alex", full_name: "Alex Leonard", email: "alex@example.com", accounts: ["isa"] },
+  { owner: "steve", full_name: "Steve Leonard", email: "steve@example.com", accounts: ["isa"] },
+];
 
 describe("ScenarioTester page", () => {
   beforeEach(() => {
@@ -243,6 +267,56 @@ describe("ScenarioTester page", () => {
     // And no further requests should fire once the retry succeeds.
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mockGetPortfolio).toHaveBeenCalledTimes(2);
+  });
+
+  it("defaults the stress-test owner to the signed-in user (#10815)", async () => {
+    mockGetOwners.mockResolvedValueOnce(familyOwners);
+
+    renderPageAs("steve@example.com");
+
+    const owner = (await screen.findByLabelText(
+      "Stress test portfolio:",
+    )) as HTMLSelectElement;
+    await waitFor(() => expect(owner.value).toBe("steve"));
+  });
+
+  it("keeps an explicit stress-test owner choice over the signed-in user (#10815)", async () => {
+    mockGetOwners.mockResolvedValueOnce(familyOwners);
+
+    renderPageAs("steve@example.com");
+
+    const owner = (await screen.findByLabelText(
+      "Stress test portfolio:",
+    )) as HTMLSelectElement;
+    await waitFor(() => expect(owner.value).toBe("steve"));
+    fireEvent.change(owner, { target: { value: "alex" } });
+    expect(owner.value).toBe("alex");
+  });
+
+  it("keeps the first selected portfolio ahead of the signed-in user (#10815)", async () => {
+    localStorage.setItem("scenario.selectedOwners", JSON.stringify(["alex"]));
+    mockGetOwners.mockResolvedValueOnce(familyOwners);
+    mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
+
+    renderPageAs("steve@example.com");
+
+    const owner = (await screen.findByLabelText(
+      "Stress test portfolio:",
+    )) as HTMLSelectElement;
+    await screen.findByRole("option", { name: "Steve Leonard" });
+    expect(owner.value).toBe("alex");
+  });
+
+  it("falls back to the first owner when the signed-in user has no owner (#10815)", async () => {
+    mockGetOwners.mockResolvedValueOnce(familyOwners);
+
+    renderPageAs("nobody@example.com");
+
+    const owner = (await screen.findByLabelText(
+      "Stress test portfolio:",
+    )) as HTMLSelectElement;
+    await screen.findByRole("option", { name: "Steve Leonard" });
+    expect(owner.value).toBe("alex");
   });
 
   describe("currency shock", () => {

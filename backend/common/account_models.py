@@ -5,6 +5,22 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+# Owner-directory JSON files that hold metadata rather than an account. Every
+# account-discovery path (local loader, S3 provider, /owners, reconciliation)
+# must share this one set so new metadata files cannot leak in as accounts.
+ACCOUNT_METADATA_STEMS: frozenset[str] = frozenset(
+    {
+        "person",
+        "config",
+        "notes",
+        "settings",
+        "approvals",
+        "approval_requests",
+        "pension-forecast",
+        "pension_forecast",
+    }
+)
+
 
 class OwnerSummaryRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")

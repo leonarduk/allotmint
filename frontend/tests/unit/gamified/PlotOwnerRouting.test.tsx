@@ -289,3 +289,136 @@ describe('Plot routing (#7192)', () => {
     await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('joe'));
   });
 });
+
+describe('Plot default grower (#10753)', () => {
+  it("opens on the signed-in user's owner rather than the first owner", async () => {
+    mocks.getOwners.mockResolvedValue(
+      OWNERS.map((o) => ({ ...o, email: `${o.owner}@example.com` }))
+    );
+    const { AuthContext } = await import('@/AuthContext');
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: 'steve@example.com' },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={['/plot']}>
+          <Routes>
+            <Route path="/plot/*" element={<PlotApp />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('steve'));
+    expect(mocks.getPortfolio).not.toHaveBeenCalledWith('alex');
+    expect(await screen.findByLabelText('Grower')).toHaveValue('steve');
+  });
+
+  it('switches to the signed-in user when auth settles after /owners', async () => {
+    mocks.getOwners.mockResolvedValue(
+      OWNERS.map((o) => ({ ...o, email: `${o.owner}@example.com` }))
+    );
+    const { AuthContext } = await import('@/AuthContext');
+    const tree = (email: string | null) => (
+      <AuthContext.Provider
+        value={{
+          user: email ? { email } : null,
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={['/plot']}>
+          <Routes>
+            <Route path="/plot/*" element={<PlotApp />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+    const { rerender } = render(tree(null));
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('alex'));
+
+    rerender(tree('steve@example.com'));
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('steve'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Grower')).toHaveValue('steve')
+    );
+  });
+
+  it('lets an explicit ?owner= win over the signed-in user', async () => {
+    mocks.getOwners.mockResolvedValue(
+      OWNERS.map((o) => ({ ...o, email: `${o.owner}@example.com` }))
+    );
+    const { AuthContext } = await import('@/AuthContext');
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: 'steve@example.com' },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={['/plot?owner=joe']}>
+          <Routes>
+            <Route path="/plot/*" element={<PlotApp />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('joe'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Grower')).toHaveValue('joe')
+    );
+    expect(mocks.getPortfolio).not.toHaveBeenCalledWith('steve');
+  });
+
+  it('keeps a manually picked grower when auth settles afterwards', async () => {
+    mocks.getOwners.mockResolvedValue(
+      OWNERS.map((o) => ({ ...o, email: `${o.owner}@example.com` }))
+    );
+    const { AuthContext } = await import('@/AuthContext');
+    const tree = (email: string | null) => (
+      <AuthContext.Provider
+        value={{
+          user: email ? { email } : null,
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={['/plot']}>
+          <Routes>
+            <Route path="/plot/*" element={<PlotApp />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+    const { rerender } = render(tree(null));
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('alex'));
+
+    fireEvent.change(await screen.findByLabelText('Grower'), {
+      target: { value: 'joe' },
+    });
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('joe'));
+
+    rerender(tree('steve@example.com'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Grower')).toHaveValue('joe')
+    );
+    expect(mocks.getPortfolio).not.toHaveBeenCalledWith('steve');
+  });
+});

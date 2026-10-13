@@ -514,7 +514,10 @@
       "change_1w": "Änderung 1W",
       "change_1m": "Änderung 1M",
       "change_1y": "Änderung 1J",
-      "periodChangeHelp": "Kursänderung der aktuell gehaltenen Stücke über die letzten 7 / 30 / 365 Tage (ab Kaufdatum bei Käufen innerhalb des Zeitraums). Keine zeitgewichtete Rendite: Einzahlungen, Trades und Erträge im Zeitraum werden ignoriert. — bedeutet zu wenig Kurshistorie."
+      "periodChangeHelp": "Kursänderung der aktuell gehaltenen Stücke über die letzten 7 / 30 / 365 Tage (ab Kaufdatum bei Käufen innerhalb des Zeitraums). Keine zeitgewichtete Rendite: Einzahlungen, Trades und Erträge im Zeitraum werden ignoriert. — bedeutet zu wenig Kurshistorie.",
+      "totalReturn1y": "Gesamtrendite 1J",
+      "totalReturn1yPct": "Gesamtrendite 1J %",
+      "totalReturnHelp": "Rendite der letzten 365 Tage einschließlich Dividenden und Zinsen, aus der Transaktionshistorie: Kursänderungen plus Erträge, ohne Ein- und Auszahlungen. Der %-Wert ist zeitgewichtet (der 1J-Wert der Performance-Seite). Nur pro Inhaber; — bedeutet keine Transaktionshistorie."
     }
   },
   "holdingsTable": {
@@ -1476,6 +1479,15 @@
   },
   "portfolio": "Portfolio",
   "query": {
+    "columns": {
+      "instrumentType": "Instrumenttyp",
+      "name": "Name",
+      "owner": "Eigentümer",
+      "returnBasis": "Renditebasis",
+      "startValueGbp": "Wert zu Beginn (£)",
+      "ticker": "Ticker",
+      "units": "Stück"
+    },
     "copyLink": "Link kopieren",
     "end": "Ende",
     "exportCsv": "CSV exportieren",
@@ -1498,6 +1510,7 @@
     "saved": "\"{{name}}\" gespeichert.",
     "savedQueriesLoading": "Gespeicherte Abfragen werden geladen…",
     "savedQueriesTitle": "Gespeicherte Abfragen",
+    "selectionRequired": "Wählen Sie mindestens einen Eigentümer und eine Kennzahl aus, um die Abfrage auszuführen.",
     "start": "Start",
     "tickerNotHeld": "derzeit nicht gehalten",
     "tickers": "Ticker",
@@ -1954,6 +1967,15 @@
     },
     "ticker": "Ticker",
     "title": "Zeitreihen-Editor",
+    "grid": {
+      "cellLabel": "{{column}} am {{date}}",
+      "cellLabelUndated": "{{column}} für Zeile {{row}} ohne Datum",
+      "pagination": "Zeilenseiten",
+      "rowsLabel": "Zeilen",
+      "previousPage": "Vorherige Seite",
+      "nextPage": "Nächste Seite",
+      "pageStatus": "Seite {{page}} von {{pages}} (Zeilen {{from}}–{{to}} von {{total}})"
+    },
     "controls": {
       "sort": "Sortieren",
       "sortDesc": "Neueste zuerst",
@@ -3107,6 +3129,10 @@
       "daysHeld": "{{daysHeld}} Tage gehalten",
       "daysRatio": "{{daysHeld}} / {{total}} Tage",
       "notLiftable": "Noch nicht erntereif",
+      "needsApproval": "Genehmigung erforderlich",
+      "needsApprovalHeading": "Genehmigung erforderlich ({{count}})",
+      "needsApprovalNote": "Diese haben ihre Mindesthaltedauer erfüllt; ein Verkauf erfordert eine Genehmigung, die du jetzt beantragen kannst.",
+      "tradingRulesLink": "Handelsregeln öffnen",
       "readyOn": "Bereit am {{date}}",
       "daysToGo": "Noch {{daysRemaining}} Tage",
       "noteIndeterminate": "Fortschritt bis zur Mindesthaltefrist jeder Position, soweit das Backend sie kennt – einige Schalen hier sind als nicht verkäuflich markiert, ohne dass ein Countdown angezeigt werden kann.",
@@ -3178,6 +3204,7 @@
       "held_other": "{{count}} Tage gehalten",
       "inPropagatorUntil": "im Anzuchtkasten bis {{date}}",
       "notYetLiftable": "noch nicht erntereif",
+      "needsApproval": "Genehmigung erforderlich",
       "clearedPropagator": "Anzuchtkasten verlassen am {{date}}",
       "readyToLift": "bereit zur Ernte",
       "notFoundTitle": "Pflanze nicht gefunden",

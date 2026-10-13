@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache, wraps
 from pathlib import Path
@@ -35,6 +35,7 @@ from backend.common import ledger_performance, portfolio_utils
 from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX
 from backend.common.data_providers import PLOTS_PREFIX
 from backend.common.instrument_classification import ASSET_CLASS_LABELS, canonical_asset_class
+from backend.common.realised_gains import compute_disposal_gains
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import cache_only
 
@@ -462,6 +463,8 @@ class ReportData:
     cumulative_return: Optional[float]
     max_drawdown: Optional[float]
     history: List[Dict[str, Any]] = field(default_factory=list)
+    # Sells excluded from ``realized_gains_gbp`` because their cost is unknown.
+    realized_gains_unknown_cost_sells: int = 0
 
     def to_dict(self) -> Dict[str, object]:
         data = {
@@ -469,6 +472,7 @@ class ReportData:
             "start": self.start.isoformat() if self.start else None,
             "end": self.end.isoformat() if self.end else None,
             "realized_gains_gbp": round(self.realized_gains_gbp, 2),
+            "realized_gains_unknown_cost_sells": self.realized_gains_unknown_cost_sells,
             "income_gbp": round(self.income_gbp, 2),
             "cumulative_return": self.cumulative_return,
             "max_drawdown": self.max_drawdown,
@@ -1015,6 +1019,11 @@ def _build_metrics_section(context: ReportContext, section: ReportSectionSchema)
             "units": "GBP",
         },
         {
+            "metric": "Sells with unknown cost (excluded from realized gains)",
+            "value": summary.realized_gains_unknown_cost_sells,
+            "units": "count",
+        },
+        {
             "metric": "Income",
             "value": round(summary.income_gbp, 2),
             "units": "GBP",
@@ -1409,6 +1418,22 @@ def _build_portfolio_concentration_section(
     return holding_rows + [summary_row]
 
 
+def _ledger_sharpe_ratio(context: ReportContext) -> Optional[float]:
+    """Trailing-year Sharpe on the ledger TWR basis (#10801).
+
+    The Periodic summary's Risk figure, so the two reports agree for the same
+    owner and window. ``risk.compute_sharpe_ratio`` is not used: it annualises
+    ``compute_owner_performance`` daily returns, which price today's holdings
+    backwards, so positions bought recently show as jumps in value.
+    """
+    try:
+        perf = context.ledger()
+    except (FileNotFoundError, ValueError):
+        return None
+    rows = report_periodic.risk_rows(perf, context.reporting_end(), config.risk_free_rate or 0.0)
+    return next((row["value"] for row in rows if row.get("key") == "sharpe"), None)
+
+
 def _build_portfolio_var_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     """Unified VaR section builder — single code path for all templates.
 
@@ -1440,10 +1465,7 @@ def _build_portfolio_var_section(context: ReportContext, section: ReportSectionS
         )
     if not rows:
         return []
-    try:
-        sharpe_ratio = risk.compute_sharpe_ratio(context.owner)
-    except (FileNotFoundError, ValueError):
-        sharpe_ratio = None
+    sharpe_ratio = _ledger_sharpe_ratio(context)
     if sharpe_ratio is not None:
         rows.append(
             {
@@ -1857,8 +1879,31 @@ def _load_transactions_s3(owner: str) -> List[dict]:
                     continue
                 txs = data.get("transactions") if isinstance(data, dict) else None
                 if isinstance(txs, list):
-                    by_account[name.removesuffix("_transactions.json").lower()] = txs
+                    by_account[name.removesuffix("_transactions.json").lower()] = _with_disposal_gains(txs)
     return [tx for txs in by_account.values() for tx in txs]
+
+
+_DERIVED_GAIN_FIELDS = ("realised_gain_gbp", "cost_basis_gbp", "proceeds_gbp", "unmatched_units")
+
+
+def _with_disposal_gains(transactions: List[Any]) -> List[dict]:
+    """Copy one account's ledger with each SELL's Section 104 gain attached.
+
+    The same derivation ``GET /transactions`` applies
+    (``routes.transactions._transactions_from_doc``), so the reports' realised
+    gains match the ledger. Stored derived fields are dropped first so a stale
+    value never survives (#10801).
+    """
+    rows = [tx for tx in transactions if isinstance(tx, dict)]
+    gains = compute_disposal_gains(rows)
+    enriched: List[dict] = []
+    for idx, tx in enumerate(rows):
+        row = {key: value for key, value in tx.items() if key not in _DERIVED_GAIN_FIELDS}
+        gain = gains.get(idx)
+        if gain is not None:
+            row.update(asdict(gain))
+        enriched.append(row)
+    return enriched
 
 
 def _load_transactions(owner: str) -> List[dict]:
@@ -1878,7 +1923,7 @@ def _load_transactions(owner: str) -> List[dict]:
                 continue
             txs = data.get("transactions") if isinstance(data, dict) else None
             if isinstance(txs, list):
-                records.extend(txs)
+                records.extend(_with_disposal_gains(txs))
     return records
 
 
@@ -1906,6 +1951,7 @@ def _compile_summary(
 ) -> tuple[ReportData, Dict[str, Any]]:
     txs = _load_transactions(owner)
     realized = 0.0
+    unknown_cost_sells = 0
     income = 0.0
     for t in txs:
         try:
@@ -1916,12 +1962,18 @@ def _compile_summary(
             continue
         if end and d and d.date() > end:
             continue
-        amount = float(t.get("amount_minor") or 0.0) / 100.0
         typ = (t.get("type") or "").upper()
         if typ == "SELL":
-            realized += amount
+            # The Section 104 gain, not the sale proceeds (#10801). A sell
+            # drawing on units of unknown cost has no gain and is counted
+            # instead of guessed.
+            gain = t.get("realised_gain_gbp")
+            if isinstance(gain, (int, float)):
+                realized += float(gain)
+            else:
+                unknown_cost_sells += 1
         elif typ in {"DIVIDEND", "INTEREST"}:
-            income += amount
+            income += float(t.get("amount_minor") or 0.0) / 100.0
 
     perf = portfolio_utils.compute_owner_performance(owner)
     hist = perf.get("history", [])
@@ -1947,6 +1999,7 @@ def _compile_summary(
         end=end,
         realized_gains_gbp=realized,
         income_gbp=income,
+        realized_gains_unknown_cost_sells=unknown_cost_sells,
         cumulative_return=cumulative,
         max_drawdown=max_drawdown,
         history=hist,

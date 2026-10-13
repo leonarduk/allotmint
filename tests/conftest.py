@@ -136,6 +136,16 @@ def isolate_prices_json(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def clear_shared_performance_inputs():
+    """Start each test without performance inputs a previous test's routes cached (#10755)."""
+    from backend.common import portfolio_cache
+
+    portfolio_cache.invalidate_performance_inputs()
+    yield
+    portfolio_cache.invalidate_performance_inputs()
+
+
+@pytest.fixture(autouse=True)
 def isolate_price_triggers(tmp_path, monkeypatch):
     """Keep price-trigger storage off ``data/`` and off any faked S3 bucket."""
     monkeypatch.setenv("PRICE_TRIGGERS_URI", f"file://{tmp_path / 'price_triggers.json'}")
@@ -157,6 +167,12 @@ def isolate_instrument_notes(tmp_path, monkeypatch):
 def isolate_watchlists(tmp_path, monkeypatch):
     """Keep saved watchlists (#10713) off ``data/`` and off any faked S3 bucket."""
     monkeypatch.setenv("WATCHLISTS_STORAGE_URI", str(tmp_path / "watchlists"))
+
+
+@pytest.fixture(autouse=True)
+def isolate_alerts_history(tmp_path, monkeypatch):
+    """Keep persisted recent alerts (#10802) off ``data/`` and off any faked S3 bucket."""
+    monkeypatch.setenv("ALERTS_HISTORY_URI", f"file://{tmp_path / 'alerts' / 'recent_alerts.json'}")
 
 
 @pytest.fixture(autouse=True)

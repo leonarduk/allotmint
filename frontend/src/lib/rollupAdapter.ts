@@ -40,6 +40,7 @@ export type RollupRow = {
   acquired_date: string | null;
   days_held: number | null;
   sell_eligible: boolean | null;
+  sell_block_reason: string | null;
   days_until_eligible: number | null;
   next_eligible_sell_date: string | null;
   // Per-unit/descriptive fields that are expected to be identical across all
@@ -275,6 +276,7 @@ function addHolding(
     acquired_date: null,
     days_held: null,
     sell_eligible: null,
+    sell_block_reason: null,
     days_until_eligible: null,
     next_eligible_sell_date: null,
     current_price_gbp: holding.current_price_gbp ?? null,
@@ -355,6 +357,7 @@ export function toRollupRows(
       acquired_date: acquiredDate,
       days_held: daysHeld,
       sell_eligible: oldestLot.sell_eligible ?? null,
+      sell_block_reason: oldestLot.sell_block_reason ?? null,
       days_until_eligible: oldestLot.days_until_eligible ?? null,
       next_eligible_sell_date: oldestLot.next_eligible_sell_date ?? null,
       owners: Array.from(ownerSet),

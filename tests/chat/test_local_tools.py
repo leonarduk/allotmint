@@ -122,3 +122,34 @@ def test_base_system_prompt_makes_the_plan_consulted_and_tells_errors_from_no_pl
     assert "only when get_investment_plan returned plan_recorded false" in INVESTMENT_PLAN_GUIDANCE
     assert "could not read the owner's plan" in INVESTMENT_PLAN_GUIDANCE
     assert "do not say that no plan is recorded" in INVESTMENT_PLAN_GUIDANCE
+
+
+def test_build_system_prompt_names_the_signed_in_owner():
+    # #10813: "my SIPP" must resolve to the signed-in user's owner without asking.
+    from backend.chat.local_tools import BASE_SYSTEM_PROMPT, build_system_prompt
+
+    prompt = build_system_prompt({"path": "/portfolio/steve"}, signed_in_owner="steve")
+    assert prompt.startswith(BASE_SYSTEM_PROMPT)
+    assert "The signed-in user is the owner steve." in prompt
+    assert '"my SIPP"' in prompt and "do not ask which owner" in prompt
+    # Who is asking comes before the page they are on.
+    assert prompt.index("signed-in user") < prompt.index("/portfolio/steve")
+
+
+def test_build_system_prompt_without_a_matched_owner_omits_the_user_line():
+    # Demo/no-auth mode with no matching owner keeps the old prompt.
+    from backend.chat.local_tools import BASE_SYSTEM_PROMPT, build_system_prompt
+
+    assert build_system_prompt(None, signed_in_owner=None) == BASE_SYSTEM_PROMPT
+    assert "signed-in user" not in build_system_prompt({"path": "/"}, signed_in_owner="")
+
+
+def test_system_prompt_from_context_names_the_owner_or_group_in_view():
+    from backend.chat.local_tools import system_prompt_from_context
+
+    prompt = system_prompt_from_context({"path": "/", "owner": "alex", "group": "family"})
+    assert 'treat "this portfolio" as alex\'s' in prompt
+    assert "family" not in prompt
+    prompt = system_prompt_from_context({"path": "/", "owner": None, "group": "family"})
+    assert "group family selected" in prompt
+    assert "this portfolio" not in system_prompt_from_context({"path": "/transactions"})

@@ -17,6 +17,7 @@ import {
   createOwnerDisplayLookup,
   getOwnerDisplayName,
 } from "../utils/owners";
+import { largeNumber, money, quotedPrice } from "../lib/money";
 
 // Metric values are the backend's `Metric` enum (backend/routes/query.py);
 // they round-trip through the `?metrics=...` share link and saved queries.
@@ -34,7 +35,48 @@ const METRIC_OPTIONS: { value: string; labelKey: string }[] = [
 const LINK_ITEM = /^[\w-]+$/;
 const LINK_TICKER = /^[\w.-]+$/;
 
-type ResultRow = Record<string, string | number>;
+type ResultRow = Record<string, string | number | null>;
+
+// On-screen headers for the result keys the backend returns
+// (backend/routes/query.py: holding rows, VaR and security info). Unknown
+// keys fall back to the raw key. CSV/XLSX exports keep the raw keys (#10789).
+const COLUMN_LABEL_KEYS: Record<string, string> = {
+  owner: "query.columns.owner",
+  ticker: "query.columns.ticker",
+  units: "query.columns.units",
+  market_value_gbp: "query.metricMarketValueGbp",
+  start_value_gbp: "query.columns.startValueGbp",
+  gain_gbp: "query.metricGainGbp",
+  var: "query.metricVar",
+  return_basis: "query.columns.returnBasis",
+  name: "query.columns.name",
+  instrument_type: "query.columns.instrumentType",
+};
+
+const UNITS_FORMAT_OPTIONS = { maximumFractionDigits: 4 };
+
+function formatCell(
+  key: string,
+  value: string | number | null | undefined,
+  locale: string,
+): string {
+  if (typeof value !== "number") return value == null ? "—" : String(value);
+  if (key.endsWith("_gbp")) return money(value, "GBP", locale);
+  if (key === "units") {
+    return new Intl.NumberFormat(locale, UNITS_FORMAT_OPTIONS).format(value);
+  }
+  // VaR is a per-unit loss in the ticker's quote currency, so no £ sign.
+  if (key === "var") return quotedPrice(value, "", locale);
+  return largeNumber(value, locale);
+}
+
+// Colour gains like the other tables (HoldingsTable's text-positive/negative).
+function gainClass(key: string, value: unknown): string | undefined {
+  if (key !== "gain_gbp" || typeof value !== "number" || value === 0) {
+    return undefined;
+  }
+  return value > 0 ? "text-positive" : "text-negative";
+}
 
 // Local (not UTC) YYYY-MM-DD, so "today" doesn't slip a day around midnight.
 function toLocalIsoDate(d: Date): string {
@@ -87,7 +129,7 @@ export function CustomQuery() {
     () => createOwnerDisplayLookup(ownerList),
     [ownerList],
   );
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // Computed once so start and end share the same "now" (two separate
   // `new Date()` calls could straddle midnight).
@@ -204,6 +246,10 @@ export function CustomQuery() {
     }
   }, []);
 
+  // An empty query (no owner or no metric) used to run anyway and return a
+  // bare ticker list (#10789).
+  const canRun = selectedOwners.length > 0 && metrics.length > 0;
+
   const safeRows = Array.isArray(rows) ? rows : [];
   const columns = safeRows.length
     ? (Object.keys(safeRows[0]) as (keyof ResultRow)[])
@@ -221,6 +267,7 @@ export function CustomQuery() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canRun) return;
     const params: CustomQueryParams = {
       start,
       end,
@@ -422,7 +469,12 @@ export function CustomQuery() {
             <p className="text-sm">{t("query.gainNote")}</p>
           )}
         </fieldset>
-        <button type="submit" disabled={loading} className="mr-2">
+        <button
+          type="submit"
+          disabled={loading || !canRun}
+          aria-describedby={canRun ? undefined : "custom-query-run-hint"}
+          className="mr-2"
+        >
           {loading ? t("query.running") : t("query.run")}
         </button>
         <button type="button" onClick={() => void handleSave()} className="mr-2">
@@ -431,6 +483,11 @@ export function CustomQuery() {
         <button type="button" onClick={handleCopyLink} className="mr-2">
           {t("query.copyLink")}
         </button>
+        {!canRun && (
+          <p id="custom-query-run-hint" className="text-sm">
+            {t("query.selectionRequired")}
+          </p>
+        )}
         {safeRows.length > 0 && (
           <span>
             <a href={buildExportUrl("csv")}>{t("query.exportCsv")}</a>{" | "}
@@ -450,7 +507,9 @@ export function CustomQuery() {
                   style={{ cursor: "pointer", textAlign: "left" }}
                   onClick={() => handleSort(c)}
                 >
-                  {c as string}
+                  {COLUMN_LABEL_KEYS[c as string]
+                    ? t(COLUMN_LABEL_KEYS[c as string])
+                    : (c as string)}
                 </th>
               ))}
             </tr>
@@ -467,9 +526,13 @@ export function CustomQuery() {
                           typeof r[key] === "string" ? (r[key] as string) : null,
                           typeof r[key] === "string" ? (r[key] as string) : "",
                         )
-                      : (r[key] as string | number);
+                      : formatCell(key as string, r[key], i18n.language);
                   return (
-                    <td key={c as string} style={{ padding: "4px 6px" }}>
+                    <td
+                      key={c as string}
+                      className={gainClass(key as string, r[key])}
+                      style={{ padding: "4px 6px" }}
+                    >
                       {value}
                     </td>
                   );

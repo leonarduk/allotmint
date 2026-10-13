@@ -35,7 +35,7 @@ from backend.common import (
     refresh_progress,
 )
 from backend.common import portfolio as portfolio_mod
-from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
+from backend.common.account_models import ACCOUNT_METADATA_STEMS, OwnerSummaryRecord, PersonMetadata
 from backend.common.core_optional import require_core
 from backend.common.errors import log_owner_not_found
 from backend.common.portfolio_cache import cached_group_portfolio, invalidate_group_portfolios
@@ -229,15 +229,6 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
             return (2, value)
         return (1, value)
 
-    metadata_stems = {
-        "person",
-        "config",
-        "notes",
-        "settings",
-        "approvals",
-        "approval_requests",
-    }
-
     try:
         entries = sorted(owner_dir.iterdir())
     except OSError:
@@ -267,7 +258,7 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
             continue
         stem = path.stem
         lowered = stem.casefold()
-        if lowered in metadata_stems:
+        if lowered in ACCOUNT_METADATA_STEMS:
             continue
         if lowered.endswith(_TRANSACTIONS_SUFFIX):
             continue

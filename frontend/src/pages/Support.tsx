@@ -27,6 +27,7 @@ import McpServerSection from "../components/McpServerSection";
 import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 import { usePriceRefresh } from "../PriceRefreshContext";
+import { useDefaultOwner } from "../hooks/useDefaultOwner";
 import { sanitizeOwners } from "../utils/owners";
 import { APP_TAB_NAME } from "../tabNames";
 
@@ -117,7 +118,10 @@ export default function Support() {
   const [savedMcpTools, setSavedMcpTools] = useState<Record<string, boolean>>({});
   const [mcpError, setMcpError] = useState<string | null>(null);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
-  const [owner, setOwner] = useState("");
+  // A picked owner wins while it is still listed; otherwise follow the
+  // signed-in user (#10815).
+  const [pickedOwner, setOwner] = useState("");
+  const owner = useDefaultOwner(owners, pickedOwner);
   const [health, setHealth] = useState<Finding[]>([]);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [healthRunning, setHealthRunning] = useState(false);
@@ -236,7 +240,6 @@ export default function Support() {
       .then((list) => {
         const sanitized = sanitizeOwners(list);
         setOwners(sanitized);
-        setOwner(sanitized[0]?.owner ?? "");
       })
       .catch(() => setOwners([]));
   }, []);

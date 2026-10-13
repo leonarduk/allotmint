@@ -509,7 +509,8 @@ describe("Custom Query page", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     const { i18n } = renderWithI18n(<CustomQuery />);
-    await screen.findByLabelText("Alice Example");
+    // Run needs an owner as well as a metric (#10789).
+    fireEvent.click(await screen.findByLabelText("Alice Example"));
     fireEvent.click(screen.getByLabelText(i18n.t("query.metricVar")));
     fireEvent.click(screen.getByLabelText(i18n.t("query.metricMeta")));
     fireEvent.click(screen.getByRole("button", { name: i18n.t("query.run") }));
@@ -706,5 +707,142 @@ describe("Custom Query page — Run button integration (real runCustomQuery)", (
       await screen.findByText("Failed to run query: query blew up"),
     ).toBeInTheDocument();
     expect(screen.queryByText("AAA")).not.toBeInTheDocument();
+  });
+});
+
+// #10789: labelled, money-formatted result columns and no empty runs.
+describe("Custom Query results formatting", () => {
+  beforeEach(() => {
+    window.history.pushState({}, "", "/");
+    vi.resetAllMocks();
+    getOwners.mockResolvedValue([
+      { owner: "alice", full_name: "Alice Example", accounts: [] },
+    ]);
+    getPortfolio.mockImplementation((owner: string) =>
+      Promise.resolve(makePortfolio(owner, ["VOD"])),
+    );
+    listSavedQueries.mockResolvedValue([]);
+  });
+
+  async function runWith(rows: Record<string, unknown>[]) {
+    runCustomQuery.mockResolvedValue(rows);
+    const utils = renderWithI18n(<CustomQuery />);
+    const { i18n } = utils;
+    fireEvent.click(await screen.findByLabelText("Alice Example"));
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricGainGbp")));
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("query.run") }));
+    await screen.findByRole("table");
+    return utils;
+  }
+
+  it("disables Run until an owner and a metric are selected", async () => {
+    const { i18n } = renderWithI18n(<CustomQuery />);
+    const run = screen.getByRole("button", { name: i18n.t("query.run") });
+    expect(run).toBeDisabled();
+    expect(screen.getByText(i18n.t("query.selectionRequired"))).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByLabelText("Alice Example"));
+    expect(run).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricVar")));
+    expect(run).toBeEnabled();
+    expect(
+      screen.queryByText(i18n.t("query.selectionRequired")),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Alice Example"));
+    expect(run).toBeDisabled();
+    fireEvent.submit(run.closest("form")!);
+    expect(runCustomQuery).not.toHaveBeenCalled();
+  });
+
+  it("labels known columns and formats money, units and gains", async () => {
+    const { i18n } = await runWith([
+      {
+        owner: "alice",
+        ticker: "3IN.L",
+        units: 2115,
+        market_value_gbp: 8206.2,
+        start_value_gbp: 7476.53,
+        gain_gbp: -729.67,
+        var: 12.3456,
+        return_basis: "total",
+        custom_field: 7,
+      },
+    ]);
+
+    const headers = screen
+      .getAllByRole("columnheader")
+      .map((th) => th.textContent);
+    expect(headers).toEqual([
+      i18n.t("query.columns.owner"),
+      i18n.t("query.columns.ticker"),
+      i18n.t("query.columns.units"),
+      "Market value (£)",
+      "Value at start (£)",
+      "Gain (£)",
+      i18n.t("query.metricVar"),
+      i18n.t("query.columns.returnBasis"),
+      // Unknown keys fall back to the raw key.
+      "custom_field",
+    ]);
+    expect(headers).not.toContain("market_value_gbp");
+
+    expect(
+      screen.getByRole("cell", { name: "Alice Example" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2,115")).toBeInTheDocument();
+    expect(screen.getByText("£8,206.20")).toBeInTheDocument();
+    expect(screen.getByText("£7,476.53")).toBeInTheDocument();
+    const gain = screen.getByText("-£729.67");
+    expect(gain).toHaveClass("text-negative");
+    expect(screen.getByText("12.35")).toBeInTheDocument();
+    expect(screen.getByText("£8,206.20")).not.toHaveClass("text-negative");
+  });
+
+  it("colours positive gains and shows a dash for missing values", async () => {
+    await runWith([
+      {
+        owner: "alice",
+        ticker: "VOD",
+        units: 1.23456,
+        market_value_gbp: null,
+        gain_gbp: 1500,
+      },
+    ]);
+    expect(screen.getByText("£1,500.00")).toHaveClass("text-positive");
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("1.2346")).toBeInTheDocument();
+  });
+
+  it("labels the security-info columns", async () => {
+    const { i18n } = await runWith([
+      {
+        owner: "alice",
+        ticker: "VOD",
+        name: "Vodafone Group",
+        instrument_type: "equity",
+      },
+    ]);
+    const headers = screen
+      .getAllByRole("columnheader")
+      .map((th) => th.textContent);
+    expect(headers).toEqual([
+      i18n.t("query.columns.owner"),
+      i18n.t("query.columns.ticker"),
+      "Name",
+      "Instrument type",
+    ]);
+    expect(headers).not.toContain("instrument_type");
+    expect(screen.getByText("Vodafone Group")).toBeInTheDocument();
+    expect(screen.getByText("equity")).toBeInTheDocument();
+  });
+
+  it("keeps raw keys in the export links", async () => {
+    await runWith([{ owner: "alice", ticker: "VOD", market_value_gbp: 1 }]);
+    const href =
+      screen.getByRole("link", { name: /csv/i }).getAttribute("href") ?? "";
+    expect(href).toContain("metrics=market_value_gbp%2Cgain_gbp");
   });
 });

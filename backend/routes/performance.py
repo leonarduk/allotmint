@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+from functools import wraps
+from typing import Any, Callable, TypeVar
 
 from fastapi import APIRouter, HTTPException
 
 from backend.common import portfolio_utils, risk_return
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
+from backend.common.portfolio_cache import sharing_performance_inputs
 from backend.config import config
 from backend.utils.pricing_dates import PricingDateCalculator
 
@@ -19,6 +22,24 @@ _BENCHMARK_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
 # Benchmark tickers on the risk/return chart may be Yahoo index symbols (^FTSE).
 _RISK_BENCHMARK_RE = re.compile(r"^\^?[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
 _MAX_RISK_RETURN_DAYS = 365 * 10
+
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _shares_performance_inputs(func: _F) -> _F:
+    """Run the route with the owner portfolio, value series and ledger rebuild shared (#10755).
+
+    The Performance page requests these metrics in parallel and each rebuilt
+    the same inputs; inside :func:`sharing_performance_inputs` concurrent
+    requests wait for one build instead (see ``portfolio_cache.memoised``).
+    """
+
+    @wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        with sharing_performance_inputs():
+            return func(*args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
 
 
 def _validate_owner_slug(value: str, field_name: str) -> str:
@@ -62,6 +83,7 @@ def _resolve_as_of(as_of: str | None) -> dt.date | None:
 
 @router.get("/performance/{owner}/alpha")
 @handle_owner_not_found
+@_shares_performance_inputs
 def owner_alpha(
     owner: str,
     benchmark: str = "VWRL.L",
@@ -88,6 +110,7 @@ def owner_alpha(
 
 @router.get("/performance/{owner}/tracking-error")
 @handle_owner_not_found
+@_shares_performance_inputs
 def owner_tracking_error(
     owner: str,
     benchmark: str = "VWRL.L",
@@ -114,6 +137,7 @@ def owner_tracking_error(
 
 @router.get("/performance/{owner}/max-drawdown")
 @handle_owner_not_found
+@_shares_performance_inputs
 def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = None):
     """Return max drawdown for ``owner``."""
     owner = _validate_owner_slug(owner, "owner")
@@ -133,6 +157,7 @@ def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = None):
 
 @router.get("/performance/{owner}/twr")
 @handle_owner_not_found
+@_shares_performance_inputs
 def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
     """Return time-weighted return for ``owner``."""
     owner = _validate_owner_slug(owner, "owner")
@@ -143,8 +168,29 @@ def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
         raise_owner_not_found(owner)
 
 
+@router.get("/performance/{owner}/total-return")
+@handle_owner_not_found
+def owner_total_return(owner: str, days: int = 365, as_of: str | None = None):
+    """Return ``owner``'s total return (price plus income, net of deposits) over ``days`` (#10763).
+
+    Both figures are ``None`` when the owner has no transaction ledger.
+    """
+    owner = _validate_owner_slug(owner, "owner")
+    try:
+        result = portfolio_utils.compute_total_return(owner, days, pricing_date=_resolve_as_of(as_of))
+    except FileNotFoundError:
+        raise_owner_not_found(owner)
+    return {
+        "owner": owner,
+        "days": days,
+        "total_return_gbp": result["total_return_gbp"] if result else None,
+        "total_return_pct": result["total_return_pct"] if result else None,
+    }
+
+
 @router.get("/performance/{owner}/xirr")
 @handle_owner_not_found
+@_shares_performance_inputs
 def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
     """Return XIRR for ``owner``."""
     owner = _validate_owner_slug(owner, "owner")
@@ -188,6 +234,7 @@ def owner_holdings(owner: str, date: str):
 
 
 @router.get("/performance-group/{slug}/alpha")
+@_shares_performance_inputs
 def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return alpha vs. benchmark for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
@@ -206,6 +253,7 @@ def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
 
 
 @router.get("/performance-group/{slug}/tracking-error")
+@_shares_performance_inputs
 def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return tracking error vs. benchmark for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
@@ -224,6 +272,7 @@ def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365):
 
 
 @router.get("/performance-group/{slug}/max-drawdown")
+@_shares_performance_inputs
 def group_max_drawdown(slug: str, days: int = 365):
     """Return max drawdown for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
@@ -241,6 +290,7 @@ def group_max_drawdown(slug: str, days: int = 365):
 
 
 @router.get("/performance-group/{slug}")
+@_shares_performance_inputs
 def group_performance(
     slug: str,
     days: int = 365,
@@ -307,6 +357,7 @@ def benchmark_risk_return(ticker: str, days: int = 365, as_of: str | None = None
 
 
 @router.get("/performance-group/{slug}/twr")
+@_shares_performance_inputs
 def group_twr(slug: str, days: int = 365, as_of: str | None = None):
     """Return the combined time-weighted return for a group portfolio.
 
@@ -336,6 +387,7 @@ def group_twr(slug: str, days: int = 365, as_of: str | None = None):
 
 
 @router.get("/performance-group/{slug}/xirr")
+@_shares_performance_inputs
 def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
     """Return the combined XIRR for a group portfolio.
 
@@ -366,6 +418,7 @@ def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
 
 @router.get("/performance/{owner}")
 @handle_owner_not_found
+@_shares_performance_inputs
 def performance(
     owner: str,
     days: int = 365,

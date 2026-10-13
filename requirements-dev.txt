@@ -14,7 +14,7 @@ isort~=9.0.1
 ruff~=0.16.10
 pytest-asyncio~=1.4.0
 jsonschema~=4.23.0
-mypy~=2.3.1
+mypy~=2.4.0
 pandas-stubs==3.0.5.260914
 # uvicorn --reload uses watchfiles when installed; without it it falls back to
 # StatReload, which polls every watched file and costs CPU while idle (#10363).

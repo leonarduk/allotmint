@@ -289,3 +289,34 @@ describe('Plot routing (#7192)', () => {
     await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('joe'));
   });
 });
+
+describe('Plot default grower (#10753)', () => {
+  it("opens on the signed-in user's owner rather than the first owner", async () => {
+    mocks.getOwners.mockResolvedValue(
+      OWNERS.map((o) => ({ ...o, email: `${o.owner}@example.com` }))
+    );
+    const { AuthContext } = await import('@/AuthContext');
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: 'steve@example.com' },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={['/plot']}>
+          <Routes>
+            <Route path="/plot/*" element={<PlotApp />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('steve'));
+    expect(mocks.getPortfolio).not.toHaveBeenCalledWith('alex');
+    expect(await screen.findByLabelText('Grower')).toHaveValue('steve');
+  });
+});

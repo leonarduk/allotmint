@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TaxTools from "@/pages/TaxTools";
 import { getAllowances, getOwners, getPortfolio, harvestTax } from "@/api";
 import { useRoute } from "@/RouteContext";
+import { AuthContext } from "@/AuthContext";
 
 vi.mock("@/api", () => ({
   harvestTax: vi.fn(),
@@ -226,6 +227,62 @@ describe("TaxTools", () => {
       await screen.findByText(/choose a portfolio owner to see their allowance usage/i),
     ).toBeInTheDocument();
     expect(allowancesMock).not.toHaveBeenCalled();
+  });
+
+  it("defaults to the signed-in user's owner and shows display names (#10753)", async () => {
+    const setSelectedOwner = vi.fn();
+    useRouteMock.mockReturnValue({
+      mode: "taxtools",
+      setMode: vi.fn(),
+      selectedOwner: "",
+      setSelectedOwner,
+      selectedGroup: "",
+      setSelectedGroup: vi.fn(),
+    });
+    ownersMock.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Leonard", email: "alex@example.com", accounts: [] },
+      { owner: "steve", full_name: "Steve Leonard", email: "steve@example.com", accounts: [] },
+    ]);
+
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: "steve@example.com" },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <TaxTools />
+      </AuthContext.Provider>,
+    );
+
+    await waitFor(() => expect(setSelectedOwner).toHaveBeenCalledWith("steve"));
+    expect(setSelectedOwner).not.toHaveBeenCalledWith("alex");
+    const select = screen.getByLabelText(/portfolio owner/i);
+    expect(
+      within(select)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Select an owner", "Alex Leonard", "Steve Leonard"]);
+  });
+
+  it("replaces an unknown route owner with the default owner", async () => {
+    const setSelectedOwner = vi.fn();
+    useRouteMock.mockReturnValue({
+      mode: "taxtools",
+      setMode: vi.fn(),
+      selectedOwner: "nobody",
+      setSelectedOwner,
+      selectedGroup: "",
+      setSelectedGroup: vi.fn(),
+    });
+
+    render(<TaxTools />);
+
+    await waitFor(() => expect(setSelectedOwner).toHaveBeenCalledWith("alice"));
   });
 
   it("allows manual entry through the advanced toggle", async () => {

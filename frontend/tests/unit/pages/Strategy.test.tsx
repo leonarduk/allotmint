@@ -270,6 +270,38 @@ describe('Strategy page', () => {
     expect(select).toHaveValue('alex');
   });
 
+  it("defaults to the signed-in user's owner rather than owners[0] (#10753)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: 'alex', email: 'alex@example.com', accounts: [] },
+      { owner: 'steve', email: 'steve@example.com', accounts: [] },
+    ]);
+    const { AuthContext } = await import('@/AuthContext');
+    const { default: Strategy } = await import('@/pages/Strategy');
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider
+          value={{
+            user: { email: 'steve@example.com' },
+            setUser: () => {},
+            logout: null,
+            setLogout: () => {},
+            demoReadOnly: false,
+            setDemoReadOnly: () => {},
+          }}
+        >
+          <Strategy />
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(mockGetRebalancePlan).toHaveBeenCalledWith('steve')
+    );
+    expect(mockGetRebalancePlan).not.toHaveBeenCalledWith('alex');
+    expect(await screen.findByLabelText('Portfolio owner')).toHaveValue(
+      'steve'
+    );
+  });
+
   it('keeps a single stress test panel when the owner changes', async () => {
     mockGetOwners.mockResolvedValue([
       { owner: 'alex', accounts: [] },

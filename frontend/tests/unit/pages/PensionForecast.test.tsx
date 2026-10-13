@@ -411,6 +411,39 @@ describe("PensionForecast page", () => {
     expect(ownerSelect).toHaveValue("carol");
   });
 
+  it("defaults to the signed-in user's owner rather than owners[0] (#10753)", async () => {
+    routeState.selectedOwner = "";
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", email: "alex@example.com", accounts: [] },
+      { owner: "steve", email: "steve@example.com", accounts: [] },
+    ]);
+    const { AuthContext } = await import("@/AuthContext");
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(
+      <AuthContext.Provider
+        value={{
+          user: { email: "steve@example.com" },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <PensionForecast />
+      </AuthContext.Provider>,
+    );
+
+    const form = document.querySelector("form")!;
+    const ownerSelect = await within(form).findByLabelText(/owner/i);
+    await vi.waitFor(() =>
+      expect(routeState.setSelectedOwner).toHaveBeenCalledWith("steve"),
+    );
+    expect(ownerSelect).toHaveValue("steve");
+    expect(routeState.setSelectedOwner).not.toHaveBeenCalledWith("alex");
+  });
+
   it("shows shortfall insight when desired income is not met", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },

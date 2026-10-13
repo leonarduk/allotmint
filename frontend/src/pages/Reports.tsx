@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
@@ -10,6 +10,8 @@ import type {
   ReportTemplateMetadata,
 } from "../types";
 import { sanitizeOwners } from "../utils/owners";
+import { useDefaultOwner } from "../hooks/useDefaultOwner";
+import { RouteContext } from "../contexts/route";
 import { completeTrackedChore } from "../choreCompletion";
 
 function buildFieldSummary(template: ReportTemplateMetadata, t: TFunction) {
@@ -147,7 +149,9 @@ export default function Reports() {
   const { t } = useTranslation();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [ownersLoaded, setOwnersLoaded] = useState(false);
-  const [owner, setOwner] = useState("");
+  // Read optionally: useRoute() throws outside a RouteProvider.
+  const selectedOwner = useContext(RouteContext)?.selectedOwner;
+  const [explicitOwner, setOwner] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [explicitTemplateId, setExplicitTemplateId] = useState<string | null>(
@@ -162,6 +166,11 @@ export default function Reports() {
       .catch(() => setOwners([]))
       .finally(() => setOwnersLoaded(true));
   }, []);
+
+  // A picked owner wins, then the route owner, then the signed-in user's
+  // owner, then owners[0] (#10753).
+  const defaultOwner = useDefaultOwner(owners, selectedOwner);
+  const owner = explicitOwner || defaultOwner;
 
   const selectedTemplateId = useMemo(() => {
     if (explicitTemplateId) return explicitTemplateId;

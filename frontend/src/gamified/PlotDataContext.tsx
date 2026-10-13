@@ -26,6 +26,8 @@ import type {
 } from '../types';
 import i18n from '../i18n';
 import { useGroupedOwners } from '../hooks/useGroupedOwners';
+import { useAuth } from '../AuthContext';
+import { pickDefaultOwner } from '../utils/owners';
 import {
   buildPlotSnapshot,
   type AllowanceMap,
@@ -230,7 +232,10 @@ async function loadProgress(): Promise<ProgressState> {
 }
 
 interface PlotDataProviderProps {
-  /** Owner to show; when omitted the first owner from /owners is used. */
+  /**
+   * Owner to show; when omitted the signed-in user's owner is used, falling
+   * back to the first owner from /owners (#10753).
+   */
   requestedOwner?: string | null;
   children: ReactNode;
 }
@@ -247,6 +252,10 @@ export function PlotDataProvider({
     'pending' | 'ready' | 'error'
   >('pending');
   const [owner, setOwner] = useState(requestedOwner ?? '');
+  // Read through a ref so a user change doesn't refetch /owners.
+  const { user } = useAuth();
+  const userRef = useRef(user);
+  userRef.current = user;
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [allowances, setAllowances] = useState<AllowanceMap | null>(null);
   const [allowancesUnavailable, setAllowancesUnavailable] = useState(false);
@@ -270,7 +279,9 @@ export function PlotDataProvider({
         if (cancelled) return;
         setOwners(list);
         setOwnersStatus('ready');
-        setOwner((current) => current || list[0]?.owner || '');
+        setOwner(
+          (current) => current || pickDefaultOwner(list, userRef.current)
+        );
       })
       .catch(() => {
         // Owner discovery failing is not fatal on its own: an explicit

@@ -150,10 +150,10 @@ def _meta_signature(ticker: str, exchange: str) -> FileSignature:
 
 def _local_summary(path: Path, ticker: str, exchange: str) -> dict[str, Any] | None:
     """Summary for one local parquet, served from the cache while its files are unchanged."""
-    # Metadata read from S3 can change without the local file changing. (No
-    # app_env check, unlike the Data Quality series cache: timeseries_admin
-    # only reaches this local branch when app_env is not "aws".)
-    cacheable = not os.getenv(METADATA_BUCKET_ENV)
+    # Same policy as the Data Quality series cache: never on AWS, and not when
+    # metadata comes from S3, since either can change without a local file
+    # changing.
+    cacheable = config.app_env != "aws" and not os.getenv(METADATA_BUCKET_ENV)
     signature = (file_signature(path), _meta_signature(ticker, exchange))
     if cacheable:
         with _SUMMARY_CACHE_LOCK:

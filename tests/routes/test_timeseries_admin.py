@@ -486,3 +486,15 @@ def test_timeseries_admin_picks_up_metadata_that_appears_later(local_series):
 
     assert timeseries_admin.timeseries_admin()[0]["name"] == "Arrived"
     assert reads == ["ABC_L.parquet", "ABC_L.parquet"]
+
+
+def test_local_summary_is_not_cached_on_aws(local_series, monkeypatch):
+    """Matches the Data Quality series cache: no caching on AWS even without METADATA_BUCKET."""
+    meta_dir, _, reads = local_series
+    monkeypatch.setattr(config, "app_env", "aws")
+
+    for _ in range(2):
+        timeseries_admin._local_summary(meta_dir / "ABC_L.parquet", "ABC", "L")
+
+    assert reads == ["ABC_L.parquet", "ABC_L.parquet"]
+    assert timeseries_admin._SUMMARY_CACHE == {}

@@ -171,6 +171,19 @@ describe("TimeseriesEdit page", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the current page when adding a row under a date filter", async () => {
+    await loadDailySeries(120);
+    fireEvent.change(screen.getByLabelText("Start date"), {
+      target: { value: "2013-01-01" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.click(screen.getByRole("button", { name: /add row/i }));
+    // The undated row is hidden by the filter, so the page doesn't move.
+    expect(
+      screen.getByText("Page 2 of 3 (rows 51–100 of 120)"),
+    ).toBeInTheDocument();
+  });
+
   it("stays on the current page after deleting a row", async () => {
     const rows = await loadDailySeries(120);
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));

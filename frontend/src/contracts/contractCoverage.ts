@@ -14,15 +14,29 @@
 import type { z } from "zod";
 
 import type {
+  AwsCostService,
+  AwsCostsResponse,
+  DataQualityAuditEntry,
+  DataQualityAuditResponse,
+  DataQualityIssue,
+  DataQualityIssuesResponse,
+} from "../api";
+import type {
   Account,
+  DataQualityTimeseriesResponse,
   GroupPortfolio,
   GroupSummary,
   Holding,
   OwnerSummary,
   Portfolio,
+  TimeseriesQualityPosition,
 } from "../types";
 import type {
   accountContractSchema,
+  awsCostsContractSchema,
+  dataQualityAuditContractSchema,
+  dataQualityIssuesContractSchema,
+  dataQualityTimeseriesContractSchema,
   groupPortfolioContractSchema,
   groupsContractSchema,
   holdingContractSchema,
@@ -57,6 +71,28 @@ export type GroupPortfolioCoverage = AssertAllDeclared<
   UndeclaredKeys<GroupPortfolio, Output<typeof groupPortfolioContractSchema>>
 >;
 
+type TimeseriesQualityOutput = Output<typeof dataQualityTimeseriesContractSchema>;
+type IssuesOutput = Output<typeof dataQualityIssuesContractSchema>;
+type AuditOutput = Output<typeof dataQualityAuditContractSchema>;
+type AwsCostsOutput = Output<typeof awsCostsContractSchema>;
+
+export type DataQualityTimeseriesCoverage = AssertAllDeclared<
+  | UndeclaredKeys<DataQualityTimeseriesResponse, TimeseriesQualityOutput>
+  | UndeclaredKeys<TimeseriesQualityPosition, TimeseriesQualityOutput["positions"][number]>
+>;
+export type DataQualityIssuesCoverage = AssertAllDeclared<
+  | UndeclaredKeys<DataQualityIssuesResponse, IssuesOutput>
+  | UndeclaredKeys<DataQualityIssue, IssuesOutput["issues"][number]>
+>;
+export type DataQualityAuditCoverage = AssertAllDeclared<
+  | UndeclaredKeys<DataQualityAuditResponse, AuditOutput>
+  | UndeclaredKeys<DataQualityAuditEntry, AuditOutput["entries"][number]>
+>;
+export type AwsCostsCoverage = AssertAllDeclared<
+  | UndeclaredKeys<AwsCostsResponse, AwsCostsOutput>
+  | UndeclaredKeys<AwsCostService, AwsCostsOutput["services"][number]>
+>;
+
 // Assigning `true` fails to compile when any coverage type above is not `true`.
 export const contractCoverageChecks: [
   OwnerSummaryCoverage,
@@ -65,4 +101,8 @@ export const contractCoverageChecks: [
   AccountCoverage,
   PortfolioCoverage,
   GroupPortfolioCoverage,
-] = [true, true, true, true, true, true];
+  DataQualityTimeseriesCoverage,
+  DataQualityIssuesCoverage,
+  DataQualityAuditCoverage,
+  AwsCostsCoverage,
+] = [true, true, true, true, true, true, true, true, true, true];

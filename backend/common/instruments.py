@@ -794,7 +794,8 @@ def _iter_json_files(root: Path) -> Iterator[tuple[str, tuple[int, int]]]:
     Windows, so this needs no per-file system call there.
     """
     try:
-        entries = list(os.scandir(root))
+        with os.scandir(root) as it:
+            entries = list(it)
     except OSError:
         return
     for entry in entries:
@@ -845,7 +846,7 @@ def list_instruments() -> List[Dict[str, Any]]:
     with _LIST_CACHE_LOCK:
         # Only this root's entries: a listing of another instruments directory
         # must not evict them.
-        prefix = os.path.join(str(root), "")
-        for stale in [p for p in _LIST_CACHE if p.startswith(prefix) and p not in seen]:
+        prefix = os.path.normcase(os.path.join(str(root), ""))
+        for stale in [p for p in _LIST_CACHE if os.path.normcase(p).startswith(prefix) and p not in seen]:
             del _LIST_CACHE[stale]
     return instruments

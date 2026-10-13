@@ -106,6 +106,10 @@
     "sector": "Industries",
     "unknownCurrency": "Unknown currency",
     "viewAllocation": "View allocation by {{dimension}}",
+    "viewAllocationBy": {
+      "sector": "View allocation by industries",
+      "region": "View allocation by regions"
+    },
     "viewContribution": "View gain contribution",
     "chartsUnavailable": "Charts are unavailable in this environment.",
     "sleeve": "Sleeves",
@@ -412,6 +416,7 @@
       "1m": "1M",
       "1w": "1W",
       "1y": "1Y",
+      "3m": "3M",
       "max": "MAX"
     },
     "selectMember": "Select a member.",
@@ -3458,7 +3463,32 @@
     "glossaryLink": "Open the metrics glossary",
     "reportTitle": "Report a problem",
     "reportDescription": "Found a bug or something confusing? Let us know on GitHub so it can be tracked and fixed.",
-    "reportLink": "Open a GitHub issue"
+    "reportLink": "Open a GitHub issue",
+    "pages": {
+      "dashboardTitle": "Dashboard",
+      "signalsTitle": "Ideas: Signals",
+      "screenTitle": "Ideas: Screen",
+      "group": "The main overview: combined holdings, values and allocation across the owners in the selected group.",
+      "market": "A snapshot of overall market conditions and indices.",
+      "movers": "The instruments in your portfolios that moved the most, up or down.",
+      "instrument": "Every holding grouped by sector, with totals and returns over several periods.",
+      "performance": "Returns over time for an owner, compared against a benchmark.",
+      "transactions": "Record buys, sells and other transactions, or import them from a CSV.",
+      "dividends": "Dividend income received, by tax year, year or month and by holding, with a trailing-12-month total.",
+      "riskreturn": "Each account, owner and the whole portfolio plotted by return against volatility, alongside market indices you can add or remove.",
+      "trading": "Buy and sell candidates among the instruments you hold, from fixed momentum and risk rules set on the server. Informational, not trade instructions.",
+      "screener": "Filter any watchlist or list of tickers by fundamentals such as P/E, margins, leverage or dividend yield.",
+      "watchlist": "Track instruments you don't currently hold.",
+      "allocation": "How your holdings are split by asset class, sector and region.",
+      "rebalance": "Pick a target allocation from built-in or your own strategies, then see drift and the rebalancing trades to bring your portfolio back toward it.",
+      "reports": "Generate and download portfolio reports.",
+      "query": "Market value or gain for your own holdings over a date range, by owner and ticker, with save, share and export.",
+      "pension": "Project pension contributions and value forward in time.",
+      "taxtools": "Helpers for allowance usage and tax-related calculations.",
+      "research": "Deeper research tools for individual instruments.",
+      "settings": "Per-owner trading rules: minimum holding period, monthly trade limit and instruments exempt from approval.",
+      "alertsettings": "Configure the thresholds that trigger portfolio alerts."
+    }
   },
   "firstRunHelp": {
     "title": "New to AllotMint?",
@@ -3927,9 +3957,11 @@
     "excludesUnknown": "Excludes {{unknown}} of {{total}} holdings with no fee data",
     "allInCost": "All-in annual cost",
     "allInBreakdown": "{{funds}} fund charges + {{fees}} fees paid (last 12 months)",
+    "allInBreakdownUnknownFunds": "Unknown fund charges + {{fees}} fees paid (last 12 months)",
     "allInNotIncluded": "Not included: {{items}}",
     "allInUnknownValue": "{{value}} in {{holdings}} holdings with no fee data",
-    "allInUnknownTrades": "{{trades}} trades with no fee recorded",
+    "allInUnknownTrades_one": "{{trades}} trade with no fee recorded",
+    "allInUnknownTrades_other": "{{trades}} trades with no fee recorded",
     "perAccount": "Per account",
     "partial": "incomplete"
   },
@@ -4171,5 +4203,27 @@
     "close": "Close {{label}}",
     "toggle": "Show workspace tabs",
     "toggleHelp": "Keep several views open, e.g. the group overview and a few instruments, and switch between them without leaving this browser tab. Use + to open the current view in a new tab and ↻ to reload its data."
+  },
+  "retirementReadiness": {
+    "heading": "Retirement readiness: historical drawdown test",
+    "description": "The projected pot replayed through every historical sequence of returns since 1871, in today's money.",
+    "running": "Running…",
+    "runNow": "Run now",
+    "empty": "No readiness report yet. Run it to replay the historical windows.",
+    "runDate": "Last run {{date}}",
+    "survival": "Windows survived",
+    "income": "Highest real income a year",
+    "window": {
+      "worst": "worst window",
+      "median": "median window",
+      "best": "best window"
+    },
+    "windowsCount": "{{count}} windows of {{years}} years",
+    "change": "Since {{date}}: {{change}}",
+    "contributions": "contributions",
+    "markets": "markets",
+    "assumptions": "assumptions",
+    "dataRevision": "data revisions",
+    "changed": "Changed since the last run: {{label}}"
   }
 }

@@ -2,6 +2,7 @@ import { render, screen, waitFor, fireEvent, act } from "@testing-library/react"
 import { describe, it, expect, vi, afterEach } from "vitest";
 import ValueAtRisk from "@/components/ValueAtRisk";
 import { configContext, type ConfigContextValue } from "@/ConfigContext";
+import i18n from "@/i18n";
 
 const configWith = (relativeViewEnabled: boolean) =>
   ({
@@ -242,5 +243,21 @@ describe("ValueAtRisk relative view (#10022)", () => {
     );
     expect(screen.getByText(/99%:/)).toHaveTextContent("£6,789.00");
     expect(screen.queryByTestId("var-relative-note")).not.toBeInTheDocument();
+  });
+
+  it("labels the periods with the shared range keys (#10835)", async () => {
+    vi.mocked(api.getValueAtRisk).mockResolvedValue({
+      owner: "alice",
+      as_of: "2024-01-01",
+      var: { "1d": 1, "10d": 2 },
+    } as any);
+    await i18n.changeLanguage("de");
+    try {
+      render(<ValueAtRisk owner="alice" />);
+      const options = await screen.findAllByRole("option");
+      expect(options.map((o) => o.textContent)).toEqual(["1W", "1M", "3M", "1J"]);
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 });

@@ -106,6 +106,10 @@
     "sector": "Industrie",
     "unknownCurrency": "Valuta sconosciuta",
     "viewAllocation": "Vedi allocazione per {{dimension}}",
+    "viewAllocationBy": {
+      "sector": "Vedi allocazione per industrie",
+      "region": "Vedi allocazione per regioni"
+    },
     "viewContribution": "Vedi contributo ai guadagni",
     "chartsUnavailable": "I grafici non sono disponibili in questo ambiente.",
     "sleeve": "Comparti",
@@ -418,6 +422,7 @@
       "1m": "1 m",
       "1w": "1W",
       "1y": "1y",
+      "3m": "3M",
       "max": "Max"
     },
     "selectMember": "Seleziona un membro.",
@@ -1408,17 +1413,17 @@
       "statePensionHelper": "La nuova pensione statale piena per il {{year}} è di {{weekly}} a settimana ({{annual}} all'anno) e richiede 35 anni di contributi National Insurance. Verifica il tuo importo su gov.uk/check-state-pension e inseriscilo se è diverso.",
       "totalContribution": "Contributi mensili totali: {{total}}"
     },
-    "incomeBreakdownHeading": "Retirement income breakdown",
+    "incomeBreakdownHeading": "Ripartizione del reddito pensionistico",
     "incomeSources": {
-      "definedBenefit": "Defined benefit",
-      "definedContribution": "Defined contribution",
-      "state": "State pension"
+      "definedBenefit": "Prestazione definita",
+      "definedContribution": "Contribuzione definita",
+      "state": "Pensione statale"
     },
     "incomeTable": {
-      "annual": "Annual (£)",
-      "monthly": "Monthly (£)",
-      "share": "Share",
-      "source": "Source"
+      "annual": "Annuale (£)",
+      "monthly": "Mensile (£)",
+      "share": "Quota",
+      "source": "Fonte"
     },
     "livingStandards": {
       "amount": "≈ {{monthly}}/mese ({{annual}}/anno)",
@@ -1436,16 +1441,16 @@
     "monthlyContribution": "Contributo mensile (£):",
     "pensionPot": "Fondo pensione",
     "prediction": {
-      "earliest": "Estimated earliest retirement age: {{age}}",
-      "noBreakdown": "No income breakdown available.",
-      "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
-      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} — you could retire as early as age {{age}}.",
-      "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You could retire as early as age {{age}}, but your projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}."
+      "earliest": "Età stimata di pensionamento più precoce: {{age}}",
+      "noBreakdown": "Nessuna ripartizione del reddito disponibile.",
+      "onTrack": "Sei sulla buona strada: il reddito annuo previsto di {{total}} raggiunge il tuo obiettivo di {{desired}}.",
+      "onTrackWithAge": "Sei sulla buona strada: il reddito previsto di {{total}} raggiunge il tuo obiettivo di {{desired}} — potresti andare in pensione già a {{age}} anni.",
+      "shortfall": "Il reddito previsto lascia un ammanco di {{shortfallAnnual}} all'anno ({{shortfallMonthly}} al mese) rispetto al tuo obiettivo di {{desired}}.",
+      "shortfallWithAge": "Potresti andare in pensione già a {{age}} anni, ma il reddito previsto lascia un ammanco di {{shortfallAnnual}} all'anno ({{shortfallMonthly}} al mese) rispetto al tuo obiettivo di {{desired}}."
     },
     "retirementAge": "Età pensionistica prevista: {{age}}",
-    "totalAnnualIncome": "Total annual income",
-    "totalMonthlyIncome": "Total monthly income",
+    "totalAnnualIncome": "Reddito annuo totale",
+    "totalMonthlyIncome": "Reddito mensile totale",
     "careerPath": {
       "accelerated": {
         "helper": "Rischio più alto, rendimento più alto",
@@ -3465,7 +3470,32 @@
     "glossaryLink": "Apri il glossario delle metriche",
     "reportTitle": "Segnala un problema",
     "reportDescription": "Hai trovato un bug o qualcosa di poco chiaro? Faccelo sapere su GitHub così può essere tracciato e risolto.",
-    "reportLink": "Apri una issue su GitHub"
+    "reportLink": "Apri una issue su GitHub",
+    "pages": {
+      "dashboardTitle": "Cruscotto",
+      "signalsTitle": "Idee: Segnali",
+      "screenTitle": "Idee: Filtro",
+      "group": "La panoramica principale: posizioni, valori e allocazione combinati per i titolari del gruppo selezionato.",
+      "market": "Un'istantanea delle condizioni generali di mercato e degli indici.",
+      "movers": "Gli strumenti dei tuoi portafogli che si sono mossi di più, al rialzo o al ribasso.",
+      "instrument": "Tutte le posizioni raggruppate per settore, con totali e rendimenti su più periodi.",
+      "performance": "Rendimenti nel tempo per un titolare, confrontati con un benchmark.",
+      "transactions": "Registra acquisti, vendite e altre transazioni, oppure importale da un file CSV.",
+      "dividends": "Dividendi incassati, per anno fiscale, anno o mese e per posizione, con il totale degli ultimi 12 mesi.",
+      "riskreturn": "Ogni conto, ogni titolare e l'intero portafoglio rappresentati per rendimento rispetto alla volatilità, insieme a indici di mercato che puoi aggiungere o rimuovere.",
+      "trading": "Candidati all'acquisto e alla vendita tra gli strumenti che detieni, secondo regole fisse di momentum e di rischio impostate sul server. Informativo, non istruzioni operative.",
+      "screener": "Filtra qualsiasi lista di osservazione o elenco di ticker per fondamentali come P/E, margini, leva finanziaria o rendimento da dividendi.",
+      "watchlist": "Segui strumenti che al momento non detieni.",
+      "allocation": "Come le tue posizioni sono suddivise per classe di attività, settore e regione.",
+      "rebalance": "Scegli un'allocazione obiettivo tra le strategie integrate o le tue, poi visualizza lo scostamento e le operazioni di ribilanciamento per riportare il portafoglio verso di essa.",
+      "reports": "Genera e scarica report del portafoglio.",
+      "query": "Valore di mercato o guadagno delle tue posizioni in un intervallo di date, per titolare e ticker, con salvataggio, condivisione ed esportazione.",
+      "pension": "Proietta nel tempo i contributi e il valore della pensione.",
+      "taxtools": "Strumenti per l'uso delle franchigie e per i calcoli fiscali.",
+      "research": "Strumenti di ricerca approfondita per singoli strumenti.",
+      "settings": "Regole operative per titolare: periodo minimo di detenzione, limite mensile di operazioni e strumenti esenti da approvazione.",
+      "alertsettings": "Configura le soglie che attivano gli avvisi del portafoglio."
+    }
   },
   "firstRunHelp": {
     "title": "Nuovo su AllotMint?",
@@ -3934,9 +3964,11 @@
     "excludesUnknown": "Esclude {{unknown}} di {{total}} posizioni senza dati sui costi",
     "allInCost": "Costo annuo complessivo",
     "allInBreakdown": "{{funds}} di spese dei fondi + {{fees}} di commissioni pagate (ultimi 12 mesi)",
+    "allInBreakdownUnknownFunds": "Spese dei fondi sconosciute + {{fees}} di commissioni pagate (ultimi 12 mesi)",
     "allInNotIncluded": "Non incluso: {{items}}",
     "allInUnknownValue": "{{value}} in {{holdings}} posizioni senza dati sui costi",
-    "allInUnknownTrades": "{{trades}} operazioni senza commissione registrata",
+    "allInUnknownTrades_one": "{{trades}} operazione senza commissione registrata",
+    "allInUnknownTrades_other": "{{trades}} operazioni senza commissione registrata",
     "perAccount": "Per conto",
     "partial": "incompleto"
   },
@@ -4178,5 +4210,27 @@
     "close": "Chiudi {{label}}",
     "toggle": "Mostra schede di lavoro",
     "toggleHelp": "Tieni aperte più viste, ad es. la panoramica del gruppo e alcuni strumenti, e passa dall'una all'altra senza lasciare questa scheda del browser. Usa + per aprire la vista corrente in una nuova scheda e ↻ per ricaricarne i dati."
+  },
+  "retirementReadiness": {
+    "heading": "Preparazione alla pensione: test storico dei prelievi",
+    "description": "Il capitale previsto simulato su ogni sequenza storica di rendimenti dal 1871, in valori odierni.",
+    "running": "In esecuzione…",
+    "runNow": "Esegui ora",
+    "empty": "Nessun report di preparazione ancora. Eseguilo per simulare le finestre storiche.",
+    "runDate": "Ultima esecuzione {{date}}",
+    "survival": "Finestre superate",
+    "income": "Reddito reale annuo più alto",
+    "window": {
+      "worst": "finestra peggiore",
+      "median": "finestra mediana",
+      "best": "finestra migliore"
+    },
+    "windowsCount": "{{count}} finestre di {{years}} anni",
+    "change": "Dal {{date}}: {{change}}",
+    "contributions": "contributi",
+    "markets": "mercati",
+    "assumptions": "ipotesi",
+    "dataRevision": "revisioni dei dati",
+    "changed": "Modificato dall'ultima esecuzione: {{label}}"
   }
 }

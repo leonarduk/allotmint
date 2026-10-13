@@ -126,7 +126,7 @@ describe('FundChargesSummary (#7834)', () => {
     );
     const unknown = screen.getByTestId('fund-charges-all-in-unknown');
     expect(unknown).toHaveTextContent(/4,000.*in 1 holdings with no fee data/);
-    expect(unknown).toHaveTextContent('1 trades with no fee recorded');
+    expect(unknown).toHaveTextContent('1 trade with no fee recorded');
     expect(
       screen.getByTestId('fund-charges-all-in-accounts').querySelectorAll('li')
     ).toHaveLength(2);

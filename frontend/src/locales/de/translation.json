@@ -1476,6 +1476,15 @@
   },
   "portfolio": "Portfolio",
   "query": {
+    "columns": {
+      "instrumentType": "Instrumenttyp",
+      "name": "Name",
+      "owner": "Eigentümer",
+      "returnBasis": "Renditebasis",
+      "startValueGbp": "Wert zu Beginn (£)",
+      "ticker": "Ticker",
+      "units": "Stück"
+    },
     "copyLink": "Link kopieren",
     "end": "Ende",
     "exportCsv": "CSV exportieren",
@@ -1498,6 +1507,7 @@
     "saved": "\"{{name}}\" gespeichert.",
     "savedQueriesLoading": "Gespeicherte Abfragen werden geladen…",
     "savedQueriesTitle": "Gespeicherte Abfragen",
+    "selectionRequired": "Wählen Sie mindestens einen Eigentümer und eine Kennzahl aus, um die Abfrage auszuführen.",
     "start": "Start",
     "tickerNotHeld": "derzeit nicht gehalten",
     "tickers": "Ticker",

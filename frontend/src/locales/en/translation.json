@@ -1470,6 +1470,15 @@
   },
   "portfolio": "Portfolio",
   "query": {
+    "columns": {
+      "instrumentType": "Instrument type",
+      "name": "Name",
+      "owner": "Owner",
+      "returnBasis": "Return basis",
+      "startValueGbp": "Value at start (£)",
+      "ticker": "Ticker",
+      "units": "Units"
+    },
     "copyLink": "Copy Link",
     "end": "End",
     "exportCsv": "Export CSV",
@@ -1492,6 +1501,7 @@
     "saved": "Saved \"{{name}}\".",
     "savedQueriesLoading": "Loading saved queries…",
     "savedQueriesTitle": "Saved Queries",
+    "selectionRequired": "Select at least one owner and one metric to run the query.",
     "start": "Start",
     "tickerNotHeld": "not currently held",
     "tickers": "Tickers",

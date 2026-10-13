@@ -1476,6 +1476,15 @@
   },
   "portfolio": "Portefeuille",
   "query": {
+    "columns": {
+      "instrumentType": "Type d'instrument",
+      "name": "Nom",
+      "owner": "Propriétaire",
+      "returnBasis": "Base de rendement",
+      "startValueGbp": "Valeur de départ (£)",
+      "ticker": "Ticker",
+      "units": "Unités"
+    },
     "copyLink": "Copier le lien",
     "end": "Fin",
     "exportCsv": "Exporter CSV",
@@ -1498,6 +1507,7 @@
     "saved": "« {{name}} » enregistrée.",
     "savedQueriesLoading": "Chargement des requêtes enregistrées…",
     "savedQueriesTitle": "Requêtes enregistrées",
+    "selectionRequired": "Sélectionnez au moins un propriétaire et une métrique pour exécuter la requête.",
     "start": "Début",
     "tickerNotHeld": "non détenu actuellement",
     "tickers": "Tickers",

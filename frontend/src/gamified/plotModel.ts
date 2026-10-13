@@ -323,6 +323,11 @@ export interface Crop {
 /** Why the backend reports a holding as not sellable (#10812). */
 export type SellBlockReason = 'hold_period' | 'needs_approval';
 
+/**
+ * Narrow the API's free-form reason. An unrecognised reason maps to null on
+ * purpose: `isStillInPropagator` then treats the crop like an older payload
+ * (still in the propagator), the safe default for a blocker we can't name.
+ */
 function sellBlockReasonFor(
   raw: string | null | undefined
 ): SellBlockReason | null {

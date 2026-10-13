@@ -347,6 +347,32 @@ describe("toRollupRows", () => {
     });
   });
 
+  it("carries sell_block_reason from the oldest dated lot (#10812)", () => {
+    const blocked = accounts.map((account) => ({
+      ...account,
+      holdings: account.holdings.map((holding) =>
+        holding.acquired_date
+          ? {
+              ...holding,
+              sell_eligible: false,
+              sell_block_reason: "needs_approval",
+            }
+          : { ...holding, sell_block_reason: "hold_period" },
+      ),
+    }));
+    const [row] = toRollupRows(
+      toScopedHoldingRows(blocked),
+      [],
+      "2025-04-11",
+    );
+
+    expect(row).toMatchObject({
+      ticker: "AAA",
+      sell_eligible: false,
+      sell_block_reason: "needs_approval",
+    });
+  });
+
   it("returns null days_held (not clamped to 0) when asOf predates the acquired_date", () => {
     // Regression: a historical `asOf` snapshot requested before the lot was
     // acquired must not be reported as "held for 0 days" — that reads as

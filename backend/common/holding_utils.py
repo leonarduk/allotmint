@@ -976,6 +976,7 @@ def enrich_holding(
 
         out["days_held"] = None
         out["sell_eligible"] = True
+        out["sell_block_reason"] = None
         out["eligible_on"] = None
         out["days_until_eligible"] = 0
         out["next_eligible_sell_date"] = None

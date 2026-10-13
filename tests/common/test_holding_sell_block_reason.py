@@ -72,3 +72,9 @@ def test_unknown_acquisition_date_has_no_block_reason():
     out = enrich_holding(_holding(None), TODAY, {}, {}, _cfg())
     assert out["sell_eligible"] is None
     assert out["sell_block_reason"] is None
+
+
+def test_cash_has_no_block_reason():
+    out = enrich_holding({"ticker": "CASH.GBP", "units": 100, "currency": "GBP"}, TODAY, {}, {}, _cfg())
+    assert out["sell_eligible"] is True
+    assert out["sell_block_reason"] is None

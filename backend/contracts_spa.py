@@ -182,6 +182,8 @@ class HoldingContract(SpaContractBase):
     forward_30d_change_pct: float | None = None
     days_held: int | None = None
     sell_eligible: bool | None = None
+    # "hold_period" | "needs_approval" when sell_eligible is False (#10812).
+    sell_block_reason: str | None = None
     days_until_eligible: int | None = None
     next_eligible_sell_date: str | None = None
 

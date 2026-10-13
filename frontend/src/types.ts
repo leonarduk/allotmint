@@ -80,6 +80,12 @@ export interface Holding {
 
   days_held?: number | null;
   sell_eligible?: boolean | null;
+  /**
+   * Why `sell_eligible` is false (#10812): "hold_period" while the minimum
+   * hold is still running, "needs_approval" once it has elapsed but the sale
+   * still needs approval. Null when sellable or eligibility is unknown.
+   */
+  sell_block_reason?: string | null;
   days_until_eligible?: number | null;
   next_eligible_sell_date?: string | null;
 }

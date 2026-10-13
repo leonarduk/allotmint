@@ -81,6 +81,7 @@ export const aggregateHoldingsByTicker = (
       acquired_date: acquiredDate,
       days_held: daysHeld,
       sell_eligible: oldest.sell_eligible,
+      sell_block_reason: oldest.sell_block_reason,
       days_until_eligible: oldest.days_until_eligible,
       next_eligible_sell_date: oldest.next_eligible_sell_date,
       source_account: undefined,

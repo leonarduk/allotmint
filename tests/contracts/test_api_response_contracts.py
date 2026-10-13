@@ -162,6 +162,17 @@ def test_non_vacuous_guard_rejects_thin_payloads(name: str, payload: Any) -> Non
         _assert_non_vacuous(name, payload)
 
 
+@pytest.mark.parametrize(
+    ("name", "payload"),
+    [
+        ("owners", [{"owner": "x"}]),
+        ("portfolio", {"owner": "x", "accounts": [{"holdings": []}, {"holdings": [{"ticker": "X"}]}]}),
+    ],
+)
+def test_non_vacuous_guard_accepts_populated_payloads(name: str, payload: Any) -> None:
+    _assert_non_vacuous(name, payload)
+
+
 @pytest.mark.parametrize("field", ["realised_gain_gbp", "cost_basis_gbp", "proceeds_gbp", "unmatched_units"])
 def test_transactions_contract_drift_is_detected(client: TestClient, field: str) -> None:
     """Dropping a backend-emitted field from the frontend contract must fail validation.

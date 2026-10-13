@@ -79,6 +79,9 @@ export const holdingContractSchema = z
     realised_gain_gbp: nullableNumber,
     total_return_gbp: nullableNumber,
     total_return_pct: nullableNumber,
+    // Trailing 12-month income over market value, %; null when none (#7019).
+    // Mirrors HoldingContract.yield_pct in backend/contracts_spa.py (#10771).
+    yield_pct: nullableNumber,
     current_price_gbp: nullableNumber,
     current_price_currency: nullableString,
     last_price_date: nullableString,

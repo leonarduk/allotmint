@@ -65,6 +65,14 @@ CHAT_HISTORY_NONCURRENT_DAYS = 1
 # here; the backend Lambda reads them and writes settings.
 BOTS_PREFIX = "bots"
 
+# The recent-alerts history document (#10802, backend/common/alerts.py
+# _history_uri): with ALERTS_HISTORY_URI unset, every publish_alert /
+# publish_sns_alert reads and rewrites s3://$DATA_BUCKET/<this key>. Lambdas
+# that publish alerts but whose PutObject is otherwise prefix-scoped get
+# PutObject on this single object only (#10831). Must match
+# backend.common.alerts._S3_KEY.
+ALERTS_HISTORY_KEY = "alerts/recent_alerts.json"
+
 # Where DataStewardLambda saves its run reports (backend/data_steward/store.py,
 # via DATA_STEWARD_REPORTS_URI) and the only prefix it may write to (#10471).
 DATA_STEWARD_REPORTS_PREFIX = "data_steward/reports"
@@ -258,6 +266,22 @@ class BackendLambdaStack(Stack):
                 actions=["s3:ListBucket"],
                 resources=[bucket.bucket_arn],
                 conditions={"StringLike": {"s3:prefix": ["timeseries", "timeseries/*"]}},
+            )
+        )
+
+    @staticmethod
+    def _grant_alerts_history_write(fn: _lambda.DockerImageFunction, *, bucket: s3.IBucket) -> None:
+        """Let a Lambda that publishes alerts persist them (#10802, #10831).
+
+        PutObject on the one alerts history object, not alerts/*: that prefix
+        also holds alert settings, push subscriptions and price triggers. The
+        matching GetObject comes from the caller's bucket-wide read grant.
+        """
+
+        fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:PutObject"],
+                resources=[bucket.arn_for_objects(ALERTS_HISTORY_KEY)],
             )
         )
 
@@ -1238,7 +1262,7 @@ class BackendLambdaStack(Stack):
             memory_size=512,
         )
 
-        # TradingAgentLambda: read-only, no put, no general list. It has scoped
+        # TradingAgentLambda: read-only data, no general put or list. It has scoped
         # ListBucket on prices/ so the price-snapshot loader can distinguish missing
         # snapshots from denied access during cold start, and on accounts/ for
         # owner/ticker discovery: trading_agent.py:run() and _alert_on_drawdown()
@@ -1247,10 +1271,12 @@ class BackendLambdaStack(Stack):
         # also calls list_all_unique_tickers() at module load (issue #8914).
         # Audited: trading_agent.py:run() → load_prices_for_tickers()
         # → load_meta_timeseries_range() reads parquet from S3 by known key.
-        # No S3 writes: _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).
-        # The timeseries cache grant adds scoped GetObject and ListBucket so pyarrow
-        # can read cached parquet files under timeseries/. allow_put=False enforces
-        # the read-only invariant on the timeseries prefix.
+        # The trade log is not in S3: _log_trade() writes to TRADE_LOG_PATH (local
+        # filesystem / CloudWatch). Its only S3 writes are its bots/ run record and
+        # the alerts history object (both granted below). The timeseries cache
+        # grant adds scoped GetObject and ListBucket so pyarrow can read cached
+        # parquet files under timeseries/. allow_put=False enforces the read-only
+        # invariant on the timeseries prefix.
         self._grant_bucket_access(
             agent_fn,
             bucket=data_bucket,
@@ -1260,14 +1286,18 @@ class BackendLambdaStack(Stack):
             list_prefix=lambda_list_prefixes["trading_agent"],
         )
         self._grant_timeseries_cache_access(agent_fn, bucket=data_bucket, allow_put=False)
-        # The one write this Lambda makes: its own run record under bots/
-        # (backend/bots/runs.py::save_run, #10477). Data stays read-only.
+        # Its own run record under bots/ (backend/bots/runs.py::save_run, #10477).
+        # Data stays read-only.
         agent_fn.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["s3:PutObject"],
                 resources=[data_bucket.arn_for_objects(f"{BOTS_PREFIX}/*")],
             )
         )
+        # Alerts history (#10831): bots/adapters.py:TradingAgentBot.run →
+        # agent/trading_agent.py:run / _alert_on_drawdown → send_trade_alert →
+        # common/alerts.py:publish_alert (also via alerts.py:send_push_notification).
+        self._grant_alerts_history_write(agent_fn, bucket=data_bucket)
 
         events.Rule(
             self,
@@ -1328,6 +1358,10 @@ class BackendLambdaStack(Stack):
             put_prefix=("trend_watch", BOTS_PREFIX),
         )
         self._grant_timeseries_cache_access(trend_watch_fn, bucket=data_bucket, allow_put=False)
+        # Alerts history (#10831): trend_watch/bot.py:TrendWatchBot.run →
+        # service.py:run_for_owner(notify=True) → agent/trading_agent.py:
+        # send_trade_alert → common/alerts.py:publish_alert.
+        self._grant_alerts_history_write(trend_watch_fn, bucket=data_bucket)
 
         events.Rule(
             self,
@@ -1446,8 +1480,8 @@ class BackendLambdaStack(Stack):
 
         # PensionReportLambda: read-only on accounts/ (list_portfolios() ->
         # list_plots() needs ListBucket, same reasoning as price_refresh above),
-        # plus write access scoped to pension-reports/ — the only prefix this
-        # Lambda ever writes to (PENSION_SNAPSHOTS_URI above). Scoping the
+        # plus write access scoped to pension-reports/ (PENSION_SNAPSHOTS_URI
+        # above), its bots/ run record and the alerts history object. Scoping the
         # s3:PutObject resource this way (rather than bucket-wide) prevents the
         # Lambda from writing outside its own snapshot path (issue #5013).
         self._grant_bucket_access(
@@ -1460,6 +1494,9 @@ class BackendLambdaStack(Stack):
             # bots/: its own run record for the Bots page (#10477).
             put_prefix=("pension-reports", BOTS_PREFIX),
         )
+        # Alerts history (#10831): lambda_api/pension_report.py:_run_report calls
+        # common/alerts.py:publish_sns_alert when it fails to start or for any owner.
+        self._grant_alerts_history_write(pension_report_fn, bucket=data_bucket)
 
         # SES send permission for the pension report email (#5367).
         pension_report_fn.add_to_role_policy(
@@ -1526,8 +1563,8 @@ class BackendLambdaStack(Stack):
 
         # PlanBriefLambda: read-only on account data (GetObject, plus ListBucket
         # on accounts/ only), and s3:PutObject only under plan_briefs/ -- the
-        # brief history it saves (backend/plan_brief/store.py). It never writes
-        # plans, allocation policy or accounts.
+        # brief history it saves (backend/plan_brief/store.py), plus the alerts
+        # history object. It never writes plans, allocation policy or accounts.
         self._grant_bucket_access(
             plan_brief_fn,
             bucket=data_bucket,
@@ -1537,6 +1574,9 @@ class BackendLambdaStack(Stack):
             list_prefix=lambda_list_prefixes["plan_brief"],
             put_prefix=PLAN_BRIEFS_PREFIX,
         )
+        # Alerts history (#10831): lambda_api/plan_brief.py:_run calls
+        # common/alerts.py:publish_sns_alert when it fails to start or for any owner.
+        self._grant_alerts_history_write(plan_brief_fn, bucket=data_bucket)
         plan_brief_fn.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ses:SendEmail"],

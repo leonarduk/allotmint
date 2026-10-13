@@ -472,3 +472,17 @@ def test_timeseries_admin_does_not_cache_with_s3_metadata(local_series, monkeypa
     timeseries_admin.timeseries_admin()
 
     assert reads == ["ABC_L.parquet", "ABC_L.parquet"]
+
+
+def test_timeseries_admin_picks_up_metadata_that_appears_later(local_series):
+    """No instrument file is a cacheable state too; the file appearing changes the signature."""
+    _, meta_file, reads = local_series
+    meta_file.unlink()
+    instruments_module.get_instrument_meta.cache_clear()
+    assert timeseries_admin.timeseries_admin()[0]["name"] is None
+
+    meta_file.write_text(json.dumps({"ticker": "ABC.L", "name": "Arrived"}), encoding="utf-8")
+    instruments_module.get_instrument_meta.cache_clear()
+
+    assert timeseries_admin.timeseries_admin()[0]["name"] == "Arrived"
+    assert reads == ["ABC_L.parquet", "ABC_L.parquet"]

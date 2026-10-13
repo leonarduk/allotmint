@@ -65,7 +65,15 @@ def test_find_outliers_matches_reference_loop(seed, sigma, window):
 
 @pytest.mark.parametrize(
     "closes",
-    [[], [1.0], [1.0, 1.0, 1.0], [float("nan")] * 5, ["1", "x", "3", "100", "2"]],
+    [
+        [],
+        [1.0],
+        [1.0, 1.0, 1.0],
+        [float("nan")] * 5,
+        ["1", "x", "3", "100", "2"],
+        [1.0, 2.0, float("inf"), 3.0, 4.0, 5.0, 6.0, 7.0],
+        [1.0, 2.0, 3.0, float("-inf"), 2.0, 1.0, 50.0, 2.0],
+    ],
 )
 def test_find_outliers_edge_cases_match_reference(closes):
     df = pd.DataFrame({"Date": pd.bdate_range("2024-01-01", periods=len(closes)), "Close": closes})
@@ -97,6 +105,15 @@ def test_scale_steps_and_large_moves_match_reference_loop(seed):
 )
 def test_scale_step_mask_matches_scalar_check(ratio):
     assert bool(price_scale._scale_step_mask(np.array([ratio]))[0]) is price_scale.is_scale_step(ratio)
+
+
+def test_infinite_close_steps_match_reference():
+    closes = pd.Series([100.0, math.inf, 1000.0, 10.0], index=[f"2024-01-0{d}" for d in range(1, 5)])
+    steps = _reference_steps(closes)
+    assert price_scale.find_scale_steps(closes) == [s for s in steps if price_scale.is_scale_step(s["ratio"])]
+    assert price_scale.find_large_moves(closes, 0.5) == [
+        s for s in steps if abs(s["ratio"] - 1.0) > 0.5 and not price_scale.is_scale_step(s["ratio"])
+    ]
 
 
 @pytest.mark.parametrize("size", [0, 1, 2])

@@ -150,6 +150,12 @@ def memoised(key: CacheKey, build: Callable[[], _T]) -> _T:
     demo scope and the timeseries cache-only mode (both change what a build
     reads), and concurrent misses for one key run a single build. ``key`` must
     name every other input the build varies on.
+
+    Any returned value is cached, ``None`` included ("this owner has no
+    ledger" is a real answer); a build that fails must raise, which caches
+    nothing. The cache is per process, so it shares work between requests
+    served by one backend process -- the local API, or one warm Lambda
+    container -- not across containers.
     """
 
     if not _SHARING_PERFORMANCE_INPUTS.get():

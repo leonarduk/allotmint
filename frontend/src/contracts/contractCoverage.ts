@@ -7,10 +7,6 @@
 // never survives parsing -- e.g. #10752 (realised gains always £0.00), #10640
 // and #4883. Each assertion below fails `tsc` if a type key is missing from its
 // schema, so that drift is caught at build time instead of in a QA sweep.
-//
-// Transactions are not covered yet: the fix for #10752 (PR #10759) adds the
-// missing keys to transactionContractSchema; add a `Transaction` line here
-// once it lands.
 import type { z } from "zod";
 
 import type {
@@ -30,6 +26,7 @@ import type {
   OwnerSummary,
   Portfolio,
   TimeseriesQualityPosition,
+  Transaction,
 } from "../types";
 import type {
   accountContractSchema,
@@ -42,6 +39,7 @@ import type {
   holdingContractSchema,
   ownerSummarySchema,
   portfolioContractSchema,
+  transactionContractSchema,
 } from "./apiContracts";
 
 /** Keys of the frontend type `T` that the schema output `S` does not declare. */
@@ -69,6 +67,10 @@ export type PortfolioCoverage = AssertAllDeclared<
 >;
 export type GroupPortfolioCoverage = AssertAllDeclared<
   UndeclaredKeys<GroupPortfolio, Output<typeof groupPortfolioContractSchema>>
+>;
+// The #10752 regression: realised_gain_gbp etc. were typed but undeclared.
+export type TransactionCoverage = AssertAllDeclared<
+  UndeclaredKeys<Transaction, Output<typeof transactionContractSchema>>
 >;
 
 type TimeseriesQualityOutput = Output<typeof dataQualityTimeseriesContractSchema>;
@@ -101,8 +103,9 @@ export const contractCoverageChecks: [
   AccountCoverage,
   PortfolioCoverage,
   GroupPortfolioCoverage,
+  TransactionCoverage,
   DataQualityTimeseriesCoverage,
   DataQualityIssuesCoverage,
   DataQualityAuditCoverage,
   AwsCostsCoverage,
-] = [true, true, true, true, true, true, true, true, true, true];
+] = [true, true, true, true, true, true, true, true, true, true, true];

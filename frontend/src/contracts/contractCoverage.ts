@@ -7,6 +7,9 @@
 // never survives parsing -- e.g. #10752 (realised gains always £0.00), #10640
 // and #4883. Each assertion below fails `tsc` if a type key is missing from its
 // schema, so that drift is caught at build time instead of in a QA sweep.
+//
+// The guard only runs because tsconfig.app.json includes `src`; keep this file
+// inside that include glob. Key presence is checked, not value types.
 import type { z } from "zod";
 
 import type {
@@ -109,3 +112,15 @@ export const contractCoverageChecks: [
   DataQualityAuditCoverage,
   AwsCostsCoverage,
 ] = [true, true, true, true, true, true, true, true, true, true, true];
+
+// Self-test: the guard must reject a frontend type key the schema lacks. If
+// the assertion ever became vacuous, this @ts-expect-error would be unused
+// and tsc would fail, so a broken guard cannot pass CI silently.
+type SelfTestCoverage = AssertAllDeclared<
+  UndeclaredKeys<
+    Holding & { field_missing_from_schema: number },
+    Output<typeof holdingContractSchema>
+  >
+>;
+// @ts-expect-error -- the extra key is undeclared, so `true` must not fit.
+export const contractCoverageSelfTest: SelfTestCoverage = true;

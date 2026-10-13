@@ -1915,6 +1915,9 @@ def _gbp_holding_values(
     and max drawdown and the value history on a price basis, so each pair
     shares one pricing pass (see :func:`portfolio_cache.memoised`).
     """
+    # Order-sensitive: the callers share a pass only because ``_series_holdings``
+    # and ``compute_owner_performance`` list holdings in the portfolio's stored
+    # order with the same filters. test_performance_inputs_cache pins that.
     key = ("gbp_holding_values", tuple(holdings), effective_days, window, total_return)
     return portfolio_cache.memoised(
         key, lambda: _price_gbp_holding_values(holdings, effective_days, window, total_return=total_return)

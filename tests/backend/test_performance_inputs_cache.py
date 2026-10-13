@@ -14,6 +14,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from unittest import mock
 
 import pandas as pd
 import pytest
@@ -21,6 +22,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.common import portfolio_cache, portfolio_utils
+from backend.common.accounts_store import LocalAccountsStore, S3AccountsStore
 from backend.routes import performance
 from backend.utils.pricing_dates import PricingDateCalculator
 
@@ -79,6 +81,42 @@ def test_account_writes_invalidate_the_shared_inputs():
         portfolio_cache.invalidate_group_portfolios()
         portfolio_cache.memoised(("k",), lambda: builds.append(1))
 
+    assert len(builds) == 2
+
+
+def _seed_ledger_rebuild() -> list[int]:
+    """Cache a "no ledger yet" rebuild for alice and return a list that counts rebuilds."""
+    builds: list[int] = []
+    with portfolio_cache.sharing_performance_inputs():
+        portfolio_cache.memoised(("rebuilt_performance", "alice"), lambda: builds.append(1))
+    return builds
+
+
+def _rebuild_again(builds: list[int]) -> None:
+    with portfolio_cache.sharing_performance_inputs():
+        portfolio_cache.memoised(("rebuilt_performance", "alice"), lambda: builds.append(1))
+
+
+def test_a_transaction_written_through_the_local_store_drops_a_cached_ledger_rebuild(tmp_path):
+    """Adding a transaction (``routes/transactions.py`` writes via ``edit_document``) must not leave TWR/XIRR stale."""
+    builds = _seed_ledger_rebuild()
+
+    store = LocalAccountsStore(root=tmp_path)
+    with store.edit_document("alice", "isa_transactions.json", default={"transactions": []}) as data:
+        data["transactions"].append({"date": "2026-10-01", "type": "DEPOSIT", "amount_minor": 100000})
+
+    _rebuild_again(builds)
+    assert len(builds) == 2
+
+
+def test_a_transaction_written_through_the_s3_store_drops_a_cached_ledger_rebuild():
+    builds = _seed_ledger_rebuild()
+
+    store = S3AccountsStore(bucket="test-bucket")
+    with mock.patch.object(S3AccountsStore, "_s3", return_value=mock.MagicMock()):
+        store._put_document("alice", "isa_transactions.json", {"transactions": []})
+
+    _rebuild_again(builds)
     assert len(builds) == 2
 
 

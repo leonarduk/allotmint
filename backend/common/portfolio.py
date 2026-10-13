@@ -315,8 +315,9 @@ def count_trades_in_month(owner: str, month: dt.date, accounts_root: Optional[Pa
 
 
 # ───────────────────────── generic helpers ───────────────────────
-def _parse_date(s: str | None) -> Optional[dt.date]:
-    if not s:
+def _parse_date(s: Any) -> Optional[dt.date]:
+    # Ledger JSON is externally produced; a non-string date must not crash callers.
+    if not s or not isinstance(s, str):
         return None
     try:
         return dt.datetime.fromisoformat(s).date()

@@ -66,6 +66,13 @@ def test_legacy_trades_csv_is_not_counted(tmp_path):
     assert portfolio.count_trades_in_month("steve", OCT, tmp_path) == 1
 
 
+def test_skips_rows_with_non_string_dates(tmp_path):
+    rows = _rows(1, "BUY") + [{"date": d, "type": "BUY"} for d in (20261007, None, ["2026-10-07"])]
+    _write_ledger(tmp_path, "steve", "ISA", rows)
+
+    assert portfolio.count_trades_in_month("steve", OCT, tmp_path) == 1
+
+
 def test_aws_overlays_writable_s3_ledger_per_account(tmp_path, monkeypatch):
     _write_ledger(tmp_path, "steve", "ISA", _rows(5, "BUY"))
     _write_ledger(tmp_path, "steve", "SIPP", _rows(2, "SELL"))

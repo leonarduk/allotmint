@@ -352,4 +352,35 @@ describe('Plot default grower (#10753)', () => {
       expect(screen.getByLabelText('Grower')).toHaveValue('steve')
     );
   });
+
+  it('lets an explicit ?owner= win over the signed-in user', async () => {
+    mocks.getOwners.mockResolvedValue(
+      OWNERS.map((o) => ({ ...o, email: `${o.owner}@example.com` }))
+    );
+    const { AuthContext } = await import('@/AuthContext');
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: 'steve@example.com' },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={['/plot?owner=joe']}>
+          <Routes>
+            <Route path="/plot/*" element={<PlotApp />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('joe'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Grower')).toHaveValue('joe')
+    );
+    expect(mocks.getPortfolio).not.toHaveBeenCalledWith('steve');
+  });
 });

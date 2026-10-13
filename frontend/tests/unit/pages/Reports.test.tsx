@@ -291,6 +291,12 @@ describe("Reports page", () => {
     expect(
       screen.getByRole("link", { name: /Download CSV/i }).getAttribute("href"),
     ).toContain("/reports/joe/");
+
+    // Returning to the original route owner must not resurrect the old pick.
+    rerender(tree("alex"));
+    expect(
+      screen.getByRole("link", { name: /Download CSV/i }).getAttribute("href"),
+    ).toContain("/reports/alex/");
   });
 
   it("includes the chosen template ID in download links", async () => {

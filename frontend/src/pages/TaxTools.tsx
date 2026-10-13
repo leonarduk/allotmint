@@ -722,7 +722,10 @@ export default function TaxTools() {
               onChange={handleOwnerChange}
               disabled={ownerSelectDisabled}
             >
-              <option value="">{t("taxTools.selectOwner")}</option>
+              {/* Placeholder only until the default owner applies (#10753). */}
+              {!ownerSelectValue && (
+                <option value="">{t("taxTools.selectOwner")}</option>
+              )}
               {owners.map((owner) => (
                 <option key={owner.owner} value={owner.owner}>
                   {owner.full_name?.trim() || owner.owner}

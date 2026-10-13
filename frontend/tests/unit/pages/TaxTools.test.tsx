@@ -269,6 +269,18 @@ describe("TaxTools", () => {
     ).toEqual(["Select an owner", "Alex Leonard", "Steve Leonard"]);
   });
 
+  it("drops the empty placeholder once an owner is selected", async () => {
+    render(<TaxTools />);
+
+    const select = await screen.findByLabelText(/portfolio owner/i);
+    await screen.findByRole("option", { name: "bob" });
+    expect(
+      within(select)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["alice", "bob"]);
+  });
+
   it("replaces an unknown route owner with the default owner", async () => {
     const setSelectedOwner = vi.fn();
     useRouteMock.mockReturnValue({

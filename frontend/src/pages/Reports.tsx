@@ -175,6 +175,11 @@ export default function Reports() {
   // A picked owner wins, then the route owner, then the signed-in user's
   // owner, then owners[0] (#10753).
   const defaultOwner = useDefaultOwner(owners, selectedOwner);
+  // Drop a pick made under a previous route owner so it can't resurface if
+  // the route later returns to that owner.
+  if (explicitPick && explicitPick.route !== selectedOwner) {
+    setExplicitPick(null);
+  }
   const owner =
     explicitPick && explicitPick.route === selectedOwner
       ? explicitPick.owner

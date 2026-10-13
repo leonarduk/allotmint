@@ -119,6 +119,10 @@ export const signedPercent = (v: number, fractionDigits = 2, locale: string = i1
     return v > 0 ? `+${text}` : text;
 };
 
+/** Whole number with the active UI language's digit grouping (chart ticks, #10835). */
+export const wholeNumber = (v: number, locale: string = i18n.language): string =>
+    new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(v);
+
 export const largeNumber = (
     v: number | null | undefined,
     locale: string = i18n.language,

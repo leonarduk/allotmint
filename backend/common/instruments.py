@@ -825,8 +825,9 @@ def list_instruments() -> List[Dict[str, Any]]:
     """
 
     instruments: List[Dict[str, Any]] = []
+    root = _active_instruments_dir()
     seen: set[str] = set()
-    for path, signature in _iter_json_files(_active_instruments_dir()):
+    for path, signature in _iter_json_files(root):
         seen.add(path)
         with _LIST_CACHE_LOCK:
             cached = _LIST_CACHE.get(path)
@@ -842,6 +843,9 @@ def list_instruments() -> List[Dict[str, Any]]:
             _LIST_CACHE[path] = (signature, data)
         instruments.append(dict(data))
     with _LIST_CACHE_LOCK:
-        for stale in [p for p in _LIST_CACHE if p not in seen]:
+        # Only this root's entries: a listing of another instruments directory
+        # must not evict them.
+        prefix = os.path.join(str(root), "")
+        for stale in [p for p in _LIST_CACHE if p.startswith(prefix) and p not in seen]:
             del _LIST_CACHE[stale]
     return instruments

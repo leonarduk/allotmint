@@ -137,7 +137,7 @@ def timeseries_admin() -> list[dict[str, Any]]:
         summary = _local_summary(path, ticker, exchange)
         if summary is not None:
             summaries.append(summary)
-    _prune_summary_cache(set(paths))
+    _prune_summary_cache(base, set(paths))
     return summaries
 
 
@@ -172,10 +172,10 @@ def _local_summary(path: Path, ticker: str, exchange: str) -> dict[str, Any] | N
     return dict(summary) if summary is not None else None
 
 
-def _prune_summary_cache(present: set[Path]) -> None:
-    """Forget summaries for parquets that no longer exist."""
+def _prune_summary_cache(base: Path, present: set[Path]) -> None:
+    """Forget summaries for parquets under ``base`` that no longer exist (other roots are left alone)."""
     with _SUMMARY_CACHE_LOCK:
-        for stale in [p for p in _SUMMARY_CACHE if p not in present]:
+        for stale in [p for p in _SUMMARY_CACHE if p.parent == base and p not in present]:
             del _SUMMARY_CACHE[stale]
 
 

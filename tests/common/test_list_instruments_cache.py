@@ -114,3 +114,16 @@ def test_unreadable_file_is_skipped_and_retried(instruments_dir, caplog):
 def test_missing_directory_lists_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(instruments_module, "_INSTRUMENTS_DIR", tmp_path / "absent")
     assert list_instruments() == []
+
+
+def test_listing_another_root_keeps_this_roots_entries(instruments_dir, tmp_path, monkeypatch, load_calls):
+    list_instruments()
+    other = tmp_path / "other"
+    _write(other / "L" / "ZZZ.json", {"ticker": "ZZZ.L", "name": "Zed"})
+    monkeypatch.setattr(instruments_module, "_INSTRUMENTS_DIR", other)
+    list_instruments()
+
+    monkeypatch.setattr(instruments_module, "_INSTRUMENTS_DIR", instruments_dir)
+    list_instruments()
+
+    assert sorted(load_calls) == ["AAA.json", "BBB.json", "ZZZ.json"]

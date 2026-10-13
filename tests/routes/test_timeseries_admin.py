@@ -498,3 +498,18 @@ def test_local_summary_is_not_cached_on_aws(local_series, monkeypatch):
 
     assert reads == ["ABC_L.parquet", "ABC_L.parquet"]
     assert timeseries_admin._SUMMARY_CACHE == {}
+
+
+def test_scanning_another_data_root_keeps_this_roots_summaries(local_series, monkeypatch, tmp_path):
+    _, _, reads = local_series
+    timeseries_admin.timeseries_admin()
+    other = tmp_path / "other"
+    (other / "timeseries" / "meta").mkdir(parents=True)
+    _write_series(other / "timeseries" / "meta", "ZZZ_L", ["2024-01-01"])
+    monkeypatch.setattr(config, "data_root", other)
+    timeseries_admin.timeseries_admin()
+
+    monkeypatch.setattr(config, "data_root", tmp_path)
+    timeseries_admin.timeseries_admin()
+
+    assert reads == ["ABC_L.parquet", "ZZZ_L.parquet"]

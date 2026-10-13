@@ -38,6 +38,11 @@ import {
   getOwnerLookThrough,
   getInstrumentAllocation,
   refreshInstrumentLookThrough,
+  ADMIN_SCAN_TIMEOUT_MS,
+  DEFAULT_FETCH_TIMEOUT_MS,
+  getDataQualityIssues,
+  listInstrumentMetadata,
+  listTimeseries,
 } from "@/api";
 import {
   clearFetchCache,
@@ -541,6 +546,38 @@ describe("stalled-request timeout (issue #7074)", () => {
 
     await vi.advanceTimersByTimeAsync(15000);
     await assertion;
+  });
+
+  it.each([
+    ["listTimeseries", () => listTimeseries()],
+    ["listInstrumentMetadata", () => listInstrumentMetadata()],
+    ["getDataQualityIssues", () => getDataQualityIssues()],
+  ])("gives the admin scan %s longer than the default timeout (#10754)", async (_name, call) => {
+    const realFetch = global.fetch;
+    global.fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+    }) as unknown as typeof fetch;
+    try {
+      let settled = false;
+      const pending = call().finally(() => {
+        settled = true;
+      });
+      const assertion = expect(pending).rejects.toMatchObject({
+        message: expect.stringMatching(/timed out after 120s/i),
+      });
+
+      await vi.advanceTimersByTimeAsync(DEFAULT_FETCH_TIMEOUT_MS + 1000);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(ADMIN_SCAN_TIMEOUT_MS);
+      await assertion;
+    } finally {
+      global.fetch = realFetch;
+    }
   });
 });
 

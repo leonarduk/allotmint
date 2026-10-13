@@ -799,7 +799,9 @@ def _iter_json_files(root: Path) -> Iterator[tuple[str, tuple[int, int]]]:
         return
     for entry in entries:
         try:
-            if entry.is_dir():
+            # Like the pathlib rglob this replaced: symlinked directories are not
+            # descended into (a link loop must not hang the listing), symlinked files are listed.
+            if entry.is_dir(follow_symlinks=False):
                 yield from _iter_json_files(Path(entry.path))
             elif entry.is_file() and os.path.normcase(entry.name).endswith(".json"):
                 stat = entry.stat()

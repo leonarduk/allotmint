@@ -1802,8 +1802,17 @@ export const getInstrumentMetadata = (ticker: string, exchange: string) =>
     `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,
   );
 
+/**
+ * Data Admin, Instrument Admin and Data Quality list every instrument file or
+ * cached series. The backend caches those scans and warms them at startup
+ * (#10754), but a visit in the first minute or so after a restart still runs
+ * the scan cold, which can take longer than the default 30s on the full
+ * dataset. A longer timeout for these three reads covers that window.
+ */
+export const ADMIN_SCAN_TIMEOUT_MS = 120_000;
+
 export const listTimeseries = () =>
-  fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`);
+  fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`, {}, ADMIN_SCAN_TIMEOUT_MS);
 
 export const refetchTimeseries = (ticker: string, exchange: string) =>
   fetchJson<{ status: string; rows: number }>(
@@ -1830,7 +1839,7 @@ export const getDataExplorerFile = (path: string) =>
 
 // Instrument metadata admin
 export const listInstrumentMetadata = () =>
-  fetchJson<InstrumentMetadata[]>(`${API_BASE}/instrument/admin`);
+  fetchJson<InstrumentMetadata[]>(`${API_BASE}/instrument/admin`, {}, ADMIN_SCAN_TIMEOUT_MS);
 
 export const listInstrumentGroups = () =>
   fetchJson<string[]>(`${API_BASE}/instrument/admin/groups`);
@@ -3056,6 +3065,8 @@ export const getDataQualityIssues = async (filters: {
   return dataQualityIssuesContractSchema.parse(
     await fetchJson<DataQualityIssuesResponse>(
       `${API_BASE}/data-quality/issues${qs ? `?${qs}` : ""}`,
+      {},
+      ADMIN_SCAN_TIMEOUT_MS,
     ),
   );
 };

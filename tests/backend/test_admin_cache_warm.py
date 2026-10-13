@@ -96,3 +96,51 @@ def test_background_warm_failure_is_logged_not_raised(monkeypatch, caplog):
     asyncio.run(AppLifecycleService._warm_admin_caches_background())
 
     assert "Failed to warm admin page caches" in caplog.text
+
+
+def test_warm_fills_the_real_caches_from_a_data_root(monkeypatch, tmp_path):
+    """Unpatched steps against a real data root: afterwards each endpoint is served from cache."""
+    import json
+
+    import pandas as pd
+
+    from backend.common import instruments
+    from backend.config import config
+    from backend.data_quality import issues
+    from backend.routes import timeseries_admin
+    from backend.timeseries import cache
+
+    meta_dir = tmp_path / "timeseries" / "meta"
+    meta_dir.mkdir(parents=True)
+    parquet = meta_dir / "ABC_L.parquet"
+    dates = pd.bdate_range("2026-01-05", periods=30)
+    pd.DataFrame({"Date": dates, "Close": [100.0 + i for i in range(30)], "Source": ["A"] * 30}).to_parquet(parquet)
+    (tmp_path / "instruments" / "L").mkdir(parents=True)
+    (tmp_path / "instruments" / "L" / "ABC.json").write_text(
+        json.dumps({"ticker": "ABC.L", "name": "Alpha"}), encoding="utf-8"
+    )
+
+    monkeypatch.setattr(config, "app_env", "local")
+    monkeypatch.setattr(config, "data_root", tmp_path)
+    monkeypatch.delenv("METADATA_BUCKET", raising=False)
+    monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path / "timeseries"))
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path / "instruments")
+    monkeypatch.setattr(issues, "_refresh_universe", lambda: [])
+    instruments.get_instrument_meta.cache_clear()
+
+    timings = admin_cache_warm.warm_admin_caches()
+
+    assert set(timings) == {"instrument_list", "timeseries_summaries", "data_quality_series"}
+    assert any(p.endswith("ABC.json") for p in instruments._LIST_CACHE)
+    assert parquet in timeseries_admin._SUMMARY_CACHE
+    assert ("ABC", "L") in issues._SERIES_ISSUE_CACHE
+
+    def no_reads(*_args, **_kwargs):
+        raise AssertionError("served from cache, nothing should be re-read")
+
+    monkeypatch.setattr(timeseries_admin.pd, "read_parquet", no_reads)
+    monkeypatch.setattr(issues, "load_cached_meta_timeseries_full", no_reads)
+    monkeypatch.setattr(instruments, "_load_listed_instrument", no_reads)
+    assert [s["name"] for s in timeseries_admin.timeseries_admin()] == ["Alpha"]
+    assert [i["ticker"] for i in instruments.list_instruments()] == ["ABC.L"]
+    issues.aggregate_series_issues()

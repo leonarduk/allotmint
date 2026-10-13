@@ -30,6 +30,30 @@ describe("SPA response contracts", () => {
     expect(parsed.version).toBe(SPA_RESPONSE_CONTRACT_VERSION);
   });
 
+  it("accepts holding yield_pct, mirroring backend HoldingContract (#10771)", () => {
+    const holding = { ticker: "VWRL.L", name: "Vanguard FTSE All-World", units: 10 };
+    const portfolio = {
+      ...fixture.portfolio,
+      accounts: [
+        {
+          ...fixture.portfolio.accounts[0],
+          holdings: [
+            { ...holding, yield_pct: 1.85 },
+            { ...holding, yield_pct: null },
+            holding,
+          ],
+        },
+      ],
+    };
+
+    const parsed = portfolioContractSchema.parse(portfolio);
+
+    expect(parsed.accounts[0].holdings[0].yield_pct).toBe(1.85);
+    expect(parsed.accounts[0].holdings[1].yield_pct).toBeNull();
+    // Older holdings omit the key entirely; that must still parse.
+    expect(parsed.accounts[0].holdings[2].yield_pct).toBeUndefined();
+  });
+
   it("pins each high-value endpoint fixture separately", () => {
     expect(() => configContractSchema.parse(fixture.config)).not.toThrow();
     expect(() =>

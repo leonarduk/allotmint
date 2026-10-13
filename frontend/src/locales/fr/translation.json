@@ -519,7 +519,10 @@
       "change_1w": "Variation 1S",
       "change_1m": "Variation 1M",
       "change_1y": "Variation 1A",
-      "periodChangeHelp": "Variation de prix sur les parts détenues actuellement au cours des 7 / 30 / 365 derniers jours (depuis la date d'achat pour un achat dans la période). Pas un rendement pondéré dans le temps : versements, transactions et revenus de la période sont ignorés. — signifie historique de prix insuffisant."
+      "periodChangeHelp": "Variation de prix sur les parts détenues actuellement au cours des 7 / 30 / 365 derniers jours (depuis la date d'achat pour un achat dans la période). Pas un rendement pondéré dans le temps : versements, transactions et revenus de la période sont ignorés. — signifie historique de prix insuffisant.",
+      "totalReturn1y": "Rendement total 1A",
+      "totalReturn1yPct": "Rendement total 1A %",
+      "totalReturnHelp": "Rendement sur les 365 derniers jours, dividendes et intérêts compris, d'après l'historique des transactions : variations de prix plus revenus, hors versements et retraits. Le % est pondéré dans le temps (le chiffre 1A de la page Performance). Par titulaire uniquement ; — signifie aucun historique de transactions."
     }
   },
   "holdingsTable": {
@@ -1481,6 +1484,15 @@
   },
   "portfolio": "Portefeuille",
   "query": {
+    "columns": {
+      "instrumentType": "Type d'instrument",
+      "name": "Nom",
+      "owner": "Propriétaire",
+      "returnBasis": "Base de rendement",
+      "startValueGbp": "Valeur de départ (£)",
+      "ticker": "Ticker",
+      "units": "Unités"
+    },
     "copyLink": "Copier le lien",
     "end": "Fin",
     "exportCsv": "Exporter CSV",
@@ -1503,6 +1515,7 @@
     "saved": "« {{name}} » enregistrée.",
     "savedQueriesLoading": "Chargement des requêtes enregistrées…",
     "savedQueriesTitle": "Requêtes enregistrées",
+    "selectionRequired": "Sélectionnez au moins un propriétaire et une métrique pour exécuter la requête.",
     "start": "Début",
     "tickerNotHeld": "non détenu actuellement",
     "tickers": "Tickers",
@@ -1959,6 +1972,15 @@
     },
     "ticker": "Ticker",
     "title": "Éditeur de séries temporelles",
+    "grid": {
+      "cellLabel": "{{column}} le {{date}}",
+      "cellLabelUndated": "{{column}} pour la ligne sans date {{row}}",
+      "pagination": "Pages de lignes",
+      "rowsLabel": "Lignes",
+      "previousPage": "Page précédente",
+      "nextPage": "Page suivante",
+      "pageStatus": "Page {{page}} sur {{pages}} (lignes {{from}}–{{to}} sur {{total}})"
+    },
     "controls": {
       "sort": "Trier",
       "sortDesc": "Plus récents d'abord",
@@ -3112,6 +3134,10 @@
       "daysHeld": "détenu depuis {{daysHeld}} jours",
       "daysRatio": "{{daysHeld}} / {{total}} jours",
       "notLiftable": "Pas encore récoltable",
+      "needsApproval": "Approbation requise",
+      "needsApprovalHeading": "Approbation requise ({{count}})",
+      "needsApprovalNote": "Ces positions ont atteint leur durée de détention minimale ; leur vente nécessite une approbation que vous pouvez demander dès maintenant.",
+      "tradingRulesLink": "Ouvrir les règles de trading",
       "readyOn": "Prête le {{date}}",
       "daysToGo": "Encore {{daysRemaining}} jours",
       "noteIndeterminate": "Progression vers la période de détention minimale de chaque position, lorsque le backend la connaît — certains godets sont marqués non vendables sans compte à rebours à afficher.",
@@ -3183,6 +3209,7 @@
       "held_other": "Détenu {{count}} jours",
       "inPropagatorUntil": "au germoir jusqu'au {{date}}",
       "notYetLiftable": "pas encore récoltable",
+      "needsApproval": "approbation requise",
       "clearedPropagator": "sorti du germoir le {{date}}",
       "readyToLift": "prête à être récoltée",
       "notFoundTitle": "Culture introuvable",

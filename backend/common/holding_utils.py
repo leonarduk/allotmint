@@ -976,6 +976,7 @@ def enrich_holding(
 
         out["days_held"] = None
         out["sell_eligible"] = True
+        out["sell_block_reason"] = None
         out["eligible_on"] = None
         out["days_until_eligible"] = 0
         out["next_eligible_sell_date"] = None
@@ -1043,6 +1044,7 @@ def enrich_holding(
         out.update(dict.fromkeys(PERIOD_CHANGE_WINDOWS))
         out["days_held"] = None
         out["sell_eligible"] = False
+        out["sell_block_reason"] = None
         out["eligible_on"] = None
         out["days_until_eligible"] = None
         out["next_eligible_sell_date"] = None
@@ -1096,6 +1098,15 @@ def enrich_holding(
             approved = is_approval_valid(approved_on, today)
 
     out["sell_eligible"] = None if eligible is None else bool(eligible and (approved or not needs_approval))
+    # Why a confirmed sell_eligible=False holding can't be sold (#10812): still
+    # serving the minimum hold, or past it but awaiting approval. The hold
+    # period wins when both apply -- an approval can't shorten it.
+    if eligible is False:
+        out["sell_block_reason"] = "hold_period"
+    elif eligible and needs_approval and not approved:
+        out["sell_block_reason"] = "needs_approval"
+    else:
+        out["sell_block_reason"] = None
     # A hold period that has elapsed but is still blocked on approval has no
     # countdown left to report; a bare 0 next to sell_eligible=False would
     # read as "eligible now" (#7242). Positive countdowns are kept.

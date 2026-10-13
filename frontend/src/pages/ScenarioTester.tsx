@@ -12,6 +12,7 @@ import errorToast from "../utils/errorToast";
 import { loadJSON, saveJSON } from "../utils/storage";
 import { MAX_SCENARIO_HOLDING_ROWS } from "../constants/renderLimits";
 import { useDedupedRequest } from "../hooks/useDedupedRequest";
+import { useDefaultOwner } from "../hooks/useDefaultOwner";
 import { money } from "../lib/money";
 import { FxShockPanel } from "../components/FxShockPanel";
 import StrategyStressPanel from "../components/StrategyStressPanel";
@@ -79,9 +80,11 @@ export default function ScenarioTester() {
   );
 
   // The stress test runs for one owner: the chosen one, else the first
-  // selected portfolio, else the first owner.
+  // selected portfolio, else the signed-in user's owner (owners[0] when
+  // there is no match) (#10815).
+  const defaultOwner = useDefaultOwner(owners);
   const effectiveStressOwner =
-    stressOwner || selectedOwners[0] || owners[0]?.owner || "";
+    stressOwner || selectedOwners[0] || defaultOwner;
 
   const { run: runPortfolioRequest } = useDedupedRequest<Portfolio>();
 

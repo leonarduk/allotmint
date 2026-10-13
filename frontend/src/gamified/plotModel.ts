@@ -310,9 +310,28 @@ export interface Crop {
   /** Null when the acquisition date is unknown (#7220) -- eligibility
    * genuinely can't be determined, distinct from a confirmed "not eligible". */
   sellEligible: boolean | null;
+  /**
+   * Why `sellEligible` is false, when the API says (#10812). Null for a
+   * sellable/unknown crop and for payloads that predate the field.
+   */
+  sellBlockReason: SellBlockReason | null;
   /** Days until the minimum holding period is served, when the API knows. */
   daysUntilEligible: number | null;
   nextEligibleSellDate: string | null;
+}
+
+/** Why the backend reports a holding as not sellable (#10812). */
+export type SellBlockReason = 'hold_period' | 'needs_approval';
+
+/**
+ * Narrow the API's free-form reason. An unrecognised reason maps to null on
+ * purpose: `isStillInPropagator` then treats the crop like an older payload
+ * (still in the propagator), the safe default for a blocker we can't name.
+ */
+function sellBlockReasonFor(
+  raw: string | null | undefined
+): SellBlockReason | null {
+  return raw === 'hold_period' || raw === 'needs_approval' ? raw : null;
 }
 
 /** Account types get a bed identity so the roster can be grouped visually. */
@@ -446,6 +465,7 @@ function cropFromHolding(
     // sell_eligible: null (unknown) into `true`. Passing the tri-state
     // through as-is keeps "unknown" distinct from a confirmed "eligible".
     sellEligible: holding.sell_eligible ?? null,
+    sellBlockReason: sellBlockReasonFor(holding.sell_block_reason),
     daysUntilEligible: holding.days_until_eligible ?? null,
     nextEligibleSellDate: holding.next_eligible_sell_date ?? null,
   };
@@ -840,9 +860,34 @@ export function hasKnownHoldPeriodCountdown(
  * case #7184 was written for. `true` and `null` are therefore both "not
  * confirmed still growing"; the crop simply doesn't render in this tray
  * rather than making a confident claim either way.
+ *
+ * A crop blocked only on approval (#10812 -- `sellBlockReason:
+ * 'needs_approval'`) has served its hold period, so it is not in the
+ * propagator; see `isAwaitingApproval`. A `false` with no reason (an older
+ * payload) stays in the propagator as before.
  */
 export function isStillInPropagator(crop: Crop): boolean {
-  return crop.sellEligible === false;
+  return (
+    crop.sellEligible === false && crop.sellBlockReason !== 'needs_approval'
+  );
+}
+
+/**
+ * True when a crop has served its minimum hold but still can't be sold
+ * because the sale needs approval (#10812) -- something the user can request
+ * today under Trading Rules, not a wait.
+ */
+export function isAwaitingApproval(crop: Crop): boolean {
+  return (
+    crop.sellEligible === false && crop.sellBlockReason === 'needs_approval'
+  );
+}
+
+/** Crops past their hold period but awaiting approval, by ticker. */
+export function awaitingApprovalCrops(crops: readonly Crop[]): Crop[] {
+  return crops
+    .filter(isAwaitingApproval)
+    .sort((left, right) => left.ticker.localeCompare(right.ticker));
 }
 
 /**

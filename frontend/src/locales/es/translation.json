@@ -519,7 +519,10 @@
       "change_1w": "Cambio 1S",
       "change_1m": "Cambio 1M",
       "change_1y": "Cambio 1A",
-      "periodChangeHelp": "Cambio de precio en las participaciones actuales durante los últimos 7 / 30 / 365 días (desde la fecha de compra si se compró dentro del periodo). No es una rentabilidad ponderada en el tiempo: se ignoran aportaciones, operaciones e ingresos del periodo. — indica historial de precios insuficiente."
+      "periodChangeHelp": "Cambio de precio en las participaciones actuales durante los últimos 7 / 30 / 365 días (desde la fecha de compra si se compró dentro del periodo). No es una rentabilidad ponderada en el tiempo: se ignoran aportaciones, operaciones e ingresos del periodo. — indica historial de precios insuficiente.",
+      "totalReturn1y": "Rentabilidad total 1A",
+      "totalReturn1yPct": "Rentabilidad total 1A %",
+      "totalReturnHelp": "Rentabilidad de los últimos 365 días incluidos dividendos e intereses, según el historial de transacciones: cambios de precio más ingresos, sin aportaciones ni retiradas. El % está ponderado en el tiempo (la cifra 1A de la página de rendimiento). Solo por titular; — indica que no hay historial de transacciones."
     }
   },
   "holdingsTable": {
@@ -1481,6 +1484,15 @@
   },
   "portfolio": "Portafolio",
   "query": {
+    "columns": {
+      "instrumentType": "Tipo de instrumento",
+      "name": "Nombre",
+      "owner": "Titular",
+      "returnBasis": "Base de rentabilidad",
+      "startValueGbp": "Valor inicial (£)",
+      "ticker": "Ticker",
+      "units": "Unidades"
+    },
     "copyLink": "Copiar enlace",
     "end": "Fin",
     "exportCsv": "Exportar CSV",
@@ -1503,6 +1515,7 @@
     "saved": "Se guardó \"{{name}}\".",
     "savedQueriesLoading": "Cargando consultas guardadas…",
     "savedQueriesTitle": "Consultas guardadas",
+    "selectionRequired": "Selecciona al menos un titular y una métrica para ejecutar la consulta.",
     "start": "Inicio",
     "tickerNotHeld": "no en cartera actualmente",
     "tickers": "Tickers",
@@ -1959,6 +1972,15 @@
     },
     "ticker": "Ticker",
     "title": "Editor de series temporales",
+    "grid": {
+      "cellLabel": "{{column}} el {{date}}",
+      "cellLabelUndated": "{{column}} de la fila sin fecha {{row}}",
+      "pagination": "Páginas de filas",
+      "rowsLabel": "Filas",
+      "previousPage": "Página anterior",
+      "nextPage": "Página siguiente",
+      "pageStatus": "Página {{page}} de {{pages}} (filas {{from}}–{{to}} de {{total}})"
+    },
     "controls": {
       "sort": "Ordenar",
       "sortDesc": "Más recientes primero",
@@ -3112,6 +3134,10 @@
       "daysHeld": "{{daysHeld}} días en cartera",
       "daysRatio": "{{daysHeld}} / {{total}} días",
       "notLiftable": "Aún no se puede recoger",
+      "needsApproval": "Requiere aprobación",
+      "needsApprovalHeading": "Requiere aprobación ({{count}})",
+      "needsApprovalNote": "Ya han cumplido su periodo mínimo de tenencia; venderlas requiere una aprobación que puedes solicitar ahora.",
+      "tradingRulesLink": "Abrir reglas de trading",
       "readyOn": "Lista el {{date}}",
       "daysToGo": "Faltan {{daysRemaining}} días",
       "noteIndeterminate": "Avance hacia el periodo mínimo de tenencia de cada posición, cuando el backend lo conoce: algunas bandejas están marcadas como no vendibles sin cuenta atrás que mostrar.",
@@ -3183,6 +3209,7 @@
       "held_other": "En cartera {{count}} días",
       "inPropagatorUntil": "en el propagador hasta el {{date}}",
       "notYetLiftable": "aún no se puede recoger",
+      "needsApproval": "requiere aprobación",
       "clearedPropagator": "salió del propagador el {{date}}",
       "readyToLift": "lista para recoger",
       "notFoundTitle": "Cultivo no encontrado",

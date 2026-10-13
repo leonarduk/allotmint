@@ -467,6 +467,12 @@
                           "null"
                         ]
                       },
+                      "sell_block_reason": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "days_until_eligible": {
                         "type": [
                           "number",
@@ -886,6 +892,12 @@
                       "sell_eligible": {
                         "type": [
                           "boolean",
+                          "null"
+                        ]
+                      },
+                      "sell_block_reason": {
+                        "type": [
+                          "string",
                           "null"
                         ]
                       },

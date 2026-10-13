@@ -513,7 +513,10 @@
       "change_1w": "1W Change",
       "change_1m": "1M Change",
       "change_1y": "1Y Change",
-      "periodChangeHelp": "Price change over the trailing 7 / 30 / 365 days on the units held now (from the purchase date for anything bought inside the window). Not a time-weighted return: deposits, trades and income in the period are ignored. — means not enough price history."
+      "periodChangeHelp": "Price change over the trailing 7 / 30 / 365 days on the units held now (from the purchase date for anything bought inside the window). Not a time-weighted return: deposits, trades and income in the period are ignored. — means not enough price history.",
+      "totalReturn1y": "1Y Total Return",
+      "totalReturn1yPct": "1Y Total Return %",
+      "totalReturnHelp": "Return over the trailing 365 days including dividends and interest, from the owner's transaction history: price moves plus income, with deposits and withdrawals excluded. The % is time-weighted (the Performance page's 1Y figure). Shown per owner only; — means no transaction ledger."
     }
   },
   "holdingsTable": {
@@ -1475,6 +1478,15 @@
   },
   "portfolio": "Portfolio",
   "query": {
+    "columns": {
+      "instrumentType": "Instrument type",
+      "name": "Name",
+      "owner": "Owner",
+      "returnBasis": "Return basis",
+      "startValueGbp": "Value at start (£)",
+      "ticker": "Ticker",
+      "units": "Units"
+    },
     "copyLink": "Copy Link",
     "end": "End",
     "exportCsv": "Export CSV",
@@ -1497,6 +1509,7 @@
     "saved": "Saved \"{{name}}\".",
     "savedQueriesLoading": "Loading saved queries…",
     "savedQueriesTitle": "Saved Queries",
+    "selectionRequired": "Select at least one owner and one metric to run the query.",
     "start": "Start",
     "tickerNotHeld": "not currently held",
     "tickers": "Tickers",
@@ -1953,6 +1966,15 @@
     },
     "ticker": "Ticker",
     "title": "Time Series Editor",
+    "grid": {
+      "cellLabel": "{{column}} on {{date}}",
+      "cellLabelUndated": "{{column}} for undated row {{row}}",
+      "pagination": "Row pages",
+      "rowsLabel": "Rows",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "pageStatus": "Page {{page}} of {{pages}} (rows {{from}}–{{to}} of {{total}})"
+    },
     "controls": {
       "sort": "Sort",
       "sortDesc": "Newest first",
@@ -3105,6 +3127,10 @@
       "daysHeld": "{{daysHeld}} days held",
       "daysRatio": "{{daysHeld}} / {{total}} days",
       "notLiftable": "Not yet liftable",
+      "needsApproval": "Needs approval",
+      "needsApprovalHeading": "Needs approval ({{count}})",
+      "needsApprovalNote": "These have served their minimum holding period; selling them needs an approval you can request now.",
+      "tradingRulesLink": "Open Trading Rules",
       "readyOn": "Ready {{date}}",
       "daysToGo": "{{daysRemaining}} days to go",
       "noteIndeterminate": "Progress toward each holding's minimum holding period, where the backend knows it — some trays here are marked not sellable with no countdown to show.",
@@ -3176,6 +3202,7 @@
       "held_other": "Held {{count}} days",
       "inPropagatorUntil": "in the propagator until {{date}}",
       "notYetLiftable": "not yet liftable",
+      "needsApproval": "needs approval",
       "clearedPropagator": "cleared the propagator on {{date}}",
       "readyToLift": "ready to lift",
       "notFoundTitle": "Crop not found",

@@ -80,6 +80,12 @@ export interface Holding {
 
   days_held?: number | null;
   sell_eligible?: boolean | null;
+  /**
+   * Why `sell_eligible` is false (#10812): "hold_period" while the minimum
+   * hold is still running, "needs_approval" once it has elapsed but the sale
+   * still needs approval. Null when sellable or eligibility is unknown.
+   */
+  sell_block_reason?: string | null;
   days_until_eligible?: number | null;
   next_eligible_sell_date?: string | null;
 }
@@ -267,6 +273,17 @@ export type AllInCost = {
   window: { start: string; end: string };
   accounts: AllInCostPart[];
   total: AllInCostPart;
+};
+
+/**
+ * An owner's total return from `GET /performance/{owner}/total-return` (#10763): price
+ * moves plus dividends and interest, net of deposits. Both null without a transaction ledger.
+ */
+export type OwnerTotalReturn = {
+  owner: string;
+  days: number;
+  total_return_gbp: number | null;
+  total_return_pct: number | null;
 };
 
 /** A fund data value proposed by the upkeep bot, awaiting the owner's approval (#10482). */

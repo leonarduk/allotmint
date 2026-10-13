@@ -195,15 +195,32 @@ INVESTMENT_PLAN_GUIDANCE = (
 BASE_SYSTEM_PROMPT = f"{CORE_SYSTEM_PROMPT}\n\n{INVESTMENT_PLAN_GUIDANCE}\n\n{PORTFOLIO_REVIEW_GUIDANCE}"
 
 
-def build_system_prompt(context: Mapping[str, Any] | None) -> str:
-    """The system prompt for one chat turn: the base guidance, then the page context if any."""
+def build_system_prompt(context: Mapping[str, Any] | None, signed_in_owner: Optional[str] = None) -> str:
+    """The system prompt for one chat turn: the base guidance, then who is asking and the page context."""
 
-    context_line = system_prompt_from_context(context)
-    return f"{BASE_SYSTEM_PROMPT}\n\n{context_line}" if context_line else BASE_SYSTEM_PROMPT
+    lines = [line for line in (system_prompt_for_user(signed_in_owner), system_prompt_from_context(context)) if line]
+    return "\n\n".join([BASE_SYSTEM_PROMPT, *lines])
+
+
+def system_prompt_for_user(owner: Optional[str]) -> Optional[str]:
+    """Tell the model whose portfolio "my" means, so "my SIPP" needs no clarifying question (#10813).
+
+    ``owner`` is resolved server-side from the signed-in identity, never taken
+    from the request body. It is context only: tool calls stay subject to the
+    MCP server's own access checks.
+    """
+
+    if not owner:
+        return None
+    return (
+        f'The signed-in user is the owner {owner}. When they say "my", "mine" or "I" '
+        f'(for example "my SIPP" or "my portfolio"), they mean the owner {owner}; '
+        "do not ask which owner they mean."
+    )
 
 
 def system_prompt_from_context(context: Mapping[str, Any] | None) -> Optional[str]:
-    """Tell the model which page the user is looking at, so "this stock" resolves."""
+    """Tell the model which page, and whose portfolio, the user is looking at, so "this stock" resolves."""
 
     if not context:
         return None
@@ -211,6 +228,12 @@ def system_prompt_from_context(context: Mapping[str, Any] | None) -> Optional[st
     line = f"The user is currently viewing the page {context['path']}."
     if ticker:
         line += f' It is about the instrument {ticker}; treat "this stock" or "this" as {ticker}.'
+    owner = context.get("owner")
+    group = context.get("group")
+    if owner:
+        line += f' The app has the owner {owner} selected; treat "this portfolio" as {owner}\'s.'
+    elif group:
+        line += f' The app has the group {group} selected; treat "this portfolio" as that group\'s.'
     return line
 
 

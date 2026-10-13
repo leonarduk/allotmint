@@ -519,7 +519,10 @@
       "change_1w": "Variazione 1S",
       "change_1m": "Variazione 1M",
       "change_1y": "Variazione 1A",
-      "periodChangeHelp": "Variazione di prezzo sulle quote detenute ora negli ultimi 7 / 30 / 365 giorni (dalla data di acquisto per acquisti nel periodo). Non è un rendimento ponderato nel tempo: versamenti, operazioni e proventi nel periodo sono ignorati. — indica storico prezzi insufficiente."
+      "periodChangeHelp": "Variazione di prezzo sulle quote detenute ora negli ultimi 7 / 30 / 365 giorni (dalla data di acquisto per acquisti nel periodo). Non è un rendimento ponderato nel tempo: versamenti, operazioni e proventi nel periodo sono ignorati. — indica storico prezzi insufficiente.",
+      "totalReturn1y": "Rendimento totale 1A",
+      "totalReturn1yPct": "Rendimento totale 1A %",
+      "totalReturnHelp": "Rendimento degli ultimi 365 giorni inclusi dividendi e interessi, dallo storico delle transazioni: variazioni di prezzo più proventi, esclusi versamenti e prelievi. La % è ponderata nel tempo (il dato 1A della pagina Performance). Solo per titolare; — indica nessuno storico delle transazioni."
     }
   },
   "holdingsTable": {
@@ -1481,6 +1484,15 @@
   },
   "portfolio": "Portfolio",
   "query": {
+    "columns": {
+      "instrumentType": "Tipo di strumento",
+      "name": "Nome",
+      "owner": "Titolare",
+      "returnBasis": "Base di rendimento",
+      "startValueGbp": "Valore iniziale (£)",
+      "ticker": "Ticker",
+      "units": "Quote"
+    },
     "copyLink": "Copia link",
     "end": "FINE",
     "exportCsv": "Esportazione CSV",
@@ -1503,6 +1515,7 @@
     "saved": "\"{{name}}\" salvata.",
     "savedQueriesLoading": "Caricamento query salvate…",
     "savedQueriesTitle": "Query salvate",
+    "selectionRequired": "Seleziona almeno un titolare e una metrica per eseguire la query.",
     "start": "Inizio",
     "tickerNotHeld": "non attualmente detenuto",
     "tickers": "Ticker",
@@ -1959,6 +1972,15 @@
     },
     "ticker": "Ticker",
     "title": "Editor serie temporali",
+    "grid": {
+      "cellLabel": "{{column}} il {{date}}",
+      "cellLabelUndated": "{{column}} per la riga senza data {{row}}",
+      "pagination": "Pagine di righe",
+      "rowsLabel": "Righe",
+      "previousPage": "Pagina precedente",
+      "nextPage": "Pagina successiva",
+      "pageStatus": "Pagina {{page}} di {{pages}} (righe {{from}}–{{to}} di {{total}})"
+    },
     "controls": {
       "sort": "Ordina",
       "sortDesc": "Più recenti prima",
@@ -3112,6 +3134,10 @@
       "daysHeld": "detenuto da {{daysHeld}} giorni",
       "daysRatio": "{{daysHeld}} / {{total}} giorni",
       "notLiftable": "Non ancora raccoglibile",
+      "needsApproval": "Richiede approvazione",
+      "needsApprovalHeading": "Richiede approvazione ({{count}})",
+      "needsApprovalNote": "Hanno completato il periodo minimo di detenzione; venderle richiede un'approvazione che puoi chiedere subito.",
+      "tradingRulesLink": "Apri le regole di trading",
       "readyOn": "Pronta il {{date}}",
       "daysToGo": "Mancano {{daysRemaining}} giorni",
       "noteIndeterminate": "Avanzamento verso il periodo minimo di detenzione di ogni posizione, quando il backend lo conosce: alcuni vasetti sono contrassegnati come non vendibili senza conto alla rovescia da mostrare.",
@@ -3183,6 +3209,7 @@
       "held_other": "Detenuto {{count}} giorni",
       "inPropagatorUntil": "nel propagatore fino al {{date}}",
       "notYetLiftable": "non ancora raccoglibile",
+      "needsApproval": "richiede approvazione",
       "clearedPropagator": "uscita dal propagatore il {{date}}",
       "readyToLift": "pronta da raccogliere",
       "notFoundTitle": "Coltura non trovata",

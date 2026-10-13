@@ -33,6 +33,32 @@ def test_load_transactions_handles_malformed_json(tmp_path, monkeypatch, caplog)
     assert "failed to read" in caplog.text
 
 
+def test_load_transactions_attaches_section_104_gain_per_account(tmp_path, monkeypatch):
+    """Loaded SELLs carry the same realised gain GET /transactions reports (#10801)."""
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    isa = [
+        {"date": "2024-01-01", "type": "BUY", "ticker": "AAA.L", "units": 10, "price_gbp": 10.0},
+        {"date": "2024-02-01", "type": "SELL", "ticker": "AAA.L", "units": 4, "price_gbp": 12.5},
+    ]
+    # Same ticker in another account: pools are per account, so this sell's
+    # cost is unknown rather than drawn from the ISA's pool.
+    sipp = [
+        {"date": "2024-02-01", "type": "SELL", "ticker": "AAA.L", "units": 2, "price_gbp": 12.5},
+    ]
+    (owner_dir / "isa_transactions.json").write_text(json.dumps({"transactions": isa}))
+    (owner_dir / "sipp_transactions.json").write_text(json.dumps({"transactions": sipp}))
+    monkeypatch.setattr(reports, "_transaction_roots", lambda: [str(tmp_path)])
+    monkeypatch.setattr(reports.config, "app_env", "local")
+
+    sells = [tx for tx in reports._load_transactions("alice") if tx["type"] == "SELL"]
+    by_units = {tx["units"]: tx for tx in sells}
+
+    assert by_units[4]["proceeds_gbp"] == 50.0
+    assert by_units[4]["realised_gain_gbp"] == 10.0
+    assert by_units[2]["realised_gain_gbp"] is None
+
+
 def test_load_transactions_s3(monkeypatch, caplog):
     owner = "alice"
     monkeypatch.setattr(reports.config, "app_env", "aws")
@@ -89,9 +115,13 @@ def test_load_transactions_s3(monkeypatch, caplog):
 
 
 def test_compile_report_filters_and_totals(monkeypatch):
+    # Realised gains are the enriched rows' realised_gain_gbp, not the sale
+    # proceeds in amount_minor (#10801); a sell of unknown cost is counted.
     txs = [
-        {"date": "2024-01-01", "type": "SELL", "amount_minor": 1000},
-        {"date": "2024-01-02", "type": "SELL", "amount_minor": 2000},
+        {"date": "2024-01-01", "type": "SELL", "amount_minor": 1000, "realised_gain_gbp": 1.0},
+        {"date": "2024-01-02", "type": "SELL", "amount_minor": 200000, "realised_gain_gbp": 12.5},
+        {"date": "2024-01-02", "type": "SELL", "amount_minor": 50000, "realised_gain_gbp": -4.5},
+        {"date": "2024-01-03", "type": "SELL", "amount_minor": 70000, "realised_gain_gbp": None},
         {"date": "2024-01-03", "type": "DIVIDEND", "amount_minor": 500},
         {"date": "2024-01-04", "type": "INTEREST", "amount_minor": 300},
     ]
@@ -116,7 +146,8 @@ def test_compile_report_filters_and_totals(monkeypatch):
     end = date(2024, 1, 3)
     data = reports.compile_report("alice", start=start, end=end)
 
-    assert data.realized_gains_gbp == 20.0
+    assert data.realized_gains_gbp == 8.0
+    assert data.realized_gains_unknown_cost_sells == 1
     assert data.income_gbp == 5.0
     # No ledger: the headline return is unavailable rather than falling back
     # to the current-holdings series, which excludes income (#9637).
@@ -416,7 +447,7 @@ def test_portfolio_section_builders(monkeypatch):
         "compute_portfolio_var",
         lambda owner, confidence, include_cash=True: {"confidence": confidence, "1d": 12.345, "10d": 34.567},
     )
-    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.23456)
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: 1.23456)
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
 
     document = reports.build_report_document("portfolio-insights", "alice", end=date(2024, 1, 31))
@@ -633,9 +664,9 @@ def test_portfolio_var_partial_failure_one_confidence_level(monkeypatch):
         "risk",
         SimpleNamespace(
             compute_portfolio_var=_var,
-            compute_sharpe_ratio=lambda owner: None,
         ),
     )
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: None)
     ctx = reports.ReportContext(owner="alice", start=None, end=None)
     result = reports._build_portfolio_var_section(ctx, reports.PORTFOLIO_VAR_SECTION)
     # Only the 0.99 row is retained; Sharpe is omitted because None.
@@ -644,7 +675,7 @@ def test_portfolio_var_partial_failure_one_confidence_level(monkeypatch):
 
 
 def test_portfolio_var_omits_sharpe_row_when_sharpe_fails(monkeypatch):
-    """When VaR succeeds but compute_sharpe_ratio raises, no Sharpe row is appended."""
+    """When VaR succeeds but the ledger cannot be built, no Sharpe row is appended."""
     monkeypatch.setattr(
         reports.portfolio_mod, "build_owner_portfolio", lambda owner, pricing_date=None: {"accounts": []}
     )
@@ -657,13 +688,57 @@ def test_portfolio_var_omits_sharpe_row_when_sharpe_fails(monkeypatch):
                 "1d": 10.0,
                 "10d": 20.0,
             },
-            compute_sharpe_ratio=Mock(side_effect=ValueError("no returns")),
         ),
     )
+    monkeypatch.setattr(reports.ReportContext, "ledger", Mock(side_effect=FileNotFoundError("no ledger")))
     ctx = reports.ReportContext(owner="alice", start=None, end=None)
     result = reports._build_portfolio_var_section(ctx, reports.PORTFOLIO_VAR_SECTION)
     assert [row["metric"] for row in result] == ["VaR (95%)", "VaR (99%)"]
     assert not any(r["metric"] == "Sharpe ratio" for r in result)
+
+
+def test_portfolio_var_sharpe_uses_periodic_ledger_basis(monkeypatch):
+    """Audit Sharpe is the Periodic summary's 1Y ledger-TWR Sharpe (#10801)."""
+    from backend import report_periodic
+    from backend.common import ledger_performance as lp
+
+    index = pd.bdate_range("2025-01-01", "2025-12-31")
+    returns = pd.Series([0.004 if i % 3 else -0.005 for i in range(len(index))], index=index)
+    values = 1000.0 * (1.0 + returns).cumprod()
+    zeros = pd.Series(0.0, index=index)
+    perf = lp.LedgerPerformance(
+        inception=date(2025, 1, 1),
+        end=date(2025, 12, 31),
+        values=values,
+        returns=returns,
+        denominators=values,
+        cash=zeros,
+        instrument_values=pd.DataFrame(index=index),
+        instrument_pnl=pd.DataFrame(index=index),
+    )
+    monkeypatch.setattr(
+        reports.portfolio_mod, "build_owner_portfolio", lambda owner, pricing_date=None: {"accounts": []}
+    )
+    monkeypatch.setattr(reports.ReportContext, "ledger", lambda self: perf)
+    monkeypatch.setattr(reports.config, "risk_free_rate", 0.02, raising=False)
+    monkeypatch.setattr(
+        reports,
+        "risk",
+        SimpleNamespace(
+            compute_portfolio_var=lambda owner, confidence, include_cash=True: {"1d": 1.0},
+            # The current-holdings basis must not feed the report.
+            compute_sharpe_ratio=lambda owner: pytest.fail("current-holdings Sharpe used"),
+        ),
+    )
+    end = date(2025, 12, 31)
+    ctx = reports.ReportContext(owner="alice", start=None, end=end)
+
+    rows = reports._build_portfolio_var_section(ctx, reports.PORTFOLIO_VAR_SECTION)
+
+    periodic = next(row for row in report_periodic.risk_rows(perf, end, 0.02) if row["key"] == "sharpe")
+    sharpe = next(row for row in rows if row["metric"] == "Sharpe ratio")
+    assert periodic["value"] is not None
+    assert sharpe["value"] == pytest.approx(periodic["value"])
 
 
 def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
@@ -676,7 +751,6 @@ def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
         "risk",
         SimpleNamespace(
             compute_portfolio_var=Mock(side_effect=ValueError("no var rows")),
-            compute_sharpe_ratio=Mock(return_value=2.0),
         ),
     )
     ctx = reports.ReportContext(owner="alice", start=None, end=None)
@@ -714,9 +788,9 @@ def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
             compute_portfolio_var=lambda owner, confidence=0.95: var_call_count.__setitem__(
                 "count", var_call_count["count"] + 1
             ),
-            compute_sharpe_ratio=lambda owner: pytest.fail("unexpected sharpe call"),
         ),
     )
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: pytest.fail("unexpected sharpe call"))
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
 
     document = reports.build_report_document(
@@ -1064,7 +1138,7 @@ def test_audit_report_portfolio_sections_use_requested_end_snapshot(monkeypatch)
         "compute_portfolio_var",
         lambda owner, confidence=0.95, include_cash=True: {"1d": 0.1},
     )
-    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.0)
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: 1.0)
 
     document = reports.build_report_document("audit-report", "alice", end=requested_end)
     rows_by_source = {section.schema.source: section.rows for section in document.sections}
@@ -1262,7 +1336,8 @@ def test_transactions_not_double_counted_across_legacy_root(monkeypatch, tmp_pat
     assert reports._load_transactions(owner) == canonical
 
     summary = reports.compile_report(owner)
-    assert summary.realized_gains_gbp == 10.0
+    # The one SELL (no cost basis) is counted once, not once per root.
+    assert summary.realized_gains_unknown_cost_sells == 1
     assert summary.income_gbp == 2.5
 
     rows = reports.ReportContext(owner, start=None, end=None).transactions()
@@ -1330,7 +1405,8 @@ def test_aws_transactions_read_canonical_prefixes_once(monkeypatch):
     # Canonical ISA SELL 1000p -> 10.00 realised; DIVIDEND 250p + SIPP
     # INTEREST 100p -> 3.50 income. The stale 99999p SELL is never read.
     summary = reports.compile_report(owner)
-    assert summary.realized_gains_gbp == 10.0
+    # The one SELL (no cost basis) is counted once, not once per root.
+    assert summary.realized_gains_unknown_cost_sells == 1
     assert summary.income_gbp == 3.5
 
     rows = reports.ReportContext(owner, start=None, end=None).transactions()
@@ -1812,7 +1888,7 @@ def test_audit_template_builders_render_non_empty_rows(monkeypatch, caplog):
             "10d": 39.01 if confidence == 0.95 else 59.52,
         },
     )
-    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.23)
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: 1.23)
 
     with caplog.at_level("WARNING", logger=reports.logger.name):
         document = reports.build_report_document("audit-report", "alice")
@@ -1836,9 +1912,9 @@ def test_audit_risk_section_includes_var_and_sharpe(monkeypatch):
                 "1d": 12.34 if confidence == 0.95 else 18.76,
                 "10d": 39.01 if confidence == 0.95 else 59.52,
             },
-            compute_sharpe_ratio=lambda owner: 1.23,
         ),
     )
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: 1.23)
     monkeypatch.setattr(
         reports,
         "portfolio_mod",

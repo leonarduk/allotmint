@@ -12,6 +12,7 @@ import i18n from "../i18n";
 import { useRoute } from "../RouteContext";
 import type { Holding, OwnerSummary, Portfolio } from "../types";
 import { sanitizeOwners } from "../utils/owners";
+import { isTaxShelteredAccount } from "../utils/accountTypes";
 import LoadingStatus from "../components/skeletons/LoadingStatus";
 import TableSkeleton from "../components/skeletons/TableSkeleton";
 
@@ -148,6 +149,17 @@ function formatPercent(value: number) {
   return `${value.toFixed(2)}%`;
 }
 
+/**
+ * Total cost to compare against market value. Prefer the effective cost basis,
+ * which is what the backend computes gain_gbp from -- the raw cost_basis_gbp can
+ * be 0 when the real cost only lives in effective_cost_basis_gbp (#10760).
+ * A non-positive cost is treated as unknown.
+ */
+function holdingTotalCost(holding: Holding): number | null {
+  const candidates = [holding.effective_cost_basis_gbp, holding.cost_basis_gbp];
+  return candidates.find((cost): cost is number => cost != null && cost > 0) ?? null;
+}
+
 function buildCandidateId(account: string, holding: Holding, index: number) {
   return `${account}-${holding.ticker}-${holding.acquired_date ?? index}`;
 }
@@ -190,19 +202,33 @@ function useHarvestCandidates(owner?: string) {
     };
   }, [owner]);
 
+  // True when the owner has accounts but every one is an ISA/SIPP-style
+  // wrapper, so there is nothing a CGT loss harvest could apply to.
+  const allSheltered = useMemo(
+    () =>
+      !!portfolio &&
+      portfolio.accounts.length > 0 &&
+      portfolio.accounts.every((account) =>
+        isTaxShelteredAccount(account.account_type),
+      ),
+    [portfolio],
+  );
+
   const candidates = useMemo<HarvestCandidate[]>(() => {
     if (!portfolio) return [];
 
     const flattened: HarvestCandidate[] = [];
 
     portfolio.accounts.forEach((account) => {
+      if (isTaxShelteredAccount(account.account_type)) {
+        return;
+      }
       account.holdings.forEach((holding, index) => {
         if (!holding.units || holding.units <= 0) {
           return;
         }
 
-        const totalCost =
-          holding.cost_basis_gbp ?? holding.effective_cost_basis_gbp ?? null;
+        const totalCost = holdingTotalCost(holding);
         if (totalCost == null) {
           return;
         }
@@ -225,7 +251,7 @@ function useHarvestCandidates(owner?: string) {
         const latestPrice =
           holding.current_price_gbp ?? marketValue / holding.units;
         const lossValue = Math.abs(gain);
-        const lossPct = totalCost !== 0 ? (lossValue / totalCost) * 100 : 0;
+        const lossPct = (lossValue / totalCost) * 100;
 
         flattened.push({
           id: buildCandidateId(account.account_type, holding, index),
@@ -246,15 +272,19 @@ function useHarvestCandidates(owner?: string) {
     return flattened.sort((a, b) => b.lossValue - a.lossValue);
   }, [portfolio]);
 
-  return { candidates, loading, error } as const;
+  return { candidates, allSheltered, loading, error } as const;
 }
 
 function TaxHarvestSection() {
   const { t } = useTranslation();
   const { selectedOwner } = useRoute();
   const { form, updateField, position: manualPosition } = useHarvestForm();
-  const { candidates, loading: candidatesLoading, error: candidateError } =
-    useHarvestCandidates(selectedOwner);
+  const {
+    candidates,
+    allSheltered,
+    loading: candidatesLoading,
+    error: candidateError,
+  } = useHarvestCandidates(selectedOwner);
   const [trades, setTrades] = useState<Trade[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -423,6 +453,8 @@ function TaxHarvestSection() {
                 </tbody>
               </table>
             </div>
+          ) : allSheltered ? (
+            <EmptyState message={t("taxTools.harvest.allSheltered")} />
           ) : (
             <EmptyState message={t("taxTools.harvest.noCandidates")} />
           )}

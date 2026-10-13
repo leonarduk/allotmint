@@ -62,6 +62,8 @@ CONTRACT_SEED_TRANSACTIONS_DOC: dict[str, Any] = {
 }
 
 
+# Matches ``load_all_transactions(store=None)``; ``GET /transactions`` applies
+# its owner/account/type/date filters to the result, so they still run.
 def _seeded_transactions(store: Any = None) -> list[transactions_routes.Transaction]:
     return transactions_routes._transactions_from_doc(
         CONTRACT_SEED_OWNER, CONTRACT_SEED_ACCOUNT, CONTRACT_SEED_TRANSACTIONS_DOC
@@ -137,11 +139,27 @@ def test_live_transactions_payload_carries_realised_gain_fields(client: TestClie
 
     sells = [row for row in response.json() if row.get("type") == "SELL"]
     assert sells, "seeded SELL missing from /transactions"
-    # 4 units at a pooled cost of 100 sold at 150: cost 400, proceeds 600.
+    # Section 104 pool: 10 units at 100, so selling 4 at 150 costs 4 x 100 = 400
+    # against proceeds of 600. The seed has no same-day trades, so the pool
+    # average is the only matching rule applied.
     assert sells[0]["cost_basis_gbp"] == pytest.approx(400.0)
     assert sells[0]["proceeds_gbp"] == pytest.approx(600.0)
     assert sells[0]["realised_gain_gbp"] == pytest.approx(200.0)
     assert sells[0]["unmatched_units"] == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize(
+    ("name", "payload"),
+    [
+        ("owners", []),
+        ("owners", [{}]),
+        ("portfolio", {"owner": "x", "accounts": [{"holdings": []}]}),
+        ("groupPortfolio", {"slug": "all", "accounts": []}),
+    ],
+)
+def test_non_vacuous_guard_rejects_thin_payloads(name: str, payload: Any) -> None:
+    with pytest.raises(AssertionError):
+        _assert_non_vacuous(name, payload)
 
 
 @pytest.mark.parametrize("field", ["realised_gain_gbp", "cost_basis_gbp", "proceeds_gbp", "unmatched_units"])

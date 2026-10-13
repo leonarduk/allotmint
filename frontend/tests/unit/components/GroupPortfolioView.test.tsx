@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act, within } from "@testing-library/react";
+import { render, screen, waitFor, act, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { GroupPortfolioView } from "@/components/GroupPortfolioView";
@@ -1795,6 +1795,69 @@ describe("GroupPortfolioView", () => {
     await waitFor(() => expect(screen.getAllByText("£110.00").length).toBeGreaterThan(0));
     expect(screen.getAllByText("£70.00").length).toBeGreaterThan(0);
     expect(screen.queryByText("£100.00")).not.toBeInTheDocument();
+  });
+
+  it("shows the stored as-of valuation, not live prices, for a past pricing date (#10819)", async () => {
+    const user = userEvent.setup();
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA.L", units: 10, current_price_gbp: 6, market_value_gbp: 60, gain_gbp: 0 },
+            { ticker: "BBB.L", units: 1, current_price_gbp: 40, market_value_gbp: 40, gain_gbp: 0 },
+          ],
+        },
+      ],
+    };
+    const fetchMock = mockAllFetches(mockPortfolio, {
+      liveQuotes: {
+        "AAA.L": {
+          price: 7,
+          price_gbp: 7,
+          currency: "GBP",
+          previous_close: 6,
+          change_pct: (1 / 6) * 100,
+          timestamp: "2026-10-08T10:15:00Z",
+          market_state: "REGULAR",
+          is_stale: false,
+        },
+      },
+    });
+    const liveQuoteCalls = () =>
+      fetchMock.mock.calls.filter(([input]) =>
+        toUrlString(input as RequestInfo | URL).includes("/prices/live/quotes"),
+      ).length;
+
+    const { container } = renderWithConfig(
+      <GroupPortfolioView slug="all" owners={ownerFixtures} />,
+    );
+    await waitFor(() => expect(screen.getAllByText("£110.00").length).toBeGreaterThan(0));
+
+    const callsBeforeDateChange = liveQuoteCalls();
+    const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
+    fireEvent.change(dateInput, { target: { value: "2026-06-30" } });
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).includes("as_of=2026-06-30"),
+        ),
+      ).toBe(true),
+    );
+    await waitFor(() => expect(screen.getAllByText("£100.00").length).toBeGreaterThan(0));
+    expect(screen.queryByText("£110.00")).not.toBeInTheDocument();
+    // No live quote request is made while the past pricing date is active.
+    const callsWhileHistorical = liveQuoteCalls();
+    expect(callsWhileHistorical).toBe(callsBeforeDateChange);
+
+    // "Reset to latest" restores live revaluation.
+    await user.click(screen.getByRole("button", { name: "Reset to latest" }));
+    await waitFor(() => expect(screen.getAllByText("£110.00").length).toBeGreaterThan(0));
+    expect(liveQuoteCalls()).toBeGreaterThan(callsWhileHistorical);
   });
 
   it("groups holdings by instrument sector in Sector mode (#8486)", async () => {

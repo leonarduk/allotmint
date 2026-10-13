@@ -199,12 +199,30 @@ export function TimeseriesEdit() {
     raw: string,
     numeric: boolean,
   ) {
-    const value = numeric ? (raw === "" ? null : Number(raw)) : raw;
+    // Blank or unparseable numeric input is stored as null, never NaN, so a
+    // half-typed value can't be saved to the backend.
+    const parsed = Number(raw);
+    const value = numeric
+      ? raw.trim() !== "" && Number.isFinite(parsed)
+        ? parsed
+        : null
+      : raw;
     setRows((rs) => {
       const copy = [...rs];
       copy[index] = { ...copy[index], [field]: value };
       return copy;
     });
+  }
+
+  function deleteRow(index: number) {
+    // Store the clamped page so `page` never drifts past the last page when a
+    // delete shrinks the page count.
+    const remainingPages = Math.max(
+      1,
+      Math.ceil((displayRows.length - 1) / TIMESERIES_PAGE_SIZE),
+    );
+    setPage(Math.min(currentPage, remainingPages - 1));
+    setRows((rs) => rs.filter((_, idx) => idx !== index));
   }
 
   function cellLabel(column: string, row: PriceEntry, rowNumber: number) {
@@ -653,11 +671,7 @@ export function TimeseriesEdit() {
                         row,
                         rowNumber,
                       )}
-                      onClick={() =>
-                        setRows((rs) =>
-                          rs.filter((_, idx) => idx !== originalIndex),
-                        )
-                      }
+                      onClick={() => deleteRow(originalIndex)}
                     >
                       {t("timeseriesEdit.delete")}
                     </button>

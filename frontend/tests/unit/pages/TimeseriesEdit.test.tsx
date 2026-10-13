@@ -224,6 +224,17 @@ describe("TimeseriesEdit page", () => {
     ).toBeInTheDocument();
   });
 
+  it("saves a cleared numeric cell as null", async () => {
+    const rows = await loadDailySeries(3);
+    const date = rows[0].Date;
+    fireEvent.change(screen.getByLabelText(`Close on ${date}`), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    const saved = (saveTimeseries as unknown as vi.Mock).mock.calls[0][2];
+    expect(saved.find((r: { Date: string }) => r.Date === date).Close).toBeNull();
+  });
+
   it("stays on the current page after deleting a row", async () => {
     const rows = await loadDailySeries(120);
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));

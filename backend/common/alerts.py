@@ -106,6 +106,8 @@ def _restore_throttle(stored: object) -> None:
             when = datetime.fromisoformat(str(entry["time"]))
         except (KeyError, ValueError):
             continue
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
         _LAST_ALERT_STATE[str(instrument)] = bool(entry.get("state"))
         _LAST_ALERT_TIME[str(instrument)] = when
 

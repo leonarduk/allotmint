@@ -89,6 +89,18 @@ def test_hourly_throttle_without_sns_holds_across_restart():
     assert [a["message"] for a in alerts.get_recent_alerts()] == ["down"]
 
 
+def test_naive_throttle_time_is_treated_as_utc(tmp_path):
+    path = _history_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    naive_now = alerts.datetime.now(alerts.UTC).replace(tzinfo=None).isoformat()
+    doc = {"alerts": [], "signatures": [], "throttle": {"IBM": {"state": True, "time": naive_now}}}
+    path.write_text(json.dumps(doc))
+
+    alerts.publish_alert({"instrument": "IBM", "state": False, "message": "flip"})
+
+    assert alerts.get_recent_alerts() == []  # within the hour, no TypeError
+
+
 def test_retention_caps_stored_alerts(tmp_path, monkeypatch):
     monkeypatch.setattr(alerts, "MAX_STORED_ALERTS", 3)
     monkeypatch.setattr(alerts, "MAX_STORED_SIGNATURES", 4)

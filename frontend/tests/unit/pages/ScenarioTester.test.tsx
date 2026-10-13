@@ -293,6 +293,32 @@ describe("ScenarioTester page", () => {
     expect(owner.value).toBe("alex");
   });
 
+  it("keeps the first selected portfolio ahead of the signed-in user (#10815)", async () => {
+    localStorage.setItem("scenario.selectedOwners", JSON.stringify(["alex"]));
+    mockGetOwners.mockResolvedValueOnce(familyOwners);
+    mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
+
+    renderPageAs("steve@example.com");
+
+    const owner = (await screen.findByLabelText(
+      "Stress test portfolio:",
+    )) as HTMLSelectElement;
+    await screen.findByRole("option", { name: "Steve Leonard" });
+    expect(owner.value).toBe("alex");
+  });
+
+  it("falls back to the first owner when the signed-in user has no owner (#10815)", async () => {
+    mockGetOwners.mockResolvedValueOnce(familyOwners);
+
+    renderPageAs("nobody@example.com");
+
+    const owner = (await screen.findByLabelText(
+      "Stress test portfolio:",
+    )) as HTMLSelectElement;
+    await screen.findByRole("option", { name: "Steve Leonard" });
+    expect(owner.value).toBe("alex");
+  });
+
   describe("currency shock", () => {
     const gbp = (v: number) =>
       new Intl.NumberFormat("en", { style: "currency", currency: "GBP" }).format(v);

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RetirementReadinessReport } from '@/api';
+import i18n from '@/i18n';
 
 const mockLatest = vi.hoisted(() => vi.fn());
 const mockHistory = vi.hoisted(() => vi.fn());
@@ -176,5 +177,21 @@ describe('RetirementReadinessCard', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'no investment plan'
     );
+  });
+
+  it('renders its copy in the active language (#10835)', async () => {
+    mockLatest.mockRejectedValueOnce(
+      Object.assign(new Error('not found'), { status: 404 })
+    );
+    await i18n.changeLanguage('de');
+    try {
+      render(<RetirementReadinessCard owner="alex" />);
+      expect(
+        await screen.findByText(/Noch kein Bereitschaftsbericht/)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/seit 1871 durchgespielt/)).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage('en');
+    }
   });
 });

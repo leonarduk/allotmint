@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   accountTypeLabel,
   countsTowardPensionForecast,
+  isTaxShelteredAccount,
 } from "@/utils/accountTypes";
 
 describe("accountTypeLabel", () => {
@@ -61,5 +62,29 @@ describe("countsTowardPensionForecast", () => {
     // Unknown type: fails safe to "does not count" rather than accidentally
     // matching via `Set.has` type coercion or similar.
     expect(countsTowardPensionForecast("brokerage")).toBe(false);
+  });
+});
+
+describe("isTaxShelteredAccount", () => {
+  it("treats ISA and pension wrappers as sheltered, including prefixed slugs", () => {
+    for (const type of [
+      "isa",
+      "stocks-isa",
+      "jisa",
+      "lisa",
+      "sipp",
+      "workplace-sipp",
+      "kz:sipp",
+      "pension",
+      "  SIPP  ",
+    ]) {
+      expect(isTaxShelteredAccount(type)).toBe(true);
+    }
+  });
+
+  it("treats GIA and unknown account types as taxable", () => {
+    for (const type of ["gia", "general", "brokerage", "cash", "ltd", "visa"]) {
+      expect(isTaxShelteredAccount(type)).toBe(false);
+    }
   });
 });

@@ -139,6 +139,27 @@ describe("API contract fixtures", () => {
     expect(() => transactionsContractSchema.parse(transactionsFixture)).not.toThrow();
   });
 
+  it("keeps realised-gain fields on parsed SELL transactions (#10752)", () => {
+    const [sell, legacy] = transactionsContractSchema.parse([
+      {
+        owner: "alice",
+        account: "isa",
+        type: "SELL",
+        realised_gain_gbp: 1475.91,
+        cost_basis_gbp: 2000,
+        proceeds_gbp: 3475.91,
+        unmatched_units: null,
+      },
+      { owner: "alice", account: "isa", type: "SELL" },
+    ]);
+
+    expect(sell.realised_gain_gbp).toBe(1475.91);
+    expect(sell.cost_basis_gbp).toBe(2000);
+    expect(sell.proceeds_gbp).toBe(3475.91);
+    expect(sell.unmatched_units).toBeNull();
+    expect(legacy.realised_gain_gbp).toBeUndefined();
+  });
+
   it("accepts a group portfolio payload with slug", () => {
     const payload = {
       slug: "all",

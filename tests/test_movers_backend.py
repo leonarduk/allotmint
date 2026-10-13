@@ -23,7 +23,7 @@ def test_price_change_pct(monkeypatch):
     def fake_close_on(sym: str, ex: str, d: dt.date):
         if d == dt.date(2023, 1, 8):
             return 110.0
-        if d == dt.date(2023, 1, 1):
+        if d == dt.date(2022, 12, 30):
             return 100.0
         return None
 

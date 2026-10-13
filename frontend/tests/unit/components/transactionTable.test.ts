@@ -6,6 +6,7 @@ import {
   formatTransactionAmount,
   summariseTransactions,
 } from "@/components/transactions/transactionTable";
+import { transactionsContractSchema } from "@/contracts/apiContracts";
 
 describe("transactionTable helpers", () => {
   it("orders grouped deletions from highest index to lowest", () => {
@@ -151,6 +152,19 @@ describe("realised gain helpers", () => {
         { ...base, type: "FEES_REFUND", amount_minor: 200 },
       ]),
     ).toEqual({ realisedGain: 60, sellsWithUnknownGain: 1, income: 12.5, fees: 3 });
+  });
+
+  it("summarises realised gain from rows parsed by the API contract (#10752)", () => {
+    const parsed = transactionsContractSchema.parse([
+      { owner: "alex", account: "isa", type: "SELL", realised_gain_gbp: 1475.91 },
+      { owner: "alex", account: "isa", type: "SELL", realised_gain_gbp: -1058.39 },
+      { owner: "alex", account: "isa", type: "SELL", realised_gain_gbp: null, unmatched_units: 3 },
+    ]);
+
+    const summary = summariseTransactions(parsed);
+
+    expect(summary.realisedGain).toBeCloseTo(417.52, 2);
+    expect(summary.sellsWithUnknownGain).toBe(1);
   });
 });
 

@@ -329,7 +329,9 @@ describe("PensionForecast page", () => {
     expect(futureWithin.getByText(/pension pot/i)).toBeInTheDocument();
     expect(futureWithin.getByText("£123.00")).toBeInTheDocument();
     expect(futureWithin.getByText(/projected pot at 65/i)).toBeInTheDocument();
-    expect(futureWithin.getByText("£323.00")).toBeInTheDocument();
+    // projected_pot_gbp already includes the current pot (#10764).
+    expect(futureWithin.getByText("£200.00")).toBeInTheDocument();
+    expect(futureWithin.queryByText("£323.00")).not.toBeInTheDocument();
     await screen.findByText("Retirement income breakdown");
     expect(
       screen.getByText(
@@ -348,6 +350,41 @@ describe("PensionForecast page", () => {
     expect(
       screen.getByText("Total monthly income: £1,250.00", { exact: true }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the API's projected pot without adding the current pot again (#10764)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+    // The backend projection starts from the current pot, so
+    // projected_pot_gbp is the whole pot at retirement.
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 1807532,
+      pension_pot_gbp: 773428.88,
+      current_age: 51,
+      retirement_age: 67,
+      dob: "1975-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const btn = await screen.findByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    const futurePanel = screen.getByRole("region", {
+      name: /see what retirement could look like/i,
+    });
+    const futureWithin = within(futurePanel);
+    await futureWithin.findByText(/projected pot at 67/i);
+    expect(futureWithin.getByText("£1,807,532.00")).toBeInTheDocument();
+    expect(futureWithin.queryByText("£2,580,960.88")).not.toBeInTheDocument();
   });
 
   it("uses active route owner when available", async () => {

@@ -225,7 +225,7 @@ def test_price_change_pct_missing_prices(monkeypatch, px_now, px_then):
     def fake_close_on(sym: str, ex: str, d: dt.date):
         if d == dt.date(2023, 1, 8):
             return px_now
-        if d == dt.date(2023, 1, 1):
+        if d == dt.date(2022, 12, 30):
             return px_then
         return None
 
@@ -240,7 +240,7 @@ def test_price_change_pct_warns_small_px_then(monkeypatch, caplog):
     def fake_close_on(sym: str, ex: str, d: dt.date):
         if d == dt.date(2023, 1, 8):
             return 1.0
-        if d == dt.date(2023, 1, 1):
+        if d == dt.date(2022, 12, 30):
             return 0.005
         return None
 
@@ -257,7 +257,7 @@ def test_price_change_pct_warns_large_change(monkeypatch, caplog):
     def fake_close_on(sym: str, ex: str, d: dt.date):
         if d == dt.date(2023, 1, 8):
             return 10.0
-        if d == dt.date(2023, 1, 1):
+        if d == dt.date(2022, 12, 30):
             return 1.0
         return None
 
@@ -474,3 +474,63 @@ def test_price_and_changes_weekend_reporting_date(monkeypatch):
     assert res["last_price_date"] == "2024-03-01"
     assert res["last_price_gbp"] == 55.0
     assert calls == [dt.date(2024, 3, 1)]
+
+
+@pytest.mark.parametrize("today", [dt.date(2026, 10, 11), dt.date(2026, 10, 12)])
+def test_price_change_pct_one_day_over_weekend_uses_previous_trading_day(monkeypatch, today):
+    """#10756: on a Sunday or Monday, 1d compares Friday's close with Thursday's.
+
+    Yesterday (Sat/Sun) and the calendar day before it both snap back to
+    Friday, so anchoring the start on the calendar gave 0% for every ticker
+    and the default Movers view was empty. The price series carries Friday's
+    close forward over the weekend, as the cached timeseries do.
+    """
+    _set_today(monkeypatch, today)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: ("AAA", "L"))
+    closes = {
+        dt.date(2026, 10, 8): 100.0,  # Thu
+        dt.date(2026, 10, 9): 105.0,  # Fri
+        dt.date(2026, 10, 10): 105.0,  # Sat (carried forward)
+        dt.date(2026, 10, 11): 105.0,  # Sun (carried forward)
+    }
+    monkeypatch.setattr(ia, "_close_on", lambda s, e, d: closes.get(ia._nearest_weekday(d, forward=False)))
+
+    assert ia.price_change_pct("AAA", 1) == pytest.approx(5.0)
+
+
+def test_top_movers_one_day_on_monday_returns_fridays_movers(monkeypatch):
+    """#10756: the default 1d Movers view is not empty on a Monday."""
+    _set_today(monkeypatch, dt.date(2026, 10, 12))
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: (t, "L"))
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {"name": t})
+    fri, thu = dt.date(2026, 10, 9), dt.date(2026, 10, 8)
+    closes = {"UP": {thu: 100.0, fri: 110.0}, "DOWN": {thu: 100.0, fri: 95.0}}
+    monkeypatch.setattr(ia, "_close_on", lambda s, e, d: closes[s].get(ia._nearest_weekday(d, forward=False)))
+
+    res = ia.top_movers(["UP", "DOWN"], 1)
+
+    assert [r["ticker"] for r in res["gainers"]] == ["UP.L"]
+    assert [r["ticker"] for r in res["losers"]] == ["DOWN.L"]
+    assert res["gainers"][0]["change_pct"] == pytest.approx(10.0)
+    assert res["anomalies"] == []
+
+
+def test_last_close_and_day_returns_no_day_without_a_close(monkeypatch):
+    """With no close in the lookback window, no trading day is reported."""
+    monkeypatch.setattr(ia, "_close_on", lambda s, e, d: None)
+
+    assert ia._last_close_and_day_on_or_before("AAA", "L", dt.date(2026, 10, 12)) == (None, None)
+
+
+def test_price_change_pct_seven_days_on_monday_spans_friday_to_friday(monkeypatch):
+    """#10756: a 1w window on a Monday compares Friday with the Friday before."""
+    _set_today(monkeypatch, dt.date(2026, 10, 12))
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: ("AAA", "L"))
+    closes = {
+        dt.date(2026, 10, 2): 100.0,  # Fri, a week before
+        dt.date(2026, 10, 5): 90.0,  # Mon, must not be the start
+        dt.date(2026, 10, 9): 120.0,  # Fri, latest close
+    }
+    monkeypatch.setattr(ia, "_close_on", lambda s, e, d: closes.get(ia._nearest_weekday(d, forward=False)))
+
+    assert ia.price_change_pct("AAA", 7) == pytest.approx(20.0)

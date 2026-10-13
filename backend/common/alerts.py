@@ -3,7 +3,11 @@
 Published alerts and the de-dup signatures are kept in one JSON document so
 they survive a backend restart or a Lambda cold start:
 
-``{"alerts": [...oldest first...], "signatures": [...oldest first...]}``
+``{"alerts": [...oldest first...], "signatures": [...oldest first...],
+"throttle": {instrument: {"state": bool, "time": iso}}}``
+
+``throttle`` carries the per-instrument state/hour throttle, so a restart
+does not let an instrument alert again inside its hour.
 
 The location is ``ALERTS_HISTORY_URI`` when set, else
 ``s3://$DATA_BUCKET/alerts/recent_alerts.json`` on AWS, else
@@ -14,6 +18,11 @@ S3 has no append, so the document is rewritten on each publish and capped to
 the newest ``MAX_STORED_ALERTS`` alerts and ``MAX_STORED_SIGNATURES``
 signatures; that cap is the retention. Alerts stay global (not per owner), as
 they were before persistence.
+
+A lock serialises the read-modify-write within one process. Separate processes
+(e.g. concurrent Lambda invocations) are last-writer-wins: an alert written
+between another writer's read and write can be lost. That is accepted for a
+notification feed; SNS delivery is unaffected.
 """
 
 import logging
@@ -81,6 +90,31 @@ def _load_history() -> None:
     _SIGNATURE_ORDER[:] = list(dict.fromkeys(stored_signatures))
     _RECENT_ALERT_SIGNATURES.clear()
     _RECENT_ALERT_SIGNATURES.update(_SIGNATURE_ORDER)
+    _restore_throttle(data.get("throttle"))
+
+
+def _restore_throttle(stored: object) -> None:
+    """Merge persisted per-instrument throttle entries into memory."""
+
+    if not isinstance(stored, dict):
+        return
+    for instrument, entry in stored.items():
+        if not isinstance(entry, dict):
+            continue
+        try:
+            when = datetime.fromisoformat(str(entry["time"]))
+        except (KeyError, ValueError):
+            continue
+        _LAST_ALERT_STATE[str(instrument)] = bool(entry.get("state"))
+        _LAST_ALERT_TIME[str(instrument)] = when
+
+
+def _throttle_document() -> Dict[str, Dict]:
+    return {
+        instrument: {"state": state, "time": _LAST_ALERT_TIME[instrument].isoformat()}
+        for instrument, state in _LAST_ALERT_STATE.items()
+        if instrument in _LAST_ALERT_TIME
+    }
 
 
 def _save_history() -> None:
@@ -91,7 +125,7 @@ def _save_history() -> None:
     del _SIGNATURE_ORDER[:-MAX_STORED_SIGNATURES]
     _RECENT_ALERT_SIGNATURES.difference_update(dropped)
     try:
-        _storage().save({"alerts": _RECENT_ALERTS, "signatures": _SIGNATURE_ORDER})
+        _storage().save({"alerts": _RECENT_ALERTS, "signatures": _SIGNATURE_ORDER, "throttle": _throttle_document()})
     except Exception as exc:
         logger.warning("Failed to persist alerts: %s", sanitise_log_value(exc))
 
@@ -156,11 +190,19 @@ def _publish_locked(alert: Dict) -> None:
 
     alert["timestamp"] = now.isoformat()
     _RECENT_ALERTS.append(alert)
+    if _send_sns(alert) and instrument is not None and state is not None:
+        _LAST_ALERT_STATE[instrument] = bool(state)
+        _LAST_ALERT_TIME[instrument] = now
     _save_history()
+
+
+def _send_sns(alert: Dict) -> bool:
+    """Publish ``alert`` to SNS when configured; return whether it was sent."""
+
     topic_arn = config.sns_topic_arn
     if not topic_arn:
         logger.info("SNS topic ARN not configured; skipping publish")
-        return
+        return False
 
     try:
         import boto3  # type: ignore
@@ -168,14 +210,11 @@ def _publish_locked(alert: Dict) -> None:
         boto3.client("sns").publish(TopicArn=topic_arn, Message=alert["message"])
     except ModuleNotFoundError:
         logger.warning("SNS topic ARN set but boto3 not installed")
-        return
+        return False
     except Exception as exc:
         logger.warning("SNS publish failed: %s", sanitise_log_value(exc))
-        return
-
-    if instrument is not None and state is not None:
-        _LAST_ALERT_STATE[instrument] = bool(state)
-        _LAST_ALERT_TIME[instrument] = now
+        return False
+    return True
 
 
 # Backwards compatibility shim
@@ -184,7 +223,10 @@ def publish_alert(alert: Dict) -> None:
 
 
 def get_recent_alerts(limit: int = 50) -> List[Dict]:
-    """Return recent alerts, most recent last, read from the persisted history."""
+    """Return recent alerts, most recent last, read from the persisted history.
+
+    At most ``MAX_STORED_ALERTS`` are retained, whatever ``limit`` asks for.
+    """
     with _lock:
         _load_history()
         return list(_RECENT_ALERTS[-limit:])

@@ -59,8 +59,24 @@ def test_throttled_signature_is_persisted(monkeypatch):
 
     alerts.clear_state()  # restart without reload keeps the monkeypatched config
 
+    # The signature is ticker|message (no ticker here), so this matches the
+    # throttled "b" above and is skipped as a duplicate despite the new state.
     alerts.publish_alert({"instrument": "IBM", "state": False, "message": "b"})
     assert [a["message"] for a in alerts.get_recent_alerts()] == ["a"]
+
+
+def test_hourly_throttle_holds_across_restart(monkeypatch):
+    monkeypatch.setattr(alerts.config, "sns_topic_arn", "arn:example")
+    sns = SimpleNamespace(publish=lambda **kwargs: None)
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=lambda name: sns))
+    alerts.publish_alert({"instrument": "IBM", "state": True, "message": "crossed"})
+
+    alerts.clear_state()  # restart: in-memory throttle state is gone
+
+    # State changed, but it is within the hour of the last published alert.
+    alerts.publish_alert({"instrument": "IBM", "state": False, "message": "recovered"})
+    assert [a["message"] for a in alerts.get_recent_alerts()] == ["crossed"]
+    assert alerts._LAST_ALERT_STATE == {"IBM": True}
 
 
 def test_retention_caps_stored_alerts(tmp_path, monkeypatch):

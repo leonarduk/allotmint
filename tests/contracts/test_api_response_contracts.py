@@ -74,6 +74,8 @@ def client() -> TestClient:
     # the in-memory price snapshot from the committed seed file). Without
     # this, requests fall through to raw timeseries lookups that can surface
     # stale/incomplete rows for the current trading day - see issue #5192.
+    # The seed replaces the transactions loader for every test in this module;
+    # nothing here needs the real (empty) committed transaction data.
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(transactions_routes, "load_all_transactions", _seeded_transactions)
         with TestClient(create_app()) as test_client:
@@ -100,6 +102,7 @@ def _assert_non_vacuous(name: str, payload: Any) -> None:
     if isinstance(payload, list):
         assert all(isinstance(row, dict) and row for row in payload), f"{name} returned empty rows"
     if name in {"portfolio", "groupPortfolio"}:
+        assert isinstance(payload, dict), f"{name} should be an object, got {type(payload).__name__}"
         accounts = payload.get("accounts") or []
         assert any(account.get("holdings") for account in accounts), f"{name} has no account with holdings"
 
@@ -150,9 +153,13 @@ def test_transactions_contract_drift_is_detected(client: TestClient, field: str)
     payload = client.get("/transactions").json()
     validator = Draft202012Validator(_without_transaction_property(field))
 
-    errors = [error.message for error in validator.iter_errors(payload)]
+    drift_errors = [
+        error
+        for error in validator.iter_errors(payload)
+        if error.validator == "additionalProperties" and field in error.message
+    ]
 
-    assert any(field in error for error in errors), errors
+    assert drift_errors, f"removing {field} from the contract did not fail validation"
 
 
 @pytest.mark.parametrize("name", sorted(ENDPOINT_FIXTURES))

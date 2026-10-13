@@ -1779,6 +1779,7 @@ describe("GroupPortfolioView", () => {
     );
     await waitFor(() => expect(screen.getAllByText("£110.00").length).toBeGreaterThan(0));
 
+    const callsBeforeDateChange = liveQuoteCalls();
     const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
     fireEvent.change(dateInput, { target: { value: "2026-06-30" } });
 
@@ -1791,7 +1792,9 @@ describe("GroupPortfolioView", () => {
     );
     await waitFor(() => expect(screen.getAllByText("£100.00").length).toBeGreaterThan(0));
     expect(screen.queryByText("£110.00")).not.toBeInTheDocument();
+    // No live quote request is made while the past pricing date is active.
     const callsWhileHistorical = liveQuoteCalls();
+    expect(callsWhileHistorical).toBe(callsBeforeDateChange);
 
     // "Reset to latest" restores live revaluation.
     await user.click(screen.getByRole("button", { name: "Reset to latest" }));

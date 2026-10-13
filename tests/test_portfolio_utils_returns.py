@@ -187,6 +187,16 @@ def test_compute_total_return_weekend_window_start_agrees_with_pct(ledger_owner)
     assert result["total_return_pct"] == pytest.approx(150.0 / 1050.0)
 
 
+def test_ledger_total_return_gbp_deposit_on_window_start_is_in_opening_value(ledger_owner):
+    """A deposit on the opening close's own day is in that close, not a flow: £150, not -£350."""
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2025-06-02": 105.0, "2026-01-01": 120.0}}
+    transactions = [_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000), _deposit("2025-06-02", 500)]
+    ledger_owner(transactions, closes)
+    perf = pu._owner_ledger_performance("owner", date(2026, 1, 1))
+
+    assert pu.ledger_total_return_gbp(perf, date(2025, 6, 2)) == pytest.approx(150.0)  # 1,700 - 1,550
+
+
 def test_ledger_total_return_gbp_counts_income_paid_out(ledger_owner):
     """Untracked cash: the £50 dividend leaves the account but is still return."""
     closes = {"AAA.L": {"2025-01-01": 100.0}}

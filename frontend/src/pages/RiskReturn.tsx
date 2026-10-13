@@ -33,6 +33,7 @@ import type {
   StrategyRiskReturn,
 } from '../types';
 import { useFetch } from '../hooks/useFetch';
+import { useDefaultOwner } from '../hooks/useDefaultOwner';
 import {
   PRESET_BENCHMARKS,
   addBenchmark,
@@ -158,16 +159,18 @@ function useWindowResults<T>(
 
 /**
  * Whose user strategies are offered: the first member of ``group`` with an
- * account, else the first owner. Built-in strategies are the same for all.
+ * account, else ``fallback`` (the signed-in user's owner, #10815). Built-in
+ * strategies are the same for all.
  */
 function strategyOwner(
   group: string,
   groups: GroupSummary[] | null,
-  owners: OwnerSummary[] | null
+  owners: OwnerSummary[] | null,
+  fallback: string
 ): string | null {
   const known = new Set((owners ?? []).map((o) => o.owner));
   const members = groups?.find((g) => g.slug === group)?.members ?? [];
-  return members.find((m) => known.has(m)) ?? owners?.[0]?.owner ?? null;
+  return members.find((m) => known.has(m)) ?? (fallback || null);
 }
 
 function formatPct(value: number | null): string {
@@ -371,7 +374,8 @@ export default function RiskReturn() {
     '',
     getBenchmarkRiskReturn
   );
-  const owner = strategyOwner(group, groups.data, owners.data);
+  const defaultOwner = useDefaultOwner(owners.data ?? []);
+  const owner = strategyOwner(group, groups.data, owners.data, defaultOwner);
   const fetchStrategyList = useCallback(
     () => getStrategies(owner ?? ''),
     [owner]

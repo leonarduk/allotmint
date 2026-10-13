@@ -8,6 +8,7 @@ import {
   compareGainPctDesc,
   formatGbp,
   formatPct,
+  awaitingApprovalCrops,
   germinatingCrops,
   growthStageMeta,
   neediestCrop,
@@ -144,6 +145,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
   const openChores = chores.filter((chore) => !chore.completed).length;
   const featured = crops.slice(0, 6);
   const germinating = germinatingCrops(crops);
+  const awaitingApproval = awaitingApprovalCrops(crops);
   const streakDays = today ? buildStreakPath(dailyTotals, today) : [];
   const seasonGoals = buildSeasonGoals(snapshot, allowances, allowancesUnavailable);
   const seasonDone = seasonGoals.filter((goal) => goal.complete).length;
@@ -315,7 +317,11 @@ export default function PlotHub({ basePath }: { basePath: string }) {
             {t('plot.hub.propagatorTip')}
           </InfoTip>
         </h2>
-        <Propagator entries={germinating} basePath={basePath} />
+        <Propagator
+          entries={germinating}
+          awaitingApproval={awaitingApproval}
+          basePath={basePath}
+        />
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>

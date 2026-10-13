@@ -519,7 +519,10 @@
       "change_1w": "Variação 1S",
       "change_1m": "Variação 1M",
       "change_1y": "Variação 1A",
-      "periodChangeHelp": "Variação de preço nas unidades detidas agora nos últimos 7 / 30 / 365 dias (desde a data de compra para compras dentro do período). Não é um retorno ponderado no tempo: aportes, operações e rendimentos no período são ignorados. — indica histórico de preços insuficiente."
+      "periodChangeHelp": "Variação de preço nas unidades detidas agora nos últimos 7 / 30 / 365 dias (desde a data de compra para compras dentro do período). Não é um retorno ponderado no tempo: aportes, operações e rendimentos no período são ignorados. — indica histórico de preços insuficiente.",
+      "totalReturn1y": "Retorno total 1A",
+      "totalReturn1yPct": "Retorno total 1A %",
+      "totalReturnHelp": "Retorno dos últimos 365 dias incluindo dividendos e juros, a partir do histórico de transações: variações de preço mais rendimentos, excluindo aportes e resgates. O % é ponderado no tempo (o valor 1A da página de desempenho). Apenas por titular; — indica que não há histórico de transações."
     }
   },
   "holdingsTable": {
@@ -1481,6 +1484,15 @@
   },
   "portfolio": "Portfólio",
   "query": {
+    "columns": {
+      "instrumentType": "Tipo de instrumento",
+      "name": "Nome",
+      "owner": "Titular",
+      "returnBasis": "Base de rendimento",
+      "startValueGbp": "Valor inicial (£)",
+      "ticker": "Ticker",
+      "units": "Unidades"
+    },
     "copyLink": "Copiar ligação",
     "end": "Fim",
     "exportCsv": "Exportar CSV",
@@ -1503,6 +1515,7 @@
     "saved": "\"{{name}}\" guardada.",
     "savedQueriesLoading": "Carregando consultas salvas…",
     "savedQueriesTitle": "Consultas salvas",
+    "selectionRequired": "Selecione pelo menos um titular e uma métrica para executar a consulta.",
     "start": "Início",
     "tickerNotHeld": "não detido atualmente",
     "tickers": "Tickers",
@@ -1959,6 +1972,15 @@
     },
     "ticker": "Ticker",
     "title": "Editor de séries temporais",
+    "grid": {
+      "cellLabel": "{{column}} em {{date}}",
+      "cellLabelUndated": "{{column}} da linha sem data {{row}}",
+      "pagination": "Páginas de linhas",
+      "rowsLabel": "Linhas",
+      "previousPage": "Página anterior",
+      "nextPage": "Próxima página",
+      "pageStatus": "Página {{page}} de {{pages}} (linhas {{from}}–{{to}} de {{total}})"
+    },
     "controls": {
       "sort": "Ordenar",
       "sortDesc": "Mais recentes primeiro",
@@ -3112,6 +3134,10 @@
       "daysHeld": "detida há {{daysHeld}} dias",
       "daysRatio": "{{daysHeld}} / {{total}} dias",
       "notLiftable": "Ainda não pode ser colhida",
+      "needsApproval": "Precisa de aprovação",
+      "needsApprovalHeading": "Precisa de aprovação ({{count}})",
+      "needsApprovalNote": "Já cumpriram o período mínimo de detenção; vendê-las precisa de uma aprovação que pode pedir agora.",
+      "tradingRulesLink": "Abrir regras de negociação",
       "readyOn": "Pronta em {{date}}",
       "daysToGo": "Faltam {{daysRemaining}} dias",
       "noteIndeterminate": "Progresso até ao período mínimo de detenção de cada posição, quando o backend o conhece — alguns tabuleiros estão marcados como não vendáveis, sem contagem decrescente para mostrar.",
@@ -3183,6 +3209,7 @@
       "held_other": "Detida {{count}} dias",
       "inPropagatorUntil": "no propagador até {{date}}",
       "notYetLiftable": "ainda não pode ser colhida",
+      "needsApproval": "precisa de aprovação",
       "clearedPropagator": "saiu do propagador em {{date}}",
       "readyToLift": "pronta a colher",
       "notFoundTitle": "Cultura não encontrada",
@@ -3451,7 +3478,7 @@
       "group": "A visão geral principal: posições, valores e alocação combinados dos titulares do grupo selecionado.",
       "market": "Um retrato das condições gerais do mercado e dos índices.",
       "movers": "Os instrumentos das suas carteiras que mais se moveram, para cima ou para baixo.",
-      "instrument": "Detalhes e histórico de preços de um único instrumento.",
+      "instrument": "Todas as posições agrupadas por setor, com totais e retornos em vários períodos.",
       "performance": "Rendibilidade ao longo do tempo de um titular, comparada com um índice de referência.",
       "transactions": "Registe compras, vendas e outras transações, ou importe-as de um CSV.",
       "dividends": "Dividendos recebidos, por ano fiscal, ano ou mês e por posição, com o total dos últimos 12 meses.",

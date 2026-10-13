@@ -170,6 +170,12 @@ def isolate_watchlists(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_alerts_history(tmp_path, monkeypatch):
+    """Keep persisted recent alerts (#10802) off ``data/`` and off any faked S3 bucket."""
+    monkeypatch.setenv("ALERTS_HISTORY_URI", f"file://{tmp_path / 'alerts' / 'recent_alerts.json'}")
+
+
+@pytest.fixture(autouse=True)
 def isolate_trend_watch(tmp_path, monkeypatch):
     """Keep trend-watch reports, state and mutes off ``data/`` and off any faked S3 bucket."""
     monkeypatch.setenv("TREND_WATCH_URI", f"file://{tmp_path / 'trend_watch'}")

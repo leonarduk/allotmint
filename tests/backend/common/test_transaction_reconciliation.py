@@ -209,3 +209,28 @@ def test_reconcile_corrects_cash_the_replay_cannot_explain(tmp_path: Path, monke
     assert injected[0]["ticker"] == "CASH.GBP"
     assert injected[0]["type"] == "SELL"
     assert injected[0]["units"] == pytest.approx(95.0)
+
+
+def test_reconcile_skips_owner_metadata_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Metadata JSON is never read as holdings, even with a matching ledger (#10788)."""
+    owner_dir = tmp_path / "lucy"
+    owner_dir.mkdir()
+    metadata = ("person", "settings", "approvals", "approval_requests", "pension-forecast")
+    for stem in metadata:
+        (owner_dir / f"{stem}.json").write_text(json.dumps({"holdings": [{"ticker": "ABC", "units": 1}]}))
+        (owner_dir / f"{stem}_transactions.json").write_text(json.dumps({"transactions": []}))
+
+    loaded: list[str] = []
+    real_load_json = tr._load_json
+
+    def recording_load_json(path: Path):
+        loaded.append(path.name)
+        return real_load_json(path)
+
+    monkeypatch.setattr(tr, "_load_json", recording_load_json)
+
+    tr.reconcile_transactions_with_holdings(accounts_root=tmp_path)
+
+    assert loaded == []
+    for stem in metadata:
+        assert json.loads((owner_dir / f"{stem}_transactions.json").read_text()) == {"transactions": []}

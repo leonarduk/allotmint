@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from backend.common import holdings_rebuild
+from backend.common.account_models import ACCOUNT_METADATA_STEMS
 from backend.common.data_loader import resolve_paths
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
-_METADATA_STEMS = {"person", "config", "notes"}
 _TYPE_SIGN = {
     "BUY": 1.0,
     "PURCHASE": 1.0,
@@ -114,7 +114,7 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
 
             stem = account_file.stem
             lower = stem.lower()
-            if lower in _METADATA_STEMS or lower.endswith("_transactions"):
+            if lower in ACCOUNT_METADATA_STEMS or lower.endswith("_transactions"):
                 continue
 
             account_data = _load_json(account_file)

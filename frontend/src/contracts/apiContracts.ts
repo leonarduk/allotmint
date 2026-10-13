@@ -103,6 +103,9 @@ export const holdingContractSchema = z.object({
   // False. z.boolean().optional() alone rejects null and throws at parse
   // time for exactly the holdings this fix produces.
   sell_eligible: z.boolean().nullable().optional(),
+  // "hold_period" | "needs_approval" when sell_eligible is false (#10812).
+  // Kept a plain string so a new backend reason can't fail the parse.
+  sell_block_reason: nullableString.optional(),
   days_until_eligible: nullableNumber.optional(),
   next_eligible_sell_date: nullableString.optional(),
   eligible_on: nullableString.optional(),

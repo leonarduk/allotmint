@@ -11,6 +11,7 @@ import {
   growthLevelFor,
   growthStageMeta,
   hasKnownHoldPeriodCountdown,
+  isAwaitingApproval,
   isStillInPropagator,
   yieldLevelFor,
   type Crop,
@@ -107,7 +108,10 @@ function abilitiesFor(crop: Crop, t: TFunction) {
                       date: crop.nextEligibleSellDate,
                     })}`
                   : ` · ${t('plot.crop.notYetLiftable')}`
-                : crop.nextEligibleSellDate
+                : isAwaitingApproval(crop)
+                  ? // Hold served, blocked on approval (#10812).
+                    ` · ${t('plot.crop.needsApproval')}`
+                  : crop.nextEligibleSellDate
                   ? ` · ${t('plot.crop.clearedPropagator', {
                       date: crop.nextEligibleSellDate,
                     })}`

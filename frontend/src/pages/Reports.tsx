@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
@@ -149,14 +149,12 @@ export default function Reports() {
   const { t } = useTranslation();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [ownersLoaded, setOwnersLoaded] = useState(false);
-  // Read optionally: useRoute() throws outside a RouteProvider.
-  const selectedOwner = useContext(RouteContext)?.selectedOwner;
-  // A picker choice, tagged with the route owner it was made under so a later
-  // app-level owner change takes precedence again (#10753).
-  const [explicitPick, setExplicitPick] = useState<{
-    owner: string;
-    route: string | undefined;
-  } | null>(null);
+  // Read optionally: useRoute() throws outside a RouteProvider. A picker
+  // choice updates the app-level owner (as on Strategy), so a later owner
+  // change elsewhere wins too; local state is only the provider-less fallback.
+  const route = useContext(RouteContext);
+  const [localOwner, setLocalOwner] = useState("");
+  const setOwner = route ? route.setSelectedOwner : setLocalOwner;
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [explicitTemplateId, setExplicitTemplateId] = useState<string | null>(
@@ -172,21 +170,11 @@ export default function Reports() {
       .finally(() => setOwnersLoaded(true));
   }, []);
 
-  // A picked owner wins, then the route owner, then the signed-in user's
-  // owner, then owners[0] (#10753).
-  const defaultOwner = useDefaultOwner(owners, selectedOwner);
-  // Drop a pick made under a previous route owner so it can't resurface if
-  // the route later returns to that owner.
-  if (explicitPick && explicitPick.route !== selectedOwner) {
-    setExplicitPick(null);
-  }
-  const owner =
-    explicitPick && explicitPick.route === selectedOwner
-      ? explicitPick.owner
-      : defaultOwner;
-  const setOwner = useCallback(
-    (picked: string) => setExplicitPick({ owner: picked, route: selectedOwner }),
-    [selectedOwner],
+  // The picked/route owner wins, then the signed-in user's owner, then
+  // owners[0] (#10753).
+  const owner = useDefaultOwner(
+    owners,
+    route ? route.selectedOwner : localOwner,
   );
 
   const selectedTemplateId = useMemo(() => {

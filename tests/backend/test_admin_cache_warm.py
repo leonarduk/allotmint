@@ -144,3 +144,34 @@ def test_warm_fills_the_real_caches_from_a_data_root(monkeypatch, tmp_path):
     assert [s["name"] for s in timeseries_admin.timeseries_admin()] == ["Alpha"]
     assert [i["ticker"] for i in instruments.list_instruments()] == ["ABC.L"]
     issues.aggregate_series_issues()
+
+
+def test_event_loop_keeps_serving_while_the_warm_up_runs(monkeypatch):
+    """The warm-up blocks a worker thread, never the loop, so /health stays responsive (#7690)."""
+    import threading
+    import time
+
+    release = threading.Event()
+    started = threading.Event()
+
+    def slow_warm():
+        started.set()
+        release.wait(5)  # stands in for a long, blocking scan
+
+    monkeypatch.setattr(admin_cache_warm, "warm_admin_caches", slow_warm)
+
+    async def scenario() -> float:
+        task = asyncio.create_task(AppLifecycleService._warm_admin_caches_background())
+        while not started.is_set():
+            await asyncio.sleep(0.01)
+        worst = 0.0
+        for _ in range(20):  # loop ticks while the warm-up is still blocked
+            tick = time.perf_counter()
+            await asyncio.sleep(0)
+            worst = max(worst, time.perf_counter() - tick)
+        assert not task.done()
+        release.set()
+        await task
+        return worst
+
+    assert asyncio.run(scenario()) < 0.5

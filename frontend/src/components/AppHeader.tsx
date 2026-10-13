@@ -55,7 +55,10 @@ export default function AppHeader({
     () => buildChatPages(tabs, disabledTabs, (mode) => t(`app.modes.${mode}`)),
     [tabs, disabledTabs, t]
   );
-  const chatContext = useMemo(() => buildChatContext(pathname), [pathname]);
+  const chatContext = useMemo(
+    () => buildChatContext(pathname, { owner: selectedOwner, group: selectedGroup }),
+    [pathname, selectedOwner, selectedGroup]
+  );
   // While detached the chat lives in its own window (#9025): pages it opens
   // load here and it stays open; Reattach brings the drawer back.
   const chatDetached = useChatWindowHost({

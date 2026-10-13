@@ -41,13 +41,33 @@ export function buildChatPages(
 // Instrument pages live at /research/:ticker.
 const RESEARCH_PATH = /^\/research\/([^/]+)\/?$/;
 
-/** The page the user is on, sent with each chat turn (backend/chat/local_tools.py). */
-export function buildChatContext(pathname: string): ChatContext {
+// Mirrors ChatContextIn's owner/group pattern (backend/routes/chat.py): a slug
+// it would reject is left out rather than failing the whole turn with a 422.
+const SCOPE_SLUG = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** The owner or group selected in the app, if any. */
+export type ChatScope = { owner?: string | null; group?: string | null };
+
+/**
+ * The page the user is on, sent with each chat turn (backend/chat/local_tools.py),
+ * plus the owner -- or, with none selected, the group -- in view (#10813).
+ */
+export function buildChatContext(pathname: string, scope: ChatScope = {}): ChatContext {
+  const context: ChatContext = { path: pathname };
   const match = RESEARCH_PATH.exec(pathname);
-  if (!match) return { path: pathname };
-  try {
-    return { path: pathname, ticker: decodeURIComponent(match[1]) };
-  } catch {
-    return { path: pathname };
+  if (match) {
+    try {
+      context.ticker = decodeURIComponent(match[1]);
+    } catch {
+      // A malformed escape: leave the ticker out.
+    }
   }
+  const owner = scope.owner?.trim();
+  const group = scope.group?.trim();
+  if (owner) {
+    if (SCOPE_SLUG.test(owner)) context.owner = owner;
+  } else if (group && SCOPE_SLUG.test(group)) {
+    context.group = group;
+  }
+  return context;
 }

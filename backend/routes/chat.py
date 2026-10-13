@@ -13,11 +13,15 @@ from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
+from backend.auth import get_active_user, oauth2_scheme
 from backend.chat.local_tools import LocalTools, build_system_prompt, pages_from_request
 from backend.chat.providers import run_configured_chat_turn
+from backend.common import data_loader
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
+from backend.routes._accounts import resolve_accounts_root
 
 if TYPE_CHECKING:
     from slowapi import Limiter
@@ -42,6 +46,10 @@ class ChatContextIn(BaseModel):
     # The page the user has open; same same-site path rule as ChatPageIn.
     path: str = Field(pattern=r"^/([^/].*)?$", max_length=200)
     ticker: Optional[str] = Field(default=None, pattern=r"^[A-Za-z0-9._\-]{1,30}$")
+    # The owner or group selected in the app, so "this portfolio" resolves (#10813).
+    # Prompt context only: it never decides which data the user may read.
+    owner: Optional[str] = Field(default=None, pattern=r"^[A-Za-z0-9._\-]{1,64}$")
+    group: Optional[str] = Field(default=None, pattern=r"^[A-Za-z0-9._\-]{1,64}$")
 
 
 class ChatRequest(BaseModel):
@@ -130,11 +138,37 @@ def _describe_upstream_error(exc: BaseException) -> tuple[str, str]:
     )
 
 
+def _owner_for_identity(request: Request, identity: Optional[str]) -> Optional[str]:
+    """Return the owner whose email (or slug) is the signed-in ``identity``, if any.
+
+    Only owners visible to that identity are considered, so this can never
+    name an owner the user could not already see. ``None`` in demo/no-auth
+    mode without a matching owner, and the prompt simply omits the line.
+    """
+
+    if not identity:
+        return None
+    wanted = identity.strip().lower()
+    accounts_root = resolve_accounts_root(request, allow_missing=True)
+    for entry in data_loader.list_plots(accounts_root, identity):
+        if (entry.email or "").strip().lower() == wanted or entry.owner.lower() == wanted:
+            return entry.owner
+    return None
+
+
+async def _signed_in_owner(request: Request) -> Optional[str]:
+    """Resolve the signed-in user's owner server-side, as /alerts does by email (#10813)."""
+
+    identity = await get_active_user(request, await oauth2_scheme(request))
+    return await run_in_threadpool(_owner_for_identity, request, identity)
+
+
 async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatResponse | JSONResponse:
     mcp_server_url = config.mcp_server_url
     if not mcp_server_url:
         return _chat_error(503, CHAT_ERROR_NOT_CONFIGURED, "Chat is not configured (MCP_SERVER_URL unset)")
 
+    signed_in_owner = await _signed_in_owner(request)
     local_tools = LocalTools(
         pages=pages_from_request([page.model_dump() for page in payload.pages]),
         data_tools=True,
@@ -147,7 +181,10 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
             cfg=config,
             mcp_server_url=mcp_server_url,
             local_tools=local_tools,
-            system_prompt=build_system_prompt(payload.context.model_dump() if payload.context else None),
+            system_prompt=build_system_prompt(
+                payload.context.model_dump() if payload.context else None,
+                signed_in_owner=signed_in_owner,
+            ),
         )
     except ValueError as exc:
         # Raised by bedrock_agent._validate_message_alternation (shared by

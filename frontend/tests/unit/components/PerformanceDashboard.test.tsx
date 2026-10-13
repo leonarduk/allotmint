@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -758,6 +758,128 @@ describe("PerformanceDashboard", () => {
         "Performance metric failed to load",
         expect.anything(),
       );
+      consoleError.mockRestore();
+    });
+  });
+
+  // #10755: on a cold backend cache the parallel metric requests can pass the
+  // client timeout. The banner offers Retry, which refetches only the failed
+  // metrics and keeps the ones that loaded (#10083).
+  describe("retrying failed metrics (#10755)", () => {
+    const timeout = (url: string) => new Error(`Request timed out after 30s: ${url}`);
+
+    it("recovers every metric after a cold-cache timeout without a reload", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const user = userEvent.setup();
+      vi.mocked(getAlphaVsBenchmark).mockRejectedValueOnce(timeout("/alpha"));
+      vi.mocked(getTrackingError).mockRejectedValueOnce(timeout("/tracking-error"));
+      vi.mocked(getMaxDrawdown).mockRejectedValueOnce(timeout("/max-drawdown"));
+      vi.mocked(getPerformance).mockRejectedValueOnce(timeout("/performance"));
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      const warning = await screen.findByTestId("performance-metrics-unavailable-warning");
+      expect(warning).toHaveTextContent(
+        "Alpha vs Benchmark, Tracking Error, Max Drawdown, Portfolio Value",
+      );
+      expect(screen.getByTestId("metric-twr")).toHaveTextContent("N/A");
+
+      await user.click(screen.getByRole("button", { name: "Retry" }));
+
+      expect(await screen.findByTestId("metric-twr")).toHaveTextContent("4.00%");
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("performance-metrics-unavailable-warning"),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("1.00%");
+      expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent("2.00%");
+      expect(screen.getByTestId("metric-max-drawdown")).toHaveTextContent("-35.00%");
+      expect(screen.getByTestId("metric-xirr")).toHaveTextContent("5.00%");
+      expect(screen.queryByTestId("performance-chart-unavailable")).not.toBeInTheDocument();
+      consoleError.mockRestore();
+    });
+
+    it("refetches only the failed metric and keeps the loaded ones on screen", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const user = userEvent.setup();
+      vi.mocked(getTrackingError).mockRejectedValueOnce(timeout("/tracking-error"));
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-metrics-unavailable-warning"),
+      ).toHaveTextContent("Tracking Error");
+      await user.click(screen.getByRole("button", { name: "Retry" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent("2.00%"),
+      );
+      expect(getTrackingError).toHaveBeenCalledTimes(2);
+      expect(getAlphaVsBenchmark).toHaveBeenCalledTimes(1);
+      expect(getMaxDrawdown).toHaveBeenCalledTimes(1);
+      expect(getPerformance).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("1.00%");
+      expect(
+        screen.queryByTestId("performance-metrics-unavailable-warning"),
+      ).not.toBeInTheDocument();
+      consoleError.mockRestore();
+    });
+
+    it("keeps the banner, and the loaded metrics, when the retry fails again", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const user = userEvent.setup();
+      vi.mocked(getPerformance)
+        .mockRejectedValueOnce(timeout("/performance"))
+        .mockRejectedValueOnce(timeout("/performance"));
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("performance-chart-unavailable");
+      await user.click(screen.getByRole("button", { name: "Retry" }));
+
+      await waitFor(() => expect(getPerformance).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled(),
+      );
+      expect(
+        screen.getByTestId("performance-metrics-unavailable-warning"),
+      ).toHaveTextContent("Portfolio Value");
+      expect(screen.getByTestId("performance-chart-unavailable")).toBeInTheDocument();
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("1.00%");
+      expect(screen.getByTestId("metric-max-drawdown")).toHaveTextContent("-35.00%");
+      consoleError.mockRestore();
+    });
+
+    it("disables Retry while the retry is in flight", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const user = userEvent.setup();
+      vi.mocked(getMaxDrawdown)
+        .mockRejectedValueOnce(timeout("/max-drawdown"))
+        .mockReturnValueOnce(new Promise(() => {}));
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      const retry = await screen.findByRole("button", { name: "Retry" });
+      await user.click(retry);
+
+      expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled();
       consoleError.mockRestore();
     });
   });

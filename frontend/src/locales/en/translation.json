@@ -1961,6 +1961,15 @@
     },
     "ticker": "Ticker",
     "title": "Time Series Editor",
+    "grid": {
+      "cellLabel": "{{column}} on {{date}}",
+      "cellLabelUndated": "{{column}} for undated row {{row}}",
+      "pagination": "Row pages",
+      "rowsLabel": "Rows",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "pageStatus": "Page {{page}} of {{pages}} (rows {{from}}–{{to}} of {{total}})"
+    },
     "controls": {
       "sort": "Sort",
       "sortDesc": "Newest first",

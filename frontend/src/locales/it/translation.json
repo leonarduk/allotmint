@@ -1967,6 +1967,15 @@
     },
     "ticker": "Ticker",
     "title": "Editor serie temporali",
+    "grid": {
+      "cellLabel": "{{column}} il {{date}}",
+      "cellLabelUndated": "{{column}} per la riga senza data {{row}}",
+      "pagination": "Pagine di righe",
+      "rowsLabel": "Righe",
+      "previousPage": "Pagina precedente",
+      "nextPage": "Pagina successiva",
+      "pageStatus": "Pagina {{page}} di {{pages}} (righe {{from}}–{{to}} di {{total}})"
+    },
     "controls": {
       "sort": "Ordina",
       "sortDesc": "Più recenti prima",

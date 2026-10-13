@@ -311,3 +311,49 @@ def test_watchlist_reads_prices_cache_only(monkeypatch, client):
     assert response.status_code == 200
     assert seen == {"top_movers": True, "trading_agent": True}
     assert is_cache_only() is False
+
+
+def test_group_one_day_on_monday_returns_fridays_movers(monkeypatch, client):
+    """#10756: GET /opportunities?days=1&group=all on a Monday is not empty.
+
+    Runs the real ``_group_opportunities`` -> ``top_movers`` ->
+    ``price_change_pct`` path over a price series that carries Friday's close
+    forward over the weekend; only the price reads and the clock are faked.
+    """
+    import datetime as dt
+
+    from backend.common import instrument_api as ia
+
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 10, 12)
+
+    monkeypatch.setattr(ia.dt, "date", FixedDate)
+    monkeypatch.setattr(opportunities_mod.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(
+        ia,
+        "instrument_summaries_for_group",
+        lambda slug: [
+            {"ticker": "UP.L", "market_value_gbp": 600.0},
+            {"ticker": "DOWN.L", "market_value_gbp": 400.0},
+        ],
+    )
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: (t.split(".", 1)[0], "L"))
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {"name": t})
+    thu, fri = dt.date(2026, 10, 8), dt.date(2026, 10, 9)
+    closes = {"UP": {thu: 100.0, fri: 110.0}, "DOWN": {thu: 100.0, fri: 95.0}}
+
+    def fake_close_on(sym, ex, d):
+        day = ia._nearest_weekday(d, forward=False)
+        return closes[sym].get(day, closes[sym][fri] if day > fri else None)
+
+    monkeypatch.setattr(ia, "_close_on", fake_close_on)
+    monkeypatch.setattr(opportunities_mod.trading_agent, "run", lambda tickers, notify=False: [])
+
+    response = client.get("/opportunities", params={"group": "issue-10756", "days": 1, "limit": 10})
+
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert [(e["ticker"], e["side"]) for e in entries] == [("UP.L", "gainers"), ("DOWN.L", "losers")]
+    assert entries[0]["change_pct"] == pytest.approx(10.0)

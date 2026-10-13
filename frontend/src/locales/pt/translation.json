@@ -2868,6 +2868,7 @@
         "loss": "Perda"
       },
       "noCandidates": "Não foram encontrados candidatos claros com perdas.",
+      "allSheltered": "Todas as suas posições estão em ISA ou pensões (p. ex., SIPP), cujos ganhos e perdas ficam fora do imposto sobre mais-valias, pelo que não há nada a colher.",
       "advancedToggle": "Avançado: adicionar posição manual",
       "basis": "Base",
       "run": "Executar realização",

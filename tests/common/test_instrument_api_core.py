@@ -123,8 +123,10 @@ def _weekday_before(d: dt.date) -> dt.date:
 def test_price_change_pct_skips_yesterdays_bar_without_close(monkeypatch):
     """A NaN-close bar yesterday falls back to the prior close instead of blanking (#9926)."""
     yday = dt.date.today() - dt.timedelta(days=1)
-    then = ia._nearest_weekday(yday - dt.timedelta(days=30), forward=False)
-    _fake_closes(monkeypatch, {_weekday_before(yday): 110.0, then: 100.0})
+    latest = _weekday_before(yday)
+    # The start is anchored on the trading day the latest close came from (#10756).
+    then = ia._nearest_weekday(latest - dt.timedelta(days=30), forward=False)
+    _fake_closes(monkeypatch, {latest: 110.0, then: 100.0})
 
     assert ia.price_change_pct("ABC.L", 30) == pytest.approx(10.0)
 

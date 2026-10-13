@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useRoute } from "../RouteContext";
 import { useConfig } from "../ConfigContext";
 import { sanitizeOwners } from "../utils/owners";
+import { useDefaultOwner } from "../hooks/useDefaultOwner";
 import {
   accountTypeLabel,
   countsTowardPensionForecast,
@@ -146,20 +147,13 @@ export default function PensionForecast() {
       .catch(() => setOwners([]));
   }, []);
 
+  // Route owner wins, else the signed-in user's owner, else owners[0] (#10753).
+  const defaultOwner = useDefaultOwner(owners, selectedOwner);
   useEffect(() => {
-    if (!owners.length) return;
-
-    if (selectedOwner && owners.some((o) => o.owner === selectedOwner)) {
-      setOwner(selectedOwner);
-      return;
-    }
-
-    const fallbackOwner = owners[0];
-    if (!fallbackOwner) return;
-
-    setOwner(fallbackOwner.owner);
-    setSelectedOwner(fallbackOwner.owner);
-  }, [owners, selectedOwner, setSelectedOwner]);
+    if (!defaultOwner) return;
+    setOwner(defaultOwner);
+    if (defaultOwner !== selectedOwner) setSelectedOwner(defaultOwner);
+  }, [defaultOwner, selectedOwner, setSelectedOwner]);
 
   // Seed the "Current pension pot" snapshot from the owner's portfolio (the
   // same data the Dashboard already shows) so it reads a real figure on load
@@ -339,7 +333,7 @@ export default function PensionForecast() {
         investmentGrowthPct: selectedCareerPath.investmentGrowthPct,
       });
       setData(res.forecast);
-      setProjectedPot(res.projected_pot_gbp + res.pension_pot_gbp);
+      setProjectedPot(res.projected_pot_gbp);
       setPensionPot(res.pension_pot_gbp);
       setCurrentAge(res.current_age);
       setRetirementAge(res.retirement_age);

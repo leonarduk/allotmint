@@ -2868,6 +2868,7 @@
         "loss": "Verlust"
       },
       "noCandidates": "Keine eindeutigen Verlustkandidaten gefunden.",
+      "allSheltered": "Alle Ihre Positionen liegen in ISAs oder Pensionen (z. B. SIPPs), deren Gewinne und Verluste nicht der Kapitalertragsteuer unterliegen – es gibt also nichts zu ernten.",
       "advancedToggle": "Erweitert: Position manuell hinzufügen",
       "basis": "Einstand",
       "run": "Verrechnung ausführen",

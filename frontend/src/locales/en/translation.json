@@ -2861,6 +2861,7 @@
         "loss": "Loss"
       },
       "noCandidates": "No clear loss candidates found.",
+      "allSheltered": "Your holdings are all in ISAs or pensions (e.g. SIPPs), where gains and losses are outside Capital Gains Tax, so there is nothing to harvest.",
       "advancedToggle": "Advanced: add manual position",
       "basis": "Basis",
       "run": "Run Harvest",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
@@ -67,6 +67,17 @@ const METRIC_LABEL_CLASS = "text-slate-600 dark:text-slate-400";
 const PORTFOLIO_LINE_COLOUR = "#82ca9d";
 const BENCHMARK_LINE_COLOUR = "#f59e0b";
 
+// The four metric requests, settled independently so one failing never blanks
+// the rest (#7228, #10083), and retried independently from the banner (#10755).
+type MetricKey = "alpha" | "trackingError" | "maxDrawdown" | "performance";
+const ALL_METRICS: MetricKey[] = ["alpha", "trackingError", "maxDrawdown", "performance"];
+const METRIC_LABEL_KEYS: Record<MetricKey, string> = {
+  alpha: "dashboard.alphaVsBenchmark",
+  trackingError: "dashboard.trackingError",
+  maxDrawdown: "dashboard.maxDrawdown",
+  performance: "dashboard.portfolioValue",
+};
+
 // Metric units (fractions) and plausibility handling live in
 // lib/metricPlausibility.ts and FractionMetric, shared with the group view
 // (#8570).
@@ -78,9 +89,6 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [days, setDays] = useState<number>(365);
   const [alpha, setAlpha] = useState<number | null>(null);
   const [comparison, setComparison] = useState<CumulativeComparisonPoint[]>([]);
-  // Whether the benchmark could not be fetched at all, as opposed to having
-  // no overlapping prices; picks the fallback message (#7833).
-  const [benchmarkFailed, setBenchmarkFailed] = useState(false);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [drawdownSeries, setDrawdownSeries] = useState<DrawdownSeriesPoint[]>([]);
@@ -96,12 +104,16 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [previousDate, setPreviousDate] = useState<string | null>(null);
   const [partialMembers, setPartialMembers] = useState<string[]>([]);
   // A metric endpoint failing must not blank the whole dashboard -- each of
-  // the four performance-metric fetches below is settled independently
-  // (Promise.allSettled) so the rest of the page still renders with the
-  // failed metric(s) shown as unavailable rather than losing everything
-  // (DeepSeek review round 2, #7228).
-  const [unavailableMetrics, setUnavailableMetrics] = useState<string[]>([]);
-  const [perfUnavailable, setPerfUnavailable] = useState<boolean>(false);
+  // the four performance-metric fetches below is settled independently so
+  // the rest of the page still renders with the failed metric(s) shown as
+  // unavailable rather than losing everything (DeepSeek review round 2,
+  // #7228). The banner can retry just the failed ones (#10755): on a cold
+  // backend cache the parallel set can pass the client timeout.
+  const [failedMetrics, setFailedMetrics] = useState<MetricKey[]>([]);
+  const [retrying, setRetrying] = useState(false);
+  // Bumped whenever the scope changes or the component unmounts, so a load
+  // or retry started for an earlier scope never writes into this one.
+  const loadGeneration = useRef(0);
   // True once this load's fetches have settled. Gating "loading" on this,
   // not on `data.length`, keeps a successful-but-empty history from showing
   // "Loading..." forever (#7629).
@@ -111,8 +123,116 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const activeGroup = group || null;
   const activeOwner = activeGroup ? null : owner || null;
 
+  // Fetch ``metrics`` and apply each one that loads; resolves once all have
+  // settled. ``isCurrent`` turns false once the scope has moved on, so stale
+  // results (StrictMode's first run, a superseded range) are dropped.
+  const loadMetrics = useCallback(
+    (metrics: MetricKey[], isCurrent: () => boolean): Promise<void> => {
+      const reqDays = days === 0 ? 36500 : days;
+      const opts = asOf ? { asOf } : undefined;
+
+      const settle = <T,>(
+        key: MetricKey,
+        request: () => Promise<T>,
+        onLoaded: (value: T) => void,
+      ): Promise<MetricKey | null> =>
+        request().then(
+          (value) => {
+            if (isCurrent()) onLoaded(value);
+            return null;
+          },
+          (reason: unknown) => {
+            // Without this a failed metric left no diagnostic beyond the
+            // generic banner (#7629).
+            if (isCurrent()) console.error("Performance metric failed to load", reason);
+            return key;
+          },
+        );
+
+      // Group alpha/tracking error are computed by the backend from the
+      // *combined* group portfolio series (see getGroupAlphaVsBenchmark /
+      // getGroupTrackingError in api.ts), so they are meaningful aggregates --
+      // not an average of each member's alpha -- and are rendered the same way
+      // as the owner-scoped values. Owner scope is unchanged.
+      const loaders: Record<MetricKey, () => Promise<MetricKey | null>> = {
+        alpha: () =>
+          settle(
+            "alpha",
+            () =>
+              activeGroup
+                ? getGroupAlphaVsBenchmark(activeGroup, BENCHMARK_TICKER, reqDays)
+                : getAlphaVsBenchmark(activeOwner as string, BENCHMARK_TICKER, reqDays, opts),
+            (res) => {
+              setAlpha(res.alpha_vs_benchmark);
+              setComparison(buildCumulativeComparison(res.series));
+            },
+          ),
+        trackingError: () =>
+          settle(
+            "trackingError",
+            () =>
+              activeGroup
+                ? getGroupTrackingError(activeGroup, BENCHMARK_TICKER, reqDays)
+                : getTrackingError(activeOwner as string, BENCHMARK_TICKER, reqDays, opts),
+            (res) => setTrackingError(res.tracking_error),
+          ),
+        maxDrawdown: () =>
+          settle(
+            "maxDrawdown",
+            () =>
+              activeGroup
+                ? getGroupMaxDrawdown(activeGroup, reqDays)
+                : getMaxDrawdown(activeOwner as string, reqDays, opts),
+            (mdRes) => {
+              setMaxDrawdown(mdRes.max_drawdown);
+              setDrawdownSeries(mdRes.series ?? []);
+              setDrawdownPeak(mdRes.peak ?? null);
+              setDrawdownTrough(mdRes.trough ?? null);
+              // max_drawdown is a fraction; a severe (<= -90%) or implausible
+              // value auto-expands the details so the user sees the warning.
+              if (drawdownNeedsAttention(classifyDrawdown(mdRes.max_drawdown))) {
+                setShowDrawdownDetails(true);
+              }
+            },
+          ),
+        performance: () =>
+          settle(
+            "performance",
+            () =>
+              activeGroup
+                ? getGroupPerformance(activeGroup, reqDays, excludeCash, opts)
+                : getPerformance(activeOwner as string, reqDays, excludeCash, opts),
+            (perf) => {
+              setData(perf.history);
+              setTimeWeightedReturn(perf.time_weighted_return ?? null);
+              setXirr(perf.xirr ?? null);
+              setReportingDate(perf.reportingDate ?? null);
+              setPreviousDate(perf.previousDate ?? null);
+              setPartialMembers(perf.partial ? perf.missingMembers ?? [] : []);
+            },
+          ),
+      };
+
+      return Promise.all(metrics.map((key) => loaders[key]())).then((results) => {
+        if (!isCurrent()) return;
+        const failed = results.filter((key): key is MetricKey => key !== null);
+        // Metrics not requested this time keep their previous state, so a
+        // retry never forgets a failure it did not retry.
+        setFailedMetrics((previous) =>
+          ALL_METRICS.filter((key) =>
+            metrics.includes(key) ? failed.includes(key) : previous.includes(key),
+          ),
+        );
+      });
+    },
+    [activeGroup, activeOwner, days, excludeCash, asOf],
+  );
+
   useEffect(() => {
     if (!activeGroup && !activeOwner) return;
+    loadGeneration.current += 1;
+    const generation = loadGeneration.current;
+    const isCurrent = () => loadGeneration.current === generation;
     setErr(null);
     setData([]);
     setReportingDate(null);
@@ -124,102 +244,32 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setShowDrawdownDetails(false);
     setAlpha(null);
     setComparison([]);
-    setBenchmarkFailed(false);
     setTrackingError(null);
     setMaxDrawdown(null);
     setTimeWeightedReturn(null);
     setXirr(null);
-    setUnavailableMetrics([]);
-    setPerfUnavailable(false);
+    setFailedMetrics([]);
+    setRetrying(false);
     setLoaded(false);
-    const reqDays = days === 0 ? 36500 : days;
-    const opts = asOf ? { asOf } : undefined;
-    // Group alpha/tracking error are computed by the backend from the
-    // *combined* group portfolio series (see getGroupAlphaVsBenchmark /
-    // getGroupTrackingError in api.ts), so they are meaningful aggregates --
-    // not an average of each member's alpha -- and are rendered the same way
-    // as the owner-scoped values. Owner scope is unchanged.
-    const alphaPromise = activeGroup
-      ? getGroupAlphaVsBenchmark(activeGroup, BENCHMARK_TICKER, reqDays)
-      : getAlphaVsBenchmark(activeOwner as string, BENCHMARK_TICKER, reqDays, opts);
-    const trackingErrorPromise = activeGroup
-      ? getGroupTrackingError(activeGroup, BENCHMARK_TICKER, reqDays)
-      : getTrackingError(activeOwner as string, BENCHMARK_TICKER, reqDays, opts);
-    const maxDrawdownPromise = activeGroup
-      ? getGroupMaxDrawdown(activeGroup, reqDays)
-      : getMaxDrawdown(activeOwner as string, reqDays, opts);
-    const perfPromise = activeGroup
-      ? getGroupPerformance(activeGroup, reqDays, excludeCash, opts)
-      : getPerformance(activeOwner as string, reqDays, excludeCash, opts);
 
-    let cancelled = false;
-
-    Promise.allSettled([
-      alphaPromise,
-      trackingErrorPromise,
-      maxDrawdownPromise,
-      perfPromise,
-    ]).then(([alphaResult, teResult, mdResult, perfResult]) => {
-      if (cancelled) return;
-      const unavailable: string[] = [];
-
-      if (alphaResult.status === "fulfilled") {
-        setAlpha(alphaResult.value.alpha_vs_benchmark);
-        setComparison(buildCumulativeComparison(alphaResult.value.series));
-      } else {
-        unavailable.push(t("dashboard.alphaVsBenchmark"));
-        setBenchmarkFailed(true);
-      }
-
-      if (teResult.status === "fulfilled") {
-        setTrackingError(teResult.value.tracking_error);
-      } else {
-        unavailable.push(t("dashboard.trackingError"));
-      }
-
-      if (mdResult.status === "fulfilled") {
-        const mdRes = mdResult.value;
-        setMaxDrawdown(mdRes.max_drawdown);
-        setDrawdownSeries(mdRes.series ?? []);
-        setDrawdownPeak(mdRes.peak ?? null);
-        setDrawdownTrough(mdRes.trough ?? null);
-        // max_drawdown is a fraction; a severe (<= -90%) or implausible
-        // value auto-expands the details so the user sees the warning.
-        if (drawdownNeedsAttention(classifyDrawdown(mdRes.max_drawdown))) {
-          setShowDrawdownDetails(true);
-        }
-      } else {
-        unavailable.push(t("dashboard.maxDrawdown"));
-      }
-
-      if (perfResult.status === "fulfilled") {
-        const perf = perfResult.value;
-        setData(perf.history);
-        setTimeWeightedReturn(perf.time_weighted_return ?? null);
-        setXirr(perf.xirr ?? null);
-        setReportingDate(perf.reportingDate ?? null);
-        setPreviousDate(perf.previousDate ?? null);
-        setPartialMembers(perf.partial ? perf.missingMembers ?? [] : []);
-      } else {
-        setPerfUnavailable(true);
-        unavailable.push(t("dashboard.portfolioValue"));
-      }
-
-      // Without this a failed metric left no diagnostic beyond the generic
-      // banner (#7629).
-      [alphaResult, teResult, mdResult, perfResult].forEach((result) => {
-        if (result.status === "rejected") {
-          console.error("Performance metric failed to load", result.reason);
-        }
-      });
-      setUnavailableMetrics(unavailable);
-      setLoaded(true);
+    void loadMetrics(ALL_METRICS, isCurrent).then(() => {
+      if (isCurrent()) setLoaded(true);
     });
 
     return () => {
-      cancelled = true;
+      loadGeneration.current += 1;
     };
-  }, [activeGroup, activeOwner, days, excludeCash, asOf, t]);
+  }, [activeGroup, activeOwner, loadMetrics]);
+
+  // Refetch only the metrics that failed, keeping the ones already shown (#10755).
+  const retryFailedMetrics = () => {
+    const generation = loadGeneration.current;
+    const isCurrent = () => loadGeneration.current === generation;
+    setRetrying(true);
+    void loadMetrics(failedMetrics, isCurrent).finally(() => {
+      if (isCurrent()) setRetrying(false);
+    });
+  };
 
   if (!activeGroup && !activeOwner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
@@ -232,6 +282,11 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
       </LoadingStatus>
     );
   }
+
+  // Whether the benchmark could not be fetched at all, as opposed to having
+  // no overlapping prices; picks the fallback message (#7833).
+  const benchmarkFailed = failedMetrics.includes("alpha");
+  const perfUnavailable = failedMetrics.includes("performance");
 
   const formatSummaryDate = (value: string | null) => {
     if (!value) return "—";
@@ -352,7 +407,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           })}
         </p>
       )}
-      {unavailableMetrics.length > 0 && (
+      {failedMetrics.length > 0 && (
         <p
           data-testid="performance-metrics-unavailable-warning"
           style={{
@@ -362,8 +417,26 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           }}
         >
           {t("dashboard.performanceMetricsUnavailable", {
-            metrics: unavailableMetrics.join(", "),
-          })}
+            metrics: failedMetrics.map((key) => t(METRIC_LABEL_KEYS[key])).join(", "),
+          })}{" "}
+          <button
+            type="button"
+            onClick={retryFailedMetrics}
+            disabled={retrying}
+            aria-busy={retrying}
+            data-testid="performance-metrics-retry"
+            style={{
+              fontSize: "0.85rem",
+              color: "#60a5fa",
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: retrying ? "progress" : "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            {t("common.retry")}
+          </button>
         </p>
       )}
       <div

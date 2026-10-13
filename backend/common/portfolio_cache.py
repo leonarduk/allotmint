@@ -34,12 +34,28 @@ that would serve a demo-link visitor every real owner's holdings -- exactly
 the leak #7402 closed. :func:`group_portfolio_cache_key` therefore folds the
 demo scope in, and every caller must use it rather than assembling a key of
 its own.
+
+Shared performance inputs (#10755)
+----------------------------------
+The Performance page fires alpha, tracking error, max drawdown, the value
+history, TWR and XIRR in parallel, and each handler used to rebuild the same
+owner portfolio, holding value series and ledger replay for itself -- on a
+cold cache the set ran past the client's 30s timeout. :func:`memoised` lets
+``portfolio_utils`` share those intermediate builds across the requests,
+single-flighted so concurrent requests wait for one build rather than each
+running their own. It only caches inside :func:`sharing_performance_inputs`,
+which the ``/performance`` routes enter, so other callers (reports, bots,
+direct unit tests that monkeypatch the data between calls) keep computing
+fresh. It is cleared alongside the group portfolios by
+:func:`invalidate_group_portfolios`, so every write path above covers it.
 """
 
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any, Callable, Dict, Optional
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Callable, Dict, Iterator, Optional, TypeVar
 
 from backend.common.ttl_cache import CacheKey, TTLCache
 
@@ -48,11 +64,23 @@ from backend.common.ttl_cache import CacheKey, TTLCache
 # (an out-of-band edit to the account files, say) self-corrects in about a
 # minute. Matches the TTL #7575 chose for /opportunities.
 GROUP_PORTFOLIO_TTL_SECONDS = 60.0
+PERFORMANCE_INPUTS_TTL_SECONDS = 60.0
+
+_T = TypeVar("_T")
 
 _GROUP_PORTFOLIO_CACHE: TTLCache[Dict[str, Any]] = TTLCache(
     GROUP_PORTFOLIO_TTL_SECONDS,
     name="group_portfolio",
 )
+
+# Values of mixed type (portfolio dicts, pandas series, ledger rebuilds), so
+# the cache is untyped; ``memoised`` restores the caller's type.
+_PERFORMANCE_INPUTS_CACHE: TTLCache[Any] = TTLCache(
+    PERFORMANCE_INPUTS_TTL_SECONDS,
+    name="performance_inputs",
+)
+
+_SHARING_PERFORMANCE_INPUTS: ContextVar[bool] = ContextVar("sharing_performance_inputs", default=False)
 
 
 def _demo_scope() -> Optional[str]:
@@ -90,19 +118,67 @@ def cached_group_portfolio(
 
 
 def invalidate_group_portfolios() -> None:
-    """Drop every cached group portfolio.
+    """Drop every cached group portfolio, and the shared performance inputs.
 
     Deliberately coarse: a write to one owner changes the ``all`` group, every
     group that owner belongs to, and every ``as_of`` variant of each. Working
-    out which entries survive costs more than rebuilding them.
+    out which entries survive costs more than rebuilding them. The performance
+    inputs are built from the same account files and prices, so the same
+    writes make them stale.
     """
 
     _GROUP_PORTFOLIO_CACHE.clear()
+    invalidate_performance_inputs()
+
+
+@contextmanager
+def sharing_performance_inputs() -> Iterator[None]:
+    """Let :func:`memoised` cache and share builds for the duration of the block."""
+
+    token = _SHARING_PERFORMANCE_INPUTS.set(True)
+    try:
+        yield
+    finally:
+        _SHARING_PERFORMANCE_INPUTS.reset(token)
+
+
+def memoised(key: CacheKey, build: Callable[[], _T]) -> _T:
+    """Return ``build()``, shared across concurrent and recent callers inside :func:`sharing_performance_inputs`.
+
+    Outside that block ``build`` simply runs. Inside it the result is cached
+    for :data:`PERFORMANCE_INPUTS_TTL_SECONDS` under ``key`` plus the caller's
+    demo scope and the timeseries cache-only mode (both change what a build
+    reads), and concurrent misses for one key run a single build. ``key`` must
+    name every other input the build varies on.
+
+    Any returned value is cached, ``None`` included ("this owner has no
+    ledger" is a real answer); a build that fails must raise, which caches
+    nothing. The cache is per process, so it shares work between requests
+    served by one backend process -- the local API, or one warm Lambda
+    container -- not across containers.
+    """
+
+    if not _SHARING_PERFORMANCE_INPUTS.get():
+        return build()
+    from backend.timeseries.cache import is_cache_only
+
+    scoped_key = (*key, _demo_scope(), is_cache_only())
+    return _PERFORMANCE_INPUTS_CACHE.get_or_build(scoped_key, build)
+
+
+def invalidate_performance_inputs() -> None:
+    """Drop every shared performance input."""
+
+    _PERFORMANCE_INPUTS_CACHE.clear()
 
 
 __all__ = [
     "GROUP_PORTFOLIO_TTL_SECONDS",
+    "PERFORMANCE_INPUTS_TTL_SECONDS",
     "cached_group_portfolio",
     "group_portfolio_cache_key",
     "invalidate_group_portfolios",
+    "invalidate_performance_inputs",
+    "memoised",
+    "sharing_performance_inputs",
 ]

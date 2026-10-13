@@ -5,8 +5,9 @@ every instrument file or cached series. Their results are cached per file
 (``list_instruments``, ``timeseries_admin``, ``aggregate_series_issues``), so
 only the first scan after a restart is slow: on the full dataset (~12k
 instrument files, ~1,000 series) that first scan took longer than the
-frontend's 30s request timeout. Running it once at startup, off the event
-loop, means the first page visit finds the caches already filled.
+frontend's 30s request timeout. Running it once at startup, on a daemon
+thread off the event loop, means the first page visit finds the caches
+already filled, and stopping or reloading the server never waits for it.
 
 Only local deployments warm: on AWS/Lambda the caches are bypassed (S3 data)
 and a frozen container would not keep a background thread running anyway.
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from typing import Callable
 
@@ -63,3 +65,23 @@ def warm_admin_caches() -> dict[str, float]:
         timings[name] = round(time.perf_counter() - started, 2)
     logger.info("Admin page caches warmed: %s", sanitise_log_value(timings))
     return timings
+
+
+def _warm_in_background() -> None:
+    try:
+        warm_admin_caches()
+    except Exception:
+        # Non-fatal: the caches fill on the first request instead.
+        logger.exception("Failed to warm admin page caches")
+
+
+def start_admin_cache_warm_thread() -> threading.Thread:
+    """Start :func:`warm_admin_caches` on a daemon thread and return it.
+
+    Not ``asyncio.to_thread``: the event loop's default executor is joined at
+    shutdown, so Ctrl+C or a ``--reload`` mid-scan would hang until the scan
+    finished. A daemon thread is simply abandoned.
+    """
+    thread = threading.Thread(target=_warm_in_background, name="admin-cache-warm", daemon=True)
+    thread.start()
+    return thread

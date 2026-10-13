@@ -8,7 +8,6 @@ from types import SimpleNamespace
 import pytest
 
 from backend.bootstrap import admin_cache_warm
-from backend.bootstrap.startup import AppLifecycleService
 
 
 @pytest.mark.parametrize(
@@ -76,15 +75,23 @@ def test_warm_steps_fill_the_real_caches(monkeypatch):
     assert called == ["instruments", "timeseries", "series cache_only=True"]
 
 
-def test_background_warm_runs_off_the_event_loop(monkeypatch):
+def test_background_warm_runs_on_a_daemon_thread(monkeypatch):
+    """A daemon thread, so stopping or reloading the server never waits for a scan."""
     import threading
 
-    threads: list[str] = []
-    monkeypatch.setattr(admin_cache_warm, "warm_admin_caches", lambda: threads.append(threading.current_thread().name))
+    seen: list[tuple[str, bool]] = []
 
-    asyncio.run(AppLifecycleService._warm_admin_caches_background())
+    def record():
+        current = threading.current_thread()
+        seen.append((current.name, current.daemon))
 
-    assert threads and threads[0] != threading.main_thread().name
+    monkeypatch.setattr(admin_cache_warm, "warm_admin_caches", record)
+
+    thread = admin_cache_warm.start_admin_cache_warm_thread()
+    thread.join(5)
+
+    assert thread.daemon
+    assert seen == [("admin-cache-warm", True)]
 
 
 def test_background_warm_failure_is_logged_not_raised(monkeypatch, caplog):
@@ -93,7 +100,7 @@ def test_background_warm_failure_is_logged_not_raised(monkeypatch, caplog):
 
     monkeypatch.setattr(admin_cache_warm, "warm_admin_caches", boom)
 
-    asyncio.run(AppLifecycleService._warm_admin_caches_background())
+    admin_cache_warm.start_admin_cache_warm_thread().join(5)
 
     assert "Failed to warm admin page caches" in caplog.text
 
@@ -152,7 +159,7 @@ def test_warm_fills_the_real_caches_from_a_data_root(monkeypatch, tmp_path):
 
 
 def test_event_loop_keeps_serving_while_the_warm_up_runs(monkeypatch):
-    """The warm-up blocks a worker thread, never the loop, so /health stays responsive (#7690)."""
+    """Startup returns at once and the loop keeps serving while a scan blocks (#7690)."""
     import threading
     import time
 
@@ -166,7 +173,7 @@ def test_event_loop_keeps_serving_while_the_warm_up_runs(monkeypatch):
     monkeypatch.setattr(admin_cache_warm, "warm_admin_caches", slow_warm)
 
     async def scenario() -> float:
-        task = asyncio.create_task(AppLifecycleService._warm_admin_caches_background())
+        thread = admin_cache_warm.start_admin_cache_warm_thread()
         while not started.is_set():
             await asyncio.sleep(0.01)
         worst = 0.0
@@ -174,9 +181,26 @@ def test_event_loop_keeps_serving_while_the_warm_up_runs(monkeypatch):
             tick = time.perf_counter()
             await asyncio.sleep(0)
             worst = max(worst, time.perf_counter() - tick)
-        assert not task.done()
+        assert thread.is_alive()
         release.set()
-        await task
+        thread.join(5)
         return worst
 
     assert asyncio.run(scenario()) < 0.5
+
+
+def test_startup_starts_the_warm_thread_only_when_allowed(monkeypatch):
+    from backend.bootstrap import startup
+
+    started: list[str] = []
+    monkeypatch.setattr(admin_cache_warm, "start_admin_cache_warm_thread", lambda: started.append("warm"))
+    monkeypatch.setattr(admin_cache_warm, "should_warm_admin_caches", lambda cfg: cfg.app_env == "local")
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr("backend.tasks.nav_refresh.start_nav_refresh_task", lambda cfg: None)
+
+    for app_env in ("local", "aws"):
+        cfg = SimpleNamespace(app_env=app_env, skip_snapshot_warm=True, snapshot_warm_days=1)
+        app = SimpleNamespace(state=SimpleNamespace(background_tasks=[]))
+        asyncio.run(startup.AppLifecycleService(cfg).startup(app))
+
+    assert started == ["warm"]

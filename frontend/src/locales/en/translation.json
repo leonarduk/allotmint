@@ -1951,6 +1951,7 @@
     "grid": {
       "cellLabel": "{{column}} on {{date}}",
       "cellLabelUndated": "{{column}} for undated row {{row}}",
+      "pagination": "Row pages",
       "rowsLabel": "Rows",
       "previousPage": "Previous page",
       "nextPage": "Next page",

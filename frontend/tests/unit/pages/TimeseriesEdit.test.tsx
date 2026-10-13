@@ -184,6 +184,46 @@ describe("TimeseriesEdit page", () => {
     ).toBeInTheDocument();
   });
 
+  it("returns to page 1 when the sort or date range changes", async () => {
+    await loadDailySeries(120);
+    const nav = screen.getByRole("navigation", { name: "Row pages" });
+    expect(nav).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.change(screen.getByLabelText("Sort"), {
+      target: { value: "asc" },
+    });
+    expect(
+      screen.getByText("Page 1 of 3 (rows 1–50 of 120)"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.change(screen.getByLabelText("End date"), {
+      target: { value: "2030-01-01" },
+    });
+    expect(
+      screen.getByText("Page 1 of 3 (rows 1–50 of 120)"),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to the new last page when a delete removes it", async () => {
+    const rows = await loadDailySeries(101);
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(
+      screen.getByText("Page 3 of 3 (rows 101–101 of 101)"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: `Delete on ${rows[0].Date}` }),
+    );
+    expect(
+      screen.getByText("Page 2 of 2 (rows 51–100 of 100)"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
+    expect(
+      screen.getByText("Page 1 of 2 (rows 1–50 of 100)"),
+    ).toBeInTheDocument();
+  });
+
   it("stays on the current page after deleting a row", async () => {
     const rows = await loadDailySeries(120);
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));

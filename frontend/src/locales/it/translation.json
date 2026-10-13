@@ -1957,6 +1957,7 @@
     "grid": {
       "cellLabel": "{{column}} il {{date}}",
       "cellLabelUndated": "{{column}} per la riga senza data {{row}}",
+      "pagination": "Pagine di righe",
       "rowsLabel": "Righe",
       "previousPage": "Pagina precedente",
       "nextPage": "Pagina successiva",

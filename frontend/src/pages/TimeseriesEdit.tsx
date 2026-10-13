@@ -671,7 +671,7 @@ export function TimeseriesEdit() {
       {displayRows.length > TIMESERIES_PAGE_SIZE && (
         <nav
           className="mb-2 flex flex-wrap items-center gap-2 text-sm"
-          aria-label={t("timeseriesEdit.grid.rowsLabel")}
+          aria-label={t("timeseriesEdit.grid.pagination")}
         >
           <button
             onClick={() => setPage(currentPage - 1)}

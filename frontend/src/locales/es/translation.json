@@ -514,7 +514,10 @@
       "change_1w": "Cambio 1S",
       "change_1m": "Cambio 1M",
       "change_1y": "Cambio 1A",
-      "periodChangeHelp": "Cambio de precio en las participaciones actuales durante los últimos 7 / 30 / 365 días (desde la fecha de compra si se compró dentro del periodo). No es una rentabilidad ponderada en el tiempo: se ignoran aportaciones, operaciones e ingresos del periodo. — indica historial de precios insuficiente."
+      "periodChangeHelp": "Cambio de precio en las participaciones actuales durante los últimos 7 / 30 / 365 días (desde la fecha de compra si se compró dentro del periodo). No es una rentabilidad ponderada en el tiempo: se ignoran aportaciones, operaciones e ingresos del periodo. — indica historial de precios insuficiente.",
+      "totalReturn1y": "Rentabilidad total 1A",
+      "totalReturn1yPct": "Rentabilidad total 1A %",
+      "totalReturnHelp": "Rentabilidad de los últimos 365 días incluidos dividendos e intereses, según el historial de transacciones: cambios de precio más ingresos, sin aportaciones ni retiradas. El % está ponderado en el tiempo (la cifra 1A de la página de rendimiento). Solo por titular; — indica que no hay historial de transacciones."
     }
   },
   "holdingsTable": {

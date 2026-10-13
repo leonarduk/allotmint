@@ -269,6 +269,17 @@ export type AllInCost = {
   total: AllInCostPart;
 };
 
+/**
+ * An owner's total return from `GET /performance/{owner}/total-return` (#10763): price
+ * moves plus dividends and interest, net of deposits. Both null without a transaction ledger.
+ */
+export type OwnerTotalReturn = {
+  owner: string;
+  days: number;
+  total_return_gbp: number | null;
+  total_return_pct: number | null;
+};
+
 /** A fund data value proposed by the upkeep bot, awaiting the owner's approval (#10482). */
 export type FundUpkeepProposal = {
   id: string;

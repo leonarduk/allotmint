@@ -514,7 +514,10 @@
       "change_1w": "Variation 1S",
       "change_1m": "Variation 1M",
       "change_1y": "Variation 1A",
-      "periodChangeHelp": "Variation de prix sur les parts détenues actuellement au cours des 7 / 30 / 365 derniers jours (depuis la date d'achat pour un achat dans la période). Pas un rendement pondéré dans le temps : versements, transactions et revenus de la période sont ignorés. — signifie historique de prix insuffisant."
+      "periodChangeHelp": "Variation de prix sur les parts détenues actuellement au cours des 7 / 30 / 365 derniers jours (depuis la date d'achat pour un achat dans la période). Pas un rendement pondéré dans le temps : versements, transactions et revenus de la période sont ignorés. — signifie historique de prix insuffisant.",
+      "totalReturn1y": "Rendement total 1A",
+      "totalReturn1yPct": "Rendement total 1A %",
+      "totalReturnHelp": "Rendement sur les 365 derniers jours, dividendes et intérêts compris, d'après l'historique des transactions : variations de prix plus revenus, hors versements et retraits. Le % est pondéré dans le temps (le chiffre 1A de la page Performance). Par titulaire uniquement ; — signifie aucun historique de transactions."
     }
   },
   "holdingsTable": {

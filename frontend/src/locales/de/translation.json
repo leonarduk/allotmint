@@ -514,7 +514,10 @@
       "change_1w": "Änderung 1W",
       "change_1m": "Änderung 1M",
       "change_1y": "Änderung 1J",
-      "periodChangeHelp": "Kursänderung der aktuell gehaltenen Stücke über die letzten 7 / 30 / 365 Tage (ab Kaufdatum bei Käufen innerhalb des Zeitraums). Keine zeitgewichtete Rendite: Einzahlungen, Trades und Erträge im Zeitraum werden ignoriert. — bedeutet zu wenig Kurshistorie."
+      "periodChangeHelp": "Kursänderung der aktuell gehaltenen Stücke über die letzten 7 / 30 / 365 Tage (ab Kaufdatum bei Käufen innerhalb des Zeitraums). Keine zeitgewichtete Rendite: Einzahlungen, Trades und Erträge im Zeitraum werden ignoriert. — bedeutet zu wenig Kurshistorie.",
+      "totalReturn1y": "Gesamtrendite 1J",
+      "totalReturn1yPct": "Gesamtrendite 1J %",
+      "totalReturnHelp": "Rendite der letzten 365 Tage einschließlich Dividenden und Zinsen, aus der Transaktionshistorie: Kursänderungen plus Erträge, ohne Ein- und Auszahlungen. Der %-Wert ist zeitgewichtet (der 1J-Wert der Performance-Seite). Nur pro Inhaber; — bedeutet keine Transaktionshistorie."
     }
   },
   "holdingsTable": {

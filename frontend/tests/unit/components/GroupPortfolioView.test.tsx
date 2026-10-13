@@ -148,6 +148,7 @@ const mockAllFetches = (
     sectorContributions?: any[];
     regionContributions?: any[];
     liveQuotes?: Record<string, any>;
+    totalReturns?: Record<string, { total_return_gbp: number | null; total_return_pct: number | null }>;
   } = {},
 ) => {
   const {
@@ -158,6 +159,7 @@ const mockAllFetches = (
     sectorContributions = [],
     regionContributions = [],
     liveQuotes = {},
+    totalReturns = {},
   } = options;
   const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
   const defaultInstrumentRows =
@@ -260,6 +262,15 @@ const mockAllFetches = (
         json: async () => [
           { ticker: "AAA", name: "AAA", action: "buy", reason: "" },
         ],
+      } as Response);
+    }
+    if (url.includes("/total-return")) {
+      const owner = decodeURIComponent(new URL(url).pathname.split("/").slice(-2)[0]);
+      const figures = totalReturns[owner];
+      if (!figures) return Promise.reject(new Error(`no total return for ${owner}`));
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ owner, days: 365, ...figures }),
       } as Response);
     }
     if (url.includes("/alpha")) {
@@ -469,6 +480,53 @@ describe("GroupPortfolioView", () => {
       .getAllByRole("cell")
       .map((cell) => cell.textContent?.trim());
     expect(relativeCells.slice(5, 8)).toEqual(["7.14%", "-11.76%", "0.00%"]);
+  });
+
+  it("shows the 1Y total return per owner, including income (#10763)", async () => {
+    const holding = (owner: string) => ({
+      owner,
+      account_type: "isa",
+      value_estimate_gbp: 1000,
+      holdings: [{ units: 1, cost_basis_gbp: 900, market_value_gbp: 1000, change_1y_gbp: 20 }],
+    });
+    mockAllFetches(
+      { name: "At a glance", accounts: [holding("alice"), holding("bob")] },
+      { totalReturns: { alice: { total_return_gbp: 55.5, total_return_pct: 0.0567 } } },
+    );
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    const ownerTable = await waitFor(() => {
+      const table = screen
+        .getAllByRole("table")
+        .find((candidate) => within(candidate).queryByText("Owner"));
+      expect(table).toBeTruthy();
+      return table!;
+    });
+    expect(within(ownerTable).getByText("1Y Total Return")).toHaveAttribute(
+      "title",
+      expect.stringContaining("including dividends and interest"),
+    );
+    const cellsFor = (name: string) =>
+      within(
+        within(ownerTable)
+          .getAllByRole("row")
+          .find((row) => within(row).queryByText(name))!,
+      )
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent?.trim());
+
+    // Columns 9 and 10 follow the price-only 1Y Change in column 8.
+    await waitFor(() =>
+      expect(cellsFor("Alice Example").slice(8, 11)).toEqual([
+        "£20.00 (2.04%)",
+        "£55.50",
+        "5.67%",
+      ]),
+    );
+    // Bob's request failed: shown as unavailable, never as a zero return.
+    expect(cellsFor("Bob Example").slice(9, 11)).toEqual(["—", "—"]);
+    expect(consoleWarnSpy).toHaveBeenCalledWith("1Y total return unavailable for bob", expect.any(Error));
   });
 
   it("renders the pricing as-of date", async () => {

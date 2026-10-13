@@ -10,23 +10,13 @@ from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import BotoCoreError, ClientError
 
+from backend.common.account_models import ACCOUNT_METADATA_STEMS
 from backend.common.path_utils import safe_join
 
 logger = logging.getLogger(__name__)
 
 DATA_BUCKET_ENV = "DATA_BUCKET"
 PLOTS_PREFIX = "accounts/"
-
-_METADATA_STEMS = {
-    "person",
-    "config",
-    "notes",
-    "settings",
-    "approvals",
-    "approval_requests",
-    "pension-forecast",
-    "pension_forecast",
-}
 
 
 class MissingData(FileNotFoundError):
@@ -163,7 +153,7 @@ class S3DataProvider:
                     continue
                 owner, filename = parts
                 stem = Path(filename).stem
-                if stem.lower() in _METADATA_STEMS:
+                if stem.lower() in ACCOUNT_METADATA_STEMS:
                     continue
                 accounts = owners.setdefault(owner, [])
                 if all(existing.lower() != stem.lower() for existing in accounts):

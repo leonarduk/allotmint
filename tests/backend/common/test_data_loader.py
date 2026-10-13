@@ -85,6 +85,24 @@ class TestExtractAccountNames:
 
         assert result == ["GIA", "ISA"]
 
+    def test_skips_owner_metadata_files(self, tmp_path: Path) -> None:
+        owner_dir = tmp_path / "lucy"
+        owner_dir.mkdir()
+        for stem in (
+            "person",
+            "settings",
+            "approvals",
+            "pension-forecast",
+            "pension_forecast",
+            "isa",
+            "pension-forecast-isa",
+        ):
+            (owner_dir / f"{stem}.json").write_text("{}")
+
+        result = _extract_account_names(owner_dir)
+
+        assert sorted(name.casefold() for name in result) == ["isa", "pension-forecast-isa"]
+
 
 class TestMergeAccounts:
     def test_merges_unique_accounts_and_full_name(self) -> None:

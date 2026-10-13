@@ -863,6 +863,43 @@ describe("PerformanceDashboard", () => {
       consoleError.mockRestore();
     });
 
+    it("drops a retry that settles after the range changed, and leaves Retry usable", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const user = userEvent.setup();
+      let resolveStaleRetry: (value: { tracking_error: number }) => void = () => {};
+      vi.mocked(getTrackingError)
+        .mockRejectedValueOnce(timeout("/tracking-error"))
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveStaleRetry = resolve;
+          }),
+        );
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      await user.click(await screen.findByRole("button", { name: "Retry" }));
+      // Changing the range starts a fresh load for the new window while the
+      // retry for the old one is still in flight.
+      await user.selectOptions(screen.getByRole("combobox"), "30");
+      await waitFor(() =>
+        expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent("2.00%"),
+      );
+
+      resolveStaleRetry({ tracking_error: 0.99 });
+      await waitFor(() => expect(getTrackingError).toHaveBeenCalledTimes(3));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent("2.00%");
+      expect(
+        screen.queryByTestId("performance-metrics-unavailable-warning"),
+      ).not.toBeInTheDocument();
+      consoleError.mockRestore();
+    });
+
     it("disables Retry while the retry is in flight", async () => {
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
       const user = userEvent.setup();

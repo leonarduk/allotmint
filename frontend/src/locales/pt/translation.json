@@ -1479,6 +1479,15 @@
   },
   "portfolio": "Portfólio",
   "query": {
+    "columns": {
+      "instrumentType": "Tipo de instrumento",
+      "name": "Nome",
+      "owner": "Titular",
+      "returnBasis": "Base de rendimento",
+      "startValueGbp": "Valor inicial (£)",
+      "ticker": "Ticker",
+      "units": "Unidades"
+    },
     "copyLink": "Copiar ligação",
     "end": "Fim",
     "exportCsv": "Exportar CSV",
@@ -1501,6 +1510,7 @@
     "saved": "\"{{name}}\" guardada.",
     "savedQueriesLoading": "Carregando consultas salvas…",
     "savedQueriesTitle": "Consultas salvas",
+    "selectionRequired": "Selecione pelo menos um titular e uma métrica para executar a consulta.",
     "start": "Início",
     "tickerNotHeld": "não detido atualmente",
     "tickers": "Tickers",

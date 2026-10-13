@@ -396,6 +396,12 @@ def local_series(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "data_root", tmp_path)
     monkeypatch.delenv("METADATA_BUCKET", raising=False)
     monkeypatch.setattr(instruments_module, "_INSTRUMENTS_DIR", instruments_dir)
+    # Other tests importlib.reload(backend.common.instruments), leaving this
+    # module holding the pre-reload functions, which read the real data root.
+    # Bind it to the module object patched above.
+    monkeypatch.setattr(timeseries_admin, "get_instrument_meta", instruments_module.get_instrument_meta)
+    monkeypatch.setattr(timeseries_admin, "instrument_meta_path", instruments_module.instrument_meta_path)
+    instruments_module.get_instrument_meta.cache_clear()
 
     reads: list[str] = []
     real_read = pd.read_parquet

@@ -126,6 +126,11 @@ def test_warm_fills_the_real_caches_from_a_data_root(monkeypatch, tmp_path):
     monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path / "timeseries"))
     monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path / "instruments")
     monkeypatch.setattr(issues, "_refresh_universe", lambda: [])
+    # Other tests importlib.reload(backend.common.instruments); bind the modules
+    # that imported its functions to the module object patched above.
+    for module in (timeseries_admin, issues):
+        monkeypatch.setattr(module, "get_instrument_meta", instruments.get_instrument_meta)
+        monkeypatch.setattr(module, "instrument_meta_path", instruments.instrument_meta_path)
     instruments.get_instrument_meta.cache_clear()
 
     timings = admin_cache_warm.warm_admin_caches()

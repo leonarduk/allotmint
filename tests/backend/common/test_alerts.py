@@ -79,6 +79,16 @@ def test_hourly_throttle_holds_across_restart(monkeypatch):
     assert alerts._LAST_ALERT_STATE == {"IBM": True}
 
 
+def test_hourly_throttle_without_sns_holds_across_restart():
+    # Local dev: no SNS topic, so the in-app list is the only delivery.
+    alerts.publish_alert({"instrument": "NESF.L", "state": True, "message": "down"})
+
+    alerts.clear_state()
+
+    alerts.publish_alert({"instrument": "NESF.L", "state": False, "message": "back"})
+    assert [a["message"] for a in alerts.get_recent_alerts()] == ["down"]
+
+
 def test_retention_caps_stored_alerts(tmp_path, monkeypatch):
     monkeypatch.setattr(alerts, "MAX_STORED_ALERTS", 3)
     monkeypatch.setattr(alerts, "MAX_STORED_SIGNATURES", 4)
@@ -111,6 +121,13 @@ def test_save_failure_is_logged_not_raised(monkeypatch, caplog):
 
     assert "Failed to persist alerts" in caplog.text
     assert [a["message"] for a in alerts.get_recent_alerts()] == ["still listed"]
+
+
+def test_explicit_uri_wins_over_data_bucket(monkeypatch, tmp_path):
+    uri = f"file://{tmp_path / 'elsewhere.json'}"
+    monkeypatch.setenv(alerts.ALERTS_HISTORY_ENV, uri)
+    monkeypatch.setenv("DATA_BUCKET", "my-bucket")
+    assert alerts._history_uri() == uri
 
 
 def test_s3_location_when_data_bucket_set(monkeypatch):

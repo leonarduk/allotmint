@@ -31,7 +31,7 @@ import threading
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from backend.common.storage import JSONStorage, get_storage
 from backend.config import config
@@ -190,19 +190,22 @@ def _publish_locked(alert: Dict) -> None:
 
     alert["timestamp"] = now.isoformat()
     _RECENT_ALERTS.append(alert)
-    if _send_sns(alert) and instrument is not None and state is not None:
+    # Throttle once the alert has reached the user: sent via SNS, or listed
+    # in-app only because SNS is not configured. A failed SNS send does not
+    # throttle, so the next alert retries delivery.
+    if _send_sns(alert) is not False and instrument is not None and state is not None:
         _LAST_ALERT_STATE[instrument] = bool(state)
         _LAST_ALERT_TIME[instrument] = now
     _save_history()
 
 
-def _send_sns(alert: Dict) -> bool:
-    """Publish ``alert`` to SNS when configured; return whether it was sent."""
+def _send_sns(alert: Dict) -> Optional[bool]:
+    """Publish ``alert`` to SNS; return whether it was sent, ``None`` when SNS is not configured."""
 
     topic_arn = config.sns_topic_arn
     if not topic_arn:
         logger.info("SNS topic ARN not configured; skipping publish")
-        return False
+        return None
 
     try:
         import boto3  # type: ignore

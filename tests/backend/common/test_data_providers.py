@@ -154,3 +154,30 @@ def test_client_creation_is_thread_safe_under_concurrent_calls(s3_provider: S3Da
     assert mock_boto_client.call_count == 1
     assert len(created_clients) == 1
     assert all(result is created_clients[0] for result in results)
+
+
+# ---------------------------------------------------------------------------
+# S3DataProvider.list_plots — metadata files are not accounts (#10788)
+# ---------------------------------------------------------------------------
+
+
+def test_s3_list_plots_excludes_metadata_stems(s3_provider: S3DataProvider) -> None:
+    filenames = (
+        "person",
+        "settings",
+        "approvals",
+        "pension-forecast",
+        "pension_forecast",
+        "isa",
+        "pension-forecast-isa",
+    )
+    contents = [{"Key": f"accounts/lucy/{stem}.json"} for stem in filenames]
+
+    class _FakeClient:
+        def list_objects_v2(self, **_params):
+            return {"Contents": contents, "IsTruncated": False}
+
+    with patch.object(s3_provider, "_client", return_value=_FakeClient()):
+        plots = s3_provider.list_plots()
+
+    assert plots == [{"owner": "lucy", "accounts": ["isa", "pension-forecast-isa"]}]

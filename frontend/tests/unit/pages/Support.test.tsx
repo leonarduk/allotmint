@@ -38,6 +38,7 @@ vi.mock("@/api", async () => {
 import Support from "@/pages/Support";
 import en from "@/locales/en/translation.json";
 import { setAuthToken, UNAUTHORIZED_EVENT } from "@/api";
+import { AuthContext } from "@/AuthContext";
 import { MCP_TOOL_SETUP_DOCS_URL } from "@/utils/docsLinks";
 
 async function expandSection(title: string) {
@@ -136,6 +137,39 @@ describe("Support page", () => {
     expect(
       await screen.findByLabelText(new RegExp(en.owner.label))
     ).toBeInTheDocument();
+  });
+
+  it("defaults the notifications owner to the signed-in user (#10815)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Leonard", email: "alex@example.com", accounts: [] },
+      { owner: "steve", full_name: "Steve Leonard", email: "steve@example.com", accounts: [] },
+    ]);
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: "steve@example.com" },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <Support />
+      </AuthContext.Provider>,
+      { wrapper: MemoryRouter },
+    );
+    await expandSection(en.support.notifications.title);
+    const select = (await screen.findByLabelText(
+      new RegExp(en.owner.label),
+    )) as HTMLSelectElement;
+    await within(select).findByRole("option", { name: "Steve Leonard" });
+    expect(select.value).toBe("steve");
+
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+    expect(select.value).toBe("alex");
   });
 
   it("handles owner fetch failure gracefully", async () => {

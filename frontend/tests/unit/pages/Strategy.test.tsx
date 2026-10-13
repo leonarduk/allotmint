@@ -65,11 +65,13 @@ vi.mock('@/api', () => ({
   runPlanBrief: vi.fn(),
 }));
 
+const routeOwner = vi.hoisted(() => ({ current: '' }));
+
 vi.mock('@/RouteContext', () => ({
   useRoute: () => ({
     mode: 'rebalance',
     setMode: vi.fn(),
-    selectedOwner: '',
+    selectedOwner: routeOwner.current,
     setSelectedOwner: vi.fn(),
     selectedGroup: '',
     setSelectedGroup: vi.fn(),
@@ -239,6 +241,7 @@ describe('Strategy page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    routeOwner.current = '';
     mockGetOwners.mockResolvedValue([{ owner: 'alex', accounts: [] }]);
     mockGetRebalancePlan.mockResolvedValue(makePlan());
     mockGetStrategies.mockResolvedValue(makeStrategies());
@@ -270,37 +273,46 @@ describe('Strategy page', () => {
     expect(select).toHaveValue('alex');
   });
 
-  it("defaults to the signed-in user's owner rather than owners[0] (#10753)", async () => {
-    mockGetOwners.mockResolvedValue([
-      { owner: 'alex', email: 'alex@example.com', accounts: [] },
-      { owner: 'steve', email: 'steve@example.com', accounts: [] },
-    ]);
-    const { AuthContext } = await import('@/AuthContext');
-    const { default: Strategy } = await import('@/pages/Strategy');
-    render(
-      <MemoryRouter>
-        <AuthContext.Provider
-          value={{
-            user: { email: 'steve@example.com' },
-            setUser: () => {},
-            logout: null,
-            setLogout: () => {},
-            demoReadOnly: false,
-            setDemoReadOnly: () => {},
-          }}
-        >
-          <Strategy />
-        </AuthContext.Provider>
-      </MemoryRouter>
-    );
-    await waitFor(() =>
-      expect(mockGetRebalancePlan).toHaveBeenCalledWith('steve')
-    );
-    expect(mockGetRebalancePlan).not.toHaveBeenCalledWith('alex');
-    expect(await screen.findByLabelText('Portfolio owner')).toHaveValue(
-      'steve'
-    );
-  });
+  it.each([
+    ['', 'steve'],
+    ['alex', 'alex'],
+  ])(
+    'with route owner %j and steve signed in, opens on %s (#10753)',
+    async (route, expected) => {
+      routeOwner.current = route;
+      mockGetOwners.mockResolvedValue([
+        { owner: 'alex', email: 'alex@example.com', accounts: [] },
+        { owner: 'steve', email: 'steve@example.com', accounts: [] },
+      ]);
+      const { AuthContext } = await import('@/AuthContext');
+      const { default: Strategy } = await import('@/pages/Strategy');
+      render(
+        <MemoryRouter>
+          <AuthContext.Provider
+            value={{
+              user: { email: 'steve@example.com' },
+              setUser: () => {},
+              logout: null,
+              setLogout: () => {},
+              demoReadOnly: false,
+              setDemoReadOnly: () => {},
+            }}
+          >
+            <Strategy />
+          </AuthContext.Provider>
+        </MemoryRouter>
+      );
+      await waitFor(() =>
+        expect(mockGetRebalancePlan).toHaveBeenCalledWith(expected)
+      );
+      expect(mockGetRebalancePlan).not.toHaveBeenCalledWith(
+        expected === 'steve' ? 'alex' : 'steve'
+      );
+      expect(await screen.findByLabelText('Portfolio owner')).toHaveValue(
+        expected
+      );
+    }
+  );
 
   it('keeps a single stress test panel when the owner changes', async () => {
     mockGetOwners.mockResolvedValue([

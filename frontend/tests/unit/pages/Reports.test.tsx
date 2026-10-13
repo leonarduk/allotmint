@@ -214,6 +214,46 @@ describe("Reports page", () => {
     expect(screen.getByLabelText(/Owner/i)).toHaveValue("steve");
   });
 
+  it("lets the app-selected route owner win over the signed-in user (#10753)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", email: "alex@example.com", accounts: [] },
+      { owner: "steve", email: "steve@example.com", accounts: [] },
+    ]);
+    const { AuthContext } = await import("@/AuthContext");
+    const { RouteContext } = await import("@/contexts/route");
+    const { default: Reports } = await import("@/pages/Reports");
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: "steve@example.com" },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <RouteContext.Provider
+          value={{
+            mode: "reports",
+            setMode: () => {},
+            selectedOwner: "alex",
+            setSelectedOwner: () => {},
+            selectedGroup: "",
+            setSelectedGroup: () => {},
+          }}
+        >
+          <MemoryRouter>
+            <Reports />
+          </MemoryRouter>
+        </RouteContext.Provider>
+      </AuthContext.Provider>,
+    );
+
+    const csvLink = await screen.findByRole("link", { name: /Download CSV/i });
+    expect(csvLink.getAttribute("href")).toContain("/reports/alex/");
+  });
+
   it("includes the chosen template ID in download links", async () => {
     await renderReports();
 

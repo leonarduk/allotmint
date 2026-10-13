@@ -3886,10 +3886,17 @@ export type ChatPage = {
   label: string;
 };
 
-/** The page the user has open, so "this stock" resolves. */
+/** The page the user has open, so "this stock" and "this portfolio" resolve. */
 export type ChatContext = {
   path: string;
   ticker?: string;
+  /**
+   * The owner, or else the group, selected in the app (#10813). Prompt context
+   * only: the backend resolves the signed-in user's own owner itself and never
+   * uses these for access.
+   */
+  owner?: string;
+  group?: string;
 };
 
 /** A file the assistant saved with its export_file tool (#9039). */

@@ -85,7 +85,7 @@ def _step_ratios(closes: pd.Series) -> tuple[np.ndarray, np.ndarray]:
 
 def _steps_at(closes: pd.Series, values: np.ndarray, ratios: np.ndarray, mask: np.ndarray) -> Iterable[PriceStep]:
     """Build a :class:`PriceStep` only for the steps selected by ``mask``."""
-    for i in np.flatnonzero(mask):
+    for i in np.flatnonzero(mask).tolist():
         yield PriceStep(
             date=str(closes.index[i + 1]),
             previous=float(values[i]),

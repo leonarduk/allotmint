@@ -742,21 +742,25 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       return true;
     });
   }, [portfolio, activeOwner, activeAccountType]);
+  // A chosen pricing date shows the stored as-of valuation, so no live
+  // quotes are polled or applied until "Reset to latest" (#10819).
   const liveTickers = useMemo(
     () =>
-      storedAccounts.flatMap((acct) =>
-        (acct.holdings ?? [])
-          .filter((h) => !isCashInstrument({ instrument_type: h.instrument_type, ticker: h.ticker }))
-          .map((h) => h.ticker),
-      ),
-    [storedAccounts],
+      asOfOverride
+        ? []
+        : storedAccounts.flatMap((acct) =>
+            (acct.holdings ?? [])
+              .filter((h) => !isCashInstrument({ instrument_type: h.instrument_type, ticker: h.ticker }))
+              .map((h) => h.ticker),
+          ),
+    [storedAccounts, asOfOverride],
   );
   const liveQuotes = useLiveQuotes(liveTickers);
   // Holdings with a live quote are revalued at it, so the rows, rollups,
   // totals and allocations below all show live figures.
   const filteredAccounts = useMemo(
-    () => applyLiveQuotes(storedAccounts, liveQuotes),
-    [storedAccounts, liveQuotes],
+    () => (asOfOverride ? storedAccounts : applyLiveQuotes(storedAccounts, liveQuotes)),
+    [storedAccounts, liveQuotes, asOfOverride],
   );
 
   // The owner's whole portfolio value (ignoring any account-type filter, as

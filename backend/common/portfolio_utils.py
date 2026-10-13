@@ -22,7 +22,7 @@ from typing import Any, Callable, Dict, List
 import numpy as np
 import pandas as pd
 
-from backend.common import group_portfolio, ledger_performance
+from backend.common import group_portfolio, ledger_performance, portfolio_cache
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
 from backend.common.constants import PRICE_CHANGE_WINDOWS
@@ -1410,6 +1410,22 @@ def _effective_days(
     return days + max(0, delta)
 
 
+def _performance_portfolio(name: str, *, group: bool, reporting_date: date) -> Dict[str, Any]:
+    """``name``'s portfolio (a group's with ``group``) at ``reporting_date``.
+
+    Every performance metric starts from this build, so it is shared across
+    the parallel ``/performance`` requests (see
+    :func:`portfolio_cache.memoised`, #10755).
+    """
+
+    def build() -> Dict[str, Any]:
+        if group:
+            return group_portfolio.build_group_portfolio(name, pricing_date=reporting_date)
+        return portfolio_mod.build_owner_portfolio(name, pricing_date=reporting_date)
+
+    return portfolio_cache.memoised(("portfolio", name, group, reporting_date), build)
+
+
 def compute_owner_performance(
     owner: str,
     days: int = 365,
@@ -1451,13 +1467,7 @@ def compute_owner_performance(
     """
 
     calc = PricingDateCalculator(reporting_date=pricing_date)
-    try:
-        if group:
-            pf = group_portfolio.build_group_portfolio(owner, pricing_date=calc.reporting_date)
-        else:
-            pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=calc.reporting_date)
-    except FileNotFoundError:
-        raise
+    pf = _performance_portfolio(owner, group=group, reporting_date=calc.reporting_date)
 
     from backend.common import instrument_api
 
@@ -1655,10 +1665,7 @@ def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:
 
 def _series_holdings(name: str, *, group: bool, reporting_date: date) -> List[tuple[str, str, float]]:
     """``(symbol, exchange, units)`` of the current holdings that the value series prices."""
-    if group:
-        pf = group_portfolio.build_group_portfolio(name, pricing_date=reporting_date)
-    else:
-        pf = portfolio_mod.build_owner_portfolio(name, pricing_date=reporting_date)
+    pf = _performance_portfolio(name, group=group, reporting_date=reporting_date)
 
     from backend.common import instrument_api
 
@@ -1896,6 +1903,28 @@ def _series_window(days: int, effective_days: int, reporting_date: date) -> tupl
 
 
 def _gbp_holding_values(
+    holdings: List[tuple[str, str, float]],
+    effective_days: int,
+    window: tuple[date, date],
+    *,
+    total_return: bool,
+) -> tuple[list[tuple[pd.Series, str | None]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """:func:`_price_gbp_holding_values`, shared across the parallel ``/performance`` requests (#10755).
+
+    Alpha and tracking error price the same holdings on a total-return basis,
+    and max drawdown and the value history on a price basis, so each pair
+    shares one pricing pass (see :func:`portfolio_cache.memoised`).
+    """
+    # Order-sensitive: the callers share a pass only because ``_series_holdings``
+    # and ``compute_owner_performance`` list holdings in the portfolio's stored
+    # order with the same filters. test_performance_inputs_cache pins that.
+    key = ("gbp_holding_values", tuple(holdings), effective_days, window, total_return)
+    return portfolio_cache.memoised(
+        key, lambda: _price_gbp_holding_values(holdings, effective_days, window, total_return=total_return)
+    )
+
+
+def _price_gbp_holding_values(
     holdings: List[tuple[str, str, float]],
     effective_days: int,
     window: tuple[date, date],
@@ -2482,7 +2511,7 @@ def _owner_ledger_performance(owner: str, pricing_date: date | None) -> ledger_p
     empty rebuild as no rebuild (#8467).
     """
     end = PricingDateCalculator(reporting_date=pricing_date).reporting_date
-    pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=end)
+    pf = _performance_portfolio(owner, group=False, reporting_date=end)
     ledgers = ledger_performance.load_owner_ledgers(owner)
     return ledger_performance.build_ledger_performance(ledgers, end, holdings=_portfolio_holdings(pf))
 
@@ -2540,7 +2569,7 @@ def _group_ledger_performance(
     if not ledgers:
         return None, missing
     end = PricingDateCalculator(reporting_date=pricing_date).reporting_date
-    pf = group_portfolio.build_group_portfolio(slug, pricing_date=end)
+    pf = _performance_portfolio(slug, group=True, reporting_date=end)
     perf = ledger_performance.build_ledger_performance(ledgers, end, holdings=_portfolio_holdings(pf))
     if perf is None or perf.values.empty:
         return None, missing
@@ -2550,10 +2579,20 @@ def _group_ledger_performance(
 def _rebuilt_performance(
     owner: str, *, group: bool, pricing_date: date | None
 ) -> tuple[ledger_performance.LedgerPerformance | None, List[str]]:
-    """Ledger rebuild for an owner or a group, plus the group's missing members."""
-    if group:
-        return _group_ledger_performance(owner, pricing_date)
-    return _ledger_performance_for(owner, pricing_date), []
+    """Ledger rebuild for an owner or a group, plus the group's missing members.
+
+    TWR and XIRR both replay the same ledger, whatever their window, so the
+    rebuild is shared across the parallel ``/performance`` requests (see
+    :func:`portfolio_cache.memoised`, #10755).
+    """
+    end = PricingDateCalculator(reporting_date=pricing_date).reporting_date
+
+    def build() -> tuple[ledger_performance.LedgerPerformance | None, List[str]]:
+        if group:
+            return _group_ledger_performance(owner, pricing_date)
+        return _ledger_performance_for(owner, pricing_date), []
+
+    return portfolio_cache.memoised(("rebuilt_performance", owner, group, end), build)
 
 
 def _ledger_window_start(perf: ledger_performance.LedgerPerformance, days: int) -> date | None:

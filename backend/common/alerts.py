@@ -85,6 +85,7 @@ def _load_history() -> None:
     stored_alerts = [a for a in data.get("alerts") or [] if isinstance(a, dict)]
     stored_signatures = [str(s) for s in data.get("signatures") or [] if isinstance(s, str)]
     if not stored_alerts and not stored_signatures:
+        _restore_throttle(data.get("throttle"))
         return
     _RECENT_ALERTS[:] = stored_alerts
     _SIGNATURE_ORDER[:] = list(dict.fromkeys(stored_signatures))
@@ -168,7 +169,7 @@ def _publish_locked(alert: Dict) -> None:
     _load_history()
     signature = _alert_signature(alert)
     if signature in _RECENT_ALERT_SIGNATURES:
-        logger.info("Duplicate alert skipped: %s", alert)
+        logger.info("Duplicate alert skipped: %s", sanitise_log_value(alert))
         return
 
     _remember_signature(signature)

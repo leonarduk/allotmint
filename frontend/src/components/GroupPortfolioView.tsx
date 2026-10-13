@@ -17,6 +17,7 @@ import type {
   InstrumentGroupDefinition,
   OwnerSummary,
   AllInCost,
+  Holding,
 } from "../types";
 import {
   getGroupPortfolio,
@@ -146,6 +147,47 @@ const computeDayChangePct = (value: number, delta: number): number | null => {
 
   return (delta / baseline) * 100;
 };
+
+// Trailing-window price changes shown beside Day Change (#10746).
+const PERIOD_CHANGES = [
+  { key: "1w", field: "change_1w_gbp" },
+  { key: "1m", field: "change_1m_gbp" },
+  { key: "1y", field: "change_1y_gbp" },
+] as const;
+type PeriodKey = (typeof PERIOD_CHANGES)[number]["key"];
+// ``value`` is the current market value of the holdings with a known change;
+// the % is over their start-of-window value, ``value - change``.
+type PeriodTotals = Record<PeriodKey, { change: number; value: number; known: boolean }>;
+type PeriodChange = { key: PeriodKey; change: number | null; pct: number | null };
+
+const emptyPeriodTotals = (): PeriodTotals => ({
+  "1w": { change: 0, value: 0, known: false },
+  "1m": { change: 0, value: 0, known: false },
+  "1y": { change: 0, value: 0, known: false },
+});
+
+// Only holdings with a known change count toward the % base, so a holding
+// without enough price history doesn't dilute the figure.
+const addPeriodChanges = (totals: PeriodTotals, holding: Holding, market: number): void => {
+  for (const { key, field } of PERIOD_CHANGES) {
+    const change = holding[field];
+    if (typeof change !== "number" || !Number.isFinite(change) || !Number.isFinite(market)) continue;
+    totals[key].change += change;
+    totals[key].value += market;
+    totals[key].known = true;
+  }
+};
+
+const summarisePeriodChanges = (totals: PeriodTotals): PeriodChange[] =>
+  PERIOD_CHANGES.map(({ key }) => {
+    const { change, value, known } = totals[key];
+    return known
+      ? { key, change, pct: computeDayChangePct(value, change) } // change / (value - change)
+      : { key, change: null, pct: null };
+  });
+
+const changeColor = (value: number | null): string | undefined =>
+  value === null ? undefined : value >= 0 ? "var(--gain-positive)" : "var(--gain-negative)";
 
 type PortfolioInsight =
   | { kind: "concentration"; message: string }
@@ -763,6 +805,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       cost: number;
       stock: number;
       cash: number;
+      periods: PeriodTotals;
       accounts: {
         key: string;
         label: string;
@@ -772,6 +815,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         cost: number;
         stock: number;
         cash: number;
+        periods: PeriodTotals;
       }[];
     };
     const perOwner: Record<string, OwnerAggregate> = {};
@@ -788,6 +832,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           cost: 0,
           stock: 0,
           cash: 0,
+          periods: emptyPeriodTotals(),
           accounts: [],
         });
 
@@ -806,6 +851,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         cost: 0,
         stock: 0,
         cash: 0,
+        periods: emptyPeriodTotals(),
       };
 
       entry.accounts.push(accountEntry);
@@ -833,6 +879,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         accountEntry.cost += cost;
         accountEntry.gain += gain;
         accountEntry.dayChange += dayChg;
+        addPeriodChanges(entry.periods, h, market);
+        addPeriodChanges(accountEntry.periods, h, market);
 
         const isCash = isCashInstrument({
           instrument_type: h.instrument_type,
@@ -869,6 +917,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           ...acct,
           gainPct: accountGainPct,
           dayChangePct: accountDayChangePct,
+          periodChanges: summarisePeriodChanges(acct.periods),
           valuePct: accountValuePct,
           stockPct: accountStockPct,
           cashPct: accountCashPct,
@@ -884,6 +933,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         ...data,
         gainPct,
         dayChangePct,
+        periodChanges: summarisePeriodChanges(data.periods),
         valuePct,
         stockPct,
         cashPct,
@@ -974,6 +1024,22 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   // implausible values instead of guessing a unit (#8570).
 
   /* ── render ────────────────────────────────────────────── */
+  // 1W/1M/1Y cells (#10746): "£x (y%)", or just the % in Relative view.
+  const renderPeriodCells = (periods: PeriodChange[]) =>
+    periods.map(({ key, change, pct }) => (
+      <td
+        key={key}
+        className={`${tableStyles.cell} ${tableStyles.right}`}
+        style={{ color: changeColor(change) }}
+      >
+        {change === null
+          ? "—"
+          : relativeViewEnabled
+            ? percent(pct)
+            : `${reporting.format(change)} (${percent(pct)})`}
+      </td>
+    ));
+
   const pricingDate = portfolio?.as_of
     ? formatDateISO(new Date(portfolio.as_of))
     : null;
@@ -1413,12 +1479,27 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                 {t("group.ownerTable.dayChangePct")}
               </th>
+              {PERIOD_CHANGES.map(({ key }) => (
+                <th
+                  key={key}
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  title={t("group.ownerTable.periodChangeHelp")}
+                >
+                  {t(`group.ownerTable.change_${key}`)}
+                </th>
+              ))}
               {!relativeViewEnabled && (
-                <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                <th
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  title={t("group.ownerTable.totalGainHelp")}
+                >
                   {t("group.ownerTable.totalGain")}
                 </th>
               )}
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                title={t("group.ownerTable.totalGainHelp")}
+              >
                 {t("group.ownerTable.totalGainPct")}
               </th>
             </tr>
@@ -1474,6 +1555,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                     >
                       {percent(row.dayChangePct)}
                     </td>
+                    {renderPeriodCells(row.periodChanges)}
                     {!relativeViewEnabled && (
                       <td
                         className={`${tableStyles.cell} ${tableStyles.right}`}
@@ -1531,6 +1613,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                         >
                           {percent(acct.dayChangePct)}
                         </td>
+                        {renderPeriodCells(acct.periodChanges)}
                         {!relativeViewEnabled && (
                           <td
                             className={`${tableStyles.cell} ${tableStyles.right}`}

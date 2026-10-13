@@ -594,6 +594,48 @@ def _get_dated_price_for_date_scaled(
     return price, src, row_date
 
 
+# Trailing windows reported next to day_change_gbp (#10746): field -> calendar days.
+PERIOD_CHANGE_WINDOWS: Dict[str, int] = {
+    "change_1w_gbp": 7,
+    "change_1m_gbp": 30,
+    "change_1y_gbp": 365,
+}
+
+
+def _period_changes(
+    ticker: str,
+    exchange: str,
+    units: float,
+    px: Optional[float],
+    pricing_date: dt.date,
+    acq: Optional[dt.date],
+    calc: PricingDateCalculator,
+) -> Dict[str, Optional[float]]:
+    """Price change in GBP on the current ``units`` over each trailing window.
+
+    Each window ends at ``pricing_date`` and starts N calendar days earlier,
+    rolled back to a weekday. A holding acquired inside the window is measured
+    from its acquisition date instead, so it is not credited with a move it did
+    not own. ``None`` when there is no current price or no close for the start
+    date (e.g. history shorter than the window). Price-only: deposits, trades
+    and income inside the window are not accounted for.
+    """
+    out: Dict[str, Optional[float]] = dict.fromkeys(PERIOD_CHANGE_WINDOWS)
+    if px is None or not units:
+        return out
+    for field, days in PERIOD_CHANGE_WINDOWS.items():
+        start = calc.resolve_weekday(pricing_date - timedelta(days=days), forward=False)
+        if acq is not None and acq > start:
+            start = acq
+        if start >= pricing_date:
+            out[field] = 0.0
+            continue
+        start_px, _ = _get_price_for_date_scaled(ticker, exchange, start, field="Close_gbp")
+        if start_px is not None:
+            out[field] = round((float(px) - start_px) * units, 2)
+    return out
+
+
 def _snapshot_is_stale(snap: Dict[str, Any], reporting_date: dt.date) -> bool:
     """Staleness of a price snapshot entry relative to ``reporting_date`` (#7919).
 
@@ -920,6 +962,7 @@ def enrich_holding(
         out["unrealized_gain_gbp"] = 0.0
         out["gain_pct"] = 0.0
         out["day_change_gbp"] = 0.0
+        out.update(dict.fromkeys(PERIOD_CHANGE_WINDOWS, 0.0))
 
         # Cash is priced 1:1 (see out["price"]/out["current_price_gbp"] above), so
         # cost basis must always equal market value regardless of any stored
@@ -996,6 +1039,8 @@ def enrich_holding(
         out["unrealized_gain_gbp"] = 0.0
         out["gain_pct"] = None
         out["day_change_gbp"] = 0.0
+        # No position: no period change to report (left out of the % base).
+        out.update(dict.fromkeys(PERIOD_CHANGE_WINDOWS))
         out["days_held"] = None
         out["sell_eligible"] = False
         out["eligible_on"] = None
@@ -1193,6 +1238,8 @@ def enrich_holding(
         out["day_change_gbp"] = round(change_val, 2)
     else:
         out["day_change_gbp"] = None
+
+    out.update(_period_changes(ticker, exchange, units, px, pricing_date, acq, calc))
 
     # get_effective_cost_basis_gbp() may already have tagged out["cost_basis_source"]
     # as "unknown" (no booked cost, no acquisition date, no cached historical

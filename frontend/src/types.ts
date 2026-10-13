@@ -63,6 +63,10 @@ export interface Holding {
   fx_rate_source?: string | null;
   day_change_gbp?: number | null;
   day_change_currency?: string | null;
+  /** Price change on current units over trailing 7/30/365 days (#10746). */
+  change_1w_gbp?: number | null;
+  change_1m_gbp?: number | null;
+  change_1y_gbp?: number | null;
   instrument_type?: string | null;
   sector?: string | null;
   /** Where the money is invested; for a fund this can differ from its domicile (#9296). */

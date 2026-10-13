@@ -508,8 +508,13 @@
       "cashValue": "Bargeldwert",
       "dayChange": "Tagesänderung",
       "dayChangePct": "Tagesänderung %",
-      "totalGain": "Gesamtgewinn",
-      "totalGainPct": "Gesamtgewinn %"
+      "totalGain": "Gewinn seit Kauf",
+      "totalGainPct": "Gewinn seit Kauf %",
+      "totalGainHelp": "Nicht realisierter Gewinn der aktuellen Positionen: aktueller Wert minus Kaufpreis. Er umfasst die gesamte Haltedauer jeder Position, ist also keine Rendite für einen festen Zeitraum, und enthält weder Erträge noch bereits realisierte Gewinne.",
+      "change_1w": "Änderung 1W",
+      "change_1m": "Änderung 1M",
+      "change_1y": "Änderung 1J",
+      "periodChangeHelp": "Kursänderung der aktuell gehaltenen Stücke über die letzten 7 / 30 / 365 Tage (ab Kaufdatum bei Käufen innerhalb des Zeitraums). Keine zeitgewichtete Rendite: Einzahlungen, Trades und Erträge im Zeitraum werden ignoriert. — bedeutet zu wenig Kurshistorie."
     }
   },
   "holdingsTable": {

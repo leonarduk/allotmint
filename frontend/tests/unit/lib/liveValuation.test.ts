@@ -109,6 +109,18 @@ describe('applyLiveQuotes', () => {
     expect(acct.holdings[0].day_change_gbp).toBe(1);
   });
 
+  it('moves 1W/1M/1Y changes by the live delta and leaves unknown ones unknown', () => {
+    const [acct] = applyLiveQuotes(
+      [account([holding({ change_1w_gbp: 5, change_1m_gbp: -3, change_1y_gbp: null })])],
+      { 'VOD.L': quote() }
+    );
+    const h = acct.holdings[0];
+    // Market value moves £100 -> £120; the window start close is unchanged.
+    expect(h.change_1w_gbp).toBe(25);
+    expect(h.change_1m_gbp).toBe(17);
+    expect(h.change_1y_gbp).toBeNull();
+  });
+
   it('returns the same array when no quote applies', () => {
     const accounts = [account([holding()])];
     expect(applyLiveQuotes(accounts, {})).toBe(accounts);

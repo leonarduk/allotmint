@@ -502,8 +502,13 @@
       "cashValue": "Cash Value",
       "dayChange": "Day Change",
       "dayChangePct": "Day Change %",
-      "totalGain": "Total Gain",
-      "totalGainPct": "Total Gain %"
+      "totalGain": "Gain Since Purchase",
+      "totalGainPct": "Gain Since Purchase %",
+      "totalGainHelp": "Unrealised gain on the holdings you hold now: current value minus what you paid. It covers however long each holding has been held, so it is not a return for any fixed period, and it excludes income received and gains already realised.",
+      "change_1w": "1W Change",
+      "change_1m": "1M Change",
+      "change_1y": "1Y Change",
+      "periodChangeHelp": "Price change over the trailing 7 / 30 / 365 days on the units held now (from the purchase date for anything bought inside the window). Not a time-weighted return: deposits, trades and income in the period are ignored. — means not enough price history."
     }
   },
   "holdingsTable": {

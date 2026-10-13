@@ -279,6 +279,10 @@ describe("TaxTools", () => {
       selectedGroup: "",
       setSelectedGroup: vi.fn(),
     });
+    ownersMock.mockResolvedValue([
+      { owner: "alice", accounts: ["isa"] },
+      { owner: "bob", accounts: ["gpp"] },
+    ]);
 
     render(<TaxTools />);
 

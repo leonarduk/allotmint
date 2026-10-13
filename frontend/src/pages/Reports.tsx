@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
@@ -151,7 +151,12 @@ export default function Reports() {
   const [ownersLoaded, setOwnersLoaded] = useState(false);
   // Read optionally: useRoute() throws outside a RouteProvider.
   const selectedOwner = useContext(RouteContext)?.selectedOwner;
-  const [explicitOwner, setOwner] = useState("");
+  // A picker choice, tagged with the route owner it was made under so a later
+  // app-level owner change takes precedence again (#10753).
+  const [explicitPick, setExplicitPick] = useState<{
+    owner: string;
+    route: string | undefined;
+  } | null>(null);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [explicitTemplateId, setExplicitTemplateId] = useState<string | null>(
@@ -170,7 +175,14 @@ export default function Reports() {
   // A picked owner wins, then the route owner, then the signed-in user's
   // owner, then owners[0] (#10753).
   const defaultOwner = useDefaultOwner(owners, selectedOwner);
-  const owner = explicitOwner || defaultOwner;
+  const owner =
+    explicitPick && explicitPick.route === selectedOwner
+      ? explicitPick.owner
+      : defaultOwner;
+  const setOwner = useCallback(
+    (picked: string) => setExplicitPick({ owner: picked, route: selectedOwner }),
+    [selectedOwner],
+  );
 
   const selectedTemplateId = useMemo(() => {
     if (explicitTemplateId) return explicitTemplateId;

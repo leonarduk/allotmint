@@ -319,4 +319,37 @@ describe('Plot default grower (#10753)', () => {
     expect(mocks.getPortfolio).not.toHaveBeenCalledWith('alex');
     expect(await screen.findByLabelText('Grower')).toHaveValue('steve');
   });
+
+  it('switches to the signed-in user when auth settles after /owners', async () => {
+    mocks.getOwners.mockResolvedValue(
+      OWNERS.map((o) => ({ ...o, email: `${o.owner}@example.com` }))
+    );
+    const { AuthContext } = await import('@/AuthContext');
+    const tree = (email: string | null) => (
+      <AuthContext.Provider
+        value={{
+          user: email ? { email } : null,
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={['/plot']}>
+          <Routes>
+            <Route path="/plot/*" element={<PlotApp />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+    const { rerender } = render(tree(null));
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('alex'));
+
+    rerender(tree('steve@example.com'));
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('steve'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Grower')).toHaveValue('steve')
+    );
+  });
 });

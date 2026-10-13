@@ -254,6 +254,45 @@ describe("Reports page", () => {
     expect(csvLink.getAttribute("href")).toContain("/reports/alex/");
   });
 
+  it("lets a later app-level owner change override an earlier pick (#10753)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", accounts: [] },
+      { owner: "joe", accounts: [] },
+      { owner: "steve", accounts: [] },
+    ]);
+    const { RouteContext } = await import("@/contexts/route");
+    const { default: Reports } = await import("@/pages/Reports");
+    const tree = (routeOwner: string) => (
+      <RouteContext.Provider
+        value={{
+          mode: "reports",
+          setMode: () => {},
+          selectedOwner: routeOwner,
+          setSelectedOwner: () => {},
+          selectedGroup: "",
+          setSelectedGroup: () => {},
+        }}
+      >
+        <MemoryRouter>
+          <Reports />
+        </MemoryRouter>
+      </RouteContext.Provider>
+    );
+    const { rerender } = render(tree("alex"));
+
+    const ownerSelect = await screen.findByLabelText(/Owner/i);
+    await screen.findByRole("option", { name: "steve" });
+    fireEvent.change(ownerSelect, { target: { value: "steve" } });
+    expect(
+      (await screen.findByRole("link", { name: /Download CSV/i })).getAttribute("href"),
+    ).toContain("/reports/steve/");
+
+    rerender(tree("joe"));
+    expect(
+      screen.getByRole("link", { name: /Download CSV/i }).getAttribute("href"),
+    ).toContain("/reports/joe/");
+  });
+
   it("includes the chosen template ID in download links", async () => {
     await renderReports();
 

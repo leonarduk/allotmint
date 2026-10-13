@@ -3478,7 +3478,7 @@
       "group": "A visão geral principal: posições, valores e alocação combinados dos titulares do grupo selecionado.",
       "market": "Um retrato das condições gerais do mercado e dos índices.",
       "movers": "Os instrumentos das suas carteiras que mais se moveram, para cima ou para baixo.",
-      "instrument": "Detalhes e histórico de preços de um único instrumento.",
+      "instrument": "Todas as posições agrupadas por setor, com totais e retornos em vários períodos.",
       "performance": "Rendibilidade ao longo do tempo de um titular, comparada com um índice de referência.",
       "transactions": "Registe compras, vendas e outras transações, ou importe-as de um CSV.",
       "dividends": "Dividendos recebidos, por ano fiscal, ano ou mês e por posição, com o total dos últimos 12 meses.",

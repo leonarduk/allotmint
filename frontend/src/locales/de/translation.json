@@ -3478,7 +3478,7 @@
       "group": "Die Hauptübersicht: zusammengefasste Positionen, Werte und Allokation über alle Eigentümer der ausgewählten Gruppe.",
       "market": "Eine Momentaufnahme der allgemeinen Marktlage und der Indizes.",
       "movers": "Die Instrumente in Ihren Portfolios mit den größten Kursbewegungen, nach oben oder unten.",
-      "instrument": "Details und Kursverlauf für ein einzelnes Instrument.",
+      "instrument": "Alle Positionen nach Sektor gruppiert, mit Summen und Renditen über mehrere Zeiträume.",
       "performance": "Renditen im Zeitverlauf für einen Eigentümer, verglichen mit einer Benchmark.",
       "transactions": "Käufe, Verkäufe und andere Transaktionen erfassen oder aus einer CSV-Datei importieren.",
       "dividends": "Erhaltene Dividendenerträge nach Steuerjahr, Jahr oder Monat und nach Position, mit einer Summe der letzten 12 Monate.",

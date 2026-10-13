@@ -3478,7 +3478,7 @@
       "group": "La panoramica principale: posizioni, valori e allocazione combinati per i titolari del gruppo selezionato.",
       "market": "Un'istantanea delle condizioni generali di mercato e degli indici.",
       "movers": "Gli strumenti dei tuoi portafogli che si sono mossi di più, al rialzo o al ribasso.",
-      "instrument": "Dettagli e storico dei prezzi di un singolo strumento.",
+      "instrument": "Tutte le posizioni raggruppate per settore, con totali e rendimenti su più periodi.",
       "performance": "Rendimenti nel tempo per un titolare, confrontati con un benchmark.",
       "transactions": "Registra acquisti, vendite e altre transazioni, oppure importale da un file CSV.",
       "dividends": "Dividendi incassati, per anno fiscale, anno o mese e per posizione, con il totale degli ultimi 12 mesi.",

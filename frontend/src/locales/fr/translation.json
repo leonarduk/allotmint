@@ -3478,7 +3478,7 @@
       "group": "La vue d'ensemble principale : positions, valeurs et répartition combinées pour les propriétaires du groupe sélectionné.",
       "market": "Un aperçu de la situation générale des marchés et des indices.",
       "movers": "Les instruments de vos portefeuilles qui ont le plus varié, à la hausse ou à la baisse.",
-      "instrument": "Détails et historique des cours d'un instrument.",
+      "instrument": "Toutes les positions regroupées par secteur, avec totaux et rendements sur plusieurs périodes.",
       "performance": "Rendements dans le temps pour un propriétaire, comparés à un indice de référence.",
       "transactions": "Enregistrez achats, ventes et autres transactions, ou importez-les depuis un fichier CSV.",
       "dividends": "Dividendes perçus, par année fiscale, année ou mois et par position, avec un total sur 12 mois glissants.",

@@ -899,7 +899,7 @@ def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
         "compute_portfolio_var",
         lambda owner, confidence=0.95, include_cash=True: {"1d": 0.12} if confidence == 0.95 else {"1d": 0.2},
     )
-    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.75)
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: 1.75)
 
     context = reports.ReportContext(owner="alice", start=None, end=None)
 
@@ -955,7 +955,7 @@ def test_portfolio_section_builders_reuse_cached_snapshot(monkeypatch):
         "compute_portfolio_var",
         lambda owner, confidence=0.95, include_cash=True: {"1d": 0.12},
     )
-    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.75)
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: 1.75)
 
     document = reports.build_report_document("audit-report", "alice")
 
@@ -1066,7 +1066,7 @@ def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
             }
         ),
     )
-    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.2)
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: 1.2)
     context = reports.ReportContext(owner="alice", start=None, end=None)
 
     var_rows = reports._build_portfolio_var_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[4])
@@ -1091,11 +1091,7 @@ def test_audit_portfolio_var_builder_returns_empty_when_risk_data_missing(monkey
         "compute_portfolio_var",
         lambda owner, confidence=0.95, include_cash=True: (_ for _ in ()).throw(FileNotFoundError("missing risk data")),
     )
-    monkeypatch.setattr(
-        reports.risk,
-        "compute_sharpe_ratio",
-        lambda owner: (_ for _ in ()).throw(FileNotFoundError("missing sharpe data")),
-    )
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: pytest.fail("unexpected sharpe call"))
     context = reports.ReportContext(owner="alice", start=None, end=None)
 
     var_rows = reports._build_portfolio_var_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[4])
@@ -1196,7 +1192,7 @@ def test_build_report_document_audit_template_dispatches_real_builders(monkeypat
         "compute_portfolio_var",
         lambda owner, confidence=0.95, include_cash=True: {"1d": 10.0 if confidence == 0.95 else 20.0},
     )
-    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.11)
+    monkeypatch.setattr(reports, "_ledger_sharpe_ratio", lambda context: 1.11)
 
     document = reports.build_report_document("audit-report", "alice")
 

@@ -2,14 +2,18 @@
 //
 // The response schemas in ./apiContracts.ts are plain `z.object(...)`, so
 // `.parse()` drops every key they do not declare. When a field is added to a
-// frontend response type in ../types.ts but not to the matching schema, the UI
-// compiles fine and then renders a default (0, blank, "—") because the value
-// never survives parsing -- e.g. #10752 (realised gains always £0.00), #10640
-// and #4883. Each assertion below fails `tsc` if a type key is missing from its
-// schema, so that drift is caught at build time instead of in a QA sweep.
+// frontend response type (../types.ts, ../api.ts) but not to the matching
+// schema, the UI compiles fine and then renders a default (0, blank, "—")
+// because the value never survives parsing -- e.g. #10752 (realised gains
+// always £0.00) and #4883 (holding fields). Each assertion below fails `tsc`
+// if a type key is missing from its schema, so that drift is caught at build
+// time instead of in a QA sweep.
 //
+// Scope: only the schemas listed below; key presence, not value types. A
+// backend field the frontend types do not mention is not checked here -- it is
+// unreadable without a cast, and #10771 audited those against the backend.
 // The guard only runs because tsconfig.app.json includes `src`; keep this file
-// inside that include glob. Key presence is checked, not value types.
+// inside that include glob.
 import type { z } from "zod";
 
 import type {

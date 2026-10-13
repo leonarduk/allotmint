@@ -1954,6 +1954,14 @@
     },
     "ticker": "Ticker",
     "title": "Editor de series temporales",
+    "grid": {
+      "cellLabel": "{{column}} el {{date}}",
+      "cellLabelUndated": "{{column}} de la fila sin fecha {{row}}",
+      "rowsLabel": "Filas",
+      "previousPage": "Página anterior",
+      "nextPage": "Página siguiente",
+      "pageStatus": "Página {{page}} de {{pages}} (filas {{from}}–{{to}} de {{total}})"
+    },
     "controls": {
       "sort": "Ordenar",
       "sortDesc": "Más recientes primero",

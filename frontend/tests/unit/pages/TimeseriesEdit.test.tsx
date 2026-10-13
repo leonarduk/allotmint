@@ -5,7 +5,7 @@ import { createInstance } from "i18next";
 import type { ReactElement } from "react";
 import en from "@/locales/en/translation.json";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { TimeseriesEdit } from "@/pages/TimeseriesEdit";
+import { TIMESERIES_PAGE_SIZE, TimeseriesEdit } from "@/pages/TimeseriesEdit";
 import {
   getTimeseries,
   moveTimeseries,
@@ -56,25 +56,89 @@ describe("TimeseriesEdit page", () => {
 
     expect(await screen.findByDisplayValue("2024-01-01")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Open"), {
+    fireEvent.change(screen.getByLabelText("Open on 2024-01-01"), {
       target: { value: "2" },
     });
     rows[0].Open = 2;
 
     fireEvent.click(screen.getByRole("button", { name: /add row/i }));
-    expect(screen.getAllByLabelText("Date")).toHaveLength(2);
-    const tickerInputs = screen.getAllByLabelText("Ticker");
-    expect(tickerInputs[tickerInputs.length - 1]).toHaveValue("ABC.L");
-    const sourceInputs = screen.getAllByLabelText("Source");
-    expect(sourceInputs[sourceInputs.length - 1]).toHaveValue("Manual");
+    expect(screen.getAllByLabelText(/^Date (on|for)/)).toHaveLength(2);
+    expect(screen.getByLabelText("Ticker for undated row 2")).toHaveValue(
+      "ABC.L",
+    );
+    expect(screen.getByLabelText("Source for undated row 2")).toHaveValue(
+      "Manual",
+    );
 
-    fireEvent.click(screen.getAllByRole("button", { name: /delete/i })[1]);
-    expect(screen.getAllByLabelText("Date")).toHaveLength(1);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete for undated row 2" }),
+    );
+    expect(screen.getAllByLabelText(/^Date (on|for)/)).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
     expect(getTimeseries).toHaveBeenCalledWith("ABC", "L");
     expect(saveTimeseries).toHaveBeenCalledWith("ABC", "L", rows);
+  });
+
+  it("gives the Ticker, Exchange, Start and End controls accessible names", () => {
+    renderWithI18n(<TimeseriesEdit />);
+    expect(screen.getByRole("combobox", { name: "Ticker" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Exchange" })).toHaveValue("L");
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("End date")).toHaveAttribute("type", "date");
+  });
+
+  it("renders a bounded page of a long series and still saves every row (#10825)", async () => {
+    const start = Date.UTC(2013, 0, 1);
+    const rows = Array.from({ length: 3383 }, (_, i) => ({
+      Date: new Date(start + i * 86_400_000).toISOString().slice(0, 10),
+      Open: i,
+      High: i,
+      Low: i,
+      Close: i,
+      Volume: i,
+      Ticker: "VHYL.L",
+      Source: "Feed",
+    }));
+    (getTimeseries as unknown as vi.Mock).mockResolvedValue(rows);
+    renderWithI18n(<TimeseriesEdit />);
+    fireEvent.change(screen.getByLabelText("Ticker"), {
+      target: { value: "VHYL" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /load/i }));
+    expect(await screen.findByText("Loaded 3383 rows")).toBeInTheDocument();
+
+    const grid = screen.getByRole("table", { name: "Rows" });
+    expect(grid.querySelectorAll("input")).toHaveLength(
+      TIMESERIES_PAGE_SIZE * 8,
+    );
+    expect(grid.querySelectorAll("input").length).toBeLessThan(500);
+    // Newest first by default.
+    const newest = rows[rows.length - 1].Date;
+    expect(screen.getByLabelText(`Close on ${newest}`)).toBeInTheDocument();
+    expect(
+      screen.getByText(`Page 1 of 68 (rows 1–50 of 3383)`),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    const offPageDate = rows[rows.length - 51].Date;
+    expect(screen.queryByLabelText(`Close on ${newest}`)).toBeNull();
+    fireEvent.change(screen.getByLabelText(`Close on ${offPageDate}`), {
+      target: { value: "999" },
+    });
+    // Edit survives paging away and back.
+    fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByLabelText(`Close on ${offPageDate}`)).toHaveValue(999);
+
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    const saved = (saveTimeseries as unknown as vi.Mock).mock.calls[0][2];
+    expect(saved).toHaveLength(3383);
+    expect(saved.find((r: { Date: string }) => r.Date === offPageDate).Close).toBe(
+      999,
+    );
   });
 
   it("prefills ticker and exchange from URL", async () => {

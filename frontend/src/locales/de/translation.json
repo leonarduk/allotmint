@@ -1954,6 +1954,14 @@
     },
     "ticker": "Ticker",
     "title": "Zeitreihen-Editor",
+    "grid": {
+      "cellLabel": "{{column}} am {{date}}",
+      "cellLabelUndated": "{{column}} für Zeile {{row}} ohne Datum",
+      "rowsLabel": "Zeilen",
+      "previousPage": "Vorherige Seite",
+      "nextPage": "Nächste Seite",
+      "pageStatus": "Seite {{page}} von {{pages}} (Zeilen {{from}}–{{to}} von {{total}})"
+    },
     "controls": {
       "sort": "Sortieren",
       "sortDesc": "Neueste zuerst",

@@ -816,6 +816,29 @@ describe("Custom Query results formatting", () => {
     expect(screen.getByText("1.2346")).toBeInTheDocument();
   });
 
+  it("labels the security-info columns", async () => {
+    const { i18n } = await runWith([
+      {
+        owner: "alice",
+        ticker: "VOD",
+        name: "Vodafone Group",
+        instrument_type: "equity",
+      },
+    ]);
+    const headers = screen
+      .getAllByRole("columnheader")
+      .map((th) => th.textContent);
+    expect(headers).toEqual([
+      i18n.t("query.columns.owner"),
+      i18n.t("query.columns.ticker"),
+      "Name",
+      "Instrument type",
+    ]);
+    expect(headers).not.toContain("instrument_type");
+    expect(screen.getByText("Vodafone Group")).toBeInTheDocument();
+    expect(screen.getByText("equity")).toBeInTheDocument();
+  });
+
   it("keeps raw keys in the export links", async () => {
     await runWith([{ owner: "alice", ticker: "VOD", market_value_gbp: 1 }]);
     const href =

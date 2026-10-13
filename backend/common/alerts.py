@@ -91,6 +91,9 @@ def _load_history() -> None:
     _SIGNATURE_ORDER[:] = list(dict.fromkeys(stored_signatures))
     _RECENT_ALERT_SIGNATURES.clear()
     _RECENT_ALERT_SIGNATURES.update(_SIGNATURE_ORDER)
+    # The stored throttle is authoritative too, like the alerts and signatures.
+    _LAST_ALERT_STATE.clear()
+    _LAST_ALERT_TIME.clear()
     _restore_throttle(data.get("throttle"))
 
 

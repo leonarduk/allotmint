@@ -101,6 +101,28 @@ def test_naive_throttle_time_is_treated_as_utc(tmp_path):
     assert alerts.get_recent_alerts() == []  # within the hour, no TypeError
 
 
+def test_reads_alerts_written_by_another_process(tmp_path):
+    alerts.publish_alert({"ticker": "A", "message": "mine"})
+    path = _history_path(tmp_path)
+    doc = json.loads(path.read_text())
+    doc["alerts"].append({"ticker": "B", "message": "theirs", "timestamp": "2026-10-13T00:00:00+00:00"})
+    path.write_text(json.dumps(doc))
+
+    assert [a["message"] for a in alerts.get_recent_alerts()] == ["mine", "theirs"]
+
+
+def test_stored_throttle_replaces_memory(tmp_path):
+    alerts._LAST_ALERT_STATE["OLD"] = True
+    alerts._LAST_ALERT_TIME["OLD"] = alerts.datetime.now(alerts.UTC)
+    path = _history_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"alerts": [{"message": "x"}], "signatures": ["s"]}))
+
+    alerts.get_recent_alerts()
+
+    assert alerts._LAST_ALERT_STATE == {} and alerts._LAST_ALERT_TIME == {}
+
+
 def test_retention_caps_stored_alerts(tmp_path, monkeypatch):
     monkeypatch.setattr(alerts, "MAX_STORED_ALERTS", 3)
     monkeypatch.setattr(alerts, "MAX_STORED_SIGNATURES", 4)

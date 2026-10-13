@@ -64,8 +64,8 @@ export function buildChatContext(pathname: string, scope: ChatScope = {}): ChatC
   }
   const owner = scope.owner?.trim();
   const group = scope.group?.trim();
-  if (owner) {
-    if (SCOPE_SLUG.test(owner)) context.owner = owner;
+  if (owner && SCOPE_SLUG.test(owner)) {
+    context.owner = owner;
   } else if (group && SCOPE_SLUG.test(group)) {
     context.group = group;
   }

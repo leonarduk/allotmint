@@ -38,4 +38,11 @@ describe('buildChatContext', () => {
   it('drops a slug the backend would reject instead of failing the turn', () => {
     expect(buildChatContext('/', { owner: 'not a slug' })).toEqual({ path: '/' });
   });
+
+  it('falls back to the group when the owner is not a usable slug', () => {
+    expect(buildChatContext('/', { owner: 'not a slug', group: 'family' })).toEqual({
+      path: '/',
+      group: 'family',
+    });
+  });
 });

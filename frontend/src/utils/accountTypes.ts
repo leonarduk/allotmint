@@ -75,3 +75,33 @@ export function countsTowardPensionForecast(accountType: string): boolean {
   const key = accountType.trim().toLowerCase();
   return DEFINED_CONTRIBUTION_ACCOUNT_MARKERS.some((marker) => key.includes(marker));
 }
+
+/**
+ * Account-type tokens for UK tax wrappers whose gains and losses fall outside
+ * Capital Gains Tax (ISAs of every flavour and pensions). Matched against the
+ * slug split on non-alphanumerics, so "stocks-isa", "workplace-sipp" and
+ * "kz:sipp" all count, while an unrelated slug that merely contains the
+ * letters (e.g. "visa") does not.
+ */
+const TAX_SHELTERED_ACCOUNT_TOKENS = new Set([
+  "isa",
+  "jisa",
+  "lisa",
+  "sipp",
+  "ssas",
+  "pension",
+]);
+
+/**
+ * Whether an account_type is a tax wrapper (ISA/SIPP/pension) where realising a
+ * loss has no CGT value -- used to keep such accounts out of the Tax Harvest
+ * candidate list (#10760). Unknown types (e.g. "gia", "brokerage") are treated
+ * as taxable.
+ */
+export function isTaxShelteredAccount(accountType: string): boolean {
+  return accountType
+    .trim()
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .some((token) => TAX_SHELTERED_ACCOUNT_TOKENS.has(token));
+}

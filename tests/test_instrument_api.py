@@ -513,3 +513,24 @@ def test_top_movers_one_day_on_monday_returns_fridays_movers(monkeypatch):
     assert [r["ticker"] for r in res["losers"]] == ["DOWN.L"]
     assert res["gainers"][0]["change_pct"] == pytest.approx(10.0)
     assert res["anomalies"] == []
+
+
+def test_last_close_and_day_returns_no_day_without_a_close(monkeypatch):
+    """With no close in the lookback window, no trading day is reported."""
+    monkeypatch.setattr(ia, "_close_on", lambda s, e, d: None)
+
+    assert ia._last_close_and_day_on_or_before("AAA", "L", dt.date(2026, 10, 12)) == (None, None)
+
+
+def test_price_change_pct_seven_days_on_monday_spans_friday_to_friday(monkeypatch):
+    """#10756: a 1w window on a Monday compares Friday with the Friday before."""
+    _set_today(monkeypatch, dt.date(2026, 10, 12))
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: ("AAA", "L"))
+    closes = {
+        dt.date(2026, 10, 2): 100.0,  # Fri, a week before
+        dt.date(2026, 10, 5): 90.0,  # Mon, must not be the start
+        dt.date(2026, 10, 9): 120.0,  # Fri, latest close
+    }
+    monkeypatch.setattr(ia, "_close_on", lambda s, e, d: closes.get(ia._nearest_weekday(d, forward=False)))
+
+    assert ia.price_change_pct("AAA", 7) == pytest.approx(20.0)

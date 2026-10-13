@@ -643,12 +643,13 @@ register_meta_cache_clearer(_close_on_cache_only.cache_clear)
 _CLOSE_LOOKBACK_TRADING_DAYS = 5
 
 
-def _last_close_and_day_on_or_before(sym: str, ex: str, d: dt.date) -> Tuple[Optional[float], dt.date]:
+def _last_close_and_day_on_or_before(sym: str, ex: str, d: dt.date) -> Tuple[Optional[float], Optional[dt.date]]:
     """Return the last valid close for ``sym.ex`` on or before ``d`` and its trading day.
 
     ``_close_on`` is exact-date, so one bad day -- e.g. a partial-day Yahoo bar
     with a NaN close -- would otherwise blank a %-change anchored on it (#9926).
-    Steps back at most ``_CLOSE_LOOKBACK_TRADING_DAYS`` weekdays.
+    Steps back at most ``_CLOSE_LOOKBACK_TRADING_DAYS`` weekdays. Returns
+    ``(None, None)`` when no close is found in that window.
     """
     price = _close_on(sym, ex, d)
     day = _nearest_weekday(d, forward=False)
@@ -657,6 +658,8 @@ def _last_close_and_day_on_or_before(sym: str, ex: str, d: dt.date) -> Tuple[Opt
             return price, day
         day = _nearest_weekday(day - dt.timedelta(days=1), forward=False)
         price = _close_on(sym, ex, day)
+    if price is None:
+        return None, None
     return price, day
 
 
@@ -680,12 +683,14 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
 
     sym, ex = resolved
     px_now, now_day = _last_close_and_day_on_or_before(sym, ex, yday)
+    if px_now is None or now_day is None:
+        return None
     # Anchor the start on the trading day the latest close came from, not on
     # the calendar. On a Sunday or Monday, yesterday and the day before it both
     # snap back to Friday, so a calendar anchor made every 1d change 0% and
     # emptied the default Movers view (#10756).
     px_then = _last_close_on_or_before(sym, ex, now_day - dt.timedelta(days=days))
-    if px_now is None or px_then is None or px_then == 0:
+    if px_then is None or px_then == 0:
         return None
     if px_then < MIN_PRICE_THRESHOLD:
         logger.warning(

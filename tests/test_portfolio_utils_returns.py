@@ -197,6 +197,21 @@ def test_ledger_total_return_gbp_deposit_on_window_start_is_in_opening_value(led
     assert pu.ledger_total_return_gbp(perf, date(2025, 6, 2)) == pytest.approx(150.0)  # 1,700 - 1,550
 
 
+def test_ledger_total_return_gbp_counts_tracked_cash_income_once(ledger_owner):
+    """Tracked cash: the £50 dividend stays in the closing value and is not added again (£50, not £100)."""
+    closes = {"AAA.L": {"2025-01-01": 100.0}}
+    transactions = [
+        _deposit("2025-01-01", 1000),
+        _buy("2025-01-01", 10, 1000),
+        {"date": "2025-07-01", "type": "DIVIDEND", "amount_minor": 5000},
+    ]
+    ledger_owner(transactions, closes, trade_cash=True)
+    perf = pu._owner_ledger_performance("owner", date(2026, 1, 1))
+
+    assert perf.income.sum() == 0.0
+    assert pu.ledger_total_return_gbp(perf, None) == pytest.approx(50.0)
+
+
 def test_ledger_total_return_gbp_counts_income_paid_out(ledger_owner):
     """Untracked cash: the £50 dividend leaves the account but is still return."""
     closes = {"AAA.L": {"2025-01-01": 100.0}}

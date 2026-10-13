@@ -40,7 +40,6 @@ backend/chat/bedrock_agent.py::_converse_with_retry::logger.warning('Bedrock con
 backend/common/accounts_store.py::S3AccountsStore._iter_keys::logger.warning('S3 list failed for s3://%s/%s: %s', self.bucket, sanitise_log_value(prefix), sanitise_log_value(exc))
 backend/common/accounts_store.py::S3AccountsStore.read_document::logger.warning('S3 read failed for s3://%s/%s: %s', self.bucket, sanitise_log_value(key), sanitise_log_value(exc))
 backend/common/accounts_store.py::S3AccountsStore.read_document::logger.warning('S3 read failed for s3://%s/%s: %s', self.bucket, sanitise_log_value(key), sanitise_log_value(exc))
-backend/common/alerts.py::publish_sns_alert::logger.info('Duplicate alert skipped: %s', alert)
 backend/common/approvals.py::load_approvals::logger.info("approvals file for '%s' not found at %s", sanitise_log_value(owner), path)
 backend/common/approvals.py::save_approvals::logger.error('failed to write approvals for %s to %s: %s', sanitise_log_value(owner), path, sanitise_log_value(exc))
 # identity is not None (always bool) and len(...)

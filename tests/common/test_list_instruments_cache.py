@@ -127,3 +127,17 @@ def test_listing_another_root_keeps_this_roots_entries(instruments_dir, tmp_path
     list_instruments()
 
     assert sorted(load_calls) == ["AAA.json", "BBB.json", "ZZZ.json"]
+
+
+def test_unreadable_directory_is_logged_not_silent(instruments_dir, monkeypatch, caplog):
+    real_scandir = os.scandir
+
+    def deny_n(path):
+        if Path(path).name == "N":
+            raise PermissionError("denied")
+        return real_scandir(path)
+
+    monkeypatch.setattr(instruments_module.os, "scandir", deny_n)
+
+    assert set(_by_ticker(list_instruments())) == {"AAA.L"}
+    assert "Cannot list instrument metadata" in caplog.text

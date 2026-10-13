@@ -796,7 +796,10 @@ def _iter_json_files(root: Path) -> Iterator[tuple[str, tuple[int, int]]]:
     try:
         with os.scandir(root) as it:
             entries = list(it)
-    except OSError:
+    except FileNotFoundError:
+        return  # no instruments directory: nothing to list, as with rglob
+    except OSError as exc:
+        logger.warning("Cannot list instrument metadata in %s: %s", sanitise_log_value(root), sanitise_log_value(exc))
         return
     for entry in entries:
         try:

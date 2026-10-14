@@ -219,8 +219,7 @@ def _index_changes(series: pd.Series, in_gbp: Optional[pd.Series]) -> Dict[str, 
             out[period] = None
             continue
         local_pct = (latest - base) / base * 100.0
-        pct = local_pct if in_gbp is series else _gbp_pct(in_gbp, period)
-        out[period] = {"change": latest - base, "pct": pct, "local_pct": local_pct}
+        out[period] = {"change": latest - base, "pct": _gbp_pct(in_gbp, period), "local_pct": local_pct}
     return out
 
 

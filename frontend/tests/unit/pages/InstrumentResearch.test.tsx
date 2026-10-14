@@ -1038,15 +1038,22 @@ describe("InstrumentResearch page", () => {
     }
   });
 
-  it("hides the preparing notice once the entry is in a still-partial list", async () => {
-    mockListInstrumentMetadataScan.mockResolvedValue({
-      data: [{ ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39" }] as any,
-      warming: true,
-    });
-    renderPage();
+  it("stops re-polling once the entry is in a still-partial list", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockListInstrumentMetadataScan.mockResolvedValue({
+        data: [{ ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39" }] as any,
+        warming: true,
+      });
+      renderPage();
 
-    expect(await screen.findByRole("link", { name: "View on Morningstar" })).toBeInTheDocument();
-    expect(screen.queryByTestId("instrument-catalogue-warming")).not.toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "View on Morningstar" })).toBeInTheDocument();
+      expect(screen.queryByTestId("instrument-catalogue-warming")).not.toBeInTheDocument();
+      await vi.advanceTimersByTimeAsync(ADMIN_WARMING_POLL_MS * 3);
+      expect(mockListInstrumentMetadataScan).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("stops re-polling the catalogue after leaving the page", async () => {

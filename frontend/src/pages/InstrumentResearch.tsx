@@ -474,7 +474,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         const { data: catalogue, warming } = await listInstrumentMetadataScan();
         if (cancelled) return;
         setCatalogueWarming(warming);
-        if (warming) timer = setTimeout(load, ADMIN_WARMING_POLL_MS);
         const sectors = new Set<string>();
         const instrumentTypes = new Map<string, string>();
         DEFAULT_INSTRUMENT_TYPES.forEach((type) =>
@@ -511,6 +510,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             }
           }
         }
+        // Stop re-polling once this instrument's entry has arrived, even if
+        // the rest of the list is still filling in.
+        if (warming && !matched) timer = setTimeout(load, ADMIN_WARMING_POLL_MS);
         setRegionOptions(collectRegionOptions(catalogue ?? []));
         setSectorOptions(
           Array.from(sectors).sort((a, b) =>

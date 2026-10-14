@@ -102,3 +102,21 @@ def test_import_of_only_future_rows_writes_nothing(client, tmp_path, monkeypatch
     assert resp.json()["persisted"] == []
     assert [r["skip_reason"] for r in resp.json()["skipped"]] == ["date cannot be in the future"]
     assert not list((tmp_path / "alice").glob("*_transactions.json"))
+
+
+def test_update_of_stored_future_row_must_correct_its_date(client, tmp_path):
+    # A row saved before #10898 keeps its future date until edited; an edit
+    # that leaves the date in place is refused, and correcting it succeeds.
+    created = client.post("/transactions", json=_payload()).json()
+    path = tmp_path / "alice" / "isa_transactions.json"
+    doc = json.loads(path.read_text())
+    doc["transactions"][0]["date"] = TOO_FAR
+    path.write_text(json.dumps(doc))
+
+    unchanged = client.put(f"/transactions/{created['id']}", json=_payload(date=TOO_FAR, units=3))
+    assert unchanged.status_code == 400
+    assert [tx["date"] for tx in _stored(tmp_path)] == [TOO_FAR]
+
+    corrected = client.put(f"/transactions/{created['id']}", json=_payload(date="2024-05-01", units=3))
+    assert corrected.status_code == 200
+    assert [(tx["date"], tx["units"]) for tx in _stored(tmp_path)] == [("2024-05-01", 3)]

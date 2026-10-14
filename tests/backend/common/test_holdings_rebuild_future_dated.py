@@ -52,7 +52,7 @@ def test_drop_future_dated_keeps_undated_and_slack_rows(caplog: pytest.LogCaptur
 def test_stored_future_row_does_not_count_in_rebuilt_holding() -> None:
     tx = {"transactions": [_buy(10, 3_000.00, "2025-03-01"), _buy(1, 400.00, "2027-01-01")]}
     # The state a rebuild left behind before the fix: the future BUY counted.
-    stale = {"ticker": "MSFT.N", "units": 11, "cost_basis_gbp": 3_400.00, "acquired_date": "2027-01-01"}
+    stale = {"ticker": "MSFT.N", "units": 11, "cost_basis_gbp": 3400, "acquired_date": "2027-01-01"}
     existing = {"holdings": [stale]}
 
     msft = _msft(rebuild_holdings_document(tx, "steve", "isa", existing, as_of=date(2026, 10, 15)))

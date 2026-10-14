@@ -10,6 +10,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, NamedTuple, NotRequired, Optional, TypedDict
 
+import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
 from backend import config_module
@@ -155,19 +156,23 @@ class Benchmark(NamedTuple):
     # Yahoo has total-return indices only for some benchmarks (``^XNDX``, the
     # NASDAQ-100 one, has no history), so the rest use a distributing tracker
     # ETF whose dividends are reinvested. Each source is priced in its index's
-    # currency (the ``.L`` ETFs in pence, with dividends in pence too), so the
-    # % return is in that currency, not converted to sterling.
+    # currency (the ``.L`` ETFs in pence, with dividends in pence too).
     total_return_symbol: str
     total_return_source: Literal["index", "etf"]
+    # The source's currency. The 1Y total return is converted to sterling so it
+    # compares with the owners' GBP returns; a GBP source needs no conversion.
+    currency: str
 
 
 # Benchmark rows beside the owner summary table, in display order.
 BENCHMARKS: tuple[Benchmark, ...] = (
-    Benchmark("FTSE 100", "^FTSE", "ISF.L", "etf"),
-    Benchmark("FTSE 250", "^FTMC", "MIDD.L", "etf"),
-    Benchmark("S&P 500", "^GSPC", "^SP500TR", "index"),
-    Benchmark("NASDAQ-100", "^NDX", "QQQ", "etf"),
+    Benchmark("FTSE 100", "^FTSE", "ISF.L", "etf", "GBP"),
+    Benchmark("FTSE 250", "^FTMC", "MIDD.L", "etf", "GBP"),
+    Benchmark("S&P 500", "^GSPC", "^SP500TR", "index", "USD"),
+    Benchmark("NASDAQ-100", "^NDX", "QQQ", "etf", "USD"),
 )
+# Yahoo FX pairs quoting GBP per one unit of each non-sterling currency.
+GBP_PER_UNIT_SYMBOLS: Dict[str, str] = {"USD": "USDGBP=X"}
 # Windows reported per benchmark index; ``1D`` is the day change.
 BENCHMARK_PERIODS: tuple[market_sectors.Period, ...] = ("1D", "1W", "1M", "1Y")
 # Plausible gap, in percentage points, between a benchmark's 1Y total return
@@ -186,9 +191,12 @@ class IndexChange(TypedDict):
 
 
 class IndexTotalReturn(TypedDict):
+    # In GBP; ``local_pct`` is the same return in ``local_currency``.
     pct: float
     symbol: str
     source: Literal["index", "etf"]
+    local_currency: str
+    local_pct: float
 
 
 def _index_changes(series: Any) -> Dict[str, Optional[IndexChange]]:
@@ -207,17 +215,36 @@ def _index_changes(series: Any) -> Dict[str, Optional[IndexChange]]:
     return out
 
 
+def _in_gbp(series: pd.Series, currency: str, history: market_sectors.PriceHistory) -> Optional[pd.Series]:
+    """``series`` converted to sterling at each day's rate, or ``None`` without FX data.
+
+    The FX rate is carried forward onto the series' trading days, so a US
+    holiday or a missing FX print uses the latest earlier rate.
+    """
+
+    if currency == "GBP":
+        return series
+    symbol = GBP_PER_UNIT_SYMBOLS.get(currency)
+    rates = market_sectors.series_for(history.traded, symbol) if symbol else pd.Series(dtype=float)
+    if rates.empty:
+        return None
+    aligned = rates.reindex(rates.index.union(series.index)).ffill().reindex(series.index)
+    return (series * aligned).dropna()
+
+
 def _total_return_1y(
     benchmark: Benchmark, history: market_sectors.PriceHistory, price_1y: Optional[IndexChange]
 ) -> Optional[IndexTotalReturn]:
-    """1Y total return % of ``benchmark``, or ``None`` when missing or implausible."""
+    """1Y total return % of ``benchmark`` in GBP, or ``None`` when missing or implausible."""
 
     series = market_sectors.series_for(history.total_return, benchmark.total_return_symbol)
-    pct = market_sectors.period_change(series, "1Y") if not series.empty else None
-    if pct is None:
+    local_pct = market_sectors.period_change(series, "1Y") if not series.empty else None
+    if local_pct is None:
         return None
+    # Judged in the source's own currency, against the price index's return in
+    # that currency, so an FX move cannot trip the dividend-sized band.
     if price_1y is not None and price_1y["pct"] is not None:
-        gap = pct - price_1y["pct"]
+        gap = local_pct - price_1y["pct"]
         low, high = TOTAL_RETURN_GAP_PP
         if not low <= gap <= high:
             logger.warning(
@@ -227,18 +254,31 @@ def _total_return_1y(
                 sanitise_log_value(f"{gap:.1f}"),
             )
             return None
-    return {"pct": pct, "symbol": benchmark.total_return_symbol, "source": benchmark.total_return_source}
+    in_gbp = _in_gbp(series, benchmark.currency, history)
+    pct = market_sectors.period_change(in_gbp, "1Y") if in_gbp is not None and not in_gbp.empty else None
+    if pct is None:
+        logger.warning("No GBP rate to convert %s total return", sanitise_log_value(benchmark.name))
+        return None
+    return {
+        "pct": pct,
+        "symbol": benchmark.total_return_symbol,
+        "source": benchmark.total_return_source,
+        "local_currency": benchmark.currency,
+        "local_pct": local_pct,
+    }
 
 
 def _fetch_index_summary() -> List[Dict[str, Any]]:
     """Return each benchmark index's latest close with day/1W/1M/1Y changes.
 
-    One 1Y download covers every window and every total-return source. Levels
-    are price-index points (no currency) and the changes are price return;
-    ``total_return_1y`` adds reinvested dividends, in the index's currency.
+    One 1Y download covers every window, every total-return source and the FX
+    rates. Levels are price-index points (no currency) and the changes are
+    price return in the index's currency; ``total_return_1y`` adds reinvested
+    dividends and is converted to GBP.
     """
 
-    symbols = [b.symbol for b in BENCHMARKS] + [b.total_return_symbol for b in BENCHMARKS]
+    fx = sorted({GBP_PER_UNIT_SYMBOLS[b.currency] for b in BENCHMARKS if b.currency in GBP_PER_UNIT_SYMBOLS})
+    symbols = [b.symbol for b in BENCHMARKS] + [b.total_return_symbol for b in BENCHMARKS] + fx
     history = market_sectors.download_period_history(symbols, "1Y")
     out: List[Dict[str, Any]] = []
     for benchmark in BENCHMARKS:

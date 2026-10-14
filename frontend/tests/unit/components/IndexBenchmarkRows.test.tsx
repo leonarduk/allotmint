@@ -20,7 +20,13 @@ const summary: IndexSummary = {
         '1M': null,
         '1Y': { change: 600, pct: 7.98 },
       },
-      total_return_1y: { pct: 11.5, symbol: 'ISF.L', source: 'etf' },
+      total_return_1y: {
+        pct: 11.5,
+        symbol: 'ISF.L',
+        source: 'etf',
+        local_currency: 'GBP',
+        local_pct: 11.5,
+      },
     },
     {
       name: 'FTSE 250',
@@ -29,6 +35,20 @@ const summary: IndexSummary = {
       as_of: null,
       changes: { '1D': null, '1W': null, '1M': null, '1Y': null },
       total_return_1y: null,
+    },
+    {
+      name: 'S&P 500',
+      symbol: '^GSPC',
+      value: 7700,
+      as_of: null,
+      changes: { '1D': null, '1W': null, '1M': null, '1Y': null },
+      total_return_1y: {
+        pct: 18.8,
+        symbol: '^SP500TR',
+        source: 'index',
+        local_currency: 'USD',
+        local_pct: 17.53,
+      },
     },
   ],
 };
@@ -108,6 +128,22 @@ describe('IndexBenchmarkRows', () => {
     );
     const ftse250 = screen.getByTestId('index-row-^FTMC');
     expect(cellTexts(ftse250)[10]).toBe('—');
+  });
+
+  it('shows a converted total return in GBP with the USD figure in its tooltip', async () => {
+    renderRows();
+
+    const sp500 = await screen.findByTestId('index-row-^GSPC');
+    const cellWithReturn = within(sp500).getByText('18.80%');
+    expect(cellWithReturn).toHaveAttribute(
+      'title',
+      expect.stringContaining('17.53% in USD before conversion to GBP')
+    );
+    const ftse100 = screen.getByTestId('index-row-^FTSE');
+    expect(within(ftse100).getByText('11.50%')).toHaveAttribute(
+      'title',
+      expect.not.stringContaining('before conversion')
+    );
   });
 
   it('collapses and expands the index rows from the Indices row', async () => {

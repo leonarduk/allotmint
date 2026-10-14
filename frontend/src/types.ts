@@ -689,9 +689,13 @@ export interface IndexSummaryRow {
 }
 
 export interface IndexTotalReturn {
+  /** In GBP: converted at daily FX rates when the source isn't sterling. */
   pct: number;
   symbol: string;
   source: 'index' | 'etf';
+  /** The source's own currency and the same return in it, before conversion. */
+  local_currency: string;
+  local_pct: number;
 }
 
 export interface IndexSummary {

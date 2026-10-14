@@ -99,7 +99,7 @@ function TotalReturnCell({
 }) {
   const { t } = useTranslation();
   if (totalReturn === null) return <td className={cell}>—</td>;
-  const title =
+  const source =
     totalReturn.source === 'index'
       ? t('group.indexRows.totalReturnSourceIndex', {
           symbol: totalReturn.symbol,
@@ -107,6 +107,13 @@ function TotalReturnCell({
       : t('group.indexRows.totalReturnSourceEtf', {
           symbol: totalReturn.symbol,
         });
+  const title =
+    totalReturn.local_currency === 'GBP'
+      ? source
+      : `${source}. ${t('group.indexRows.totalReturnConverted', {
+          pct: percent(totalReturn.local_pct),
+          currency: totalReturn.local_currency,
+        })}`;
   return (
     <td
       className={cell}

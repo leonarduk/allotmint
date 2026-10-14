@@ -27,7 +27,7 @@ vi.mock("@/api", () => ({
   decideFundUpkeepProposal: vi.fn().mockResolvedValue({}),
 }));
 
-import InstrumentAdmin from "@/pages/InstrumentAdmin";
+import InstrumentAdmin, { INSTRUMENT_ADMIN_PAGE_SIZE } from "@/pages/InstrumentAdmin";
 import {
   createInstrumentMetadata,
   listInstrumentMetadataScan,
@@ -380,5 +380,108 @@ describe("InstrumentAdmin saving while the backend warms its caches (#10754)", (
     expect(screen.getByDisplayValue("AAA")).toBeInTheDocument();
     expect(screen.getByDisplayValue("ISA+")).toBeInTheDocument();
     expect(screen.getByDisplayValue("GIA unsaved")).toBeInTheDocument();
+  });
+});
+
+describe("InstrumentAdmin with a large catalogue (#10884)", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const LARGE_COUNT = 1_200;
+  // Zero-padded so ticker order matches numeric order: T0000 … T1199.
+  const largeCatalogue = Array.from({ length: LARGE_COUNT }, (_, i) => {
+    const n = String(i).padStart(4, "0");
+    return { ticker: `T${n}.L`, name: `Instrument ${n}`, region: "UK", grouping: "ISA" };
+  });
+
+  const renderLarge = async () => {
+    vi.mocked(listInstrumentMetadataScan).mockResolvedValueOnce({
+      warming: false,
+      data: largeCatalogue as any,
+    });
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByDisplayValue("T0000")).toBeInTheDocument();
+  };
+
+  const tableInputCount = () => within(screen.getByRole("table")).getAllByRole("textbox").length;
+
+  it("renders only one page of editable rows", async () => {
+    await renderLarge();
+    // Header row plus one page of data rows, six inputs each.
+    expect(screen.getAllByRole("row")).toHaveLength(INSTRUMENT_ADMIN_PAGE_SIZE + 1);
+    expect(tableInputCount()).toBe(INSTRUMENT_ADMIN_PAGE_SIZE * 6);
+    expect(screen.queryByDisplayValue("T0050")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(`Page 1 of 24 (instruments 1–50 of ${LARGE_COUNT})`),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByDisplayValue("T0050")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("T0000")).not.toBeInTheDocument();
+    expect(tableInputCount()).toBe(INSTRUMENT_ADMIN_PAGE_SIZE * 6);
+  });
+
+  it("finds an instrument on a later page by ticker or name", async () => {
+    await renderLarge();
+    const search = screen.getByPlaceholderText(i18n.t("instrumentadmin.searchPlaceholder"));
+
+    fireEvent.change(search, { target: { value: "t1187" } });
+    expect(screen.getAllByRole("row")).toHaveLength(2);
+    expect(screen.getByDisplayValue("T1187")).toBeInTheDocument();
+    // A single page of matches needs no pager.
+    expect(screen.queryByRole("button", { name: "Next page" })).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "Instrument 0999" } });
+    expect(screen.getAllByRole("row")).toHaveLength(2);
+    expect(screen.getByDisplayValue("T0999")).toBeInTheDocument();
+  });
+
+  it("returns to the first page when the filter changes", async () => {
+    await renderLarge();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByDisplayValue("T0100")).toBeInTheDocument();
+
+    // "T00" matches T0000–T0099: two pages, shown from the first.
+    fireEvent.change(
+      screen.getByPlaceholderText(i18n.t("instrumentadmin.searchPlaceholder")),
+      { target: { value: "T00" } },
+    );
+    expect(screen.getByDisplayValue("T0000")).toBeInTheDocument();
+    expect(screen.getByText("Page 1 of 2 (instruments 1–50 of 100)")).toBeInTheDocument();
+  });
+
+  it("saves the right instrument from a later page, and a ticker edit keeps the row in place", async () => {
+    await renderLarge();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    const row = screen.getByDisplayValue("T0077").closest("tr") as HTMLElement;
+    const [tickerInput] = within(row).getAllByRole("textbox");
+
+    // "ZZZ" would sort to the last page; the row must stay where it is.
+    fireEvent.change(tickerInput, { target: { value: "ZZZ" } });
+    expect(screen.getByDisplayValue("ZZZ")).toBe(tickerInput);
+    fireEvent.click(within(row).getByRole("button", { name: /save/i }));
+
+    await waitFor(() =>
+      expect(updateInstrumentMetadata).toHaveBeenCalledWith(
+        "ZZZ",
+        "L",
+        expect.objectContaining({ name: "Instrument 0077" }),
+      ),
+    );
+  });
+
+  it("shows a new row on the first page when added from a later page", async () => {
+    await renderLarge();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.click(screen.getByRole("button", { name: /add instrument/i }));
+    const [tickerInput] = within(screen.getAllByRole("row")[1]).getAllByRole("textbox");
+    expect(tickerInput).toHaveValue("");
+    expect(screen.getByDisplayValue("T0000")).toBeInTheDocument();
   });
 });

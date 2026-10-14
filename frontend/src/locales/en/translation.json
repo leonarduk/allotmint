@@ -628,6 +628,12 @@
     "exchange": "Exchange",
     "grouping": "Grouping",
     "name": "Name",
+    "pagination": {
+      "label": "Row pages",
+      "next": "Next page",
+      "previous": "Previous page",
+      "status": "Page {{page}} of {{pages}} (instruments {{from}}–{{to}} of {{total}})"
+    },
     "region": "Region",
     "regionHint": "Region: leave blank to use the automatic region (shown greyed out); type one to override it.",
     "save": "Save",

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   listInstrumentMetadataScan,
@@ -119,8 +119,12 @@ export default function InstrumentAdmin() {
 
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / INSTRUMENT_ADMIN_PAGE_SIZE));
   // Clamp rather than reset, so a re-poll that shrinks the list keeps the user
-  // on a valid page instead of an empty one.
+  // on a valid page instead of an empty one. The clamp is also stored, so a
+  // later re-poll that grows the list again doesn't jump back to the old page.
   const currentPage = Math.min(page, pageCount - 1);
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage);
+  }, [page, currentPage]);
   const pageStart = currentPage * INSTRUMENT_ADMIN_PAGE_SIZE;
   const pageRows = filteredRows.slice(pageStart, pageStart + INSTRUMENT_ADMIN_PAGE_SIZE);
 

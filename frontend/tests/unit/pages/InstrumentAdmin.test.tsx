@@ -27,6 +27,7 @@ vi.mock("@/api", () => ({
   decideFundUpkeepProposal: vi.fn().mockResolvedValue({}),
 }));
 
+import { ADMIN_WARMING_POLL_MS } from "@/hooks/useAdminScan";
 import InstrumentAdmin, { INSTRUMENT_ADMIN_PAGE_SIZE } from "@/pages/InstrumentAdmin";
 import {
   createInstrumentMetadata,
@@ -333,7 +334,7 @@ describe("InstrumentAdmin while the backend warms its caches (#10754)", () => {
     expect(await screen.findByTestId("admin-warming-notice")).toHaveTextContent("1");
     fireEvent.change(screen.getByDisplayValue("ISA"), { target: { value: "ISA edited" } });
 
-    await vi.advanceTimersByTimeAsync(3_000);
+    await vi.advanceTimersByTimeAsync(ADMIN_WARMING_POLL_MS);
 
     expect(await screen.findByDisplayValue("BBB")).toBeInTheDocument();
     expect(screen.getByDisplayValue("ISA edited")).toBeInTheDocument();
@@ -518,7 +519,7 @@ describe("InstrumentAdmin paging when a re-poll shrinks the list (#10884)", () =
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     expect(screen.getByDisplayValue("T0100")).toBeInTheDocument();
 
-    await vi.advanceTimersByTimeAsync(3_000);
+    await vi.advanceTimersByTimeAsync(ADMIN_WARMING_POLL_MS);
 
     expect(await screen.findByText("Page 2 of 2 (instruments 51–60 of 60)")).toBeInTheDocument();
     expect(screen.getByDisplayValue("T0050")).toBeInTheDocument();

@@ -154,3 +154,19 @@ def test_reconciler_leaves_holdings_rebuilt_before_the_fix_alone(tmp_path) -> No
     reconcile_transactions_with_holdings(tmp_path)
 
     assert json.loads(tx_path.read_text())["transactions"] == rows
+
+
+def test_reconciler_still_balances_a_genuine_mismatch(tmp_path) -> None:
+    owner_dir = tmp_path / "steve"
+    owner_dir.mkdir()
+    holding = {"ticker": "MSFT.N", "units": 12}
+    holdings = {"owner": "steve", "account_type": "ISA", "holdings": [holding]}
+    rows = [_buy(10, 3_000.00, _day(-10)), _buy(1, 400.00, _day(30))]
+    (owner_dir / "isa.json").write_text(json.dumps(holdings))
+    tx_path = owner_dir / "isa_transactions.json"
+    tx_path.write_text(json.dumps({"owner": "steve", "account_type": "ISA", "transactions": rows}))
+
+    reconcile_transactions_with_holdings(tmp_path)
+
+    synthetic = json.loads(tx_path.read_text())["transactions"][len(rows) :]
+    assert [(t["type"], t["units"], t["synthetic"]) for t in synthetic] == [("BUY", 2, True)]

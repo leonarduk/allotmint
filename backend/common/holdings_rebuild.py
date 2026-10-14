@@ -492,8 +492,9 @@ def rebuild_holdings_document(
     counted; see "Future-dated rows" in the module docstring.
     """
     cutoff = replay_cutoff(as_of)  # once, so the drop and the acquired_date guard agree across midnight
-    as_of = date.fromisoformat(cutoff)
-    transactions = drop_future_dated([t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)], as_of)
+    cutoff_date = date.fromisoformat(cutoff)
+    rows = [t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)]
+    transactions = drop_future_dated(rows, cutoff_date)
     existing = existing if isinstance(existing, Mapping) else {}
     old_holdings = [h for h in existing.get("holdings") or [] if isinstance(h, Mapping)]
     previous = _holdings_by_ticker(old_holdings)

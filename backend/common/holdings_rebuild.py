@@ -274,7 +274,7 @@ def drop_future_dated(
                     sanitise_log_value(tx.get("type")),
                     sanitise_log_value(tx.get("ticker") or tx.get("instrument_name")),
                     sanitise_log_value(day),
-                    cutoff,
+                    sanitise_log_value(cutoff),
                 )
             continue
         kept.append(tx)

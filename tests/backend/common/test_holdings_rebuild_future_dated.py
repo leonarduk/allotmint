@@ -138,3 +138,19 @@ def test_reconciler_injects_no_synthetic_trade_for_future_row(tmp_path) -> None:
     reconcile_transactions_with_holdings(tmp_path)
 
     assert json.loads(tx_path.read_text())["transactions"] == rows
+
+
+def test_reconciler_leaves_holdings_rebuilt_before_the_fix_alone(tmp_path) -> None:
+    # isa.json still says 11: it was rebuilt while the future BUY counted.
+    owner_dir = tmp_path / "steve"
+    owner_dir.mkdir()
+    holding = {"ticker": "MSFT.N", "units": 11}
+    holdings = {"owner": "steve", "account_type": "ISA", "holdings": [holding]}
+    rows = [_buy(10, 3_000.00, _day(-10)), _buy(1, 400.00, _day(30))]
+    (owner_dir / "isa.json").write_text(json.dumps(holdings))
+    tx_path = owner_dir / "isa_transactions.json"
+    tx_path.write_text(json.dumps({"owner": "steve", "account_type": "ISA", "transactions": rows}))
+
+    reconcile_transactions_with_holdings(tmp_path)
+
+    assert json.loads(tx_path.read_text())["transactions"] == rows

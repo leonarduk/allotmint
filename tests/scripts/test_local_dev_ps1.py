@@ -9,11 +9,28 @@ or an AppX/Store install that a non-interactive subprocess cannot spawn).
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
 
 LIB = Path(__file__).resolve().parents[2] / "scripts" / "lib" / "local-dev.ps1"
+
+
+def _with_own_cache(env: dict[str, str] | None, cache_dir: str) -> dict[str, str]:
+    """``env`` (default: this process's) with PowerShell's cache moved to ``cache_dir``.
+
+    pwsh keeps a startup JIT profile (``StartupProfileData-NonInteractive``)
+    under ``$XDG_CACHE_HOME/powershell`` and rewrites it on exit. Every xdist
+    worker probes for pwsh at import, so with a shared home those processes
+    all write one file; on CI every later pwsh then aborted at startup with
+    ``FileLoadException: The given assembly name was invalid`` naming an
+    assembly from that profile (#10881). A private cache per call shares
+    nothing between workers, tests or runs. Windows pwsh ignores this variable.
+    """
+    isolated = dict(os.environ if env is None else env)
+    isolated["XDG_CACHE_HOME"] = cache_dir
+    return isolated
 
 
 def _find_shell() -> str | None:
@@ -30,12 +47,14 @@ def _find_shell() -> str | None:
         if not exe or "WindowsApps" in exe:
             continue
         try:
-            subprocess.run(
-                [exe, "-NoProfile", "-NonInteractive", "-Command", "exit 0"],
-                check=True,
-                capture_output=True,
-                timeout=30,
-            )
+            with tempfile.TemporaryDirectory(prefix="pwsh-cache-", ignore_cleanup_errors=True) as cache:
+                subprocess.run(
+                    [exe, "-NoProfile", "-NonInteractive", "-Command", "exit 0"],
+                    check=True,
+                    capture_output=True,
+                    env=_with_own_cache(None, cache),
+                    timeout=30,
+                )
         except (OSError, subprocess.SubprocessError):
             continue
         return exe
@@ -48,16 +67,24 @@ pytestmark = pytest.mark.skipif(PWSH is None, reason="no launchable PowerShell a
 
 
 def _run_powershell(script: str, *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
-    """Run ``script`` under the resolved shell, skipping if it cannot be spawned."""
+    """Run ``script`` under the resolved shell, skipping if it cannot be spawned.
+
+    A non-zero exit fails the test with pwsh's full stdout and stderr: a bare
+    ``CalledProcessError`` hid the .NET exception that explained #10881.
+    """
     try:
-        return subprocess.run(
-            [PWSH, "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True,
-            text=True,
-            env=env,
-            check=True,
-            timeout=60,
-        )
+        with tempfile.TemporaryDirectory(prefix="pwsh-cache-", ignore_cleanup_errors=True) as cache:
+            return subprocess.run(
+                [PWSH, "-NoProfile", "-NonInteractive", "-Command", script],
+                capture_output=True,
+                text=True,
+                env=_with_own_cache(env, cache),
+                check=True,
+                timeout=60,
+            )
+    except subprocess.CalledProcessError as exc:
+        output = f"--- stdout ---\n{exc.stdout}\n--- stderr ---\n{exc.stderr}"
+        pytest.fail(f"PowerShell exited with {exc.returncode}\n{output}")
     except PermissionError as exc:  # pragma: no cover - sandbox restriction
         pytest.skip(f"PowerShell cannot be spawned in this environment: {exc}")
     except OSError as exc:  # pragma: no cover - sandbox restriction

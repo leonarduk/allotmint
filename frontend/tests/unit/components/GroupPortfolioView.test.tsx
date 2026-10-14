@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act, within } from "@testing-library/react";
+import { render, screen, waitFor, act, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { GroupPortfolioView } from "@/components/GroupPortfolioView";
@@ -148,6 +148,7 @@ const mockAllFetches = (
     sectorContributions?: any[];
     regionContributions?: any[];
     liveQuotes?: Record<string, any>;
+    totalReturns?: Record<string, { total_return_gbp: number | null; total_return_pct: number | null }>;
   } = {},
 ) => {
   const {
@@ -158,6 +159,7 @@ const mockAllFetches = (
     sectorContributions = [],
     regionContributions = [],
     liveQuotes = {},
+    totalReturns = {},
   } = options;
   const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
   const defaultInstrumentRows =
@@ -260,6 +262,15 @@ const mockAllFetches = (
         json: async () => [
           { ticker: "AAA", name: "AAA", action: "buy", reason: "" },
         ],
+      } as Response);
+    }
+    if (url.includes("/total-return")) {
+      const owner = decodeURIComponent(new URL(url).pathname.split("/").slice(-2)[0]);
+      const figures = totalReturns[owner];
+      if (!figures) return Promise.reject(new Error(`no total return for ${owner}`));
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ owner, days: 365, ...figures }),
       } as Response);
     }
     if (url.includes("/alpha")) {
@@ -386,6 +397,51 @@ describe("GroupPortfolioView", () => {
     expect(screen.queryByText("Total Value")).toBeNull();
   });
 
+  it("lines index rows up with the owner table's columns in both views (#10877)", async () => {
+    window.localStorage.clear();
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [{ units: 1, cost_basis_gbp: 80, market_value_gbp: 100, day_change_gbp: 5 }],
+        },
+      ],
+    });
+    vi.spyOn(api, "getIndexSummary").mockResolvedValue({
+      indexes: [
+        {
+          name: "FTSE 100",
+          symbol: "^FTSE",
+          value: 8000,
+          as_of: null,
+          changes: { "1D": null, "1W": null, "1M": null, "1Y": null },
+        },
+      ],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+    await userEvent.click(await screen.findByLabelText("Show market indices"));
+
+    const expectAligned = async () => {
+      const indexRow = await screen.findByTestId("index-row-^FTSE");
+      const table = indexRow.closest("table")!;
+      const headerCount = within(table).getAllByRole("columnheader").length;
+      const ownerRow = within(table).getByText("Alice Example").closest("tr")!;
+      expect(within(ownerRow).getAllByRole("cell")).toHaveLength(headerCount);
+      expect(within(indexRow).getAllByRole("cell")).toHaveLength(headerCount);
+      const groupRow = within(table).getByText("Indices").closest("tr")!;
+      expect(within(groupRow).getAllByRole("cell")).toHaveLength(headerCount);
+    };
+
+    await expectAligned();
+    await userEvent.click(screen.getAllByLabelText("Relative view")[0]);
+    await expectAligned();
+    window.localStorage.clear();
+  });
+
   it("shows 1W/1M/1Y changes over holdings with known history (#10746)", async () => {
     const mockPortfolio = {
       name: "At a glance",
@@ -469,6 +525,53 @@ describe("GroupPortfolioView", () => {
       .getAllByRole("cell")
       .map((cell) => cell.textContent?.trim());
     expect(relativeCells.slice(5, 8)).toEqual(["7.14%", "-11.76%", "0.00%"]);
+  });
+
+  it("shows the 1Y total return per owner, including income (#10763)", async () => {
+    const holding = (owner: string) => ({
+      owner,
+      account_type: "isa",
+      value_estimate_gbp: 1000,
+      holdings: [{ units: 1, cost_basis_gbp: 900, market_value_gbp: 1000, change_1y_gbp: 20 }],
+    });
+    mockAllFetches(
+      { name: "At a glance", accounts: [holding("alice"), holding("bob")] },
+      { totalReturns: { alice: { total_return_gbp: 55.5, total_return_pct: 0.0567 } } },
+    );
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    const ownerTable = await waitFor(() => {
+      const table = screen
+        .getAllByRole("table")
+        .find((candidate) => within(candidate).queryByText("Owner"));
+      expect(table).toBeTruthy();
+      return table!;
+    });
+    expect(within(ownerTable).getByText("1Y Total Return")).toHaveAttribute(
+      "title",
+      expect.stringContaining("including dividends and interest"),
+    );
+    const cellsFor = (name: string) =>
+      within(
+        within(ownerTable)
+          .getAllByRole("row")
+          .find((row) => within(row).queryByText(name))!,
+      )
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent?.trim());
+
+    // Columns 9 and 10 follow the price-only 1Y Change in column 8.
+    await waitFor(() =>
+      expect(cellsFor("Alice Example").slice(8, 11)).toEqual([
+        "£20.00 (2.04%)",
+        "£55.50",
+        "5.67%",
+      ]),
+    );
+    // Bob's request failed: shown as unavailable, never as a zero return.
+    expect(cellsFor("Bob Example").slice(9, 11)).toEqual(["—", "—"]);
+    expect(consoleWarnSpy).toHaveBeenCalledWith("1Y total return unavailable for bob", expect.any(Error));
   });
 
   it("renders the pricing as-of date", async () => {
@@ -1737,6 +1840,69 @@ describe("GroupPortfolioView", () => {
     await waitFor(() => expect(screen.getAllByText("£110.00").length).toBeGreaterThan(0));
     expect(screen.getAllByText("£70.00").length).toBeGreaterThan(0);
     expect(screen.queryByText("£100.00")).not.toBeInTheDocument();
+  });
+
+  it("shows the stored as-of valuation, not live prices, for a past pricing date (#10819)", async () => {
+    const user = userEvent.setup();
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA.L", units: 10, current_price_gbp: 6, market_value_gbp: 60, gain_gbp: 0 },
+            { ticker: "BBB.L", units: 1, current_price_gbp: 40, market_value_gbp: 40, gain_gbp: 0 },
+          ],
+        },
+      ],
+    };
+    const fetchMock = mockAllFetches(mockPortfolio, {
+      liveQuotes: {
+        "AAA.L": {
+          price: 7,
+          price_gbp: 7,
+          currency: "GBP",
+          previous_close: 6,
+          change_pct: (1 / 6) * 100,
+          timestamp: "2026-10-08T10:15:00Z",
+          market_state: "REGULAR",
+          is_stale: false,
+        },
+      },
+    });
+    const liveQuoteCalls = () =>
+      fetchMock.mock.calls.filter(([input]) =>
+        toUrlString(input as RequestInfo | URL).includes("/prices/live/quotes"),
+      ).length;
+
+    const { container } = renderWithConfig(
+      <GroupPortfolioView slug="all" owners={ownerFixtures} />,
+    );
+    await waitFor(() => expect(screen.getAllByText("£110.00").length).toBeGreaterThan(0));
+
+    const callsBeforeDateChange = liveQuoteCalls();
+    const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
+    fireEvent.change(dateInput, { target: { value: "2026-06-30" } });
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).includes("as_of=2026-06-30"),
+        ),
+      ).toBe(true),
+    );
+    await waitFor(() => expect(screen.getAllByText("£100.00").length).toBeGreaterThan(0));
+    expect(screen.queryByText("£110.00")).not.toBeInTheDocument();
+    // No live quote request is made while the past pricing date is active.
+    const callsWhileHistorical = liveQuoteCalls();
+    expect(callsWhileHistorical).toBe(callsBeforeDateChange);
+
+    // "Reset to latest" restores live revaluation.
+    await user.click(screen.getByRole("button", { name: "Reset to latest" }));
+    await waitFor(() => expect(screen.getAllByText("£110.00").length).toBeGreaterThan(0));
+    expect(liveQuoteCalls()).toBeGreaterThan(callsWhileHistorical);
   });
 
   it("groups holdings by instrument sector in Sector mode (#8486)", async () => {

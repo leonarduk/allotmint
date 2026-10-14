@@ -106,6 +106,10 @@
     "sector": "Branchen",
     "unknownCurrency": "Unbekannte Währung",
     "viewAllocation": "Allokation nach {{dimension}} anzeigen",
+    "viewAllocationBy": {
+      "sector": "Allokation nach Branchen anzeigen",
+      "region": "Allokation nach Regionen anzeigen"
+    },
     "viewContribution": "Gewinnbeitrag anzeigen",
     "chartsUnavailable": "Diagramme sind in dieser Umgebung nicht verfügbar.",
     "sleeve": "Segmente",
@@ -418,6 +422,7 @@
       "1m": "1M",
       "1w": "1W",
       "1y": "1J",
+      "3m": "3M",
       "max": "MAX"
     },
     "selectMember": "Wählen Sie ein Mitglied.",
@@ -499,6 +504,14 @@
     "insightCashDrag": "{{percent}} Ihres Portfolios liegen in Bargeld",
     "insightConcentration": "Die größte Position {{ticker}} macht {{percent}} Ihres Portfolios aus",
     "insightDuplication": "Sie halten {{ticker}} in {{accountCount}} Konten",
+    "indexRows": {
+      "toggle": "Marktindizes anzeigen",
+      "label": "Indizes",
+      "help": "FTSE 100, FTSE 250, S&P 500 und NASDAQ zum Vergleich. Stände und Veränderungen in Indexpunkten mit Kursrendite in %; Dividenden sind nicht enthalten, daher gibt es keine Gesamtrendite und keinen Gewinn seit Kauf.",
+      "loading": "Indizes werden geladen…",
+      "error": "Indexdaten sind nicht verfügbar",
+      "empty": "Keine Indexdaten"
+    },
     "ownerTable": {
       "portfolioPct": "Portfolio %",
       "totalValue": "Gesamtwert",
@@ -514,7 +527,10 @@
       "change_1w": "Änderung 1W",
       "change_1m": "Änderung 1M",
       "change_1y": "Änderung 1J",
-      "periodChangeHelp": "Kursänderung der aktuell gehaltenen Stücke über die letzten 7 / 30 / 365 Tage (ab Kaufdatum bei Käufen innerhalb des Zeitraums). Keine zeitgewichtete Rendite: Einzahlungen, Trades und Erträge im Zeitraum werden ignoriert. — bedeutet zu wenig Kurshistorie."
+      "periodChangeHelp": "Kursänderung der aktuell gehaltenen Stücke über die letzten 7 / 30 / 365 Tage (ab Kaufdatum bei Käufen innerhalb des Zeitraums). Keine zeitgewichtete Rendite: Einzahlungen, Trades und Erträge im Zeitraum werden ignoriert. — bedeutet zu wenig Kurshistorie.",
+      "totalReturn1y": "Gesamtrendite 1J",
+      "totalReturn1yPct": "Gesamtrendite 1J %",
+      "totalReturnHelp": "Rendite der letzten 365 Tage einschließlich Dividenden und Zinsen, aus der Transaktionshistorie: Kursänderungen plus Erträge, ohne Ein- und Auszahlungen. Der %-Wert ist zeitgewichtet (der 1J-Wert der Performance-Seite). Nur pro Inhaber; — bedeutet keine Transaktionshistorie."
     }
   },
   "holdingsTable": {
@@ -1405,17 +1421,17 @@
       "statePensionHelper": "Die volle neue gesetzliche Rente für {{year}} beträgt {{weekly}} pro Woche ({{annual}} pro Jahr) und setzt 35 Beitragsjahre zur National Insurance voraus. Prüfen Sie Ihren eigenen Betrag unter gov.uk/check-state-pension und tragen Sie ihn ein, falls er abweicht.",
       "totalContribution": "Gesamte monatliche Beiträge: {{total}}"
     },
-    "incomeBreakdownHeading": "Retirement income breakdown",
+    "incomeBreakdownHeading": "Aufschlüsselung des Ruhestandseinkommens",
     "incomeSources": {
-      "definedBenefit": "Defined benefit",
-      "definedContribution": "Defined contribution",
-      "state": "State pension"
+      "definedBenefit": "Leistungsorientiert",
+      "definedContribution": "Beitragsorientiert",
+      "state": "Gesetzliche Rente"
     },
     "incomeTable": {
-      "annual": "Annual (£)",
-      "monthly": "Monthly (£)",
-      "share": "Share",
-      "source": "Source"
+      "annual": "Jährlich (£)",
+      "monthly": "Monatlich (£)",
+      "share": "Anteil",
+      "source": "Quelle"
     },
     "livingStandards": {
       "amount": "≈ {{monthly}}/Monat ({{annual}}/Jahr)",
@@ -1423,7 +1439,7 @@
       "helper": "Ausgaben nach Steuern für Wohneigentümer ohne Miete oder Hypothek. Fügen Sie Wohnkosten hinzu, falls Sie diese weiterhin haben. Quelle: Pensions UK via Which?.",
       "household": {
         "couple": "Paar",
-        "single": "Single"
+        "single": "Alleinstehend"
       },
       "householdLabel": "Haushalt",
       "legend": "Typische Ausgaben im Ruhestand ({{year}} Retirement Living Standards)",
@@ -1433,16 +1449,16 @@
     "monthlyContribution": "Monatlicher Beitrag (£):",
     "pensionPot": "Pensionsvermögen",
     "prediction": {
-      "earliest": "Estimated earliest retirement age: {{age}}",
-      "noBreakdown": "No income breakdown available.",
-      "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
-      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} — you could retire as early as age {{age}}.",
-      "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You could retire as early as age {{age}}, but your projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}."
+      "earliest": "Geschätztes frühestes Renteneintrittsalter: {{age}}",
+      "noBreakdown": "Keine Einkommensaufschlüsselung verfügbar.",
+      "onTrack": "Sie sind auf Kurs: Das prognostizierte Jahreseinkommen von {{total}} erreicht Ihr Ziel von {{desired}}.",
+      "onTrackWithAge": "Sie sind auf Kurs: Das prognostizierte Einkommen von {{total}} erreicht Ihr Ziel von {{desired}} — Sie könnten bereits mit {{age}} Jahren in Rente gehen.",
+      "shortfall": "Das prognostizierte Einkommen lässt eine Lücke von {{shortfallAnnual}} pro Jahr ({{shortfallMonthly}} pro Monat) gegenüber Ihrem Ziel von {{desired}}.",
+      "shortfallWithAge": "Sie könnten bereits mit {{age}} Jahren in Rente gehen, aber Ihr prognostiziertes Einkommen lässt eine Lücke von {{shortfallAnnual}} pro Jahr ({{shortfallMonthly}} pro Monat) gegenüber Ihrem Ziel von {{desired}}."
     },
     "retirementAge": "Geplantes Renteneintrittsalter: {{age}}",
-    "totalAnnualIncome": "Total annual income",
-    "totalMonthlyIncome": "Total monthly income",
+    "totalAnnualIncome": "Jährliches Gesamteinkommen",
+    "totalMonthlyIncome": "Monatliches Gesamteinkommen",
     "careerPath": {
       "accelerated": {
         "helper": "Höheres Risiko, höhere Rendite",
@@ -1476,6 +1492,15 @@
   },
   "portfolio": "Portfolio",
   "query": {
+    "columns": {
+      "instrumentType": "Instrumenttyp",
+      "name": "Name",
+      "owner": "Eigentümer",
+      "returnBasis": "Renditebasis",
+      "startValueGbp": "Wert zu Beginn (£)",
+      "ticker": "Ticker",
+      "units": "Stück"
+    },
     "copyLink": "Link kopieren",
     "end": "Ende",
     "exportCsv": "CSV exportieren",
@@ -1498,6 +1523,7 @@
     "saved": "\"{{name}}\" gespeichert.",
     "savedQueriesLoading": "Gespeicherte Abfragen werden geladen…",
     "savedQueriesTitle": "Gespeicherte Abfragen",
+    "selectionRequired": "Wählen Sie mindestens einen Eigentümer und eine Kennzahl aus, um die Abfrage auszuführen.",
     "start": "Start",
     "tickerNotHeld": "derzeit nicht gehalten",
     "tickers": "Ticker",
@@ -1954,6 +1980,15 @@
     },
     "ticker": "Ticker",
     "title": "Zeitreihen-Editor",
+    "grid": {
+      "cellLabel": "{{column}} am {{date}}",
+      "cellLabelUndated": "{{column}} für Zeile {{row}} ohne Datum",
+      "pagination": "Zeilenseiten",
+      "rowsLabel": "Zeilen",
+      "previousPage": "Vorherige Seite",
+      "nextPage": "Nächste Seite",
+      "pageStatus": "Seite {{page}} von {{pages}} (Zeilen {{from}}–{{to}} von {{total}})"
+    },
     "controls": {
       "sort": "Sortieren",
       "sortDesc": "Neueste zuerst",
@@ -3107,6 +3142,10 @@
       "daysHeld": "{{daysHeld}} Tage gehalten",
       "daysRatio": "{{daysHeld}} / {{total}} Tage",
       "notLiftable": "Noch nicht erntereif",
+      "needsApproval": "Genehmigung erforderlich",
+      "needsApprovalHeading": "Genehmigung erforderlich ({{count}})",
+      "needsApprovalNote": "Diese haben ihre Mindesthaltedauer erfüllt; ein Verkauf erfordert eine Genehmigung, die du jetzt beantragen kannst.",
+      "tradingRulesLink": "Handelsregeln öffnen",
       "readyOn": "Bereit am {{date}}",
       "daysToGo": "Noch {{daysRemaining}} Tage",
       "noteIndeterminate": "Fortschritt bis zur Mindesthaltefrist jeder Position, soweit das Backend sie kennt – einige Schalen hier sind als nicht verkäuflich markiert, ohne dass ein Countdown angezeigt werden kann.",
@@ -3178,6 +3217,7 @@
       "held_other": "{{count}} Tage gehalten",
       "inPropagatorUntil": "im Anzuchtkasten bis {{date}}",
       "notYetLiftable": "noch nicht erntereif",
+      "needsApproval": "Genehmigung erforderlich",
       "clearedPropagator": "Anzuchtkasten verlassen am {{date}}",
       "readyToLift": "bereit zur Ernte",
       "notFoundTitle": "Pflanze nicht gefunden",
@@ -3438,7 +3478,32 @@
     "glossaryLink": "Kennzahlen-Glossar öffnen",
     "reportTitle": "Problem melden",
     "reportDescription": "Einen Fehler gefunden oder etwas Unklares entdeckt? Teilen Sie es uns auf GitHub mit, damit es nachverfolgt und behoben werden kann.",
-    "reportLink": "GitHub-Issue öffnen"
+    "reportLink": "GitHub-Issue öffnen",
+    "pages": {
+      "dashboardTitle": "Übersicht",
+      "signalsTitle": "Ideen: Signale",
+      "screenTitle": "Ideen: Filter",
+      "group": "Die Hauptübersicht: zusammengefasste Positionen, Werte und Allokation über alle Eigentümer der ausgewählten Gruppe.",
+      "market": "Eine Momentaufnahme der allgemeinen Marktlage und der Indizes.",
+      "movers": "Die Instrumente in Ihren Portfolios mit den größten Kursbewegungen, nach oben oder unten.",
+      "instrument": "Alle Positionen nach Sektor gruppiert, mit Summen und Renditen über mehrere Zeiträume.",
+      "performance": "Renditen im Zeitverlauf für einen Eigentümer, verglichen mit einer Benchmark.",
+      "transactions": "Käufe, Verkäufe und andere Transaktionen erfassen oder aus einer CSV-Datei importieren.",
+      "dividends": "Erhaltene Dividendenerträge nach Steuerjahr, Jahr oder Monat und nach Position, mit einer Summe der letzten 12 Monate.",
+      "riskreturn": "Jedes Konto, jeder Eigentümer und das gesamte Portfolio nach Rendite und Volatilität dargestellt, neben Marktindizes, die Sie hinzufügen oder entfernen können.",
+      "trading": "Kauf- und Verkaufskandidaten unter Ihren gehaltenen Instrumenten, ermittelt nach festen Momentum- und Risikoregeln auf dem Server. Nur zur Information, keine Handelsanweisungen.",
+      "screener": "Filtern Sie jede Beobachtungsliste oder Tickerliste nach Fundamentaldaten wie KGV, Margen, Verschuldung oder Dividendenrendite.",
+      "watchlist": "Verfolgen Sie Instrumente, die Sie derzeit nicht halten.",
+      "allocation": "Wie sich Ihre Positionen auf Anlageklassen, Branchen und Regionen verteilen.",
+      "rebalance": "Wählen Sie eine Zielallokation aus integrierten oder eigenen Strategien und sehen Sie die Abweichung sowie die Rebalancing-Trades, die Ihr Portfolio wieder dorthin bringen.",
+      "reports": "Portfolioberichte erstellen und herunterladen.",
+      "query": "Marktwert oder Gewinn Ihrer eigenen Positionen über einen Zeitraum, nach Eigentümer und Ticker, mit Speichern, Teilen und Export.",
+      "pension": "Rentenbeiträge und -wert in die Zukunft projizieren.",
+      "taxtools": "Hilfen zur Nutzung von Freibeträgen und für steuerliche Berechnungen.",
+      "research": "Weiterführende Analysewerkzeuge für einzelne Instrumente.",
+      "settings": "Handelsregeln pro Eigentümer: Mindesthaltedauer, monatliches Handelslimit und von der Genehmigung ausgenommene Instrumente.",
+      "alertsettings": "Legen Sie die Schwellenwerte fest, die Portfolio-Warnungen auslösen."
+    }
   },
   "firstRunHelp": {
     "title": "Neu bei AllotMint?",
@@ -3907,9 +3972,11 @@
     "excludesUnknown": "Ohne {{unknown}} von {{total}} Positionen ohne Kostendaten",
     "allInCost": "Jährliche Gesamtkosten",
     "allInBreakdown": "{{funds}} Fondskosten + {{fees}} gezahlte Gebühren (letzte 12 Monate)",
+    "allInBreakdownUnknownFunds": "Unbekannte Fondskosten + {{fees}} gezahlte Gebühren (letzte 12 Monate)",
     "allInNotIncluded": "Nicht enthalten: {{items}}",
     "allInUnknownValue": "{{value}} in {{holdings}} Positionen ohne Kostendaten",
-    "allInUnknownTrades": "{{trades}} Trades ohne erfasste Gebühr",
+    "allInUnknownTrades_one": "{{trades}} Trade ohne erfasste Gebühr",
+    "allInUnknownTrades_other": "{{trades}} Trades ohne erfasste Gebühr",
     "perAccount": "Pro Konto",
     "partial": "unvollständig"
   },
@@ -4151,6 +4218,28 @@
     "close": "{{label}} schließen",
     "toggle": "Arbeitsbereich-Tabs anzeigen",
     "toggleHelp": "Mehrere Ansichten offen halten, z. B. die Gruppenübersicht und einige Instrumente, und zwischen ihnen wechseln, ohne diesen Browser-Tab zu verlassen. Mit + die aktuelle Ansicht in einem neuen Tab öffnen, mit ↻ ihre Daten neu laden."
+  },
+  "retirementReadiness": {
+    "heading": "Ruhestandsbereitschaft: historischer Entnahmetest",
+    "description": "Das prognostizierte Vermögen, durch jede historische Renditefolge seit 1871 durchgespielt, in heutigem Geld.",
+    "running": "Läuft…",
+    "runNow": "Jetzt ausführen",
+    "empty": "Noch kein Bereitschaftsbericht. Führen Sie ihn aus, um die historischen Zeitfenster durchzuspielen.",
+    "runDate": "Zuletzt ausgeführt {{date}}",
+    "survival": "Überstandene Zeitfenster",
+    "income": "Höchstes reales Jahreseinkommen",
+    "window": {
+      "worst": "Schlechtestes Zeitfenster",
+      "median": "Medianes Zeitfenster",
+      "best": "Bestes Zeitfenster"
+    },
+    "windowsCount": "{{count}} Zeitfenster zu je {{years}} Jahren",
+    "change": "Seit {{date}}: {{change}}",
+    "contributions": "Beiträge",
+    "markets": "Märkte",
+    "assumptions": "Annahmen",
+    "dataRevision": "Datenkorrekturen",
+    "changed": "Seit dem letzten Lauf geändert: {{label}}"
   },
   "admin": {
     "cacheWarming": "Wird nach einem Serverneustart noch geladen: {{count}} bisher gefunden. Die Liste vervollständigt sich automatisch."

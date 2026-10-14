@@ -18,6 +18,7 @@ import type {
   OwnerSummary,
   AllInCost,
   Holding,
+  OwnerTotalReturn,
 } from "../types";
 import {
   getGroupPortfolio,
@@ -36,10 +37,12 @@ import { useInstrumentSelection } from "../hooks/useInstrumentSelection";
 import { applyLiveQuotes } from "../lib/liveValuation";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
+import { IndexBenchmarkRows, IndexRowsToggle } from "./IndexBenchmarkRows";
+import { useShowIndexRows } from "../hooks/useShowIndexRows";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
-import { percent } from "../lib/money";
+import { percent, wholeNumber } from "../lib/money";
 import FractionMetric from "./FractionMetric";
 import {
   DRAWDOWN_RANGE,
@@ -130,9 +133,6 @@ const CONTRIB_MIN_HEIGHT_PX = 160;
 // One fixed-height row per category so every sector/region label is shown in full.
 const contribChartHeight = (rows: number): number =>
   Math.max(CONTRIB_MIN_HEIGHT_PX, rows * CONTRIB_ROW_HEIGHT_PX + CONTRIB_AXIS_HEIGHT_PX);
-
-const groupedNumberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const formatGroupedNumber = (value: number): string => groupedNumberFormat.format(value);
 
 const computeDayChangePct = (value: number, delta: number): number | null => {
   if (!Number.isFinite(value) || !Number.isFinite(delta)) {
@@ -452,6 +452,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const instrumentKeyRef = useRef<string | null>(null);
   const lastPortfolioAsOfRef = useRef<string | null>(null);
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
+  const [showIndexRows, setShowIndexRows] = useShowIndexRows();
 
   const loadGroupInstruments =
     ("getCachedGroupInstruments" in api
@@ -467,6 +468,42 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   useEffect(() => {
     setAsOfOverride(null);
   }, [slug]);
+
+  // 1Y total return per owner slug (#10763): absent while loading, null when
+  // unavailable (no transaction ledger, or the request failed).
+  const [totalReturns, setTotalReturns] = useState<Record<string, OwnerTotalReturn | null>>({});
+  const ownerSlugsKey = useMemo(
+    () =>
+      Array.from(new Set((portfolio?.accounts ?? []).map((acct) => acct.owner)))
+        .filter((owner): owner is string => Boolean(owner))
+        .sort()
+        .join(","),
+    [portfolio],
+  );
+  useEffect(() => {
+    setTotalReturns({});
+    if (!ownerSlugsKey) return;
+    let cancelled = false;
+    const ownerSlugs = ownerSlugsKey.split(",");
+    Promise.allSettled(
+      ownerSlugs.map((owner) => api.getOwnerTotalReturn(owner, 365, { asOf: asOfOverride })),
+    ).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, OwnerTotalReturn | null> = {};
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          next[ownerSlugs[index]] = result.value;
+          return;
+        }
+        console.warn(`1Y total return unavailable for ${ownerSlugs[index]}`, result.reason);
+        next[ownerSlugs[index]] = null;
+      });
+      setTotalReturns(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerSlugsKey, asOfOverride]);
 
   const handleOwnerChange = useCallback(
     (owner: string | null, options?: { replace?: boolean }) => {
@@ -742,21 +779,25 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       return true;
     });
   }, [portfolio, activeOwner, activeAccountType]);
+  // A chosen pricing date shows the stored as-of valuation, so no live
+  // quotes are polled or applied until "Reset to latest" (#10819).
   const liveTickers = useMemo(
     () =>
-      storedAccounts.flatMap((acct) =>
-        (acct.holdings ?? [])
-          .filter((h) => !isCashInstrument({ instrument_type: h.instrument_type, ticker: h.ticker }))
-          .map((h) => h.ticker),
-      ),
-    [storedAccounts],
+      asOfOverride
+        ? []
+        : storedAccounts.flatMap((acct) =>
+            (acct.holdings ?? [])
+              .filter((h) => !isCashInstrument({ instrument_type: h.instrument_type, ticker: h.ticker }))
+              .map((h) => h.ticker),
+          ),
+    [storedAccounts, asOfOverride],
   );
   const liveQuotes = useLiveQuotes(liveTickers);
   // Holdings with a live quote are revalued at it, so the rows, rollups,
   // totals and allocations below all show live figures.
   const filteredAccounts = useMemo(
-    () => applyLiveQuotes(storedAccounts, liveQuotes),
-    [storedAccounts, liveQuotes],
+    () => (asOfOverride ? storedAccounts : applyLiveQuotes(storedAccounts, liveQuotes)),
+    [storedAccounts, liveQuotes, asOfOverride],
   );
 
   // The owner's whole portfolio value (ignoring any account-type filter, as
@@ -1039,6 +1080,27 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             : `${reporting.format(change)} (${percent(pct)})`}
       </td>
     ));
+
+  // ``undefined`` while the owner's figure loads, ``null`` when there is none
+  // (e.g. an account row: total return is only computed per owner).
+  const renderTotalReturnCells = (entry: OwnerTotalReturn | null | undefined) => {
+    const placeholder = entry === undefined ? "…" : "—";
+    const gbp = entry?.total_return_gbp ?? null;
+    const pct = entry?.total_return_pct ?? null;
+    const color = changeColor(gbp ?? pct);
+    return (
+      <>
+        {!relativeViewEnabled && (
+          <td className={`${tableStyles.cell} ${tableStyles.right}`} style={{ color }}>
+            {gbp === null ? placeholder : reporting.format(gbp)}
+          </td>
+        )}
+        <td className={`${tableStyles.cell} ${tableStyles.right}`} style={{ color }}>
+          {pct === null ? placeholder : percent(pct * 100)}
+        </td>
+      </>
+    );
+  };
 
   const pricingDate = portfolio?.as_of
     ? formatDateISO(new Date(portfolio.as_of))
@@ -1385,9 +1447,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               to={allocationPath}
               style={{ color: "#60a5fa", fontSize: "0.85rem", marginLeft: "1rem" }}
             >
-              {t("allocation.viewAllocation", {
-                dimension: t(`allocation.${activeContribTab}`).toLowerCase(),
-              })}
+              {t(`allocation.viewAllocationBy.${activeContribTab}`)}
             </Link>
           </div>
           <p style={{ color: "var(--summary-card-label)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
@@ -1405,7 +1465,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 <XAxis
                   type="number"
                   tickFormatter={
-                    relativeViewEnabled ? (v: number) => percent(v, 1) : formatGroupedNumber
+                    relativeViewEnabled ? (v: number) => percent(v, 1) : (v: number) => wholeNumber(v)
                   }
                   tick={{ fill: "var(--surface-muted-color)", fontSize: 12 }}
                 />
@@ -1451,6 +1511,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       {portfolioLoading && ownerTableSkeleton}
 
       {!portfolioLoading && ownerRows.length > 0 && (
+        <IndexRowsToggle checked={showIndexRows} onChange={setShowIndexRows} />
+      )}
+      {!portfolioLoading && ownerRows.length > 0 && (
         <div className={tableStyles.scrollContainer} style={{ marginBottom: "1rem" }}>
           <table className={tableStyles.table}>
           <thead>
@@ -1488,6 +1551,20 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                   {t(`group.ownerTable.change_${key}`)}
                 </th>
               ))}
+              {!relativeViewEnabled && (
+                <th
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  title={t("group.ownerTable.totalReturnHelp")}
+                >
+                  {t("group.ownerTable.totalReturn1y")}
+                </th>
+              )}
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                title={t("group.ownerTable.totalReturnHelp")}
+              >
+                {t("group.ownerTable.totalReturn1yPct")}
+              </th>
               {!relativeViewEnabled && (
                 <th
                   className={`${tableStyles.cell} ${tableStyles.right}`}
@@ -1556,6 +1633,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                       {percent(row.dayChangePct)}
                     </td>
                     {renderPeriodCells(row.periodChanges)}
+                    {renderTotalReturnCells(totalReturns[row.owner])}
                     {!relativeViewEnabled && (
                       <td
                         className={`${tableStyles.cell} ${tableStyles.right}`}
@@ -1614,6 +1692,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                           {percent(acct.dayChangePct)}
                         </td>
                         {renderPeriodCells(acct.periodChanges)}
+                        {renderTotalReturnCells(null)}
                         {!relativeViewEnabled && (
                           <td
                             className={`${tableStyles.cell} ${tableStyles.right}`}
@@ -1635,6 +1714,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 </Fragment>
               );
             })}
+            {showIndexRows && <IndexBenchmarkRows relativeViewEnabled={relativeViewEnabled} />}
           </tbody>
           </table>
         </div>

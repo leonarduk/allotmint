@@ -9,6 +9,7 @@ import {
   getStrategies,
   getStrategyRiskReturn,
 } from '@/api';
+import { AuthContext } from '@/AuthContext';
 
 vi.mock('@/api', () => ({
   getBenchmarkRiskReturn: vi.fn(),
@@ -311,6 +312,33 @@ describe('RiskReturn page', () => {
     expect(
       screen.queryByRole('checkbox', { name: 'Golden Butterfly' })
     ).not.toBeInTheDocument();
+  });
+
+  it("offers the signed-in user's strategies when no group member has an account (#10815)", async () => {
+    (getGroups as unknown as vi.Mock).mockResolvedValue([
+      { slug: 'all', name: 'All', members: ['lucy'] },
+    ]);
+    (getOwners as unknown as vi.Mock).mockResolvedValue([
+      { owner: 'alex', accounts: ['isa'], email: 'alex@example.com' },
+      { owner: 'steve', accounts: ['isa'], email: 'steve@example.com' },
+    ]);
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: 'steve@example.com' },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <RiskReturn />
+      </AuthContext.Provider>
+    );
+
+    await waitFor(() => expect(strategiesMock).toHaveBeenCalledWith('steve'));
+    expect(strategiesMock).not.toHaveBeenCalledWith('alex');
   });
 
   it('says which asset classes a strategy has no prices for', async () => {

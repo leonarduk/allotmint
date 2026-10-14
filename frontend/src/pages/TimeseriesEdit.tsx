@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useId, useRef, useMemo } from "react";
 import type { ChangeEvent } from "react";
 import {
   getInstrumentMetadata,
@@ -11,6 +11,30 @@ import type { InstrumentMetadata, PriceEntry } from "../types";
 import { EXCHANGES, type ExchangeCode } from "../lib/exchanges";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
+
+/**
+ * Rows rendered per page of the editable grid. Each row is 8 inputs plus a
+ * Delete button, so 50 rows keeps the grid at 400 inputs however long the
+ * loaded series is (#10825).
+ */
+export const TIMESERIES_PAGE_SIZE = 50;
+
+type GridColumn = {
+  field: keyof PriceEntry;
+  labelKey: string;
+  numeric: boolean;
+};
+
+const GRID_COLUMNS: GridColumn[] = [
+  { field: "Date", labelKey: "timeseriesEdit.columns.date", numeric: false },
+  { field: "Open", labelKey: "timeseriesEdit.columns.open", numeric: true },
+  { field: "High", labelKey: "timeseriesEdit.columns.high", numeric: true },
+  { field: "Low", labelKey: "timeseriesEdit.columns.low", numeric: true },
+  { field: "Close", labelKey: "timeseriesEdit.columns.close", numeric: true },
+  { field: "Volume", labelKey: "timeseriesEdit.columns.volume", numeric: true },
+  { field: "Ticker", labelKey: "timeseriesEdit.columns.ticker", numeric: false },
+  { field: "Source", labelKey: "timeseriesEdit.columns.source", numeric: false },
+];
 
 function parseCsv(
   text: string,
@@ -99,6 +123,11 @@ export function TimeseriesEdit() {
   );
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [page, setPage] = useState(0);
+  const tickerInputId = useId();
+  const exchangeSelectId = useId();
+  const startDateId = useId();
+  const endDateId = useId();
 
   const safeRows = Array.isArray(rows) ? rows : [];
   const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
@@ -150,6 +179,57 @@ export function TimeseriesEdit() {
       return true;
     });
   }, [sortedRows, startDate, endDate]);
+
+  const pageCount = Math.max(
+    1,
+    Math.ceil(displayRows.length / TIMESERIES_PAGE_SIZE),
+  );
+  // Clamp rather than reset so deleting a row keeps the user on the page they
+  // were editing instead of jumping back to page 1.
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageStart = currentPage * TIMESERIES_PAGE_SIZE;
+  const pageRows = displayRows.slice(
+    pageStart,
+    pageStart + TIMESERIES_PAGE_SIZE,
+  );
+
+  function updateCell(
+    index: number,
+    field: keyof PriceEntry,
+    raw: string,
+    numeric: boolean,
+  ) {
+    // Blank or unparseable numeric input is stored as null, never NaN, so a
+    // half-typed value can't be saved to the backend.
+    const parsed = Number(raw);
+    const value = numeric
+      ? raw.trim() !== "" && Number.isFinite(parsed)
+        ? parsed
+        : null
+      : raw;
+    setRows((rs) => {
+      const copy = [...rs];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  }
+
+  function deleteRow(index: number) {
+    // Store the clamped page so `page` never drifts past the last page when a
+    // delete shrinks the page count.
+    const remainingPages = Math.max(
+      1,
+      Math.ceil((displayRows.length - 1) / TIMESERIES_PAGE_SIZE),
+    );
+    setPage(Math.min(currentPage, remainingPages - 1));
+    setRows((rs) => rs.filter((_, idx) => idx !== index));
+  }
+
+  function cellLabel(column: string, row: PriceEntry, rowNumber: number) {
+    return row.Date
+      ? t("timeseriesEdit.grid.cellLabel", { column, date: row.Date })
+      : t("timeseriesEdit.grid.cellLabelUndated", { column, row: rowNumber });
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -284,6 +364,7 @@ export function TimeseriesEdit() {
       const data = (await getTimeseries(ticker, exchange)) ?? [];
       const arr = Array.isArray(data) ? data : [];
       setRows(arr);
+      setPage(0);
       // Record the load attempt even when the series is empty so the Move
       // action stays available: an empty source cannot be moved, but the
       // user must be able to attempt it and see the actionable error (#6723).
@@ -427,9 +508,11 @@ export function TimeseriesEdit() {
         {t("timeseriesEdit.title")}
       </h2>
       <div className="mb-2">
-        <label>
+        <label htmlFor={tickerInputId}>
           {t("timeseriesEdit.ticker")}{" "}
           <input
+            id={tickerInputId}
+            aria-label={t("timeseriesEdit.ticker")}
             list="ticker-suggestions"
             value={ticker}
             onChange={(e) => {
@@ -446,9 +529,11 @@ export function TimeseriesEdit() {
             ))}
           </datalist>
         </label>{" "}
-        <label>
+        <label htmlFor={exchangeSelectId}>
           {t("timeseriesEdit.exchange")}{" "}
           <select
+            id={exchangeSelectId}
+            aria-label={t("timeseriesEdit.exchange")}
             value={exchange}
             onChange={(e) => setExchange(e.target.value as ExchangeCode)}
             style={{ width: "4rem" }}
@@ -483,9 +568,10 @@ export function TimeseriesEdit() {
           </span>
           <select
             value={sortDirection}
-            onChange={(e) =>
-              setSortDirection(e.target.value as "asc" | "desc")
-            }
+            onChange={(e) => {
+              setSortDirection(e.target.value as "asc" | "desc");
+              setPage(0);
+            }}
           >
             <option value="desc">
               {t("timeseriesEdit.controls.sortDesc", {
@@ -499,33 +585,50 @@ export function TimeseriesEdit() {
             </option>
           </select>
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="flex flex-col gap-1" htmlFor={startDateId}>
           <span>
             {t("timeseriesEdit.controls.startDate", {
               defaultValue: "Start date",
             })}
           </span>
           <input
+            id={startDateId}
+            aria-label={t("timeseriesEdit.controls.startDate", {
+              defaultValue: "Start date",
+            })}
             type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              setPage(0);
+            }}
           />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="flex flex-col gap-1" htmlFor={endDateId}>
           <span>
             {t("timeseriesEdit.controls.endDate", {
               defaultValue: "End date",
             })}
           </span>
           <input
+            id={endDateId}
+            aria-label={t("timeseriesEdit.controls.endDate", {
+              defaultValue: "End date",
+            })}
             type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              setPage(0);
+            }}
           />
         </label>
       </div>
       <div className="mb-2 overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table
+          className="w-full border-collapse"
+          aria-label={t("timeseriesEdit.grid.rowsLabel")}
+        >
           <thead>
             <tr>
               <th>{t("timeseriesEdit.columns.date")}</th>
@@ -540,158 +643,73 @@ export function TimeseriesEdit() {
             </tr>
           </thead>
           <tbody>
-            {displayRows.map(({ row, index: originalIndex }) => (
-              <tr key={`${originalIndex}-${row.Date ?? "row"}`}>
-                <td>
-                  <input
-                    aria-label={t("timeseriesEdit.columns.date")}
-                    value={row.Date}
-                    onChange={(e) =>
-                      setRows((rs) => {
-                        const copy = [...rs];
-                        copy[originalIndex] = {
-                          ...copy[originalIndex],
-                          Date: e.target.value,
-                        };
-                        return copy;
-                      })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    aria-label={t("timeseriesEdit.columns.open")}
-                    type="number"
-                    value={row.Open ?? ""}
-                    onChange={(e) =>
-                      setRows((rs) => {
-                        const copy = [...rs];
-                        copy[originalIndex] = {
-                          ...copy[originalIndex],
-                          Open: e.target.value === "" ? null : Number(e.target.value),
-                        };
-                        return copy;
-                      })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    aria-label={t("timeseriesEdit.columns.high")}
-                    type="number"
-                    value={row.High ?? ""}
-                    onChange={(e) =>
-                      setRows((rs) => {
-                        const copy = [...rs];
-                        copy[originalIndex] = {
-                          ...copy[originalIndex],
-                          High: e.target.value === "" ? null : Number(e.target.value),
-                        };
-                        return copy;
-                      })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    aria-label={t("timeseriesEdit.columns.low")}
-                    type="number"
-                    value={row.Low ?? ""}
-                    onChange={(e) =>
-                      setRows((rs) => {
-                        const copy = [...rs];
-                        copy[originalIndex] = {
-                          ...copy[originalIndex],
-                          Low: e.target.value === "" ? null : Number(e.target.value),
-                        };
-                        return copy;
-                      })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    aria-label={t("timeseriesEdit.columns.close")}
-                    type="number"
-                    value={row.Close ?? ""}
-                    onChange={(e) =>
-                      setRows((rs) => {
-                        const copy = [...rs];
-                        copy[originalIndex] = {
-                          ...copy[originalIndex],
-                          Close: e.target.value === "" ? null : Number(e.target.value),
-                        };
-                        return copy;
-                      })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    aria-label={t("timeseriesEdit.columns.volume")}
-                    type="number"
-                    value={row.Volume ?? ""}
-                    onChange={(e) =>
-                      setRows((rs) => {
-                        const copy = [...rs];
-                        copy[originalIndex] = {
-                          ...copy[originalIndex],
-                          Volume: e.target.value === "" ? null : Number(e.target.value),
-                        };
-                        return copy;
-                      })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    aria-label={t("timeseriesEdit.columns.ticker")}
-                    value={row.Ticker ?? ""}
-                    onChange={(e) =>
-                      setRows((rs) => {
-                        const copy = [...rs];
-                        copy[originalIndex] = {
-                          ...copy[originalIndex],
-                          Ticker: e.target.value,
-                        };
-                        return copy;
-                      })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    aria-label={t("timeseriesEdit.columns.source")}
-                    value={row.Source ?? ""}
-                    onChange={(e) =>
-                      setRows((rs) => {
-                        const copy = [...rs];
-                        copy[originalIndex] = {
-                          ...copy[originalIndex],
-                          Source: e.target.value,
-                        };
-                        return copy;
-                      })
-                    }
-                  />
-                </td>
-                <td>
-                  <button
-                    aria-label={t("timeseriesEdit.delete")}
-                    onClick={() =>
-                      setRows((rs) =>
-                        rs.filter((_, idx) => idx !== originalIndex),
-                      )
-                    }
-                  >
-                    {t("timeseriesEdit.delete")}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {pageRows.map(({ row, index: originalIndex }, offset) => {
+              const rowNumber = pageStart + offset + 1;
+              return (
+                <tr key={`${originalIndex}-${row.Date ?? "row"}`}>
+                  {GRID_COLUMNS.map(({ field, labelKey, numeric }) => (
+                    <td key={field}>
+                      <input
+                        aria-label={cellLabel(t(labelKey), row, rowNumber)}
+                        type={numeric ? "number" : undefined}
+                        value={row[field] ?? ""}
+                        onChange={(e) =>
+                          updateCell(
+                            originalIndex,
+                            field,
+                            e.target.value,
+                            numeric,
+                          )
+                        }
+                      />
+                    </td>
+                  ))}
+                  <td>
+                    <button
+                      aria-label={cellLabel(
+                        t("timeseriesEdit.delete"),
+                        row,
+                        rowNumber,
+                      )}
+                      onClick={() => deleteRow(originalIndex)}
+                    >
+                      {t("timeseriesEdit.delete")}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+      {displayRows.length > TIMESERIES_PAGE_SIZE && (
+        <nav
+          className="mb-2 flex flex-wrap items-center gap-2 text-sm"
+          aria-label={t("timeseriesEdit.grid.pagination")}
+        >
+          <button
+            onClick={() => setPage(currentPage - 1)}
+            disabled={currentPage === 0}
+          >
+            {t("timeseriesEdit.grid.previousPage")}
+          </button>
+          <span aria-live="polite">
+            {t("timeseriesEdit.grid.pageStatus", {
+              page: currentPage + 1,
+              pages: pageCount,
+              from: pageStart + 1,
+              to: pageStart + pageRows.length,
+              total: displayRows.length,
+            })}
+          </span>
+          <button
+            onClick={() => setPage(currentPage + 1)}
+            disabled={currentPage >= pageCount - 1}
+          >
+            {t("timeseriesEdit.grid.nextPage")}
+          </button>
+        </nav>
+      )}
       <div style={{ marginBottom: "0.5rem" }}>
         <button
           onClick={() => {
@@ -702,6 +720,12 @@ export function TimeseriesEdit() {
                   ? trimmedTicker
                   : `${trimmedTicker}.${exchange}`
                 : trimmedTicker;
+            // Undated rows sort last in either direction, so jump to the page
+            // the new row lands on. An active date filter hides undated rows,
+            // so stay put in that case.
+            if (!startDate && !endDate) {
+              setPage(Math.floor(displayRows.length / TIMESERIES_PAGE_SIZE));
+            }
             setRows((rs) => [
               ...rs,
               {

@@ -16,6 +16,7 @@ CDK_DIR = Path(__file__).resolve().parents[1]
 
 from stacks._paths import resolve_app_root
 from stacks.backend_lambda_stack import (
+    ALERTS_HISTORY_KEY,
     METADATA_PREFIX,
     WRITABLE_ACCOUNTS_PREFIX,
     BackendLambdaStack,
@@ -195,6 +196,15 @@ def _conditions_for_s3_action(
     return found
 
 
+def _is_alerts_history_object(resource: str) -> bool:
+    """True when ``resource`` is exactly the alerts history object ARN (#10831).
+
+    ``arn_for_objects(key)`` renders as ``Fn::Join`` ending in ``'/<key>'``;
+    matching the closing quote rules out a wildcard or a longer key.
+    """
+    return resource.endswith(f"'/{ALERTS_HISTORY_KEY}']]}}")
+
+
 def _expected_prefix_condition(prefixes: tuple[str, ...]) -> dict:
     """Build the expected StringLike s3:prefix condition value for `prefixes`.
 
@@ -221,8 +231,9 @@ def _expected_prefix_condition(prefixes: tuple[str, ...]) -> dict:
 #                        Also calls _rolling_cache() → _save_parquet() writing parquet to S3
 #                        and may need to list the timeseries/ prefix via pyarrow.
 #   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
-#                        reads parquet from S3 by known key. Its only write is its own
-#                        run record under bots/ (backend/bots/runs.py, #10477).
+#                        reads parquet from S3 by known key. Its only writes are its own
+#                        run record under bots/ (backend/bots/runs.py, #10477) and the
+#                        alerts history object (send_trade_alert → publish_alert, #10831).
 #                        Lists accounts/ via list_all_unique_tickers()/list_portfolios() (#8914).
 #                        Pyarrow may list the timeseries/ prefix before reading cached files.
 #   BackendLambda also deletes saved chat history, on chat/* only (#8870; see
@@ -268,9 +279,14 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
 
     # Explicit absence checks (belt-and-suspenders on top of upper-bound)
     trading_put = _resources_for_s3_action(template, trading_role, "s3:PutObject")
-    assert trading_put and all(
-        "/bots/*" in str(resource) for resource in trading_put
-    ), f"TradingAgentLambda s3:PutObject must be limited to its bots/ run records, got {trading_put}"
+    assert len(trading_put) == 2 and all(
+        "/bots/*" in str(resource) or _is_alerts_history_object(str(resource))
+        for resource in trading_put
+    ), (
+        "TradingAgentLambda s3:PutObject must be limited to its bots/ run records "
+        f"and the alerts history object, got {trading_put}"
+    )
+    assert any(_is_alerts_history_object(str(resource)) for resource in trading_put)
     assert "s3:ListBucket" not in refresh_actions or all(
         _conditions_for_s3_action(template, refresh_role, "s3:ListBucket")
     ), "PriceRefreshLambda s3:ListBucket must always be conditioned (no unrestricted list)"
@@ -595,9 +611,14 @@ def test_pension_report_lambda_put_object_scoped_to_pension_reports_prefix() -> 
 
     assert put_resources, "Expected PensionReportLambda to have an s3:PutObject grant"
     for resource in put_resources:
-        assert "pension-reports/*" in str(resource) or "bots/*" in str(
-            resource
-        ), f"Expected s3:PutObject resource scoped to pension-reports/* or bots/*, got {resource!r}"
+        assert (
+            "pension-reports/*" in str(resource)
+            or "bots/*" in str(resource)
+            or _is_alerts_history_object(str(resource))
+        ), (
+            "Expected s3:PutObject resource scoped to pension-reports/*, bots/* or the "
+            f"alerts history object, got {resource!r}"
+        )
 
 
 def test_trend_watch_lambda_writes_only_its_own_prefix() -> None:
@@ -612,12 +633,43 @@ def test_trend_watch_lambda_writes_only_its_own_prefix() -> None:
     put_resources = _resources_for_s3_action(template, role, "s3:PutObject")
     assert put_resources, "Expected TrendWatchLambda to have an s3:PutObject grant"
     for resource in put_resources:
-        assert "trend_watch/*" in str(resource) or "bots/*" in str(
-            resource
-        ), f"Expected s3:PutObject scoped to trend_watch/* or bots/*, got {resource!r}"
+        assert (
+            "trend_watch/*" in str(resource)
+            or "bots/*" in str(resource)
+            or _is_alerts_history_object(str(resource))
+        ), f"Expected s3:PutObject scoped to trend_watch/*, bots/* or the alerts history, got {resource!r}"
     assert _expected_prefix_condition(TREND_WATCH_LIST_PREFIXES) in _conditions_for_s3_action(
         template, role, "s3:ListBucket"
     ), "TrendWatchLambda s3:ListBucket must be conditioned to its audited prefixes"
+
+
+def test_alert_publishing_lambdas_can_persist_the_alerts_history() -> None:
+    """Lambdas that publish alerts may write the one alerts history object (#10831).
+
+    Each handler reaches backend.common.alerts.publish_alert/publish_sns_alert,
+    which rewrites alerts/recent_alerts.json on every publish (#10802). The
+    grant is that single object, never alerts/* (alert settings, push
+    subscriptions and price triggers live there too). GetObject comes from the
+    bucket-wide read grant.
+    """
+    template = _stack_template()
+    for fragment in ("TradingAgentLambda", "TrendWatchLambda", "PensionReportLambda", "PlanBriefLambda"):
+        role = _role_logical_id_for_lambda(template, fragment)
+        writes = [str(r) for r in _resources_for_s3_action(template, role, "s3:PutObject")]
+        reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
+        assert sum(_is_alerts_history_object(r) for r in writes) == 1, (fragment, writes)
+        assert not any("/alerts/*" in r for r in writes), (fragment, writes)
+        assert any(r.endswith("'/*']]}") for r in reads), (fragment, reads)
+
+
+def test_alerts_history_key_matches_backend_alerts() -> None:
+    """ALERTS_HISTORY_KEY must be the key backend.common.alerts writes when
+    ALERTS_HISTORY_URI is unset (#10802), or the grant covers the wrong object.
+    Skipped until the backend persists alerts (it has no such key before #10802)."""
+    alerts_path = _backend_common_dir() / "alerts.py"
+    if "_S3_KEY" not in alerts_path.read_text(encoding="utf-8"):
+        pytest.skip("backend/common/alerts.py does not persist alerts to S3 yet (#10802)")
+    assert ALERTS_HISTORY_KEY == _fallback_string_literal(alerts_path, "_S3_KEY")
 
 
 def test_ses_send_email_scoped_to_sender_identity_not_wildcard() -> None:
@@ -1439,14 +1491,16 @@ def test_data_steward_lambda_is_read_only_except_its_reports() -> None:
 
 
 def test_plan_brief_lambda_writes_only_under_plan_briefs() -> None:
-    """Read-only on account data; s3:PutObject only on plan_briefs/*, and no delete."""
+    """Read-only on account data; PutObject only on plan_briefs/* and the alerts history."""
     template = _stack_template()
     role = _role_logical_id_for_lambda(template, "PlanBriefLambda")
 
     put_resources = _resources_for_s3_action(template, role, "s3:PutObject")
     assert put_resources, "Expected PlanBriefLambda to have an s3:PutObject grant"
     for resource in put_resources:
-        assert "plan_briefs/*" in resource, f"PutObject must be scoped to plan_briefs/*, got {resource!r}"
+        assert "plan_briefs/*" in resource or _is_alerts_history_object(
+            resource
+        ), f"PutObject must be scoped to plan_briefs/* or the alerts history, got {resource!r}"
 
     assert _s3_actions_for_role(template, role) == {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
     assert _conditions_for_s3_action(template, role, "s3:ListBucket") == [

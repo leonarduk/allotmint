@@ -106,6 +106,10 @@
     "sector": "Industrias",
     "unknownCurrency": "Divisa desconocida",
     "viewAllocation": "Ver asignación por {{dimension}}",
+    "viewAllocationBy": {
+      "sector": "Ver asignación por industrias",
+      "region": "Ver asignación por regiones"
+    },
     "viewContribution": "Ver contribución a las ganancias",
     "chartsUnavailable": "Los gráficos no están disponibles en este entorno.",
     "sleeve": "Bloques",
@@ -418,6 +422,7 @@
       "1m": "1M",
       "1w": "1S",
       "1y": "1A",
+      "3m": "3M",
       "max": "MÁX"
     },
     "selectMember": "Seleccione un miembro.",
@@ -499,6 +504,14 @@
     "insightCashDrag": "{{percent}} de tu cartera está en efectivo",
     "insightConcentration": "Tu mayor posición, {{ticker}}, es el {{percent}} de tu cartera",
     "insightDuplication": "Tienes {{ticker}} en {{accountCount}} cuentas",
+    "indexRows": {
+      "toggle": "Mostrar índices de mercado",
+      "label": "Índices",
+      "help": "FTSE 100, FTSE 250, S&P 500 y NASDAQ como comparación. Niveles y variaciones en puntos del índice con rentabilidad de precio en %; se excluyen los dividendos, por lo que no hay rentabilidad total ni ganancia desde la compra.",
+      "loading": "Cargando índices…",
+      "error": "Los datos de índices no están disponibles",
+      "empty": "Sin datos de índices"
+    },
     "ownerTable": {
       "portfolioPct": "% de la cartera",
       "totalValue": "Valor total",
@@ -514,7 +527,10 @@
       "change_1w": "Cambio 1S",
       "change_1m": "Cambio 1M",
       "change_1y": "Cambio 1A",
-      "periodChangeHelp": "Cambio de precio en las participaciones actuales durante los últimos 7 / 30 / 365 días (desde la fecha de compra si se compró dentro del periodo). No es una rentabilidad ponderada en el tiempo: se ignoran aportaciones, operaciones e ingresos del periodo. — indica historial de precios insuficiente."
+      "periodChangeHelp": "Cambio de precio en las participaciones actuales durante los últimos 7 / 30 / 365 días (desde la fecha de compra si se compró dentro del periodo). No es una rentabilidad ponderada en el tiempo: se ignoran aportaciones, operaciones e ingresos del periodo. — indica historial de precios insuficiente.",
+      "totalReturn1y": "Rentabilidad total 1A",
+      "totalReturn1yPct": "Rentabilidad total 1A %",
+      "totalReturnHelp": "Rentabilidad de los últimos 365 días incluidos dividendos e intereses, según el historial de transacciones: cambios de precio más ingresos, sin aportaciones ni retiradas. El % está ponderado en el tiempo (la cifra 1A de la página de rendimiento). Solo por titular; — indica que no hay historial de transacciones."
     }
   },
   "holdingsTable": {
@@ -1405,17 +1421,17 @@
       "statePensionHelper": "La nueva pensión pública completa para {{year}} es de {{weekly}} a la semana ({{annual}} al año) y requiere 35 años cotizados a la National Insurance. Consulta tu cifra en gov.uk/check-state-pension e introdúcela si es distinta.",
       "totalContribution": "Aportaciones mensuales totales: {{total}}"
     },
-    "incomeBreakdownHeading": "Retirement income breakdown",
+    "incomeBreakdownHeading": "Desglose de ingresos de jubilación",
     "incomeSources": {
-      "definedBenefit": "Defined benefit",
-      "definedContribution": "Defined contribution",
-      "state": "State pension"
+      "definedBenefit": "Prestación definida",
+      "definedContribution": "Aportación definida",
+      "state": "Pensión pública"
     },
     "incomeTable": {
-      "annual": "Annual (£)",
-      "monthly": "Monthly (£)",
-      "share": "Share",
-      "source": "Source"
+      "annual": "Anual (£)",
+      "monthly": "Mensual (£)",
+      "share": "Proporción",
+      "source": "Fuente"
     },
     "livingStandards": {
       "amount": "≈ {{monthly}}/mes ({{annual}}/año)",
@@ -1433,16 +1449,16 @@
     "monthlyContribution": "Contribución mensual (£):",
     "pensionPot": "Fondo de pensiones",
     "prediction": {
-      "earliest": "Estimated earliest retirement age: {{age}}",
-      "noBreakdown": "No income breakdown available.",
-      "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
-      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} — you could retire as early as age {{age}}.",
-      "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You could retire as early as age {{age}}, but your projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}."
+      "earliest": "Edad estimada de jubilación más temprana: {{age}}",
+      "noBreakdown": "No hay desglose de ingresos disponible.",
+      "onTrack": "Va por buen camino: el ingreso anual proyectado de {{total}} alcanza su objetivo de {{desired}}.",
+      "onTrackWithAge": "Va por buen camino: el ingreso proyectado de {{total}} alcanza su objetivo de {{desired}} — podría jubilarse a partir de los {{age}} años.",
+      "shortfall": "El ingreso proyectado deja un déficit de {{shortfallAnnual}} al año ({{shortfallMonthly}} al mes) respecto a su objetivo de {{desired}}.",
+      "shortfallWithAge": "Podría jubilarse a partir de los {{age}} años, pero su ingreso proyectado deja un déficit de {{shortfallAnnual}} al año ({{shortfallMonthly}} al mes) respecto a su objetivo de {{desired}}."
     },
     "retirementAge": "Edad de jubilación prevista: {{age}}",
-    "totalAnnualIncome": "Total annual income",
-    "totalMonthlyIncome": "Total monthly income",
+    "totalAnnualIncome": "Ingreso anual total",
+    "totalMonthlyIncome": "Ingreso mensual total",
     "careerPath": {
       "accelerated": {
         "helper": "Mayor riesgo, mayor rentabilidad",
@@ -1476,6 +1492,15 @@
   },
   "portfolio": "Portafolio",
   "query": {
+    "columns": {
+      "instrumentType": "Tipo de instrumento",
+      "name": "Nombre",
+      "owner": "Titular",
+      "returnBasis": "Base de rentabilidad",
+      "startValueGbp": "Valor inicial (£)",
+      "ticker": "Ticker",
+      "units": "Unidades"
+    },
     "copyLink": "Copiar enlace",
     "end": "Fin",
     "exportCsv": "Exportar CSV",
@@ -1498,6 +1523,7 @@
     "saved": "Se guardó \"{{name}}\".",
     "savedQueriesLoading": "Cargando consultas guardadas…",
     "savedQueriesTitle": "Consultas guardadas",
+    "selectionRequired": "Selecciona al menos un titular y una métrica para ejecutar la consulta.",
     "start": "Inicio",
     "tickerNotHeld": "no en cartera actualmente",
     "tickers": "Tickers",
@@ -1954,6 +1980,15 @@
     },
     "ticker": "Ticker",
     "title": "Editor de series temporales",
+    "grid": {
+      "cellLabel": "{{column}} el {{date}}",
+      "cellLabelUndated": "{{column}} de la fila sin fecha {{row}}",
+      "pagination": "Páginas de filas",
+      "rowsLabel": "Filas",
+      "previousPage": "Página anterior",
+      "nextPage": "Página siguiente",
+      "pageStatus": "Página {{page}} de {{pages}} (filas {{from}}–{{to}} de {{total}})"
+    },
     "controls": {
       "sort": "Ordenar",
       "sortDesc": "Más recientes primero",
@@ -3107,6 +3142,10 @@
       "daysHeld": "{{daysHeld}} días en cartera",
       "daysRatio": "{{daysHeld}} / {{total}} días",
       "notLiftable": "Aún no se puede recoger",
+      "needsApproval": "Requiere aprobación",
+      "needsApprovalHeading": "Requiere aprobación ({{count}})",
+      "needsApprovalNote": "Ya han cumplido su periodo mínimo de tenencia; venderlas requiere una aprobación que puedes solicitar ahora.",
+      "tradingRulesLink": "Abrir reglas de trading",
       "readyOn": "Lista el {{date}}",
       "daysToGo": "Faltan {{daysRemaining}} días",
       "noteIndeterminate": "Avance hacia el periodo mínimo de tenencia de cada posición, cuando el backend lo conoce: algunas bandejas están marcadas como no vendibles sin cuenta atrás que mostrar.",
@@ -3178,6 +3217,7 @@
       "held_other": "En cartera {{count}} días",
       "inPropagatorUntil": "en el propagador hasta el {{date}}",
       "notYetLiftable": "aún no se puede recoger",
+      "needsApproval": "requiere aprobación",
       "clearedPropagator": "salió del propagador el {{date}}",
       "readyToLift": "lista para recoger",
       "notFoundTitle": "Cultivo no encontrado",
@@ -3438,7 +3478,32 @@
     "glossaryLink": "Abrir el glosario de métricas",
     "reportTitle": "Informar de un problema",
     "reportDescription": "¿Has encontrado un error o algo confuso? Cuéntanoslo en GitHub para que se pueda registrar y corregir.",
-    "reportLink": "Abrir una incidencia en GitHub"
+    "reportLink": "Abrir una incidencia en GitHub",
+    "pages": {
+      "dashboardTitle": "Panel",
+      "signalsTitle": "Ideas: Señales",
+      "screenTitle": "Ideas: Filtro",
+      "group": "La vista general principal: posiciones, valores y asignación combinados de los titulares del grupo seleccionado.",
+      "market": "Una instantánea de la situación general del mercado y de los índices.",
+      "movers": "Los instrumentos de sus carteras que más se han movido, al alza o a la baja.",
+      "instrument": "Todas las posiciones agrupadas por sector, con totales y rentabilidades en varios periodos.",
+      "performance": "Rentabilidad a lo largo del tiempo de un titular, comparada con un índice de referencia.",
+      "transactions": "Registre compras, ventas y otras transacciones, o impórtelas desde un CSV.",
+      "dividends": "Dividendos recibidos, por año fiscal, año o mes y por posición, con un total de los últimos 12 meses.",
+      "riskreturn": "Cada cuenta, cada titular y la cartera completa representados por rentabilidad frente a volatilidad, junto a índices de mercado que puede añadir o quitar.",
+      "trading": "Candidatos de compra y venta entre los instrumentos que posee, según reglas fijas de momentum y riesgo definidas en el servidor. Informativo, no son instrucciones de operación.",
+      "screener": "Filtre cualquier lista de seguimiento o lista de tickers por fundamentales como el PER, los márgenes, el apalancamiento o la rentabilidad por dividendo.",
+      "watchlist": "Siga instrumentos que no posee actualmente.",
+      "allocation": "Cómo se reparten sus posiciones por clase de activo, sector y región.",
+      "rebalance": "Elija una asignación objetivo entre estrategias integradas o propias y vea la desviación y las operaciones de reequilibrio para acercar su cartera a ella.",
+      "reports": "Genere y descargue informes de cartera.",
+      "query": "Valor de mercado o ganancia de sus propias posiciones en un rango de fechas, por titular y ticker, con opciones para guardar, compartir y exportar.",
+      "pension": "Proyecte en el tiempo las aportaciones y el valor de su pensión.",
+      "taxtools": "Ayudas para el uso de las desgravaciones y los cálculos fiscales.",
+      "research": "Herramientas de análisis más profundo para instrumentos individuales.",
+      "settings": "Reglas de operación por titular: periodo mínimo de tenencia, límite mensual de operaciones e instrumentos exentos de aprobación.",
+      "alertsettings": "Configure los umbrales que activan las alertas de la cartera."
+    }
   },
   "firstRunHelp": {
     "title": "¿Nuevo en AllotMint?",
@@ -3907,9 +3972,11 @@
     "excludesUnknown": "Excluye {{unknown}} de {{total}} posiciones sin datos de comisiones",
     "allInCost": "Coste anual total",
     "allInBreakdown": "{{funds}} en gastos de fondos + {{fees}} en comisiones pagadas (últimos 12 meses)",
+    "allInBreakdownUnknownFunds": "Gastos de fondos desconocidos + {{fees}} en comisiones pagadas (últimos 12 meses)",
     "allInNotIncluded": "No incluido: {{items}}",
     "allInUnknownValue": "{{value}} en {{holdings}} posiciones sin datos de gastos",
-    "allInUnknownTrades": "{{trades}} operaciones sin comisión registrada",
+    "allInUnknownTrades_one": "{{trades}} operación sin comisión registrada",
+    "allInUnknownTrades_other": "{{trades}} operaciones sin comisión registrada",
     "perAccount": "Por cuenta",
     "partial": "incompleto"
   },
@@ -4151,6 +4218,28 @@
     "close": "Cerrar {{label}}",
     "toggle": "Mostrar pestañas de trabajo",
     "toggleHelp": "Mantén varias vistas abiertas, p. ej. el resumen del grupo y algunos instrumentos, y cambia entre ellas sin salir de esta pestaña del navegador. Usa + para abrir la vista actual en una pestaña nueva y ↻ para recargar sus datos."
+  },
+  "retirementReadiness": {
+    "heading": "Preparación para la jubilación: prueba histórica de retiros",
+    "description": "El fondo proyectado reproducido en cada secuencia histórica de rentabilidades desde 1871, en dinero de hoy.",
+    "running": "Ejecutando…",
+    "runNow": "Ejecutar ahora",
+    "empty": "Aún no hay informe de preparación. Ejecútelo para reproducir las ventanas históricas.",
+    "runDate": "Última ejecución {{date}}",
+    "survival": "Ventanas superadas",
+    "income": "Mayor ingreso real anual",
+    "window": {
+      "worst": "peor ventana",
+      "median": "ventana mediana",
+      "best": "mejor ventana"
+    },
+    "windowsCount": "{{count}} ventanas de {{years}} años",
+    "change": "Desde {{date}}: {{change}}",
+    "contributions": "aportaciones",
+    "markets": "mercados",
+    "assumptions": "supuestos",
+    "dataRevision": "revisiones de datos",
+    "changed": "Cambiado desde la última ejecución: {{label}}"
   },
   "admin": {
     "cacheWarming": "Todavía cargando tras reiniciar el servidor: se muestran los {{count}} encontrados hasta ahora. La lista se completa automáticamente."

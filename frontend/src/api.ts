@@ -79,6 +79,7 @@ import type {
   CurrencyContribution,
   LookThroughExposure,
   AllInCost,
+  OwnerTotalReturn,
   FundUpkeepProposal,
   InstrumentAllocation,
   InstrumentAllocationRefresh,
@@ -90,6 +91,7 @@ import type {
   Nudge,
   HoldingValue,
   MarketOverview,
+  IndexSummary,
   MarketIndexes,
   MarketPeriod,
   RegionSectors,
@@ -750,6 +752,10 @@ export const getMarketIndexes = (period: MarketPeriod, signal?: AbortSignal) =>
     { signal },
   );
 
+/** Benchmark index levels with day/1W/1M/1Y points and % changes. */
+export const getIndexSummary = (signal?: AbortSignal) =>
+  fetchJson<IndexSummary>(`${API_BASE}/market/index-summary`, { signal });
+
 /**
  * Sector % change for a region over `period`; omit `region` for the
  * configured default and `period` for day-on-day.
@@ -1112,6 +1118,19 @@ export const refreshInstrumentLookThrough = (ticker: string) => {
     `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(symbol)}/look-through`,
     { method: "POST" },
     LOOK_THROUGH_REFRESH_TIMEOUT_MS,
+  );
+};
+
+/** An owner's total return (price plus income, net of deposits) over ``days`` (#10763). */
+export const getOwnerTotalReturn = (
+  owner: string,
+  days = 365,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  return fetchJson<OwnerTotalReturn>(
+    `${API_BASE}/performance/${encodeURIComponent(owner)}/total-return?${params.toString()}`,
   );
 };
 
@@ -3925,10 +3944,17 @@ export type ChatPage = {
   label: string;
 };
 
-/** The page the user has open, so "this stock" resolves. */
+/** The page the user has open, so "this stock" and "this portfolio" resolve. */
 export type ChatContext = {
   path: string;
   ticker?: string;
+  /**
+   * The owner, or else the group, selected in the app (#10813). Prompt context
+   * only: the backend resolves the signed-in user's own owner itself and never
+   * uses these for access.
+   */
+  owner?: string;
+  group?: string;
 };
 
 /** A file the assistant saved with its export_file tool (#9039). */

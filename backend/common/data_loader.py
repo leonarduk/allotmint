@@ -15,7 +15,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import ValidationError
 
-from backend.common.account_models import AccountRecord, OwnerSummaryRecord, PersonMetadata
+from backend.common.account_models import (
+    ACCOUNT_METADATA_STEMS,
+    AccountRecord,
+    OwnerSummaryRecord,
+    PersonMetadata,
+)
 from backend.common.data_providers import (
     DATA_BUCKET_ENV,
     PLOTS_PREFIX,
@@ -319,16 +324,6 @@ def resolve_owner_dir(owner: str, accounts_root: Optional[Path] = None) -> Path:
 # ------------------------------------------------------------------
 # Local discovery
 # ------------------------------------------------------------------
-_METADATA_STEMS = {
-    "person",
-    "config",
-    "notes",
-    "settings",
-    "approvals",
-    "approval_requests",
-    "pension-forecast",
-    "pension_forecast",
-}  # ignore these as accounts
 
 _ACCOUNT_CANONICAL_UPPER = {
     "isa",
@@ -410,7 +405,7 @@ def _extract_account_names(owner_dir: Path) -> List[str]:
             continue
         stem = path.stem
         lowered = stem.lower()
-        if lowered in _METADATA_STEMS:
+        if lowered in ACCOUNT_METADATA_STEMS:
             continue
         if lowered.endswith("_transactions"):
             continue

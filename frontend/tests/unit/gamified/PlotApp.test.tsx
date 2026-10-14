@@ -719,6 +719,60 @@ describe('Plot mode propagator', () => {
     ).toBeInTheDocument();
   });
 
+  it('lists approval-blocked holdings as "Needs approval", outside the propagator count (#10812)', async () => {
+    const [vusa, wilt] = portfolio.accounts[0].holdings;
+    const bp = {
+      ...vusa,
+      ticker: 'BP.L',
+      name: 'BP',
+      days_held: 524,
+      sell_eligible: false,
+      sell_block_reason: 'needs_approval',
+      days_until_eligible: null,
+      next_eligible_sell_date: '2025-06-06',
+    };
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      accounts: [{ ...portfolio.accounts[0], holdings: [bp, wilt] }],
+    });
+    renderPlot();
+
+    // Only WILT.L is still serving its hold period.
+    expect(await screen.findByText('Propagator (1)')).toBeInTheDocument();
+    expect(screen.getByText('Needs approval (1)')).toBeInTheDocument();
+    expect(screen.getByText('Needs approval')).toBeInTheDocument();
+    expect(screen.queryByText('Not yet liftable')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Open Trading Rules' })
+    ).toHaveAttribute('href', '/settings');
+  });
+
+  it('says "needs approval" on the crop detail of an approval-blocked holding (#10812)', async () => {
+    const [vusa, wilt] = portfolio.accounts[0].holdings;
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      accounts: [
+        {
+          ...portfolio.accounts[0],
+          holdings: [
+            {
+              ...vusa,
+              sell_eligible: false,
+              sell_block_reason: 'needs_approval',
+              days_until_eligible: null,
+            },
+            wilt,
+          ],
+        },
+      ],
+    });
+    renderPlot('/plot/crops/VUSA.L');
+
+    expect(
+      await screen.findByText(/Held 500 days · needs approval/)
+    ).toBeInTheDocument();
+  });
+
   it('keeps a sell_eligible: false holding in the propagator with no known countdown, as indeterminate not fabricated-ready (#7184)', async () => {
     // The exact alex-fixture shape from #7184: sell_eligible: false with
     // days_until_eligible: 0 and no is_stale flag at all.

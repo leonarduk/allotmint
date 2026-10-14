@@ -214,7 +214,7 @@ function handleMainMessage(state: MainState, msg: WindowMessage) {
       host.onNavigate(msg.path);
       // Now, not when the new page's header mounts: a slow page would leave
       // the next turn sent with the page the user just left.
-      post(state, { type: "context", context: buildChatContext(msg.path) });
+      post(state, { type: "context", context: buildChatContext(msg.path, host.context) });
       break;
     case "reattach":
       writeStorage(localStorage, PREFERENCE_KEY, "attached");

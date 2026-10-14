@@ -1,13 +1,67 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
-import type { GerminatingCrop } from '../plotModel';
+import type { Crop, GerminatingCrop } from '../plotModel';
 import Meter from './Meter';
 import CropGlyph from './CropGlyph';
 
 interface PropagatorProps {
   entries: readonly GerminatingCrop[];
+  /** Crops past their hold period but awaiting approval (#10812). */
+  awaitingApproval?: readonly Crop[];
   basePath: string;
+}
+
+interface AwaitingApprovalProps {
+  crops: readonly Crop[];
+  basePath: string;
+}
+
+/**
+ * Crops that have served their hold period but still need approval to sell
+ * (#10812), listed apart from the trays: their blocker is an approval the
+ * user can request under Trading Rules, not time left to wait.
+ */
+function AwaitingApproval({ crops, basePath }: AwaitingApprovalProps) {
+  const { t } = useTranslation();
+  if (crops.length === 0) return null;
+  const heading = t('plot.propagator.needsApprovalHeading', {
+    count: crops.length,
+  });
+  return (
+    <div role="group" aria-label={heading}>
+      <p className={styles.sectionNote}>
+        <strong>{heading}</strong> {t('plot.propagator.needsApprovalNote')}{' '}
+        <Link to="/settings">{t('plot.propagator.tradingRulesLink')}</Link>
+      </p>
+      <div className={styles.trayGrid}>
+        {crops.map((crop) => (
+          <Link
+            key={crop.id}
+            to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
+            className={styles.tray}
+          >
+            <span className={styles.trayGlyph}>
+              <CropGlyph
+                ticker={crop.ticker}
+                sector={crop.sector}
+                stage={crop.stage}
+              />
+            </span>
+            <span className={styles.trayTicker}>{crop.ticker}</span>
+            {crop.daysHeld !== null && (
+              <span className={styles.trayDays}>
+                {t('plot.propagator.daysHeld', { daysHeld: crop.daysHeld })}
+              </span>
+            )}
+            <span className={styles.trayReady}>
+              {t('plot.propagator.needsApproval')}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -18,13 +72,18 @@ interface PropagatorProps {
  * date; where it doesn't, `indeterminate` is true and the tray reads "not
  * yet liftable" with an empty bar rather than fabricating either.
  */
-export default function Propagator({ entries, basePath }: PropagatorProps) {
+export default function Propagator({
+  entries,
+  awaitingApproval = [],
+  basePath,
+}: PropagatorProps) {
   const { t } = useTranslation();
   if (entries.length === 0) {
     return (
-      <p className={styles.sectionNote}>
-        {t('plot.propagator.empty')}
-      </p>
+      <>
+        <p className={styles.sectionNote}>{t('plot.propagator.empty')}</p>
+        <AwaitingApproval crops={awaitingApproval} basePath={basePath} />
+      </>
     );
   }
 
@@ -90,6 +149,7 @@ export default function Propagator({ entries, basePath }: PropagatorProps) {
           ? t('plot.propagator.noteIndeterminate')
           : t('plot.propagator.note')}
       </p>
+      <AwaitingApproval crops={awaitingApproval} basePath={basePath} />
     </>
   );
 }

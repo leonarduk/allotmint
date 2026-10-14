@@ -14,4 +14,35 @@ describe('buildChatContext', () => {
     expect(buildChatContext('/transactions')).toEqual({ path: '/transactions' });
     expect(buildChatContext('/research/%E0%A4%A')).toEqual({ path: '/research/%E0%A4%A' });
   });
+
+  it('adds the owner in view so "this portfolio" resolves (#10813)', () => {
+    expect(buildChatContext('/portfolio/steve', { owner: 'steve', group: 'family' })).toEqual({
+      path: '/portfolio/steve',
+      owner: 'steve',
+    });
+  });
+
+  it('falls back to the group when no owner is selected', () => {
+    expect(buildChatContext('/', { owner: '', group: 'family' })).toEqual({ path: '/', group: 'family' });
+    expect(buildChatContext('/', { owner: null, group: null })).toEqual({ path: '/' });
+  });
+
+  it('keeps the ticker alongside the owner on a research page', () => {
+    expect(buildChatContext('/research/ARG.TO', { owner: 'steve' })).toEqual({
+      path: '/research/ARG.TO',
+      ticker: 'ARG.TO',
+      owner: 'steve',
+    });
+  });
+
+  it('drops a slug the backend would reject instead of failing the turn', () => {
+    expect(buildChatContext('/', { owner: 'not a slug' })).toEqual({ path: '/' });
+  });
+
+  it('falls back to the group when the owner is not a usable slug', () => {
+    expect(buildChatContext('/', { owner: 'not a slug', group: 'family' })).toEqual({
+      path: '/',
+      group: 'family',
+    });
+  });
 });

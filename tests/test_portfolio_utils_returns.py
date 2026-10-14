@@ -128,6 +128,106 @@ def test_compute_time_weighted_return_dividend_is_return(ledger_owner):
     assert result == pytest.approx(0.03)
 
 
+def test_compute_total_return_dividend_counts_where_price_change_does_not(ledger_owner):
+    """#10763: flat prices plus a £30 dividend is a £30 (3%) total return."""
+    closes = {"AAA.L": {"2026-01-05": 100.0}}
+    transactions = [
+        _deposit("2026-01-05", 1000),
+        _buy("2026-01-05", 10, 1000),
+        {"date": "2026-01-20", "type": "DIVIDEND", "ticker": "AAA.L", "amount_minor": 3000},
+    ]
+    ledger_owner(transactions, closes)
+
+    result = pu.compute_total_return("owner", 365, pricing_date=date(2026, 2, 2))
+
+    assert result == {"total_return_gbp": pytest.approx(30.0), "total_return_pct": pytest.approx(0.03)}
+
+
+def test_compute_total_return_deposit_is_neutral(ledger_owner):
+    closes = {"AAA.L": {"2026-01-05": 100.0}}
+    ledger_owner([_deposit("2026-01-05", 1000), _buy("2026-01-05", 10, 1000), _deposit("2026-01-20", 500)], closes)
+
+    result = pu.compute_total_return("owner", 365, pricing_date=date(2026, 2, 2))
+
+    assert result == {"total_return_gbp": pytest.approx(0.0), "total_return_pct": pytest.approx(0.0)}
+
+
+def test_compute_total_return_matches_time_weighted_return(ledger_owner):
+    """£2,100 paid in and £2,010 held at the end: -£90, while the % is the TWR."""
+    ledger_owner(LEDGER_TRANSACTIONS, LEDGER_CLOSES)
+
+    result = pu.compute_total_return("owner", 365, pricing_date=LEDGER_END)
+
+    assert result["total_return_gbp"] == pytest.approx(-90.0)
+    assert result["total_return_pct"] == pytest.approx(
+        pu.compute_time_weighted_return("owner", 365, pricing_date=LEDGER_END)
+    )
+
+
+def test_ledger_total_return_gbp_opens_with_window_value(ledger_owner):
+    """£1,050 held when the window opens, £500 paid in, £1,700 at the end: £150."""
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2025-06-02": 105.0, "2026-01-01": 120.0}}
+    transactions = [_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000), _deposit("2025-09-01", 500)]
+    ledger_owner(transactions, closes)
+    perf = pu._owner_ledger_performance("owner", date(2026, 1, 1))
+
+    assert pu.ledger_total_return_gbp(perf, date(2025, 6, 2)) == pytest.approx(150.0)
+
+
+def test_compute_total_return_weekend_window_start_agrees_with_pct(ledger_owner):
+    """A window opening on a Saturday measures £ and % from the same Friday close."""
+    end = date(2026, 1, 1)
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2025-06-06": 105.0, "2026-01-01": 120.0}}
+    ledger_owner([_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000)], closes)
+    days = (end - date(2025, 6, 7)).days  # window opens after Saturday 7 Jun 2025
+
+    result = pu.compute_total_return("owner", days, pricing_date=end)
+
+    assert result["total_return_gbp"] == pytest.approx(150.0)  # 1,200 - Friday's 1,050
+    assert result["total_return_pct"] == pytest.approx(150.0 / 1050.0)
+
+
+def test_ledger_total_return_gbp_deposit_on_window_start_is_in_opening_value(ledger_owner):
+    """A deposit on the opening close's own day is in that close, not a flow: £150, not -£350."""
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2025-06-02": 105.0, "2026-01-01": 120.0}}
+    transactions = [_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000), _deposit("2025-06-02", 500)]
+    ledger_owner(transactions, closes)
+    perf = pu._owner_ledger_performance("owner", date(2026, 1, 1))
+
+    assert pu.ledger_total_return_gbp(perf, date(2025, 6, 2)) == pytest.approx(150.0)  # 1,700 - 1,550
+
+
+def test_ledger_total_return_gbp_counts_tracked_cash_income_once(ledger_owner):
+    """Tracked cash: the £50 dividend stays in the closing value and is not added again (£50, not £100)."""
+    closes = {"AAA.L": {"2025-01-01": 100.0}}
+    transactions = [
+        _deposit("2025-01-01", 1000),
+        _buy("2025-01-01", 10, 1000),
+        {"date": "2025-07-01", "type": "DIVIDEND", "amount_minor": 5000},
+    ]
+    ledger_owner(transactions, closes, trade_cash=True)
+    perf = pu._owner_ledger_performance("owner", date(2026, 1, 1))
+
+    assert perf.income.sum() == 0.0
+    assert pu.ledger_total_return_gbp(perf, None) == pytest.approx(50.0)
+
+
+def test_ledger_total_return_gbp_counts_income_paid_out(ledger_owner):
+    """Untracked cash: the £50 dividend leaves the account but is still return."""
+    closes = {"AAA.L": {"2025-01-01": 100.0}}
+    transactions = [_buy("2025-01-01", 10, 1000), {"date": "2025-07-01", "type": "DIVIDEND", "amount_minor": 5000}]
+    ledger_owner(transactions, closes, trade_cash=False)
+    perf = pu._owner_ledger_performance("owner", date(2026, 1, 1))
+
+    assert pu.ledger_total_return_gbp(perf, None) == pytest.approx(50.0)
+
+
+def test_compute_total_return_without_ledger_is_none(ledger_owner):
+    ledger_owner([], {})
+
+    assert pu.compute_total_return("owner") is None
+
+
 def test_compute_time_weighted_return_unknown_owner_raises(monkeypatch):
     def missing(owner, *, pricing_date=None, **_):
         raise FileNotFoundError(owner)
@@ -138,6 +238,8 @@ def test_compute_time_weighted_return_unknown_owner_raises(monkeypatch):
         pu.compute_time_weighted_return("ghost")
     with pytest.raises(FileNotFoundError):
         pu.compute_xirr("ghost")
+    with pytest.raises(FileNotFoundError):
+        pu.compute_total_return("ghost")
 
 
 def test_compute_time_weighted_return_requires_two_points(monkeypatch, ledger_owner):

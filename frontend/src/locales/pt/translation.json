@@ -504,6 +504,14 @@
     "insightCashDrag": "{{percent}} da sua carteira está em numerário",
     "insightConcentration": "A sua maior posição, {{ticker}}, representa {{percent}} da carteira",
     "insightDuplication": "Tem {{ticker}} em {{accountCount}} contas",
+    "indexRows": {
+      "toggle": "Mostrar índices de mercado",
+      "label": "Índices",
+      "help": "FTSE 100, FTSE 250, S&P 500 e NASDAQ para comparação. Níveis e variações em pontos do índice com retorno de preço em %; os dividendos são excluídos, por isso não há retorno total nem ganho desde a compra.",
+      "loading": "A carregar índices…",
+      "error": "Os dados dos índices não estão disponíveis",
+      "empty": "Sem dados de índices"
+    },
     "ownerTable": {
       "portfolioPct": "% da carteira",
       "totalValue": "Valor total",

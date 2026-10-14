@@ -667,6 +667,26 @@ export interface MarketIndexes {
   indexes: Record<string, IndexPerformance>;
 }
 
+/** Points and % change of a benchmark index over one window. */
+export interface IndexWindowChange {
+  change: number;
+  pct: number | null;
+}
+
+/** One `GET /market/index-summary` row: a price index's level in points. */
+export interface IndexSummaryRow {
+  name: string;
+  symbol: string;
+  value: number;
+  as_of: string | null;
+  /** `null` when there isn't enough history for that window. */
+  changes: Record<'1D' | '1W' | '1M' | '1Y', IndexWindowChange | null>;
+}
+
+export interface IndexSummary {
+  indexes: IndexSummaryRow[];
+}
+
 export interface MarketOverview {
   indexes: Record<string, IndexPerformance>;
   sectors: RegionSectorPerformance[];

@@ -498,6 +498,14 @@
     "insightCashDrag": "{{percent}} of your portfolio is in cash",
     "insightConcentration": "Top holding {{ticker}} is {{percent}} of your portfolio",
     "insightDuplication": "You hold {{ticker}} in {{accountCount}} accounts",
+    "indexRows": {
+      "toggle": "Show market indices",
+      "label": "Indices",
+      "help": "FTSE 100, FTSE 250, S&P 500 and NASDAQ for comparison. Levels and changes are index points with price-return %; dividends are excluded, so there is no total return or gain since purchase.",
+      "loading": "Loading indices…",
+      "error": "Index data is unavailable",
+      "empty": "No index data"
+    },
     "ownerTable": {
       "portfolioPct": "Portfolio %",
       "totalValue": "Total Value",

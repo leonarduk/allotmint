@@ -169,11 +169,12 @@ def _index_changes(series: Any) -> Dict[str, Optional[IndexChange]]:
     out: Dict[str, Optional[IndexChange]] = {}
     for period in BENCHMARK_PERIODS:
         # Points and % share one base close, so the pair can never disagree.
+        # A zero base is a bad tick (no index closes at 0), so it counts as no data.
         base = market_sectors.period_base(series, period)
-        if base is None:
+        if not base:
             out[period] = None
             continue
-        out[period] = {"change": latest - base, "pct": (latest - base) / base * 100.0 if base else None}
+        out[period] = {"change": latest - base, "pct": (latest - base) / base * 100.0}
     return out
 
 

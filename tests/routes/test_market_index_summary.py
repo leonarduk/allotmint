@@ -65,6 +65,18 @@ def test_index_summary_marks_short_history_windows_as_none(monkeypatch):
     assert row["changes"]["1Y"] is None
 
 
+def test_index_summary_treats_a_zero_base_close_as_no_data(monkeypatch):
+    index = pd.date_range("2026-01-01", periods=3, freq="D")
+    monkeypatch.setattr(market, "BENCHMARK_INDEX_NAMES", ("NASDAQ",))
+    monkeypatch.setattr(
+        market_sectors.yf, "download", lambda *_, **__: _download_frame({"^IXIC": [5.0, 0.0, 3.0]}, index)
+    )
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["changes"]["1D"] is None
+
+
 def test_index_summary_skips_indices_without_closes(monkeypatch):
     index = pd.date_range("2026-01-01", periods=3, freq="D")
     monkeypatch.setattr(market, "BENCHMARK_INDEX_NAMES", ("FTSE 100", "NASDAQ"))

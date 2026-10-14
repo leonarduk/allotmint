@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import date, timedelta
 
@@ -13,7 +14,10 @@ from backend.common.holdings_rebuild import (
     replay_cutoff,
     transaction_cost_hints,
 )
-from backend.common.transaction_reconciliation import _ledger_for
+from backend.common.transaction_reconciliation import (
+    _ledger_for,
+    reconcile_transactions_with_holdings,
+)
 from backend.routes.transactions import _replayed_units
 
 TODAY = date.today()
@@ -106,3 +110,31 @@ def test_reconciler_ledger_ignores_future_rows() -> None:
     rows = [_buy(10, 3_000.00, _day(-10)), _buy(1, 400.00, _day(30))]
 
     assert _ledger_for({"transactions": rows}, rows)["MSFT.N"] == pytest.approx(10)
+
+
+def test_stale_cost_including_future_row_is_not_carried_forward() -> None:
+    # Undated remaining row has no known cost, so the cost falls back to the
+    # previous holding only when its units match -- the stale 11 never does.
+    opening = {"type": "TRANSFER_IN", "ticker": "MSFT.N", "units": 10}
+    tx = {"transactions": [opening, _buy(1, 400.00, _day(30))]}
+    existing = {"holdings": [{"ticker": "MSFT.N", "units": 11, "cost_basis_gbp": 3400}]}
+
+    msft = _msft(rebuild_holdings_document(tx, "steve", "isa", existing))
+
+    assert msft["units"] == pytest.approx(10)
+    assert msft["cost_basis_gbp"] == 0.0
+
+
+def test_reconciler_injects_no_synthetic_trade_for_future_row(tmp_path) -> None:
+    owner_dir = tmp_path / "steve"
+    owner_dir.mkdir()
+    holding = {"ticker": "MSFT.N", "units": 10}
+    holdings = {"owner": "steve", "account_type": "ISA", "holdings": [holding]}
+    rows = [_buy(10, 3_000.00, _day(-10)), _buy(1, 400.00, _day(30))]
+    (owner_dir / "isa.json").write_text(json.dumps(holdings))
+    tx_path = owner_dir / "isa_transactions.json"
+    tx_path.write_text(json.dumps({"owner": "steve", "account_type": "ISA", "transactions": rows}))
+
+    reconcile_transactions_with_holdings(tmp_path)
+
+    assert json.loads(tx_path.read_text())["transactions"] == rows

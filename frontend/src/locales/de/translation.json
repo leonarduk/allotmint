@@ -507,7 +507,9 @@
     "indexRows": {
       "toggle": "Marktindizes anzeigen",
       "label": "Indizes",
-      "help": "FTSE 100, FTSE 250, S&P 500 und NASDAQ zum Vergleich. Stände und Veränderungen in Indexpunkten mit Kursrendite in %; Dividenden sind nicht enthalten, daher gibt es keine Gesamtrendite und keinen Gewinn seit Kauf.",
+      "help": "FTSE 100, FTSE 250, S&P 500 und NASDAQ-100 zum Vergleich. Stände und 1T/1W/1M/1J-Veränderungen in Indexpunkten mit Kursrendite in %. 1J-Gesamtrendite % enthält wiederangelegte Dividenden in der Währung des Index (GBP für FTSE, USD für S&P und NASDAQ) und ist nicht in Pfund umgerechnet. Gewinn seit Kauf entfällt.",
+      "totalReturnSourceIndex": "Gesamtrendite-Index {{symbol}}, in der Währung des Index",
+      "totalReturnSourceEtf": "Näherung: ETF {{symbol}} mit wiederangelegten Dividenden, in der Währung des Index (inklusive Fondskosten)",
       "loading": "Indizes werden geladen…",
       "error": "Indexdaten sind nicht verfügbar",
       "empty": "Keine Indexdaten"

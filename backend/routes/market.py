@@ -8,7 +8,7 @@ import logging
 import math
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Literal, NotRequired, Optional, TypedDict
+from typing import Any, Dict, List, Literal, NamedTuple, NotRequired, Optional, TypedDict
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -147,11 +147,34 @@ def _fetch_index_period_changes(period: market_sectors.Period) -> Dict[str, Inde
     return out
 
 
-# Indices shown as benchmark rows beside the owner summary table, in display
-# order. Names are keys of ``INDEX_SYMBOLS``.
-BENCHMARK_INDEX_NAMES: tuple[str, ...] = ("FTSE 100", "FTSE 250", "S&P 500", "NASDAQ")
+class Benchmark(NamedTuple):
+    """A benchmark row: the price index shown, and where its total return comes from."""
+
+    name: str
+    symbol: str
+    # Yahoo has total-return indices only for some benchmarks (``^XNDX``, the
+    # NASDAQ-100 one, has no history), so the rest use a distributing tracker
+    # ETF whose dividends are reinvested. Each source is priced in its index's
+    # currency (the ``.L`` ETFs in pence, with dividends in pence too), so the
+    # % return is in that currency, not converted to sterling.
+    total_return_symbol: str
+    total_return_source: Literal["index", "etf"]
+
+
+# Benchmark rows beside the owner summary table, in display order.
+BENCHMARKS: tuple[Benchmark, ...] = (
+    Benchmark("FTSE 100", "^FTSE", "ISF.L", "etf"),
+    Benchmark("FTSE 250", "^FTMC", "MIDD.L", "etf"),
+    Benchmark("S&P 500", "^GSPC", "^SP500TR", "index"),
+    Benchmark("NASDAQ-100", "^NDX", "QQQ", "etf"),
+)
 # Windows reported per benchmark index; ``1D`` is the day change.
 BENCHMARK_PERIODS: tuple[market_sectors.Period, ...] = ("1D", "1W", "1M", "1Y")
+# Plausible gap, in percentage points, between a benchmark's 1Y total return
+# and its 1Y price return: dividends add up to ~10pp, while ETF fees and
+# tracking can cost a little. Outside it the source is wrong (e.g. dividends
+# in other units than the closes, #10742), so no figure is better than a bad one.
+TOTAL_RETURN_GAP_PP = (-3.0, 10.0)
 # Daily closes move at most once per session, so a few minutes is plenty and
 # keeps every dashboard load from re-downloading two years of history.
 _BENCHMARK_CACHE: TTLCache[List[Dict[str, Any]]] = TTLCache(300, name="market_index_summary")
@@ -160,6 +183,12 @@ _BENCHMARK_CACHE: TTLCache[List[Dict[str, Any]]] = TTLCache(300, name="market_in
 class IndexChange(TypedDict):
     change: float
     pct: Optional[float]
+
+
+class IndexTotalReturn(TypedDict):
+    pct: float
+    symbol: str
+    source: Literal["index", "etf"]
 
 
 def _index_changes(series: Any) -> Dict[str, Optional[IndexChange]]:
@@ -178,28 +207,54 @@ def _index_changes(series: Any) -> Dict[str, Optional[IndexChange]]:
     return out
 
 
+def _total_return_1y(
+    benchmark: Benchmark, history: market_sectors.PriceHistory, price_1y: Optional[IndexChange]
+) -> Optional[IndexTotalReturn]:
+    """1Y total return % of ``benchmark``, or ``None`` when missing or implausible."""
+
+    series = market_sectors.series_for(history.total_return, benchmark.total_return_symbol)
+    pct = market_sectors.period_change(series, "1Y") if not series.empty else None
+    if pct is None:
+        return None
+    if price_1y is not None and price_1y["pct"] is not None:
+        gap = pct - price_1y["pct"]
+        low, high = TOTAL_RETURN_GAP_PP
+        if not low <= gap <= high:
+            logger.warning(
+                "Dropping %s 1Y total return from %s: %spp from the price return",
+                sanitise_log_value(benchmark.name),
+                sanitise_log_value(benchmark.total_return_symbol),
+                sanitise_log_value(f"{gap:.1f}"),
+            )
+            return None
+    return {"pct": pct, "symbol": benchmark.total_return_symbol, "source": benchmark.total_return_source}
+
+
 def _fetch_index_summary() -> List[Dict[str, Any]]:
     """Return each benchmark index's latest close with day/1W/1M/1Y changes.
 
-    One 1Y download covers every window. Levels are price-index points (no
-    currency) and the changes are price return, not total return.
+    One 1Y download covers every window and every total-return source. Levels
+    are price-index points (no currency) and the changes are price return;
+    ``total_return_1y`` adds reinvested dividends, in the index's currency.
     """
 
-    symbols = [INDEX_SYMBOLS[name] for name in BENCHMARK_INDEX_NAMES]
-    traded = market_sectors.download_period_history(symbols, "1Y").traded
+    symbols = [b.symbol for b in BENCHMARKS] + [b.total_return_symbol for b in BENCHMARKS]
+    history = market_sectors.download_period_history(symbols, "1Y")
     out: List[Dict[str, Any]] = []
-    for name in BENCHMARK_INDEX_NAMES:
-        series = market_sectors.series_for(traded, INDEX_SYMBOLS[name])
+    for benchmark in BENCHMARKS:
+        series = market_sectors.series_for(history.traded, benchmark.symbol)
         if series.empty:
-            logger.warning("No closes for benchmark index %s", sanitise_log_value(name))
+            logger.warning("No closes for benchmark index %s", sanitise_log_value(benchmark.name))
             continue
+        changes = _index_changes(series)
         out.append(
             {
-                "name": name,
-                "symbol": INDEX_SYMBOLS[name],
+                "name": benchmark.name,
+                "symbol": benchmark.symbol,
                 "value": float(series.iloc[-1]),
                 "as_of": _index_label_to_iso(series.index[-1]),
-                "changes": _index_changes(series),
+                "changes": changes,
+                "total_return_1y": _total_return_1y(benchmark, history, changes["1Y"]),
             }
         )
     return out

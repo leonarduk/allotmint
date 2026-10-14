@@ -681,6 +681,17 @@ export interface IndexSummaryRow {
   as_of: string | null;
   /** `null` when there isn't enough history for that window. */
   changes: Record<'1D' | '1W' | '1M' | '1Y', IndexWindowChange | null>;
+  /**
+   * 1Y total return % (dividends reinvested) in the index's own currency,
+   * from a total-return index or a tracker ETF proxy; `null` when unavailable.
+   */
+  total_return_1y: IndexTotalReturn | null;
+}
+
+export interface IndexTotalReturn {
+  pct: number;
+  symbol: string;
+  source: 'index' | 'etf';
 }
 
 export interface IndexSummary {

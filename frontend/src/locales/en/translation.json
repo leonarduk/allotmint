@@ -501,7 +501,9 @@
     "indexRows": {
       "toggle": "Show market indices",
       "label": "Indices",
-      "help": "FTSE 100, FTSE 250, S&P 500 and NASDAQ for comparison. Levels and changes are index points with price-return %; dividends are excluded, so there is no total return or gain since purchase.",
+      "help": "FTSE 100, FTSE 250, S&P 500 and NASDAQ-100 for comparison. Levels and 1D/1W/1M/1Y changes are index points with price-return %. 1Y Total Return % adds reinvested dividends, in the index's own currency (GBP for FTSE, USD for S&P and NASDAQ), so it is not converted to sterling. Gain since purchase does not apply.",
+      "totalReturnSourceIndex": "Total return index {{symbol}}, in the index's own currency",
+      "totalReturnSourceEtf": "Proxy: {{symbol}} tracker ETF with dividends reinvested, in the index's own currency (includes the fund's fees)",
       "loading": "Loading indices…",
       "error": "Index data is unavailable",
       "empty": "No index data"

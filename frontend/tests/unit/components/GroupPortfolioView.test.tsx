@@ -418,6 +418,7 @@ describe("GroupPortfolioView", () => {
           value: 8000,
           as_of: null,
           changes: { "1D": null, "1W": null, "1M": null, "1Y": null },
+          total_return_1y: null,
         },
       ],
     });

@@ -5,7 +5,11 @@ import { useFetch } from '../hooks/useFetch';
 import i18n from '../i18n';
 import { percent } from '../lib/money';
 import tableStyles from '../styles/table.module.css';
-import type { IndexSummaryRow, IndexWindowChange } from '../types';
+import type {
+  IndexSummaryRow,
+  IndexTotalReturn,
+  IndexWindowChange,
+} from '../types';
 
 // Matches the owner table's 1W/1M/1Y columns, in the same order.
 const PERIOD_WINDOWS = ['1W', '1M', '1Y'] as const;
@@ -33,7 +37,7 @@ const changeColor = (window: IndexWindowChange | null): string | undefined =>
       ? 'var(--gain-positive)'
       : 'var(--gain-negative)';
 
-/** Owner-table columns an index has no figure for: stock/cash split, total return, gain since purchase. */
+/** Owner-table columns an index has no figure for: stock/cash split, total return £, gain since purchase. */
 const BlankCells = ({ count }: { count: number }) => (
   <>
     {Array.from({ length: count }, (_, i) => (
@@ -79,8 +83,43 @@ function IndexRow({ row, relative }: RowProps) {
           </td>
         );
       })}
-      <BlankCells count={relative ? 2 : 4} />
+      {/* 1Y Total Return £ has no meaning for an index; only the % is shown. */}
+      {!relative && <BlankCells count={1} />}
+      <TotalReturnCell totalReturn={row.total_return_1y} />
+      {/* Gain since purchase: an index has no purchase. */}
+      <BlankCells count={relative ? 1 : 2} />
     </tr>
+  );
+}
+
+function TotalReturnCell({
+  totalReturn,
+}: {
+  totalReturn: IndexTotalReturn | null;
+}) {
+  const { t } = useTranslation();
+  if (totalReturn === null) return <td className={cell}>—</td>;
+  const title =
+    totalReturn.source === 'index'
+      ? t('group.indexRows.totalReturnSourceIndex', {
+          symbol: totalReturn.symbol,
+        })
+      : t('group.indexRows.totalReturnSourceEtf', {
+          symbol: totalReturn.symbol,
+        });
+  return (
+    <td
+      className={cell}
+      title={title}
+      style={{
+        color:
+          totalReturn.pct >= 0
+            ? 'var(--gain-positive)'
+            : 'var(--gain-negative)',
+      }}
+    >
+      {percent(totalReturn.pct)}
+    </td>
   );
 }
 
@@ -88,10 +127,11 @@ type Props = { relativeViewEnabled: boolean };
 
 /**
  * Benchmark index rows for the owner summary table: an "Indices" pseudo-owner
- * whose "accounts" are FTSE 100, FTSE 250, S&P 500 and NASDAQ. Levels and
- * changes are in index points with price-return %, so the money-only columns
- * (stock/cash split, 1Y total return, gain since purchase) stay blank and the
- * group row itself has no aggregate: summing index levels means nothing.
+ * whose "accounts" are FTSE 100, FTSE 250, S&P 500 and NASDAQ-100. Levels and
+ * changes are in index points with price-return %; 1Y Total Return % adds
+ * reinvested dividends. The money-only columns (stock/cash split, 1Y total
+ * return £, gain since purchase) stay blank and the group row itself has no
+ * aggregate: summing index levels means nothing.
  */
 export function IndexBenchmarkRows({ relativeViewEnabled }: Props) {
   const { t } = useTranslation();

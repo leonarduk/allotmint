@@ -20,6 +20,7 @@ const summary: IndexSummary = {
         '1M': null,
         '1Y': { change: 600, pct: 7.98 },
       },
+      total_return_1y: { pct: 11.5, symbol: 'ISF.L', source: 'etf' },
     },
     {
       name: 'FTSE 250',
@@ -27,6 +28,7 @@ const summary: IndexSummary = {
       value: 20500,
       as_of: null,
       changes: { '1D': null, '1W': null, '1M': null, '1Y': null },
+      total_return_1y: null,
     },
   ],
 };
@@ -72,7 +74,7 @@ describe('IndexBenchmarkRows', () => {
       '—',
       '+600.00 (7.98%)',
       '',
-      '',
+      '11.50%',
       '',
       '',
     ]);
@@ -91,9 +93,21 @@ describe('IndexBenchmarkRows', () => {
       '0.50%',
       '—',
       '7.98%',
-      '',
+      '11.50%',
       '',
     ]);
+  });
+
+  it('names the total return source and shows — without one', async () => {
+    renderRows();
+
+    const ftse100 = await screen.findByTestId('index-row-^FTSE');
+    expect(within(ftse100).getByText('11.50%')).toHaveAttribute(
+      'title',
+      expect.stringContaining('ISF.L')
+    );
+    const ftse250 = screen.getByTestId('index-row-^FTMC');
+    expect(cellTexts(ftse250)[10]).toBe('—');
   });
 
   it('collapses and expands the index rows from the Indices row', async () => {

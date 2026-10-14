@@ -8,6 +8,7 @@ vi.mock("@/hooks/useInstrumentHistory", () => ({
 vi.mock("@/api", () => ({
   getNews: vi.fn(),
   listInstrumentMetadata: vi.fn(),
+  listInstrumentMetadataScan: vi.fn(),
   updateInstrumentMetadata: vi.fn(),
   createInstrumentMetadata: vi.fn(),
   refreshInstrumentMetadata: vi.fn(),
@@ -41,9 +42,11 @@ import type { NewsItem, InstrumentMetadata } from "@/types";
 import { useInstrumentHistory } from "@/hooks/useInstrumentHistory";
 import * as api from "@/api";
 import { configContext, type ConfigContextValue } from "@/ConfigContext";
+import { ADMIN_WARMING_POLL_MS } from "@/hooks/useAdminScan";
 
 const mockGetNews = vi.mocked(api.getNews);
 const mockListInstrumentMetadata = vi.mocked(api.listInstrumentMetadata);
+const mockListInstrumentMetadataScan = vi.mocked(api.listInstrumentMetadataScan);
 const mockUpdateInstrumentMetadata = vi.mocked(api.updateInstrumentMetadata);
 const mockCreateInstrumentMetadata = vi.mocked(api.createInstrumentMetadata);
 const mockRefreshInstrumentMetadata = vi.mocked(api.refreshInstrumentMetadata);
@@ -148,6 +151,12 @@ describe("InstrumentResearch page", () => {
       error: null,
     } as any);
     mockListInstrumentMetadata.mockReset();
+    // The page loads the catalogue via the partial scan (#10885); by default
+    // it is complete and returns whatever the full-list mock is set to.
+    mockListInstrumentMetadataScan.mockReset().mockImplementation(async () => ({
+      data: await api.listInstrumentMetadata(),
+      warming: false,
+    }));
     mockUpdateInstrumentMetadata.mockReset();
     mockCreateInstrumentMetadata.mockReset().mockResolvedValue({} as any);
     mockRefreshInstrumentMetadata.mockReset();
@@ -999,6 +1008,60 @@ describe("InstrumentResearch page", () => {
     expect(
       screen.getByText(/Declared currency \(metadata\):/),
     ).toHaveTextContent("Declared currency (metadata): USD");
+  });
+
+  it("shows a preparing notice and re-polls while the backend warm-up runs (#10885)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockListInstrumentMetadataScan
+        .mockResolvedValueOnce({ data: [], warming: true })
+        .mockResolvedValue({
+          data: [{ ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39" }] as any,
+          warming: false,
+        });
+      renderPage();
+
+      expect(await screen.findByTestId("instrument-catalogue-warming")).toHaveTextContent(
+        /Preparing instrument data/,
+      );
+      expect(mockListInstrumentMetadata).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(ADMIN_WARMING_POLL_MS);
+
+      expect(await screen.findByRole("link", { name: "View on Morningstar" })).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByTestId("instrument-catalogue-warming")).not.toBeInTheDocument(),
+      );
+      expect(mockListInstrumentMetadataScan).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("hides the preparing notice once the entry is in a still-partial list", async () => {
+    mockListInstrumentMetadataScan.mockResolvedValue({
+      data: [{ ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39" }] as any,
+      warming: true,
+    });
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "View on Morningstar" })).toBeInTheDocument();
+    expect(screen.queryByTestId("instrument-catalogue-warming")).not.toBeInTheDocument();
+  });
+
+  it("stops re-polling the catalogue after leaving the page", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockListInstrumentMetadataScan.mockResolvedValue({ data: [], warming: true });
+      const { unmount } = renderPage();
+      await screen.findByTestId("instrument-catalogue-warming");
+      unmount();
+
+      await vi.advanceTimersByTimeAsync(ADMIN_WARMING_POLL_MS * 3);
+      expect(mockListInstrumentMetadataScan).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("links to Investing.com and Morningstar by ISIN when the catalogue has one", async () => {

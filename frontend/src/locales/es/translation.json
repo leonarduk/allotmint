@@ -710,6 +710,7 @@
     "ma50": "50d MA",
     "metadataCurrencyError": "Selecciona una divisa admitida antes de guardar.",
     "metadataLoadError": "No se pudo cargar el catálogo de instrumentos.",
+    "catalogueWarming": "Preparando los datos del instrumento tras reiniciar el servidor… se completarán automáticamente.",
     "metadataMissingExchange": "Se desconoce el mercado del instrumento; prueba a recargar.",
     "metadataSaveError": "No se pudieron guardar los detalles del instrumento.",
     "metadataSaveSuccess": "Detalles del instrumento actualizados.",

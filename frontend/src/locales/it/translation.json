@@ -710,6 +710,7 @@
     "ma50": "50d MA",
     "metadataCurrencyError": "Seleziona una valuta supportata prima di salvare.",
     "metadataLoadError": "Impossibile caricare il catalogo degli strumenti.",
+    "catalogueWarming": "Preparazione dei dati dello strumento dopo il riavvio del server… verranno mostrati automaticamente.",
     "metadataMissingExchange": "La borsa dello strumento è sconosciuta; prova a ricaricare.",
     "metadataSaveError": "Impossibile salvare i dettagli dello strumento.",
     "metadataSaveSuccess": "Dettagli dello strumento aggiornati.",

@@ -20,6 +20,7 @@ import {
   getNews,
   getScreener,
   listInstrumentMetadata,
+  listInstrumentMetadataScan,
   refreshInstrumentMetadata,
   updateInstrumentMetadata,
   type InstrumentMetadataRefreshResponse,
@@ -50,6 +51,7 @@ import { buildExternalResearchLinks } from "../utils/researchLinks";
 import { InstrumentIdentifiers } from "../components/InstrumentIdentifiers";
 import { useMorningstarId } from "../hooks/useMorningstarId";
 import { useLiveQuotes } from "../hooks/useLiveQuotes";
+import { ADMIN_WARMING_POLL_MS } from "../hooks/useAdminScan";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -254,6 +256,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [foreignIsinRejected, setForeignIsinRejected] = useState(false);
   const [allowForeignIsin, setAllowForeignIsin] = useState(false);
   const [catalogueEntry, setCatalogueEntry] = useState<InstrumentMetadata | null>(null);
+  const [catalogueWarming, setCatalogueWarming] = useState(false);
   // Exposure-region override, edited alongside the other metadata. Blank
   // means "derive it" (fund name, then the listing's region).
   const [regionInput, setRegionInput] = useState("");
@@ -462,10 +465,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   useEffect(() => {
     if (!tkr) return;
     let cancelled = false;
-    (async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // The partial scan answers at once while the backend's startup warm-up is
+    // still listing instruments, instead of a cold scan that can outlast the
+    // request timeout; re-poll until the list is complete (#10885).
+    const load = async () => {
       try {
-        const catalogue = await listInstrumentMetadata();
+        const { data: catalogue, warming } = await listInstrumentMetadataScan();
         if (cancelled) return;
+        setCatalogueWarming(warming);
+        if (warming) timer = setTimeout(load, ADMIN_WARMING_POLL_MS);
         const sectors = new Set<string>();
         const instrumentTypes = new Map<string, string>();
         DEFAULT_INSTRUMENT_TYPES.forEach((type) =>
@@ -576,13 +585,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         }
       } catch (err) {
         if (cancelled) return;
+        setCatalogueWarming(false);
         const baseMessage = t("instrumentDetail.metadataLoadError");
         const extra = err instanceof Error ? err.message : String(err);
         setMetadataStatus({ kind: "error", text: `${baseMessage} ${extra}` });
       }
-    })();
+    };
+    void load();
     return () => {
       cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
     };
   }, [tkr, baseTicker, t]);
 
@@ -1480,6 +1492,14 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           </div>
         )}
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {catalogueWarming && !catalogueEntry && (
+            <li role="status" data-testid="instrument-catalogue-warming" className="text-sm">
+              {t("instrumentDetail.catalogueWarming", {
+                defaultValue:
+                  "Preparing instrument data after a server restart… this fills in automatically.",
+              })}
+            </li>
+          )}
           <InstrumentIdentifiers
             ticker={alertTicker || tkr}
             exchange={exchangeForActions}

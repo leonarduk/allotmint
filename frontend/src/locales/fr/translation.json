@@ -710,6 +710,7 @@
     "ma50": "50d MA",
     "metadataCurrencyError": "Sélectionnez une devise prise en charge avant d'enregistrer.",
     "metadataLoadError": "Impossible de charger le catalogue des instruments.",
+    "catalogueWarming": "Préparation des données de l'instrument après un redémarrage du serveur… elles s'afficheront automatiquement.",
     "metadataMissingExchange": "La bourse de l'instrument est inconnue ; essayez de recharger.",
     "metadataSaveError": "Impossible d'enregistrer les détails de l'instrument.",
     "metadataSaveSuccess": "Détails de l'instrument mis à jour.",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildTransactionPayload,
   createTransactionFormValues,
+  maxTransactionDate,
 } from "@/components/transactions/transactionForm";
 
 const BASE_VALUES = {
@@ -191,5 +192,29 @@ describe("transactionForm helpers", () => {
     );
     expect(result.error).toBeNull();
     expect(result.payload).not.toHaveProperty("type");
+  });
+
+  describe("future dates (#10898)", () => {
+    // Local noon, so the local calendar date is the same in every timezone.
+    const NOW = new Date(2026, 9, 14, 12, 0, 0);
+
+    it("allows up to tomorrow in the browser's timezone", () => {
+      expect(maxTransactionDate(NOW)).toBe("2026-10-15");
+      expect(maxTransactionDate(new Date(2026, 11, 31, 12))).toBe("2027-01-01");
+    });
+
+    it("rejects a date after tomorrow", () => {
+      expect(
+        buildTransactionPayload({ ...BASE_VALUES, date: "2027-01-01" }, "alex", "isa", NOW),
+      ).toEqual({ payload: null, error: "Date cannot be in the future." });
+    });
+
+    it("accepts today and tomorrow", () => {
+      for (const date of ["2026-10-14", "2026-10-15"]) {
+        const result = buildTransactionPayload({ ...BASE_VALUES, date }, "alex", "isa", NOW);
+        expect(result.error).toBeNull();
+        expect(result.payload?.date).toBe(date);
+      }
+    });
   });
 });

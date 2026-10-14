@@ -152,9 +152,11 @@ class Benchmark(NamedTuple):
 
     name: str
     symbol: str
-    # Yahoo has total-return indices only for some benchmarks (``^XNDX`` has
-    # no history), so the rest use a distributing tracker ETF whose dividends
-    # are reinvested. Each source trades in the same currency as its index.
+    # Yahoo has total-return indices only for some benchmarks (``^XNDX``, the
+    # NASDAQ-100 one, has no history), so the rest use a distributing tracker
+    # ETF whose dividends are reinvested. Each source is priced in its index's
+    # currency (the ``.L`` ETFs in pence, with dividends in pence too), so the
+    # % return is in that currency, not converted to sterling.
     total_return_symbol: str
     total_return_source: Literal["index", "etf"]
 

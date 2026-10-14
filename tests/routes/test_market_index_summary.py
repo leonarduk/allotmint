@@ -159,6 +159,16 @@ def test_index_summary_reads_a_total_return_index_directly(monkeypatch):
     assert row["total_return_1y"] == {"pct": pytest.approx(11.5), "symbol": "^SP500TR", "source": "index"}
 
 
+def test_total_return_frame_keeps_a_symbol_without_dividends():
+    # ^SP500TR pays nothing itself, so its total-return series must be its closes.
+    frame = _download_frame({"^SP500TR": [1.0, 2.0, 3.0], "ISF.L": [100.0] * 3}, FLAT_YEAR[:3], {("ISF.L", 2): 1.0})
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+        history = market_sectors.download_period_history(["^SP500TR", "ISF.L"], "1Y")
+
+    assert list(market_sectors.series_for(history.total_return, "^SP500TR")) == [1.0, 2.0, 3.0]
+
+
 def test_index_summary_drops_an_implausible_total_return(monkeypatch):
     # A dividend in pounds against pence closes would add ~100x too much (#10742).
     _only(monkeypatch, "FTSE 250")

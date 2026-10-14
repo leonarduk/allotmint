@@ -1855,10 +1855,13 @@ describe("InstrumentResearch page", () => {
 
       expect(await screen.findByLabelText("Remove BBB.L")).toBeInTheDocument();
       expect(screen.queryByLabelText("Remove AAA")).not.toBeInTheDocument();
-      expect(mockGetInstrumentDetail).toHaveBeenCalledWith(
-        "BBB.L",
-        expect.any(Number),
-        expect.any(AbortSignal),
+      // The chip renders before the compare series is requested, so wait for it.
+      await waitFor(() =>
+        expect(mockGetInstrumentDetail).toHaveBeenCalledWith(
+          "BBB.L",
+          expect.any(Number),
+          expect.any(AbortSignal),
+        ),
       );
     });
 

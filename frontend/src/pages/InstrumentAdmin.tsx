@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   listInstrumentMetadataScan,
@@ -10,6 +10,14 @@ import { useAdminScan } from "../hooks/useAdminScan";
 import { useFilterableTable, type Filter } from "../hooks/useFilterableTable";
 import type { InstrumentMetadata } from "../types";
 import { FundUpkeepProposals } from "../components/FundUpkeepProposals";
+
+/**
+ * Rows rendered per page. Each row is 6 inputs plus a Save button, so 50 rows
+ * keeps the table at 300 inputs however large the catalogue is; the real one
+ * is ~12k instruments, which as one table was 71k inputs and ~17s to mount
+ * (#10884). Same approach as the Time Series Editor (#10825).
+ */
+export const INSTRUMENT_ADMIN_PAGE_SIZE = 50;
 
 interface Row {
   ticker: string;
@@ -50,9 +58,14 @@ const toRow = (r: any): Row => {
 };
 
 // Unsaved rows stay pinned to the top regardless of sort order, so editing the
-// ticker of a new row doesn't make it jump to its alphabetical position.
-const pinNewRowsFirst = (a: Row, b: Row) =>
-  Boolean(a.isNew) === Boolean(b.isNew) ? 0 : a.isNew ? -1 : 1;
+// ticker of a new row doesn't make it jump to its alphabetical position. Saved
+// rows sort by their original ticker for the same reason: with paging, a row
+// whose ticker is being edited would otherwise move to another page (#10884).
+const pinNewRowsFirst = (a: Row, b: Row) => {
+  if (Boolean(a.isNew) !== Boolean(b.isNew)) return a.isNew ? -1 : 1;
+  if (a.isNew) return 0;
+  return (a._originalTicker ?? a.ticker).localeCompare(b._originalTicker ?? b.ticker);
+};
 
 let newRowCounter = 0;
 
@@ -79,6 +92,7 @@ export default function InstrumentAdmin() {
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const {
     rows: filteredRows,
@@ -102,6 +116,17 @@ export default function InstrumentAdmin() {
       },
     },
   }, pinNewRowsFirst);
+
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / INSTRUMENT_ADMIN_PAGE_SIZE));
+  // Clamp rather than reset, so a re-poll that shrinks the list keeps the user
+  // on a valid page instead of an empty one. The clamp is also stored, so a
+  // later re-poll that grows the list again doesn't jump back to the old page.
+  const currentPage = Math.min(page, pageCount - 1);
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage);
+  }, [page, currentPage]);
+  const pageStart = currentPage * INSTRUMENT_ADMIN_PAGE_SIZE;
+  const pageRows = filteredRows.slice(pageStart, pageStart + INSTRUMENT_ADMIN_PAGE_SIZE);
 
   // Rows the user has edited since the last full replace; a re-poll keeps them.
   const touched = useRef(new Set<string>());
@@ -133,7 +158,9 @@ export default function InstrumentAdmin() {
     });
   };
 
-  const handleAdd = () =>
+  // New rows are pinned to the top, so show the first page where they land.
+  const handleAdd = () => {
+    setPage(0);
     setRows((prev) => [
       ...prev,
       {
@@ -148,6 +175,7 @@ export default function InstrumentAdmin() {
         _newKey: `new-${(newRowCounter += 1)}`,
       },
     ]);
+  };
 
   const handleSave = async (row: Row) => {
     setMessage(null);
@@ -214,7 +242,10 @@ export default function InstrumentAdmin() {
         type="text"
         placeholder={t("instrumentadmin.searchPlaceholder")}
         value={String((filters as any).search ?? "")}
-        onChange={(e) => setFilter("search", e.target.value)}
+        onChange={(e) => {
+          setFilter("search", e.target.value);
+          setPage(0);
+        }}
         style={{ marginBottom: "0.5rem", display: "block" }}
       />
       <p style={{ marginBottom: "0.5rem", fontSize: "0.85rem" }}>
@@ -241,7 +272,7 @@ export default function InstrumentAdmin() {
           </tr>
         </thead>
         <tbody>
-          {filteredRows.map((r, idx) => (
+          {pageRows.map((r, idx) => (
             <tr
               key={
                 r._newKey ??
@@ -298,6 +329,36 @@ export default function InstrumentAdmin() {
         </tbody>
       </table>
       </div>
+      {filteredRows.length > INSTRUMENT_ADMIN_PAGE_SIZE && (
+        <nav
+          className="mb-2 flex flex-wrap items-center gap-2 text-sm"
+          aria-label={t("instrumentadmin.pagination.label")}
+        >
+          <button
+            type="button"
+            onClick={() => setPage(currentPage - 1)}
+            disabled={currentPage === 0}
+          >
+            {t("instrumentadmin.pagination.previous")}
+          </button>
+          <span aria-live="polite">
+            {t("instrumentadmin.pagination.status", {
+              page: currentPage + 1,
+              pages: pageCount,
+              from: pageStart + 1,
+              to: pageStart + pageRows.length,
+              total: filteredRows.length,
+            })}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage(currentPage + 1)}
+            disabled={currentPage >= pageCount - 1}
+          >
+            {t("instrumentadmin.pagination.next")}
+          </button>
+        </nav>
+      )}
       <FundUpkeepProposals />
     </div>
   );

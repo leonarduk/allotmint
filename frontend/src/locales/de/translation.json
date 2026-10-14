@@ -636,6 +636,12 @@
     "exchange": "Börse",
     "grouping": "Gruppierung",
     "name": "Name",
+    "pagination": {
+      "label": "Zeilenseiten",
+      "next": "Nächste Seite",
+      "previous": "Vorherige Seite",
+      "status": "Seite {{page}} von {{pages}} (Instrumente {{from}}–{{to}} von {{total}})"
+    },
     "region": "Region",
     "regionHint": "Region: leer lassen für die automatische Region (grau angezeigt); eine eingeben, um sie zu überschreiben.",
     "save": "Speichern",

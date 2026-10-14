@@ -636,6 +636,12 @@
     "exchange": "Bourse",
     "grouping": "Regroupement",
     "name": "Nom",
+    "pagination": {
+      "label": "Pages de lignes",
+      "next": "Page suivante",
+      "previous": "Page précédente",
+      "status": "Page {{page}} sur {{pages}} (instruments {{from}}–{{to}} sur {{total}})"
+    },
     "region": "Région",
     "regionHint": "Région : laisser vide pour utiliser la région automatique (affichée en gris) ; en saisir une pour la remplacer.",
     "save": "Enregistrer",

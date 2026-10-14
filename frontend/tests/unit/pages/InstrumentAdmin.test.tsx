@@ -464,7 +464,12 @@ describe("InstrumentAdmin with a large catalogue (#10884)", () => {
 
     // "ZZZ" would sort to the last page; the row must stay where it is.
     fireEvent.change(tickerInput, { target: { value: "ZZZ" } });
+    // Still page 2, in the same slot (T0077 is the 28th row of 50), not moved
+    // to the last page where "ZZZ" would sort by its live ticker.
     expect(screen.getByDisplayValue("ZZZ")).toBe(tickerInput);
+    expect(screen.getByText(`Page 2 of 24 (instruments 51–100 of ${LARGE_COUNT})`)).toBeInTheDocument();
+    expect(screen.getAllByRole("row")[28]).toBe(row);
+    expect(screen.getByDisplayValue("T0050")).toBeInTheDocument();
     fireEvent.click(within(row).getByRole("button", { name: /save/i }));
 
     await waitFor(() =>

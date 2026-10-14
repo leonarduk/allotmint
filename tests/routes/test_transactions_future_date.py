@@ -81,3 +81,24 @@ def test_import_skips_future_rows_and_keeps_historical(client, tmp_path, monkeyp
     assert [row["date"] for row in data["persisted"]] == ["2024-05-01"]
     assert [(row["date"], row["skip_reason"]) for row in data["skipped"]] == [(TOO_FAR, "date cannot be in the future")]
     assert [tx["date"] for tx in _stored(tmp_path)] == ["2024-05-01"]
+
+
+def test_update_allows_one_day_of_slack(client, tmp_path):
+    created = client.post("/transactions", json=_payload()).json()
+    assert client.put(f"/transactions/{created['id']}", json=_payload(date=TOMORROW)).status_code == 200
+    assert [tx["date"] for tx in _stored(tmp_path)] == [TOMORROW]
+
+
+def test_import_of_only_future_rows_writes_nothing(client, tmp_path, monkeypatch):
+    row = Transaction(owner="alice", account="ISA", date=TOO_FAR, ticker="PFE", type="BUY", price=10.5, units=1)
+    monkeypatch.setattr(importers, "parse", lambda provider, data: [row])
+
+    resp = client.post(
+        "/transactions/import",
+        data={"provider": "hargreaves"},
+        files={"file": ("tx.csv", b"unused", "text/csv")},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["persisted"] == []
+    assert [r["skip_reason"] for r in resp.json()["skipped"]] == ["date cannot be in the future"]
+    assert not list((tmp_path / "alice").glob("*_transactions.json"))

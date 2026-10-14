@@ -340,3 +340,45 @@ describe("InstrumentAdmin while the backend warms its caches (#10754)", () => {
     expect(screen.queryByTestId("admin-warming-notice")).not.toBeInTheDocument();
   });
 });
+
+describe("InstrumentAdmin saving while the backend warms its caches (#10754)", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("keeps the saved row and other unsaved edits when the refreshed list is partial", async () => {
+    vi.mocked(listInstrumentMetadataScan)
+      .mockResolvedValueOnce({
+        warming: false,
+        data: [
+          { ticker: "AAA.L", name: "Alpha", grouping: "ISA" },
+          { ticker: "BBB.N", name: "Beta", grouping: "GIA" },
+        ] as any,
+      })
+      // AAA.L's file changed on save, so the warming cache does not list it yet.
+      .mockResolvedValueOnce({ warming: true, data: [{ ticker: "BBB.N", name: "Beta", grouping: "GIA" }] as any })
+      .mockResolvedValue({
+        warming: false,
+        data: [
+          { ticker: "AAA.L", name: "Alpha", grouping: "ISA+" },
+          { ticker: "BBB.N", name: "Beta", grouping: "GIA" },
+        ] as any,
+      });
+
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByDisplayValue("AAA")).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("ISA"), { target: { value: "ISA+" } });
+    fireEvent.change(screen.getByDisplayValue("GIA"), { target: { value: "GIA unsaved" } });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /save/i })[0]);
+
+    expect(await screen.findByTestId("admin-warming-notice")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("AAA")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("ISA+")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("GIA unsaved")).toBeInTheDocument();
+  });
+});

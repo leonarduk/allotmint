@@ -9,13 +9,14 @@ export const ADMIN_WARMING_POLL_MS = 3_000;
  * the backend says its startup warm-up is still running, re-polls every
  * {@link ADMIN_WARMING_POLL_MS} so the partial list fills in on its own (#10754).
  *
- * `onData` receives every result, partial or complete, so a page can merge it
- * into local state (e.g. keep unsaved edits) instead of replacing it. `reload`
- * starts a fresh load, e.g. after a save.
+ * `onData` receives every result with its `warming` flag, so a page can merge
+ * it into local state (e.g. keep unsaved edits, and rows a partial result does
+ * not include yet) instead of replacing it. `reload` starts a fresh load, e.g.
+ * after a save.
  */
 export function useAdminScan<T>(
   load: () => Promise<AdminScan<T>>,
-  onData: (data: T) => void,
+  onData: (data: T, warming: boolean) => void,
   onError: (error: unknown) => void
 ): { warming: boolean; reload: () => void } {
   const [warming, setWarming] = useState(false);
@@ -35,7 +36,7 @@ export function useAdminScan<T>(
       .then(
         (result) => {
           if (cancelled) return;
-          callbacks.current.onData(result.data);
+          callbacks.current.onData(result.data, result.warming);
           setWarming(result.warming);
           if (result.warming) {
             timer = setTimeout(

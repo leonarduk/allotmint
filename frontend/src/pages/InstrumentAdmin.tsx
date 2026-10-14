@@ -60,11 +60,16 @@ const rowKey = (row: Row) =>
   row.isNew ? (row._newKey ?? "") : `${row._originalTicker ?? ""}.${row._originalExchange ?? ""}`;
 
 /**
- * Fold a fresh (possibly partial, #10754) server list into the rows on screen,
- * keeping unsaved rows and rows the user has edited as they are.
+ * Fold a fresh server list into the rows on screen, keeping unsaved rows and
+ * rows the user has edited as they are. While the backend is still warming
+ * (#10754) the fresh list is partial, so a row it does not include yet (e.g.
+ * one just saved, whose file is no longer cached) is kept rather than dropped.
  */
-const mergeFreshRows = (prev: Row[], fresh: Row[], touched: ReadonlySet<string>): Row[] => {
-  const kept = prev.filter((row) => row.isNew || touched.has(rowKey(row)));
+const mergeFreshRows = (prev: Row[], fresh: Row[], touched: ReadonlySet<string>, partial: boolean): Row[] => {
+  const freshKeys = new Set(fresh.map(rowKey));
+  const kept = prev.filter(
+    (row) => row.isNew || touched.has(rowKey(row)) || (partial && !freshKeys.has(rowKey(row))),
+  );
   const keptKeys = new Set(kept.map(rowKey));
   return [...fresh.filter((row) => !keptKeys.has(rowKey(row))), ...kept];
 };
@@ -100,7 +105,7 @@ export default function InstrumentAdmin() {
 
   // Rows the user has edited since the last full replace; a re-poll keeps them.
   const touched = useRef(new Set<string>());
-  const onData = useCallback((data: InstrumentMetadata[]) => {
+  const onData = useCallback((data: InstrumentMetadata[], partial: boolean) => {
     const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
       || Boolean((import.meta as any)?.vitest);
     const source: any[] = Array.isArray(data)
@@ -111,11 +116,11 @@ export default function InstrumentAdmin() {
             { ticker: 'BBB.N', name: 'Beta', region: 'US', sector: 'Finance', grouping: 'GIA' },
           ]
         : [];
-    setRows((prev) => mergeFreshRows(prev, source.map(toRow), touched.current));
+    setRows((prev) => mergeFreshRows(prev, source.map(toRow), touched.current, partial));
   }, []);
   const onError = useCallback((err: unknown) => setError(String(err)), []);
   // Partial while the backend's startup warm-up runs; re-polls until complete (#10754).
-  const { warming } = useAdminScan(listInstrumentMetadataScan, onData, onError);
+  const { warming, reload } = useAdminScan(listInstrumentMetadataScan, onData, onError);
 
   const handleChange = (row: Row, field: keyof Row, value: string) => {
     touched.current.add(rowKey(row));
@@ -174,9 +179,20 @@ export default function InstrumentAdmin() {
         await updateInstrumentMetadata(row.ticker, row.exchange, payload);
       }
       setMessage(t("instrumentadmin.saveSuccess"));
-      const fresh = await listInstrumentMetadataScan();
-      touched.current.clear();
-      setRows(fresh.data.map(toRow));
+      // Keep the saved row on screen as a clean row, then refresh through the
+      // same merge as the warm-up polls, so other unsaved edits survive and a
+      // partial list cannot drop the row just saved (#10754).
+      const saved: Row = {
+        ...row,
+        isNew: false,
+        _newKey: undefined,
+        _originalTicker: row.ticker,
+        _originalExchange: row.exchange,
+        _originalExposureRegion: exposureRegion,
+      };
+      touched.current.delete(rowKey(row));
+      setRows((prev) => prev.map((r) => (r === row ? saved : r)));
+      reload();
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       setMessage(`${t("instrumentadmin.saveError")}: ${detail}`);

@@ -21,18 +21,18 @@ describe('useAdminScan (#10754)', () => {
     const { result } = renderHook(() => useAdminScan(load, onData, vi.fn()));
 
     await act(async () => {});
-    expect(onData).toHaveBeenLastCalledWith(['a']);
+    expect(onData).toHaveBeenLastCalledWith(['a'], true);
     expect(result.current.warming).toBe(true);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(ADMIN_WARMING_POLL_MS);
     });
-    expect(onData).toHaveBeenLastCalledWith(['a', 'b']);
+    expect(onData).toHaveBeenLastCalledWith(['a', 'b'], true);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(ADMIN_WARMING_POLL_MS);
     });
-    expect(onData).toHaveBeenLastCalledWith(['a', 'b', 'c']);
+    expect(onData).toHaveBeenLastCalledWith(['a', 'b', 'c'], false);
     expect(result.current.warming).toBe(false);
 
     await act(async () => {

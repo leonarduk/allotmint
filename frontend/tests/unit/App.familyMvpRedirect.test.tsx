@@ -102,6 +102,14 @@ async function renderAppAt(path: string) {
 describe("App family MVP redirects", () => {
   beforeEach(() => {
     vi.resetModules();
+    // App fires requests these tests don't mock (watchlists, the group page's
+    // portfolio and metrics, opportunities). Against no backend they reject a
+    // moment later and log a warning; when that lands after the file's last
+    // test, Vitest's worker is already closing and the run fails with
+    // "Closing rpc while onUserConsoleLog was pending" (#10896). These tests
+    // only check routing, so a request that never settles is enough and
+    // leaves nothing to log once a test ends.
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
   });
 
   it("does not redirect root routes before config finishes loading", async () => {
@@ -284,6 +292,14 @@ describe("App family MVP redirects", () => {
       },
     });
 
+    // The real page is lazy behind a 300ms delay and slow to import, so it
+    // used to finish loading after the test (often after the whole file) and
+    // log a "suspended resource" warning into Vitest's teardown (#10896). A
+    // stub that the test waits for keeps the load inside the test.
+    vi.doMock("@/pages/InstrumentResearch", () => ({
+      default: ({ ticker }: { ticker: string }) => <h1>Research {ticker}</h1>,
+    }));
+
     await mockCommonAppDependencies();
 
     const router = await renderAppAt("/research/MSFT");
@@ -292,6 +308,7 @@ describe("App family MVP redirects", () => {
       const marker = screen.getByTestId("active-route-marker");
       expect(marker).toHaveAttribute("data-mode", "research");
     });
+    expect(await screen.findByRole("heading", { name: "Research MSFT" })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/research/MSFT");
   });
 

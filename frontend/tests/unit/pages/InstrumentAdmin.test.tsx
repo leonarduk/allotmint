@@ -485,3 +485,38 @@ describe("InstrumentAdmin with a large catalogue (#10884)", () => {
     expect(screen.getByDisplayValue("T0000")).toBeInTheDocument();
   });
 });
+
+describe("InstrumentAdmin paging when a re-poll shrinks the list (#10884)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it("clamps to the last remaining page instead of showing an empty table", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const catalogue = (count: number) =>
+      Array.from({ length: count }, (_, i) => {
+        const n = String(i).padStart(4, "0");
+        return { ticker: `T${n}.L`, name: `Instrument ${n}` };
+      });
+    vi.mocked(listInstrumentMetadataScan)
+      .mockResolvedValueOnce({ warming: true, data: catalogue(200) as any })
+      .mockResolvedValueOnce({ warming: false, data: catalogue(60) as any });
+
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByDisplayValue("T0000")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByDisplayValue("T0100")).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    expect(await screen.findByText("Page 2 of 2 (instruments 51–60 of 60)")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("T0050")).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(11);
+  });
+});

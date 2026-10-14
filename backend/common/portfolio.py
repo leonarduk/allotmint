@@ -240,13 +240,84 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
 
 
 def load_trades(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
-    """Public helper. Keeps us self-contained so there's no circular dependency."""
+    """Return the owner's broker-import trade log (``trades.csv``).
+
+    Only the Alpaca import task (``backend.tasks.trades``) writes this file; it
+    is *not* the transaction ledger, so monthly trade counts use
+    :func:`count_trades_in_month` instead (#10811).
+    """
     return _load_trades_local(owner, accounts_root) if config.app_env == "local" else _load_trades_aws(owner)
 
 
+# Transaction types that count as a "trade" against ``max_trades_per_month``.
+# Dividends, interest, fees, deposits, withdrawals and transfers do not count;
+# allotmint-pro's compliance trade-limit rule uses the same definition (#10811).
+TRADE_TYPES = frozenset({"BUY", "SELL"})
+_TX_SUFFIX = "_transactions.json"
+
+
+def _local_ledger_documents(owner: str, accounts_root: Optional[Path]) -> Dict[str, Dict[str, Any]]:
+    """Return ``{account: document}`` for ``owner``'s on-disk ``*_transactions.json``."""
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
+    try:
+        owner_dir = safe_join(root, owner)
+    except ValueError:
+        return {}
+    docs: Dict[str, Dict[str, Any]] = {}
+    for path in sorted(owner_dir.glob(f"*{_TX_SUFFIX}")) if owner_dir.is_dir() else []:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Skipping unreadable ledger %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
+            continue
+        if isinstance(data, dict):
+            docs[path.name.removesuffix(_TX_SUFFIX).lower()] = data
+    return docs
+
+
+def _s3_ledger_documents(owner: str) -> Dict[str, Dict[str, Any]]:
+    """Return ``{account: document}`` from the writable S3 store in AWS, else ``{}``."""
+    bucket = os.getenv(DATA_BUCKET_ENV)
+    if config.app_env != "aws" or not bucket:
+        return {}
+    # Imported lazily: accounts_store imports this module.
+    from backend.common.accounts_store import S3AccountsStore
+
+    store = S3AccountsStore(bucket=bucket)
+    docs: Dict[str, Dict[str, Any]] = {}
+    for name in store.list_owner_files(owner):
+        if name.endswith(_TX_SUFFIX):
+            data = store.read_document(owner, name)
+            if isinstance(data, dict):
+                docs[name.removesuffix(_TX_SUFFIX).lower()] = data
+    return docs
+
+
+def count_trades_in_month(owner: str, month: dt.date, accounts_root: Optional[Path] = None) -> int:
+    """Count ``owner``'s BUY/SELL ledger rows dated in ``month``'s calendar month.
+
+    Reads the same ``<account>_transactions.json`` documents as ``/transactions``:
+    the on-disk accounts root, overlaid per account by the writable S3 store in
+    AWS.
+    """
+    docs = _local_ledger_documents(owner, accounts_root)
+    docs.update(_s3_ledger_documents(owner))
+    count = 0
+    for data in docs.values():
+        for tx in data.get("transactions") or []:
+            if not isinstance(tx, dict) or str(tx.get("type") or "").upper() not in TRADE_TYPES:
+                continue
+            d = _parse_date(tx.get("date"))
+            if d and d.year == month.year and d.month == month.month:
+                count += 1
+    return count
+
+
 # ───────────────────────── generic helpers ───────────────────────
-def _parse_date(s: str | None) -> Optional[dt.date]:
-    if not s:
+def _parse_date(s: Any) -> Optional[dt.date]:
+    # Ledger JSON is externally produced; a non-string date must not crash callers.
+    if not s or not isinstance(s, str):
         return None
     try:
         return dt.datetime.fromisoformat(s).date()
@@ -315,12 +386,7 @@ def build_owner_portfolio(
         raise FileNotFoundError(f"No plot for owner '{owner}'")
     accounts_meta = plots[0].accounts
 
-    trades = load_trades(owner, accounts_root)
-    trades_this = 0
-    for t in trades:
-        d = _parse_date(t.get("date"))
-        if d and d.year == today.year and d.month == today.month:
-            trades_this += 1
+    trades_this = count_trades_in_month(owner, today, accounts_root)
     ucfg = load_user_config(owner, accounts_root)
     trades_rem = max(0, (ucfg.max_trades_per_month or 0) - trades_this)
 

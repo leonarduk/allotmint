@@ -6,7 +6,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 const mockListTimeseries = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", () => ({
-  listTimeseries: mockListTimeseries,
+  listTimeseriesScan: mockListTimeseries,
   refetchTimeseries: vi.fn().mockResolvedValue({ status: "ok", rows: 1 }),
   rebuildTimeseriesCache: vi.fn().mockResolvedValue({ status: "ok", rows: 1 }),
 }));
@@ -28,7 +28,7 @@ import DataAdmin from "@/pages/DataAdmin";
 
 describe("DataAdmin page", () => {
   it("renders table, actions, and ticker link", async () => {
-    mockListTimeseries.mockResolvedValue(timeseriesRows);
+    mockListTimeseries.mockResolvedValue({ data: timeseriesRows, warming: false });
     render(
       <MemoryRouter>
         <DataAdmin />

@@ -397,6 +397,51 @@ describe("GroupPortfolioView", () => {
     expect(screen.queryByText("Total Value")).toBeNull();
   });
 
+  it("lines index rows up with the owner table's columns in both views (#10877)", async () => {
+    window.localStorage.clear();
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [{ units: 1, cost_basis_gbp: 80, market_value_gbp: 100, day_change_gbp: 5 }],
+        },
+      ],
+    });
+    vi.spyOn(api, "getIndexSummary").mockResolvedValue({
+      indexes: [
+        {
+          name: "FTSE 100",
+          symbol: "^FTSE",
+          value: 8000,
+          as_of: null,
+          changes: { "1D": null, "1W": null, "1M": null, "1Y": null },
+        },
+      ],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+    await userEvent.click(await screen.findByLabelText("Show market indices"));
+
+    const expectAligned = async () => {
+      const indexRow = await screen.findByTestId("index-row-^FTSE");
+      const table = indexRow.closest("table")!;
+      const headerCount = within(table).getAllByRole("columnheader").length;
+      const ownerRow = within(table).getByText("Alice Example").closest("tr")!;
+      expect(within(ownerRow).getAllByRole("cell")).toHaveLength(headerCount);
+      expect(within(indexRow).getAllByRole("cell")).toHaveLength(headerCount);
+      const groupRow = within(table).getByText("Indices").closest("tr")!;
+      expect(within(groupRow).getAllByRole("cell")).toHaveLength(headerCount);
+    };
+
+    await expectAligned();
+    await userEvent.click(screen.getAllByLabelText("Relative view")[0]);
+    await expectAligned();
+    window.localStorage.clear();
+  });
+
   it("shows 1W/1M/1Y changes over holdings with known history (#10746)", async () => {
     const mockPortfolio = {
       name: "At a glance",

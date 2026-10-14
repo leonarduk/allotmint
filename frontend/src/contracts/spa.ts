@@ -105,6 +105,7 @@ export const holdingContractSchema = z
     forward_30d_change_pct: nullableNumber,
     days_held: z.number().int().nullable().optional(),
     sell_eligible: nullableBoolean,
+    sell_block_reason: nullableString,
     days_until_eligible: z.number().int().nullable().optional(),
     next_eligible_sell_date: nullableString,
   })

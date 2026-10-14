@@ -4,6 +4,7 @@ import importlib.util
 import inspect
 import os
 import shutil
+import sys
 from pathlib import Path
 
 try:
@@ -136,6 +137,26 @@ def isolate_prices_json(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def clear_admin_file_caches():
+    """Drop the per-file admin caches (#10754) so no test sees another's parsed files.
+
+    Tests often monkeypatch the loaders while the files on disk stay the same,
+    which a cache keyed on file mtime/size would otherwise paper over. Only
+    modules a test already imported are cleared, so this adds no import cost.
+    """
+    yield
+    for module_name, clear_name in (
+        ("backend.common.instruments", "clear_list_instruments_cache"),
+        ("backend.routes.timeseries_admin", "clear_summary_cache"),
+        ("backend.data_quality.issues", "clear_series_issue_cache"),
+        ("backend.common.admin_cache_state", "finish_all_steps"),
+    ):
+        module = sys.modules.get(module_name)
+        if module is not None:
+            getattr(module, clear_name)()
+
+
+@pytest.fixture(autouse=True)
 def clear_shared_performance_inputs():
     """Start each test without performance inputs a previous test's routes cached (#10755)."""
     from backend.common import portfolio_cache
@@ -167,6 +188,12 @@ def isolate_instrument_notes(tmp_path, monkeypatch):
 def isolate_watchlists(tmp_path, monkeypatch):
     """Keep saved watchlists (#10713) off ``data/`` and off any faked S3 bucket."""
     monkeypatch.setenv("WATCHLISTS_STORAGE_URI", str(tmp_path / "watchlists"))
+
+
+@pytest.fixture(autouse=True)
+def isolate_alerts_history(tmp_path, monkeypatch):
+    """Keep persisted recent alerts (#10802) off ``data/`` and off any faked S3 bucket."""
+    monkeypatch.setenv("ALERTS_HISTORY_URI", f"file://{tmp_path / 'alerts' / 'recent_alerts.json'}")
 
 
 @pytest.fixture(autouse=True)

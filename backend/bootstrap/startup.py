@@ -93,6 +93,14 @@ class AppLifecycleService:
         if nav_task is not None:
             app.state.background_tasks.append(nav_task)
 
+        # Fill the admin pages' per-file caches off the event loop so the first
+        # Data Admin / Instrument Admin / Data Quality visit is fast (#10754).
+        # A daemon thread rather than a task: shutdown must not wait for a scan.
+        from backend.bootstrap.admin_cache_warm import should_warm_admin_caches, start_admin_cache_warm_thread
+
+        if should_warm_admin_caches(self.cfg):
+            start_admin_cache_warm_thread()
+
     async def shutdown(self, app: FastAPI) -> None:
         tasks = list(getattr(app.state, "background_tasks", []))
         for task in tasks:

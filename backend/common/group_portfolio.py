@@ -74,15 +74,7 @@ def _holdings_with_derived_costs(owner: str, account: Dict[str, Any], account_na
 def _trade_counts_for_owner(owner: str, today: dt.date) -> tuple[int, int]:
     """Return (trades_this_month, trades_remaining) for an owner."""
 
-    try:
-        trades = owner_portfolio.load_trades(owner)
-    except FileNotFoundError:
-        trades = []
-    trades_this_month = 0
-    for trade in trades:
-        trade_date = owner_portfolio._parse_date(trade.get("date"))
-        if trade_date and trade_date.year == today.year and trade_date.month == today.month:
-            trades_this_month += 1
+    trades_this_month = owner_portfolio.count_trades_in_month(owner, today)
 
     try:
         user_cfg = load_user_config(owner)

@@ -1,0 +1,147 @@
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  IndexBenchmarkRows,
+  IndexRowsToggle,
+} from '@/components/IndexBenchmarkRows';
+import { useShowIndexRows } from '@/hooks/useShowIndexRows';
+import type { IndexSummary } from '@/types';
+
+const summary: IndexSummary = {
+  indexes: [
+    {
+      name: 'FTSE 100',
+      symbol: '^FTSE',
+      value: 8123.45,
+      as_of: '2026-10-13T00:00:00',
+      changes: {
+        '1D': { change: -12.5, pct: -0.15 },
+        '1W': { change: 40, pct: 0.5 },
+        '1M': null,
+        '1Y': { change: 600, pct: 7.98 },
+      },
+    },
+    {
+      name: 'FTSE 250',
+      symbol: '^FTMC',
+      value: 20500,
+      as_of: null,
+      changes: { '1D': null, '1W': null, '1M': null, '1Y': null },
+    },
+  ],
+};
+
+const mockGetIndexSummary = vi.fn(() => Promise.resolve(summary));
+
+vi.mock('@/api', () => ({
+  getIndexSummary: () => mockGetIndexSummary(),
+}));
+
+const renderRows = (relativeViewEnabled = false) =>
+  render(
+    <table>
+      <tbody>
+        <IndexBenchmarkRows relativeViewEnabled={relativeViewEnabled} />
+      </tbody>
+    </table>
+  );
+
+const cellTexts = (row: HTMLElement) =>
+  within(row)
+    .getAllByRole('cell')
+    .map((cell) => cell.textContent);
+
+describe('IndexBenchmarkRows', () => {
+  beforeEach(() => {
+    mockGetIndexSummary.mockClear();
+    mockGetIndexSummary.mockImplementation(() => Promise.resolve(summary));
+  });
+
+  it('renders each index in points with money-only columns blank', async () => {
+    renderRows();
+
+    const row = await screen.findByTestId('index-row-^FTSE');
+    expect(cellTexts(row)).toEqual([
+      'FTSE 100',
+      '8,123.45',
+      '',
+      '',
+      '-12.50',
+      '-0.15%',
+      '+40.00 (0.50%)',
+      '—',
+      '+600.00 (7.98%)',
+      '',
+      '',
+      '',
+      '',
+    ]);
+  });
+
+  it("matches the relative view's column count and shows only %", async () => {
+    renderRows(true);
+
+    const row = await screen.findByTestId('index-row-^FTSE');
+    expect(cellTexts(row)).toEqual([
+      'FTSE 100',
+      '',
+      '',
+      '',
+      '-0.15%',
+      '0.50%',
+      '—',
+      '7.98%',
+      '',
+      '',
+    ]);
+  });
+
+  it('collapses and expands the index rows from the Indices row', async () => {
+    renderRows();
+    await screen.findByTestId('index-row-^FTMC');
+
+    fireEvent.click(screen.getByText('Indices'));
+    expect(screen.queryByTestId('index-row-^FTMC')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Indices'));
+    expect(screen.getByTestId('index-row-^FTMC')).toBeInTheDocument();
+  });
+
+  it('says when index data is unavailable', async () => {
+    mockGetIndexSummary.mockImplementation(() =>
+      Promise.reject(new Error('502'))
+    );
+
+    renderRows();
+
+    expect(
+      await screen.findByText('Index data is unavailable')
+    ).toBeInTheDocument();
+  });
+});
+
+function ToggleHarness() {
+  const [show, setShow] = useShowIndexRows();
+  return (
+    <>
+      <IndexRowsToggle checked={show} onChange={setShow} />
+      <span data-testid="state">{String(show)}</span>
+    </>
+  );
+}
+
+describe('useShowIndexRows', () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it('is off by default and remembers the choice', () => {
+    const { unmount } = render(<ToggleHarness />);
+    expect(screen.getByTestId('state')).toHaveTextContent('false');
+
+    fireEvent.click(screen.getByLabelText('Show market indices'));
+    expect(screen.getByTestId('state')).toHaveTextContent('true');
+    unmount();
+
+    render(<ToggleHarness />);
+    expect(screen.getByTestId('state')).toHaveTextContent('true');
+  });
+});

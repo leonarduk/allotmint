@@ -80,7 +80,7 @@ def _offline_group(monkeypatch, tmp_path):
     monkeypatch.setattr(group_portfolio, "load_approvals", lambda owner: {})
     monkeypatch.setattr(group_portfolio, "load_user_config", lambda owner: None)
     monkeypatch.setattr(owner_portfolio, "fill_missing_costs", lambda *args, **kwargs: None)
-    monkeypatch.setattr(owner_portfolio, "load_trades", lambda owner: [])
+    monkeypatch.setattr(owner_portfolio, "count_trades_in_month", lambda owner, month: 0)
 
     def _no_owner_portfolio(*args, **kwargs):
         raise FileNotFoundError("no owner portfolio in this test")

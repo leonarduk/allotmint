@@ -4,14 +4,14 @@
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
     "aws-cdk": "2.1144.0",
-    "concurrently": "^10.0.5",
+    "concurrently": "^10.0.6",
     "postcss": "^8.5.29",
     "tsx": "^4.23.15"
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.2",
+    "@capacitor/android": "^8.5.3",
     "@capacitor/core": "^8.5.2",
-    "@capacitor/ios": "^8.5.2",
+    "@capacitor/ios": "^8.5.3",
     "yaml": "^2.9.1"
   },
   "overrides": {

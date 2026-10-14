@@ -21,6 +21,7 @@ from starlette.types import Receive, Scope, Send
 
 from backend.auth import _resolve_demo_request, decode_demo_token
 from backend.auth import demo_readonly as demo_readonly_var
+from backend.common.admin_cache_state import WARMING_HEADER
 from backend.common.errors import AppError, log_app_error
 from backend.common.request_metrics import RequestMetricsMiddleware
 from backend.config import Config
@@ -34,6 +35,9 @@ _CORS_ALLOW_HEADERS = [
     "Origin",
     "X-Requested-With",
 ]
+# Response headers the frontend reads cross-origin (the dev server runs on its
+# own port): the admin pages' partial-while-warming marker (#10754).
+_CORS_EXPOSE_HEADERS = [WARMING_HEADER]
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +96,7 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
         "allow_origins": cors_origins,
         "allow_methods": _CORS_ALLOW_METHODS,
         "allow_headers": _CORS_ALLOW_HEADERS,
+        "expose_headers": _CORS_EXPOSE_HEADERS,
         "allow_credentials": True,
         **cors_kwargs,
     }

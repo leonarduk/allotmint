@@ -5,12 +5,15 @@ import {
   fixDataQualityBatch,
   fixDataQualityIssue,
   getDataQualityAudit,
-  getDataQualityIssues,
+  getDataQualityIssuesScan,
   getDataQualityTimeseries,
   undoDataQualityAudit,
   type DataQualityAuditEntry,
   type DataQualityIssue,
+  type DataQualityIssuesResponse,
 } from "../api";
+import AdminWarmingNotice from "../components/AdminWarmingNotice";
+import { useAdminScan } from "../hooks/useAdminScan";
 import type { TimeseriesQualityPosition } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
@@ -242,22 +245,23 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
   const [message, setMessage] = useState<string | null>(null);
   const [messageError, setMessageError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const onData = useCallback((res: DataQualityIssuesResponse) => {
+    setIssues(res.issues);
+    setError(null);
+    setLoading(false);
+  }, []);
+  const onError = useCallback((e: unknown) => {
+    setError(e instanceof Error ? e.message : String(e));
+    setLoading(false);
+  }, []);
+  // Partial (series checks so far) while the backend's startup warm-up runs;
+  // re-polls until complete (#10754).
+  const { warming, reload } = useAdminScan(getDataQualityIssuesScan, onData, onError);
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    try {
-      const res = await getDataQualityIssues();
-      setIssues(res.issues);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+    reload();
+  }, [reload]);
 
   const visible = useMemo(() => {
     return issues.filter((issue) => {
@@ -283,7 +287,7 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
       try {
         await fixDataQualityIssue(issue.id);
         setMessage(t("dataQuality.admin.issues.actions.applied"));
-        await load();
+        load();
       } catch (e) {
         setMessageError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -306,7 +310,7 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
       if (res.failed > 0) {
         setMessageError(t("dataQuality.admin.issues.actions.batchFailed", { failed: res.failed }));
       }
-      await load();
+      load();
     } catch (e) {
       setMessageError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -319,6 +323,7 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
       <h2 className="mb-2 text-xl">{t("dataQuality.admin.issues.title")}</h2>
       <p className="mb-4 text-sm opacity-70">{t("dataQuality.admin.issues.subtitle")}</p>
       <IssueFiltersBar filters={filters} onChange={setFilters} />
+      {warming && <AdminWarmingNotice count={issues.length} />}
       {message && <p role="status" className="mb-2 text-green-700">{message}</p>}
       {messageError && <p role="alert" className="mb-2 text-red-700">{messageError}</p>}
       <IssueTable

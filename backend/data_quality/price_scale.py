@@ -23,6 +23,7 @@ from __future__ import annotations
 import math
 from typing import Any, Iterable, TypedDict
 
+import numpy as np
 import pandas as pd
 
 # A consecutive-close ratio within this distance (in log10 units) of a
@@ -73,10 +74,29 @@ def close_series(df: pd.DataFrame) -> pd.Series:
     return pd.Series(frame["Close"].to_numpy(dtype=float), index=[d.isoformat() for d in frame["Date"]])
 
 
+def _step_ratios(closes: pd.Series) -> tuple[np.ndarray, np.ndarray]:
+    """``(values, ratios)`` where ``ratios[i]`` is ``values[i + 1] / values[i]``."""
+    values = closes.to_numpy(dtype=float)
+    if values.size < 2:
+        return values, np.empty(0, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return values, values[1:] / values[:-1]
+
+
+def _steps_at(closes: pd.Series, values: np.ndarray, ratios: np.ndarray, mask: np.ndarray) -> Iterable[PriceStep]:
+    """Build a :class:`PriceStep` only for the steps selected by ``mask``."""
+    for i in np.flatnonzero(mask).tolist():
+        yield PriceStep(
+            date=str(closes.index[i + 1]),
+            previous=float(values[i]),
+            value=float(values[i + 1]),
+            ratio=float(ratios[i]),
+        )
+
+
 def _steps(closes: pd.Series) -> Iterable[PriceStep]:
-    previous = closes.shift(1)
-    for day, prev, value in zip(closes.index[1:], previous.iloc[1:], closes.iloc[1:]):
-        yield PriceStep(date=str(day), previous=float(prev), value=float(value), ratio=float(value / prev))
+    values, ratios = _step_ratios(closes)
+    return _steps_at(closes, values, ratios, np.ones(ratios.size, dtype=bool))
 
 
 def is_scale_step(ratio: float, tolerance: float = SCALE_STEP_LOG10_TOLERANCE) -> bool:
@@ -88,9 +108,27 @@ def is_scale_step(ratio: float, tolerance: float = SCALE_STEP_LOG10_TOLERANCE) -
     return nearest != 0 and abs(exponent - nearest) <= tolerance
 
 
+def _scale_step_mask(ratios: np.ndarray, tolerance: float = SCALE_STEP_LOG10_TOLERANCE) -> np.ndarray:
+    """Vectorised :func:`is_scale_step` (``np.round`` matches ``round``'s half-to-even)."""
+    usable = np.isfinite(ratios) & (ratios > 0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        exponents = np.log10(np.where(usable, ratios, 1.0))
+    nearest = np.round(exponents)
+    return usable & (nearest != 0) & (np.abs(exponents - nearest) <= tolerance)
+
+
+def _excluded(steps: Iterable[PriceStep], exclude_dates: frozenset[str]) -> list[PriceStep]:
+    return [s for s in steps if s["date"] not in exclude_dates]
+
+
 def find_scale_steps(closes: pd.Series, *, exclude_dates: frozenset[str] = frozenset()) -> list[PriceStep]:
-    """Consecutive-close steps of ~10x/100x/... (either direction)."""
-    return [s for s in _steps(closes) if s["date"] not in exclude_dates and is_scale_step(s["ratio"])]
+    """Consecutive-close steps of ~10x/100x/... (either direction).
+
+    Vectorised over the whole series: building a dict per day-on-day step
+    dominated GET /data-quality/issues on ~1,000 cached series (#10754).
+    """
+    values, ratios = _step_ratios(closes)
+    return _excluded(_steps_at(closes, values, ratios, _scale_step_mask(ratios)), exclude_dates)
 
 
 def find_large_moves(
@@ -100,11 +138,10 @@ def find_large_moves(
     exclude_dates: frozenset[str] = frozenset(),
 ) -> list[PriceStep]:
     """Day-on-day moves with ``|ratio - 1| > threshold`` that are not scale steps."""
-    return [
-        s
-        for s in _steps(closes)
-        if s["date"] not in exclude_dates and abs(s["ratio"] - 1.0) > threshold and not is_scale_step(s["ratio"])
-    ]
+    values, ratios = _step_ratios(closes)
+    with np.errstate(invalid="ignore"):
+        mask = (np.abs(ratios - 1.0) > threshold) & ~_scale_step_mask(ratios)
+    return _excluded(_steps_at(closes, values, ratios, mask), exclude_dates)
 
 
 def large_move_threshold(meta: dict[str, Any] | None, default: float = DEFAULT_LARGE_MOVE_THRESHOLD) -> float:

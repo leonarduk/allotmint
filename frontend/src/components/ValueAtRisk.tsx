@@ -110,10 +110,10 @@ export function ValueAtRisk({ owner, onDateChange, portfolioValue }: Props) {
             onChange={(e) => setDays(Number(e.target.value))}
             style={{ marginLeft: "0.25rem" }}
           >
-            <option value={7}>1W</option>
-            <option value={30}>1M</option>
-            <option value={90}>3M</option>
-            <option value={365}>1Y</option>
+            <option value={7}>{t("dashboard.rangeOptions.1w")}</option>
+            <option value={30}>{t("dashboard.rangeOptions.1m")}</option>
+            <option value={90}>{t("dashboard.rangeOptions.3m")}</option>
+            <option value={365}>{t("dashboard.rangeOptions.1y")}</option>
           </select>
         </label>
       </div>

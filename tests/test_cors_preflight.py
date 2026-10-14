@@ -116,3 +116,17 @@ def test_cors_preflight_unset_regex_leaves_policy_unchanged(monkeypatch):
             },
         )
     assert "access-control-allow-origin" not in resp.headers
+
+
+def test_cors_exposes_the_admin_warming_header(monkeypatch):
+    """The admin pages read the partial-while-warming marker cross-origin (#10754)."""
+    from backend.common.admin_cache_state import WARMING_HEADER
+
+    origin = "https://app.allotmint.io"
+    monkeypatch.setattr(config, "cors_origins", [origin])
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/health", headers={"Origin": origin})
+    exposed = [h.strip().lower() for h in resp.headers["access-control-expose-headers"].split(",")]
+    assert WARMING_HEADER.lower() in exposed

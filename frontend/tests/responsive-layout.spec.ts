@@ -127,7 +127,9 @@ const preparePage = async (page: Page) => {
       grouping: 'ISA',
     },
   ];
-  await page.route('**/instrument/admin', (route) =>
+  // `*` also matches the admin pages' `?partial=true` query (#10754) but not
+  // `/admin/...` sub-paths, since a glob `*` never crosses `/`.
+  await page.route('**/instrument/admin*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -190,7 +192,9 @@ const preparePage = async (page: Page) => {
       main_source: forceOverflow('automated-etl-pipeline-epsilon-batch-extraction'),
     },
   ];
-  await page.route('**/timeseries/admin', (route) =>
+  // `*` also matches the admin pages' `?partial=true` query (#10754) but not
+  // `/admin/...` sub-paths, since a glob `*` never crosses `/`.
+  await page.route('**/timeseries/admin*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

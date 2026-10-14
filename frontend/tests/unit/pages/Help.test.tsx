@@ -55,6 +55,16 @@ describe("Help page", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("describes Sector Analysis as the grouped holdings table, not a single instrument (#10757)", () => {
+    render(<Help />, { wrapper: MemoryRouter });
+
+    expect(
+      screen.getByRole("link", { name: i18n.t("app.modes.instrument") }),
+    ).toHaveAttribute("href", "/instrument");
+    expect(screen.getByText(/grouped by sector/i)).toBeInTheDocument();
+    expect(screen.queryByText(/single instrument/i)).not.toBeInTheDocument();
+  });
+
   it("uses VITE_ISSUE_TRACKER_URL for the report link when set", async () => {
     vi.stubEnv("VITE_ISSUE_TRACKER_URL", "https://tracker.example.com/new-issue");
     vi.resetModules();

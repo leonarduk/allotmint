@@ -13,6 +13,27 @@ const lot = (over: Partial<ScopedHolding>): ScopedHolding => ({
 });
 
 describe("aggregateHoldingsByTicker", () => {
+  it("takes sell_block_reason from the oldest lot (#10812)", () => {
+    const [row] = aggregateHoldingsByTicker(
+      [
+        lot({
+          acquired_date: "2025-12-20",
+          sell_eligible: false,
+          sell_block_reason: "hold_period",
+        }),
+        lot({
+          acquired_date: "2024-05-01",
+          sell_eligible: false,
+          sell_block_reason: "needs_approval",
+        }),
+      ],
+      "2026-01-01",
+    );
+
+    expect(row.sell_eligible).toBe(false);
+    expect(row.sell_block_reason).toBe("needs_approval");
+  });
+
   it("computes gain % from lots with a known cost", () => {
     const [row] = aggregateHoldingsByTicker(
       [

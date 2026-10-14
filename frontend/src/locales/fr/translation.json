@@ -106,6 +106,10 @@
     "sector": "Secteurs",
     "unknownCurrency": "Devise inconnue",
     "viewAllocation": "Voir la répartition par {{dimension}}",
+    "viewAllocationBy": {
+      "sector": "Voir la répartition par secteurs",
+      "region": "Voir la répartition par régions"
+    },
     "viewContribution": "Voir la contribution aux gains",
     "chartsUnavailable": "Les graphiques ne sont pas disponibles dans cet environnement.",
     "sleeve": "Poches",
@@ -418,6 +422,7 @@
       "1m": "1M",
       "1w": "1S",
       "1y": "1A",
+      "3m": "3M",
       "max": "MAX"
     },
     "selectMember": "Sélectionnez un membre.",
@@ -499,6 +504,14 @@
     "insightCashDrag": "{{percent}} de votre portefeuille est en liquidités",
     "insightConcentration": "Votre première ligne {{ticker}} représente {{percent}} de votre portefeuille",
     "insightDuplication": "Vous détenez {{ticker}} dans {{accountCount}} comptes",
+    "indexRows": {
+      "toggle": "Afficher les indices de marché",
+      "label": "Indices",
+      "help": "FTSE 100, FTSE 250, S&P 500 et NASDAQ pour comparaison. Niveaux et variations en points d'indice avec rendement de prix en % ; les dividendes sont exclus, donc pas de rendement total ni de plus-value depuis l'achat.",
+      "loading": "Chargement des indices…",
+      "error": "Les données d'indice sont indisponibles",
+      "empty": "Aucune donnée d'indice"
+    },
     "ownerTable": {
       "portfolioPct": "% du portefeuille",
       "totalValue": "Valeur totale",
@@ -1967,6 +1980,15 @@
     },
     "ticker": "Ticker",
     "title": "Éditeur de séries temporelles",
+    "grid": {
+      "cellLabel": "{{column}} le {{date}}",
+      "cellLabelUndated": "{{column}} pour la ligne sans date {{row}}",
+      "pagination": "Pages de lignes",
+      "rowsLabel": "Lignes",
+      "previousPage": "Page précédente",
+      "nextPage": "Page suivante",
+      "pageStatus": "Page {{page}} sur {{pages}} (lignes {{from}}–{{to}} sur {{total}})"
+    },
     "controls": {
       "sort": "Trier",
       "sortDesc": "Plus récents d'abord",
@@ -3120,6 +3142,10 @@
       "daysHeld": "détenu depuis {{daysHeld}} jours",
       "daysRatio": "{{daysHeld}} / {{total}} jours",
       "notLiftable": "Pas encore récoltable",
+      "needsApproval": "Approbation requise",
+      "needsApprovalHeading": "Approbation requise ({{count}})",
+      "needsApprovalNote": "Ces positions ont atteint leur durée de détention minimale ; leur vente nécessite une approbation que vous pouvez demander dès maintenant.",
+      "tradingRulesLink": "Ouvrir les règles de trading",
       "readyOn": "Prête le {{date}}",
       "daysToGo": "Encore {{daysRemaining}} jours",
       "noteIndeterminate": "Progression vers la période de détention minimale de chaque position, lorsque le backend la connaît — certains godets sont marqués non vendables sans compte à rebours à afficher.",
@@ -3191,6 +3217,7 @@
       "held_other": "Détenu {{count}} jours",
       "inPropagatorUntil": "au germoir jusqu'au {{date}}",
       "notYetLiftable": "pas encore récoltable",
+      "needsApproval": "approbation requise",
       "clearedPropagator": "sorti du germoir le {{date}}",
       "readyToLift": "prête à être récoltée",
       "notFoundTitle": "Culture introuvable",
@@ -3451,7 +3478,32 @@
     "glossaryLink": "Ouvrir le glossaire des indicateurs",
     "reportTitle": "Signaler un problème",
     "reportDescription": "Vous avez trouvé un bug ou quelque chose de peu clair ? Signalez-le sur GitHub afin qu'il soit suivi et corrigé.",
-    "reportLink": "Ouvrir un ticket GitHub"
+    "reportLink": "Ouvrir un ticket GitHub",
+    "pages": {
+      "dashboardTitle": "Tableau de bord",
+      "signalsTitle": "Idées : Signaux",
+      "screenTitle": "Idées : Filtre",
+      "group": "La vue d'ensemble principale : positions, valeurs et répartition combinées pour les propriétaires du groupe sélectionné.",
+      "market": "Un aperçu de la situation générale des marchés et des indices.",
+      "movers": "Les instruments de vos portefeuilles qui ont le plus varié, à la hausse ou à la baisse.",
+      "instrument": "Toutes les positions regroupées par secteur, avec totaux et rendements sur plusieurs périodes.",
+      "performance": "Rendements dans le temps pour un propriétaire, comparés à un indice de référence.",
+      "transactions": "Enregistrez achats, ventes et autres transactions, ou importez-les depuis un fichier CSV.",
+      "dividends": "Dividendes perçus, par année fiscale, année ou mois et par position, avec un total sur 12 mois glissants.",
+      "riskreturn": "Chaque compte, chaque propriétaire et l'ensemble du portefeuille représentés selon le rendement et la volatilité, aux côtés d'indices de marché que vous pouvez ajouter ou retirer.",
+      "trading": "Candidats à l'achat et à la vente parmi les instruments que vous détenez, selon des règles fixes de momentum et de risque définies sur le serveur. À titre informatif, pas des instructions d'opération.",
+      "screener": "Filtrez n'importe quelle liste de suivi ou liste de tickers selon des fondamentaux comme le PER, les marges, l'endettement ou le rendement du dividende.",
+      "watchlist": "Suivez des instruments que vous ne détenez pas actuellement.",
+      "allocation": "La répartition de vos positions par classe d'actifs, secteur et région.",
+      "rebalance": "Choisissez une allocation cible parmi les stratégies intégrées ou les vôtres, puis consultez l'écart et les opérations de rééquilibrage pour ramener votre portefeuille vers elle.",
+      "reports": "Générez et téléchargez des rapports de portefeuille.",
+      "query": "Valeur de marché ou plus-value de vos propres positions sur une période, par propriétaire et par ticker, avec enregistrement, partage et export.",
+      "pension": "Projetez dans le temps les cotisations et la valeur de votre pension.",
+      "taxtools": "Outils pour l'utilisation des abattements et les calculs fiscaux.",
+      "research": "Outils de recherche approfondie pour des instruments individuels.",
+      "settings": "Règles d'opération par propriétaire : durée minimale de détention, limite mensuelle d'opérations et instruments exemptés d'approbation.",
+      "alertsettings": "Configurez les seuils qui déclenchent les alertes de portefeuille."
+    }
   },
   "firstRunHelp": {
     "title": "Nouveau sur AllotMint ?",
@@ -3920,9 +3972,11 @@
     "excludesUnknown": "Exclut {{unknown}} positions sur {{total}} sans données de frais",
     "allInCost": "Coût annuel total",
     "allInBreakdown": "{{funds}} de frais de fonds + {{fees}} de frais payés (12 derniers mois)",
+    "allInBreakdownUnknownFunds": "Frais de fonds inconnus + {{fees}} de frais payés (12 derniers mois)",
     "allInNotIncluded": "Non inclus : {{items}}",
     "allInUnknownValue": "{{value}} dans {{holdings}} positions sans données de frais",
-    "allInUnknownTrades": "{{trades}} opérations sans frais enregistrés",
+    "allInUnknownTrades_one": "{{trades}} opération sans frais enregistrés",
+    "allInUnknownTrades_other": "{{trades}} opérations sans frais enregistrés",
     "perAccount": "Par compte",
     "partial": "incomplet"
   },
@@ -4164,5 +4218,30 @@
     "close": "Fermer {{label}}",
     "toggle": "Afficher les onglets de travail",
     "toggleHelp": "Gardez plusieurs vues ouvertes, par ex. l'aperçu du groupe et quelques instruments, et passez de l'une à l'autre sans quitter cet onglet du navigateur. Utilisez + pour ouvrir la vue actuelle dans un nouvel onglet et ↻ pour recharger ses données."
+  },
+  "retirementReadiness": {
+    "heading": "Préparation à la retraite : test historique de décaissement",
+    "description": "Le capital projeté rejoué sur chaque séquence historique de rendements depuis 1871, en monnaie d'aujourd'hui.",
+    "running": "En cours…",
+    "runNow": "Lancer maintenant",
+    "empty": "Aucun rapport de préparation pour l'instant. Lancez-le pour rejouer les fenêtres historiques.",
+    "runDate": "Dernière exécution {{date}}",
+    "survival": "Fenêtres tenues",
+    "income": "Revenu réel annuel le plus élevé",
+    "window": {
+      "worst": "pire fenêtre",
+      "median": "fenêtre médiane",
+      "best": "meilleure fenêtre"
+    },
+    "windowsCount": "{{count}} fenêtres de {{years}} ans",
+    "change": "Depuis le {{date}} : {{change}}",
+    "contributions": "cotisations",
+    "markets": "marchés",
+    "assumptions": "hypothèses",
+    "dataRevision": "révisions de données",
+    "changed": "Modifié depuis la dernière exécution : {{label}}"
+  },
+  "admin": {
+    "cacheWarming": "Chargement en cours après un redémarrage du serveur : {{count}} trouvés pour l'instant. La liste se complète automatiquement."
   }
 }

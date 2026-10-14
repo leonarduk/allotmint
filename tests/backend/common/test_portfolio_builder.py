@@ -34,12 +34,8 @@ def fixture_portfolio_stubs(monkeypatch, today):
     def fake_list_plots(accounts_root=None):  # noqa: ARG001 - signature matches target
         return [OwnerSummaryRecord(owner=owner, accounts=["account-one"])]
 
-    def fake_load_trades(owner_name, accounts_root=None):  # noqa: ARG001
-        return [
-            {"date": today.isoformat()},
-            {"date": today.isoformat()},
-            {"date": (today.replace(day=1) - dt.timedelta(days=40)).isoformat()},
-        ]
+    def fake_count_trades_in_month(owner_name, month, accounts_root=None):  # noqa: ARG001
+        return 2 if month == today else 0
 
     def fake_load_user_config(owner_name, accounts_root=None):  # noqa: ARG001
         return UserConfig(max_trades_per_month=5)
@@ -63,7 +59,7 @@ def fixture_portfolio_stubs(monkeypatch, today):
         }
 
     monkeypatch.setattr("backend.common.portfolio.list_plots", fake_list_plots)
-    monkeypatch.setattr("backend.common.portfolio.load_trades", fake_load_trades)
+    monkeypatch.setattr("backend.common.portfolio.count_trades_in_month", fake_count_trades_in_month)
     monkeypatch.setattr("backend.common.portfolio.load_user_config", fake_load_user_config)
     monkeypatch.setattr("backend.common.portfolio.load_approvals", fake_load_approvals)
     monkeypatch.setattr("backend.common.portfolio.load_account_record", fake_load_account_record)

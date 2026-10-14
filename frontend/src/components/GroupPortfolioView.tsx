@@ -37,10 +37,12 @@ import { useInstrumentSelection } from "../hooks/useInstrumentSelection";
 import { applyLiveQuotes } from "../lib/liveValuation";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
+import { IndexBenchmarkRows, IndexRowsToggle } from "./IndexBenchmarkRows";
+import { useShowIndexRows } from "../hooks/useShowIndexRows";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
-import { percent } from "../lib/money";
+import { percent, wholeNumber } from "../lib/money";
 import FractionMetric from "./FractionMetric";
 import {
   DRAWDOWN_RANGE,
@@ -131,9 +133,6 @@ const CONTRIB_MIN_HEIGHT_PX = 160;
 // One fixed-height row per category so every sector/region label is shown in full.
 const contribChartHeight = (rows: number): number =>
   Math.max(CONTRIB_MIN_HEIGHT_PX, rows * CONTRIB_ROW_HEIGHT_PX + CONTRIB_AXIS_HEIGHT_PX);
-
-const groupedNumberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const formatGroupedNumber = (value: number): string => groupedNumberFormat.format(value);
 
 const computeDayChangePct = (value: number, delta: number): number | null => {
   if (!Number.isFinite(value) || !Number.isFinite(delta)) {
@@ -453,6 +452,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const instrumentKeyRef = useRef<string | null>(null);
   const lastPortfolioAsOfRef = useRef<string | null>(null);
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
+  const [showIndexRows, setShowIndexRows] = useShowIndexRows();
 
   const loadGroupInstruments =
     ("getCachedGroupInstruments" in api
@@ -1447,9 +1447,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               to={allocationPath}
               style={{ color: "#60a5fa", fontSize: "0.85rem", marginLeft: "1rem" }}
             >
-              {t("allocation.viewAllocation", {
-                dimension: t(`allocation.${activeContribTab}`).toLowerCase(),
-              })}
+              {t(`allocation.viewAllocationBy.${activeContribTab}`)}
             </Link>
           </div>
           <p style={{ color: "var(--summary-card-label)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
@@ -1467,7 +1465,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 <XAxis
                   type="number"
                   tickFormatter={
-                    relativeViewEnabled ? (v: number) => percent(v, 1) : formatGroupedNumber
+                    relativeViewEnabled ? (v: number) => percent(v, 1) : (v: number) => wholeNumber(v)
                   }
                   tick={{ fill: "var(--surface-muted-color)", fontSize: 12 }}
                 />
@@ -1512,6 +1510,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
       {portfolioLoading && ownerTableSkeleton}
 
+      {!portfolioLoading && ownerRows.length > 0 && (
+        <IndexRowsToggle checked={showIndexRows} onChange={setShowIndexRows} />
+      )}
       {!portfolioLoading && ownerRows.length > 0 && (
         <div className={tableStyles.scrollContainer} style={{ marginBottom: "1rem" }}>
           <table className={tableStyles.table}>
@@ -1713,6 +1714,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 </Fragment>
               );
             })}
+            {showIndexRows && <IndexBenchmarkRows relativeViewEnabled={relativeViewEnabled} />}
           </tbody>
           </table>
         </div>

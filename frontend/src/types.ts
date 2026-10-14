@@ -80,6 +80,12 @@ export interface Holding {
 
   days_held?: number | null;
   sell_eligible?: boolean | null;
+  /**
+   * Why `sell_eligible` is false (#10812): "hold_period" while the minimum
+   * hold is still running, "needs_approval" once it has elapsed but the sale
+   * still needs approval. Null when sellable or eligibility is unknown.
+   */
+  sell_block_reason?: string | null;
   days_until_eligible?: number | null;
   next_eligible_sell_date?: string | null;
 }
@@ -659,6 +665,26 @@ export interface IndexPerformance {
 export interface MarketIndexes {
   period: MarketPeriod;
   indexes: Record<string, IndexPerformance>;
+}
+
+/** Points and % change of a benchmark index over one window. */
+export interface IndexWindowChange {
+  change: number;
+  pct: number | null;
+}
+
+/** One `GET /market/index-summary` row: a price index's level in points. */
+export interface IndexSummaryRow {
+  name: string;
+  symbol: string;
+  value: number;
+  as_of: string | null;
+  /** `null` when there isn't enough history for that window. */
+  changes: Record<'1D' | '1W' | '1M' | '1Y', IndexWindowChange | null>;
+}
+
+export interface IndexSummary {
+  indexes: IndexSummaryRow[];
 }
 
 export interface MarketOverview {

@@ -23,11 +23,12 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
 import backend.data_quality.issues as dq_issues
 from backend.common.accounts_store import LocalAccountsStore
+from backend.common.admin_cache_state import DATA_QUALITY_SERIES, WARMING_HEADER, is_step_warming
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import AppError
 from backend.common.instruments import resolve_instrument_ticker
@@ -85,15 +86,16 @@ class BatchFixRequest(BaseModel):
     issue_ids: list[str] = Field(min_length=1)
 
 
-def _issue_list(request: Request, **filters: Any) -> list[dict[str, Any]]:
+def _issue_list(request: Request, *, cached_only: bool = False, **filters: Any) -> list[dict[str, Any]]:
     """Return the aggregated issue list as plain dicts.
 
     Scans the request-scoped accounts root (``resolve_accounts_root``) rather
     than the process-wide ``config.accounts_root``, so a multi-tenant/
     per-request root deployment sees the same holdings tree the write paths
-    in this file already use (#6763).
+    in this file already use (#6763). ``cached_only`` limits the series checks
+    to cached results (see :func:`aggregate_series_issues`).
     """
-    issues = aggregate_issues(resolve_accounts_root(request))
+    issues = aggregate_issues(resolve_accounts_root(request), cached_only=cached_only)
     result = []
     for issue in issues:
         item = issue.to_dict()
@@ -837,13 +839,20 @@ def _issue_still_applies(issue: DataQualityIssue, accounts_root: Path) -> bool:
 @router.get("/issues")
 def list_issues(
     request: Request,
+    response: Response,
     type: str | None = Query(None, description="Filter by issue type (WRONG_EXCHANGE, GAPS, ...)"),
     severity: str | None = Query(None, description="Filter by severity: high | medium | low"),
     owner: str | None = Query(None, description="Filter by holding owner"),
     account: str | None = Query(None, description="Filter by holding account"),
     ticker: str | None = Query(None, description="Filter by ticker (series) or holding ticker"),
+    partial: bool = Query(False, description="While the startup warm-up runs, include only cached series checks"),
 ) -> dict[str, Any]:
-    issues = _issue_list(request, type=type, severity=severity, owner=owner, account=account, ticker=ticker)
+    cached_only = partial and is_step_warming(DATA_QUALITY_SERIES)
+    if cached_only:
+        response.headers[WARMING_HEADER] = "true"
+    issues = _issue_list(
+        request, cached_only=cached_only, type=type, severity=severity, owner=owner, account=account, ticker=ticker
+    )
     return {"count": len(issues), "issues": issues}
 
 

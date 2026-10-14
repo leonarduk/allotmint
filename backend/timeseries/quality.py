@@ -10,9 +10,9 @@ from __future__ import annotations
 from datetime import date
 from typing import TypedDict
 
+import numpy as np
 import pandas as pd
 
-from backend.common.numeric_utils import is_nan
 from backend.utils.uk_holidays import uk_business_days_between
 
 DEFAULT_GAP_THRESHOLD_DAYS = 1
@@ -114,20 +114,24 @@ def find_outliers(
     sorted_df = df.sort_values("Date").reset_index(drop=True)
     close = pd.to_numeric(sorted_df["Close"], errors="coerce")
     min_periods = max(2, window // 2)
-    rolling_mean = close.rolling(window=window, min_periods=min_periods).mean()
-    rolling_std = close.rolling(window=window, min_periods=min_periods).std()
+    values = close.to_numpy(dtype=float)
+    means = close.rolling(window=window, min_periods=min_periods).mean().to_numpy(dtype=float)
+    stds = close.rolling(window=window, min_periods=min_periods).std().to_numpy(dtype=float)
 
-    outliers: list[Outlier] = []
-    for pos, value in enumerate(close):
-        mean = rolling_mean.iloc[pos]
-        std = rolling_std.iloc[pos]
-        if is_nan(value) or is_nan(mean) or is_nan(std) or std == 0:
-            continue
-        z_score = abs(value - mean) / std
-        if z_score > sigma:
-            row_date = pd.to_datetime(sorted_df["Date"].iloc[pos]).date()
-            outliers.append(Outlier(date=row_date.isoformat(), value=float(value), z_score=float(z_score)))
-    return outliers
+    # Vectorised: a per-row .iloc loop dominated GET /data-quality/issues on
+    # ~1,000 cached series (#10754). NaN close/mean/std or a flat window
+    # (std == 0) never counts as an outlier.
+    valid = ~np.isnan(values) & ~np.isnan(means) & ~np.isnan(stds) & (stds != 0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z_scores = np.abs(values - means) / stds
+    hits = np.flatnonzero(valid & (z_scores > sigma))
+    if hits.size == 0:
+        return []
+    hit_dates = pd.to_datetime(sorted_df["Date"].iloc[hits])
+    return [
+        Outlier(date=row_date.date().isoformat(), value=float(values[pos]), z_score=float(z_scores[pos]))
+        for pos, row_date in zip(hits, hit_dates)
+    ]
 
 
 def compute_quality(

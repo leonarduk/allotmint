@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend import config_module
 from backend.common import market_sectors
+from backend.common.ttl_cache import TTLCache
 from backend.common.yahoo_chart import chart_quote
 from backend.logging_setup import sanitise_log_value
 from backend.routes.news import NewsQuotaExceeded, get_cached_news
@@ -143,6 +144,64 @@ def _fetch_index_period_changes(period: market_sectors.Period) -> Dict[str, Inde
         if as_of is not None:
             payload["as_of"] = as_of
         out[name] = payload
+    return out
+
+
+# Indices shown as benchmark rows beside the owner summary table, in display
+# order. Names are keys of ``INDEX_SYMBOLS``.
+BENCHMARK_INDEX_NAMES: tuple[str, ...] = ("FTSE 100", "FTSE 250", "S&P 500", "NASDAQ")
+# Windows reported per benchmark index; ``1D`` is the day change.
+BENCHMARK_PERIODS: tuple[market_sectors.Period, ...] = ("1D", "1W", "1M", "1Y")
+# Daily closes move at most once per session, so a few minutes is plenty and
+# keeps every dashboard load from re-downloading two years of history.
+_BENCHMARK_CACHE: TTLCache[List[Dict[str, Any]]] = TTLCache(300, name="market_index_summary")
+
+
+class IndexChange(TypedDict):
+    change: float
+    pct: Optional[float]
+
+
+def _index_changes(series: Any) -> Dict[str, Optional[IndexChange]]:
+    """Points and % change of ``series`` over each benchmark period (``None`` when too short)."""
+
+    latest = float(series.iloc[-1])
+    out: Dict[str, Optional[IndexChange]] = {}
+    for period in BENCHMARK_PERIODS:
+        # Points and % share one base close, so the pair can never disagree.
+        # A zero base is a bad tick (no index closes at 0), so it counts as no data.
+        base = market_sectors.period_base(series, period)
+        if not base:
+            out[period] = None
+            continue
+        out[period] = {"change": latest - base, "pct": (latest - base) / base * 100.0}
+    return out
+
+
+def _fetch_index_summary() -> List[Dict[str, Any]]:
+    """Return each benchmark index's latest close with day/1W/1M/1Y changes.
+
+    One 1Y download covers every window. Levels are price-index points (no
+    currency) and the changes are price return, not total return.
+    """
+
+    symbols = [INDEX_SYMBOLS[name] for name in BENCHMARK_INDEX_NAMES]
+    traded = market_sectors.download_period_history(symbols, "1Y").traded
+    out: List[Dict[str, Any]] = []
+    for name in BENCHMARK_INDEX_NAMES:
+        series = market_sectors.series_for(traded, INDEX_SYMBOLS[name])
+        if series.empty:
+            logger.warning("No closes for benchmark index %s", sanitise_log_value(name))
+            continue
+        out.append(
+            {
+                "name": name,
+                "symbol": INDEX_SYMBOLS[name],
+                "value": float(series.iloc[-1]),
+                "as_of": _index_label_to_iso(series.index[-1]),
+                "changes": _index_changes(series),
+            }
+        )
     return out
 
 
@@ -411,6 +470,19 @@ async def market_indexes(
         logger.exception("Index fetch failed for period %s", sanitise_log_value(resolved))
         raise HTTPException(status_code=502, detail="Index data is unavailable") from exc
     return {"period": resolved, "indexes": indexes}
+
+
+@router.get("/market/index-summary")
+async def market_index_summary() -> Dict[str, Any]:
+    """Return benchmark index levels with day/1W/1M/1Y points and % changes."""
+
+    loop = asyncio.get_running_loop()
+    try:
+        indexes = await loop.run_in_executor(None, _BENCHMARK_CACHE.get_or_build, ("summary",), _fetch_index_summary)
+    except Exception as exc:
+        logger.exception("Benchmark index summary fetch failed")
+        raise HTTPException(status_code=502, detail="Index data is unavailable") from exc
+    return {"indexes": indexes}
 
 
 @router.get("/market/sectors")

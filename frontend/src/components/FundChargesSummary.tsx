@@ -63,6 +63,7 @@ function AllInCostBlock({
   if (part.trades_without_fee_data > 0)
     missing.push(
       t('fundCharges.allInUnknownTrades', {
+        count: part.trades_without_fee_data,
         trades: part.trades_without_fee_data,
       })
     );
@@ -74,13 +75,14 @@ function AllInCostBlock({
         <CostFigure part={part} />
       </div>
       <div style={noteStyle}>
-        {t('fundCharges.allInBreakdown', {
-          funds:
-            part.fund_charges_gbp === null
-              ? t('fundCharges.unknown')
-              : reporting.format(part.fund_charges_gbp),
-          fees: reporting.format(fees),
-        })}
+        {part.fund_charges_gbp === null
+          ? t('fundCharges.allInBreakdownUnknownFunds', {
+              fees: reporting.format(fees),
+            })
+          : t('fundCharges.allInBreakdown', {
+              funds: reporting.format(part.fund_charges_gbp),
+              fees: reporting.format(fees),
+            })}
       </div>
       {missing.length > 0 && (
         <div style={noteStyle} data-testid="fund-charges-all-in-unknown">

@@ -1098,3 +1098,31 @@ def test_undo_wrong_exchange_errors_when_account_file_deleted(client, tmp_path):
     resp = client.post(f"/data-quality/audit/{entry_id}/undo")
     assert resp.status_code == 409
     assert "no longer exists" in resp.json()["detail"]
+
+
+def test_partial_issues_skip_unchecked_series_while_warming(monkeypatch, tmp_path):
+    """?partial=true during warm-up returns holding issues at once, without the cold series checks (#10754)."""
+    from backend.common import admin_cache_state
+
+    dates = [f"2026-01-{d:02d}" for d in range(3, 25)]
+    closes = [100.0 + i for i in range(len(dates))]
+    closes[10] = 500.0
+    df = pd.DataFrame({"Date": dates, "Close": closes, "Ticker": ["ABC"] * len(dates)})
+    dq_client = _build_client(monkeypatch, tmp_path, series=[("ABC", "L", df)])
+    admin_cache_state.mark_steps_pending([admin_cache_state.DATA_QUALITY_SERIES])
+
+    partial = dq_client.get("/data-quality/issues?partial=true")
+    full = dq_client.get("/data-quality/issues")
+
+    assert partial.headers.get(admin_cache_state.WARMING_HEADER) == "true"
+    partial_types = {i["type"] for i in partial.json()["issues"]}
+    assert "WRONG_EXCHANGE" in partial_types
+    assert "OUTLIERS" not in partial_types
+    assert admin_cache_state.WARMING_HEADER not in full.headers
+    assert "OUTLIERS" in {i["type"] for i in full.json()["issues"]}
+
+    admin_cache_state.finish_step(admin_cache_state.DATA_QUALITY_SERIES)
+    done = dq_client.get("/data-quality/issues?partial=true")
+
+    assert admin_cache_state.WARMING_HEADER not in done.headers
+    assert "OUTLIERS" in {i["type"] for i in done.json()["issues"]}

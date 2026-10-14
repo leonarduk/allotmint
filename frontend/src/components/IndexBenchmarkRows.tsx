@@ -30,12 +30,13 @@ const points = (v: number, signed = false): string => {
   return signed && v > 0 ? `+${text}` : text;
 };
 
-const changeColor = (window: IndexWindowChange | null): string | undefined =>
-  window === null
-    ? undefined
-    : window.change >= 0
-      ? 'var(--gain-positive)'
-      : 'var(--gain-negative)';
+// Coloured by the GBP %, what a sterling investor got; points can disagree
+// with it for a US index when the dollar moves against the pound.
+const changeColor = (window: IndexWindowChange | null): string | undefined => {
+  if (window === null) return undefined;
+  const move = window.pct ?? window.change;
+  return move >= 0 ? 'var(--gain-positive)' : 'var(--gain-negative)';
+};
 
 /** Owner-table columns an index has no figure for: stock/cash split, total return £, gain since purchase. */
 const BlankCells = ({ count }: { count: number }) => (
@@ -49,7 +50,16 @@ const BlankCells = ({ count }: { count: number }) => (
 type RowProps = { row: IndexSummaryRow; relative: boolean };
 
 function IndexRow({ row, relative }: RowProps) {
+  const { t } = useTranslation();
   const day = row.changes['1D'];
+  // A converted % says what it was before conversion.
+  const convertedTitle = (window: IndexWindowChange | null) =>
+    window === null || row.currency === 'GBP'
+      ? undefined
+      : t('group.indexRows.convertedFrom', {
+          pct: percent(window.local_pct),
+          currency: row.currency,
+        });
   return (
     <tr data-testid={`index-row-${row.symbol}`}>
       <td
@@ -68,13 +78,22 @@ function IndexRow({ row, relative }: RowProps) {
           {day ? points(day.change, true) : '—'}
         </td>
       )}
-      <td className={cell} style={{ color: changeColor(day) }}>
+      <td
+        className={cell}
+        style={{ color: changeColor(day) }}
+        title={convertedTitle(day)}
+      >
         {percent(day?.pct)}
       </td>
       {PERIOD_WINDOWS.map((key) => {
         const window = row.changes[key];
         return (
-          <td key={key} className={cell} style={{ color: changeColor(window) }}>
+          <td
+            key={key}
+            className={cell}
+            style={{ color: changeColor(window) }}
+            title={convertedTitle(window)}
+          >
             {window === null
               ? '—'
               : relative
@@ -110,7 +129,7 @@ function TotalReturnCell({
   const title =
     totalReturn.local_currency === 'GBP'
       ? source
-      : `${source}. ${t('group.indexRows.totalReturnConverted', {
+      : `${source}. ${t('group.indexRows.convertedFrom', {
           pct: percent(totalReturn.local_pct),
           currency: totalReturn.local_currency,
         })}`;

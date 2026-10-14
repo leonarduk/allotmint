@@ -186,8 +186,11 @@ _BENCHMARK_CACHE: TTLCache[List[Dict[str, Any]]] = TTLCache(300, name="market_in
 
 
 class IndexChange(TypedDict):
+    # ``change`` is in index points; ``pct`` is in GBP (``None`` without an FX
+    # rate) and ``local_pct`` is the same move in the index's own currency.
     change: float
     pct: Optional[float]
+    local_pct: float
 
 
 class IndexTotalReturn(TypedDict):
@@ -199,8 +202,12 @@ class IndexTotalReturn(TypedDict):
     local_pct: float
 
 
-def _index_changes(series: Any) -> Dict[str, Optional[IndexChange]]:
-    """Points and % change of ``series`` over each benchmark period (``None`` when too short)."""
+def _index_changes(series: pd.Series, in_gbp: Optional[pd.Series]) -> Dict[str, Optional[IndexChange]]:
+    """Points and % change of ``series`` over each benchmark period (``None`` when too short).
+
+    ``in_gbp`` is ``series`` in sterling (the series itself for a GBP index);
+    its % is what the row shows, so a US index's move includes the dollar's.
+    """
 
     latest = float(series.iloc[-1])
     out: Dict[str, Optional[IndexChange]] = {}
@@ -211,8 +218,19 @@ def _index_changes(series: Any) -> Dict[str, Optional[IndexChange]]:
         if not base:
             out[period] = None
             continue
-        out[period] = {"change": latest - base, "pct": (latest - base) / base * 100.0}
+        local_pct = (latest - base) / base * 100.0
+        pct = local_pct if in_gbp is series else _gbp_pct(in_gbp, period)
+        out[period] = {"change": latest - base, "pct": pct, "local_pct": local_pct}
     return out
+
+
+def _gbp_pct(in_gbp: Optional[pd.Series], period: market_sectors.Period) -> Optional[float]:
+    """% change of a sterling series over ``period``, ``None`` without one or its base."""
+
+    if in_gbp is None or in_gbp.empty:
+        return None
+    base = market_sectors.period_base(in_gbp, period)
+    return (float(in_gbp.iloc[-1]) - base) / base * 100.0 if base else None
 
 
 def _in_gbp(series: pd.Series, currency: str, history: market_sectors.PriceHistory) -> Optional[pd.Series]:
@@ -243,8 +261,8 @@ def _total_return_1y(
         return None
     # Judged in the source's own currency, against the price index's return in
     # that currency, so an FX move cannot trip the dividend-sized band.
-    if price_1y is not None and price_1y["pct"] is not None:
-        gap = local_pct - price_1y["pct"]
+    if price_1y is not None:
+        gap = local_pct - price_1y["local_pct"]
         low, high = TOTAL_RETURN_GAP_PP
         if not low <= gap <= high:
             logger.warning(
@@ -272,9 +290,9 @@ def _fetch_index_summary() -> List[Dict[str, Any]]:
     """Return each benchmark index's latest close with day/1W/1M/1Y changes.
 
     One 1Y download covers every window, every total-return source and the FX
-    rates. Levels are price-index points (no currency) and the changes are
-    price return in the index's currency; ``total_return_1y`` adds reinvested
-    dividends and is converted to GBP.
+    rates. Levels and point changes are in index points; every % (price
+    changes and ``total_return_1y``, which adds reinvested dividends) is in
+    GBP, with the index-currency figure alongside as ``local_pct``.
     """
 
     fx = sorted({GBP_PER_UNIT_SYMBOLS[b.currency] for b in BENCHMARKS if b.currency in GBP_PER_UNIT_SYMBOLS})
@@ -286,11 +304,12 @@ def _fetch_index_summary() -> List[Dict[str, Any]]:
         if series.empty:
             logger.warning("No closes for benchmark index %s", sanitise_log_value(benchmark.name))
             continue
-        changes = _index_changes(series)
+        changes = _index_changes(series, _in_gbp(series, benchmark.currency, history))
         out.append(
             {
                 "name": benchmark.name,
                 "symbol": benchmark.symbol,
+                "currency": benchmark.currency,
                 "value": float(series.iloc[-1]),
                 "as_of": _index_label_to_iso(series.index[-1]),
                 "changes": changes,

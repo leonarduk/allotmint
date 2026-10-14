@@ -54,6 +54,7 @@ def test_index_summary_reports_points_and_pct_per_window(monkeypatch):
     [row] = body["indexes"]
     assert row["name"] == "FTSE 100"
     assert row["symbol"] == "^FTSE"
+    assert row["currency"] == "GBP"
     assert row["value"] == 1399.0
     assert row["as_of"].startswith("2026-02-04")
     changes = row["changes"]
@@ -74,7 +75,7 @@ def test_index_summary_marks_short_history_windows_as_none(monkeypatch):
 
     [row] = _client().get("/market/index-summary").json()["indexes"]
 
-    assert row["changes"]["1W"] == {"change": 0.0, "pct": 0.0}
+    assert row["changes"]["1W"] == {"change": 0.0, "pct": 0.0, "local_pct": 0.0}
     assert row["changes"]["1M"] is None
     assert row["changes"]["1Y"] is None
 
@@ -164,7 +165,12 @@ def test_index_summary_converts_a_usd_total_return_to_gbp(monkeypatch):
 
     [row] = _client().get("/market/index-summary").json()["indexes"]
 
-    assert row["changes"]["1Y"]["pct"] == pytest.approx(10.0)
+    # Points stay index points; the % is in GBP, with the USD move beside it.
+    assert row["changes"]["1Y"] == {
+        "change": pytest.approx(100.0),
+        "pct": pytest.approx(21.0),
+        "local_pct": pytest.approx(10.0),
+    }
     assert row["total_return_1y"] == {
         "pct": pytest.approx(22.65),
         "symbol": "^SP500TR",
@@ -198,6 +204,16 @@ def test_index_summary_has_no_usd_total_return_without_an_fx_rate(monkeypatch):
     [row] = _client().get("/market/index-summary").json()["indexes"]
 
     assert row["total_return_1y"] is None
+
+
+def test_usd_price_change_has_no_gbp_pct_without_an_fx_rate(monkeypatch):
+    _only(monkeypatch, "NASDAQ-100")
+    frame = _download_frame({"^NDX": [100.0] * 399 + [110.0]}, FLAT_YEAR)
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["changes"]["1Y"] == {"change": pytest.approx(10.0), "pct": None, "local_pct": pytest.approx(10.0)}
 
 
 def test_plausibility_band_ignores_the_fx_move(monkeypatch):

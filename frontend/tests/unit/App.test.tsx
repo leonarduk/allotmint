@@ -906,6 +906,7 @@ describe("App", () => {
         getTimeseries: vi.fn().mockResolvedValue([]),
         saveTimeseries: vi.fn(),
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
       };
@@ -949,6 +950,7 @@ describe("App", () => {
           .fn()
           .mockResolvedValue({ gainers: [], losers: [] }),
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
       };
@@ -1024,6 +1026,7 @@ describe("App", () => {
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         getTradingSignals: mockTradingSignals,
         getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       };
@@ -1139,7 +1142,9 @@ describe("App", () => {
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         listInstrumentMetadata: vi.fn().mockResolvedValue([]),
+        listInstrumentMetadataScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         listInstrumentGroups: vi.fn().mockResolvedValue([]),
         listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
         assignInstrumentGroup: vi.fn(),
@@ -1280,7 +1285,9 @@ describe("App", () => {
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         listInstrumentMetadata: vi.fn().mockResolvedValue([]),
+        listInstrumentMetadataScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         listInstrumentGroups: vi.fn().mockResolvedValue([]),
         listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
         assignInstrumentGroup: vi.fn(),
@@ -1972,6 +1979,7 @@ describe("App", () => {
           .mockResolvedValue({ gainers: [], losers: [] }),
         getGroupMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
       };
@@ -2014,6 +2022,7 @@ describe("App", () => {
         getTimeseries: vi.fn().mockResolvedValue([]),
         saveTimeseries: vi.fn(),
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
         getConfig: vi.fn().mockResolvedValue({}),
@@ -2058,6 +2067,7 @@ describe("App", () => {
         getTimeseries: vi.fn().mockResolvedValue([]),
         saveTimeseries: vi.fn(),
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
         getConfig: vi.fn().mockResolvedValue({}),
@@ -2115,6 +2125,7 @@ describe("App", () => {
         getGroupMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
         getTradingSignals: mockTradingSignals,
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
         getGroupAlphaVsBenchmark: vi
@@ -2186,6 +2197,7 @@ describe("App", () => {
         getGroupMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
         getTradingSignals: vi.fn().mockResolvedValue([]),
         listTimeseries: vi.fn().mockResolvedValue([]),
+        listTimeseriesScan: vi.fn().mockResolvedValue({ data: [], warming: false }),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
         searchInstruments,

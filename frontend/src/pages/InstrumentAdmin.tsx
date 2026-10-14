@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  listInstrumentMetadata,
+  listInstrumentMetadataScan,
   createInstrumentMetadata,
   updateInstrumentMetadata,
 } from "../api";
+import AdminWarmingNotice from "../components/AdminWarmingNotice";
+import { useAdminScan } from "../hooks/useAdminScan";
 import { useFilterableTable, type Filter } from "../hooks/useFilterableTable";
 import type { InstrumentMetadata } from "../types";
 import { FundUpkeepProposals } from "../components/FundUpkeepProposals";
@@ -54,6 +56,19 @@ const pinNewRowsFirst = (a: Row, b: Row) =>
 
 let newRowCounter = 0;
 
+const rowKey = (row: Row) =>
+  row.isNew ? (row._newKey ?? "") : `${row._originalTicker ?? ""}.${row._originalExchange ?? ""}`;
+
+/**
+ * Fold a fresh (possibly partial, #10754) server list into the rows on screen,
+ * keeping unsaved rows and rows the user has edited as they are.
+ */
+const mergeFreshRows = (prev: Row[], fresh: Row[], touched: ReadonlySet<string>): Row[] => {
+  const kept = prev.filter((row) => row.isNew || touched.has(rowKey(row)));
+  const keptKeys = new Set(kept.map(rowKey));
+  return [...fresh.filter((row) => !keptKeys.has(rowKey(row))), ...kept];
+};
+
 export default function InstrumentAdmin() {
   const { t } = useTranslation();
   const [rows, setRows] = useState<Row[]>([]);
@@ -83,33 +98,27 @@ export default function InstrumentAdmin() {
     },
   }, pinNewRowsFirst);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await Promise.resolve(listInstrumentMetadata());
-        if (cancelled) return;
-        const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
-          || Boolean((import.meta as any)?.vitest);
-        const source: any[] = Array.isArray(data)
-          ? (data as any[])
-          : isTest
-            ? [
-                { ticker: 'AAA.L', name: 'Alpha', region: 'EU', sector: 'Tech', grouping: 'ISA' },
-                { ticker: 'BBB.N', name: 'Beta', region: 'US', sector: 'Finance', grouping: 'GIA' },
-              ]
-            : [];
-        setRows(source.map(toRow));
-      } catch (err) {
-        if (!cancelled) setError(String(err));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  // Rows the user has edited since the last full replace; a re-poll keeps them.
+  const touched = useRef(new Set<string>());
+  const onData = useCallback((data: InstrumentMetadata[]) => {
+    const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
+      || Boolean((import.meta as any)?.vitest);
+    const source: any[] = Array.isArray(data)
+      ? (data as any[])
+      : isTest
+        ? [
+            { ticker: 'AAA.L', name: 'Alpha', region: 'EU', sector: 'Tech', grouping: 'ISA' },
+            { ticker: 'BBB.N', name: 'Beta', region: 'US', sector: 'Finance', grouping: 'GIA' },
+          ]
+        : [];
+    setRows((prev) => mergeFreshRows(prev, source.map(toRow), touched.current));
   }, []);
+  const onError = useCallback((err: unknown) => setError(String(err)), []);
+  // Partial while the backend's startup warm-up runs; re-polls until complete (#10754).
+  const { warming } = useAdminScan(listInstrumentMetadataScan, onData, onError);
 
   const handleChange = (row: Row, field: keyof Row, value: string) => {
+    touched.current.add(rowKey(row));
     setRows((prev) => {
       const index = prev.indexOf(row);
       if (index === -1) return prev;
@@ -165,8 +174,9 @@ export default function InstrumentAdmin() {
         await updateInstrumentMetadata(row.ticker, row.exchange, payload);
       }
       setMessage(t("instrumentadmin.saveSuccess"));
-      const fresh = await listInstrumentMetadata();
-      setRows(fresh.map(toRow));
+      const fresh = await listInstrumentMetadataScan();
+      touched.current.clear();
+      setRows(fresh.data.map(toRow));
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       setMessage(`${t("instrumentadmin.saveError")}: ${detail}`);
@@ -182,6 +192,7 @@ export default function InstrumentAdmin() {
       <h2 className="mb-4 text-xl md:text-2xl">
         {t("app.modes.instrumentadmin")}
       </h2>
+      {warming && <AdminWarmingNotice count={rows.filter((row) => !row.isNew).length} />}
       {message && <p>{message}</p>}
       <input
         type="text"

@@ -822,10 +822,13 @@ def _load_listed_instrument(path: str) -> Dict[str, Any]:
     return data
 
 
-def list_instruments() -> List[Dict[str, Any]]:
+def list_instruments(*, cached_only: bool = False) -> List[Dict[str, Any]]:
     """Return metadata for every instrument found under ``data/instruments``.
 
     Each entry is a fresh shallow copy, so callers may add or change keys.
+    With ``cached_only`` a file with no up-to-date parsed copy in the cache is
+    skipped rather than opened; used while the startup warm-up is still
+    filling the cache.
     """
 
     instruments: List[Dict[str, Any]] = []
@@ -837,6 +840,8 @@ def list_instruments() -> List[Dict[str, Any]]:
             cached = _LIST_CACHE.get(path)
         if cached is not None and cached[0] == signature:
             instruments.append(dict(cached[1]))
+            continue
+        if cached_only:
             continue
         try:
             data = _load_listed_instrument(path)

@@ -149,6 +149,7 @@ def clear_admin_file_caches():
         ("backend.common.instruments", "clear_list_instruments_cache"),
         ("backend.routes.timeseries_admin", "clear_summary_cache"),
         ("backend.data_quality.issues", "clear_series_issue_cache"),
+        ("backend.common.admin_cache_state", "finish_all_steps"),
     ):
         module = sys.modules.get(module_name)
         if module is not None:

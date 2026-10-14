@@ -6,9 +6,10 @@ from __future__ import annotations
 from typing import Any
 
 import requests
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from backend.common import instrument_groups, look_through, morningstar
+from backend.common.admin_cache_state import INSTRUMENT_LIST, WARMING_HEADER, is_step_warming
 from backend.common.instrument_classification import exposure_region
 from backend.common.instruments import (
     _ORIGINAL_FETCH_METADATA,
@@ -32,17 +33,28 @@ router = APIRouter(
 
 
 @router.get("/admin")
-def list_instrument_metadata() -> list[dict[str, Any]]:
+def list_instrument_metadata(
+    response: Response,
+    partial: bool = Query(False, description="While the startup warm-up runs, return only cached instruments"),
+) -> list[dict[str, Any]]:
     """Return metadata for all instruments.
 
     Each entry also carries a read-only ``effective_region``: the region the
     holding is treated as investing in (an explicit ``exposure_region``, else
     the fund-name rule, else the stored listing/domicile ``region``), so the
     Research page shows the same region the allocation views use.
+
+    With ``partial`` while the startup warm-up is still listing instruments,
+    only the already-parsed ones are returned and :data:`WARMING_HEADER` is
+    set (#10754).
     """
 
+    cached_only = partial and is_step_warming(INSTRUMENT_LIST)
+    if cached_only:
+        response.headers[WARMING_HEADER] = "true"
     return [
-        {**entry, "effective_region": normalise_optional_region(exposure_region(entry))} for entry in list_instruments()
+        {**entry, "effective_region": normalise_optional_region(exposure_region(entry))}
+        for entry in list_instruments(cached_only=cached_only)
     ]
 
 

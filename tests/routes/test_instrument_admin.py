@@ -16,7 +16,7 @@ def test_list_instrument_metadata(monkeypatch):
     monkeypatch.setattr(
         instrument_admin,
         "list_instruments",
-        lambda: [{"ticker": "ABC.L", "grouping": "Income"}],
+        lambda **_kwargs: [{"ticker": "ABC.L", "grouping": "Income"}],
     )
     client = make_client()
     resp = client.get("/instrument/admin")
@@ -36,7 +36,7 @@ def test_list_instrument_metadata_adds_effective_region(monkeypatch):
         },
         {"ticker": "DEF.L", "name": "Def plc", "instrument_type": "Equity", "region": "UK"},
     ]
-    monkeypatch.setattr(instrument_admin, "list_instruments", lambda: stored)
+    monkeypatch.setattr(instrument_admin, "list_instruments", lambda **_kwargs: stored)
     resp = make_client().get("/instrument/admin")
     assert resp.status_code == 200
     body = resp.json()

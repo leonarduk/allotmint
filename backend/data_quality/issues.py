@@ -767,6 +767,7 @@ def aggregate_series_issues(
     rolling_window: int = DEFAULT_ROLLING_WINDOW,
     large_move_threshold: float = price_scale.DEFAULT_LARGE_MOVE_THRESHOLD,
     accounts_root: Path | None = None,
+    cached_only: bool = False,
 ) -> list[DataQualityIssue]:
     """Detect timeseries-side issues: stale, gaps, duplicates, outliers,
     missing metadata, ticker/cache-key mismatches, mis-scaled prices and
@@ -778,7 +779,9 @@ def aggregate_series_issues(
     Each series' issues are cached until its parquet, corporate actions,
     instrument metadata or the scaling-override tables change, or the day,
     its tracked status or the options differ, so a repeat visit re-checks
-    only the series that changed.
+    only the series that changed. With ``cached_only`` a series with no
+    up-to-date cached result is skipped instead of loaded; used while the
+    startup warm-up is still filling the cache.
     """
     issues: list[DataQualityIssue] = []
     today = date.today()
@@ -808,6 +811,8 @@ def aggregate_series_issues(
             if cached is not None and cached[0] == key:
                 issues.extend(copy.deepcopy(cached[1]))
                 continue
+        if cached_only:
+            continue
         try:
             df = load_cached_meta_timeseries_full(ticker, exchange)
         except Exception:

@@ -4151,5 +4151,8 @@
     "close": "Chiudi {{label}}",
     "toggle": "Mostra schede di lavoro",
     "toggleHelp": "Tieni aperte più viste, ad es. la panoramica del gruppo e alcuni strumenti, e passa dall'una all'altra senza lasciare questa scheda del browser. Usa + per aprire la vista corrente in una nuova scheda e ↻ per ricaricarne i dati."
+  },
+  "admin": {
+    "cacheWarming": "Caricamento in corso dopo il riavvio del server: mostrati i {{count}} trovati finora. L'elenco si completa automaticamente."
   }
 }

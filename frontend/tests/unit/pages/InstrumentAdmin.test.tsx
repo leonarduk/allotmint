@@ -5,7 +5,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import i18n from "@/i18n";
 
 vi.mock("@/api", () => ({
-  listInstrumentMetadata: vi.fn().mockResolvedValue([
+  listInstrumentMetadataScan: vi.fn().mockResolvedValue({ warming: false, data: [
     {
       ticker: "AAA.L",
       name: "Alpha",
@@ -20,7 +20,7 @@ vi.mock("@/api", () => ({
       sector: "Finance",
       grouping: "GIA",
     },
-  ]),
+  ] }),
   createInstrumentMetadata: vi.fn().mockResolvedValue({}),
   updateInstrumentMetadata: vi.fn().mockResolvedValue({}),
   getFundUpkeepProposals: vi.fn().mockResolvedValue([]),
@@ -30,7 +30,7 @@ vi.mock("@/api", () => ({
 import InstrumentAdmin from "@/pages/InstrumentAdmin";
 import {
   createInstrumentMetadata,
-  listInstrumentMetadata,
+  listInstrumentMetadataScan,
   updateInstrumentMetadata,
 } from "@/api";
 
@@ -63,10 +63,10 @@ describe("InstrumentAdmin page", () => {
   });
 
   it("shows the effective region and saves an edit as the exposure-region override", async () => {
-    vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
+    vi.mocked(listInstrumentMetadataScan).mockResolvedValueOnce({ warming: false, data: [
       { ticker: "USSC.L", name: "SPDR MSCI USA Small Cap", region: "UK", effective_region: "US" },
       { ticker: "ABC.L", name: "Abc", region: "UK", exposure_region: "Europe", effective_region: "Europe" },
-    ] as any);
+    ] as any });
     render(
       <MemoryRouter>
         <InstrumentAdmin />
@@ -93,9 +93,9 @@ describe("InstrumentAdmin page", () => {
   });
 
   it("does not resend an unchanged exposure-region override", async () => {
-    vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
+    vi.mocked(listInstrumentMetadataScan).mockResolvedValueOnce({ warming: false, data: [
       { ticker: "ABC.L", name: "Abc", region: "UK", exposure_region: "Europe", effective_region: "Europe" },
-    ] as any);
+    ] as any });
     render(
       <MemoryRouter>
         <InstrumentAdmin />
@@ -114,9 +114,9 @@ describe("InstrumentAdmin page", () => {
   });
 
   it("clears the exposure-region override when the region is blanked", async () => {
-    vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
+    vi.mocked(listInstrumentMetadataScan).mockResolvedValueOnce({ warming: false, data: [
       { ticker: "ABC.L", name: "Abc", region: "UK", exposure_region: "Europe", effective_region: "Europe" },
-    ] as any);
+    ] as any });
     render(
       <MemoryRouter>
         <InstrumentAdmin />
@@ -268,13 +268,16 @@ describe("InstrumentAdmin page", () => {
 
   it("renders duplicate symbols without duplicate-key errors and keeps rows independent", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
-      { ticker: "CASH.GBP", name: "Cash GBP", region: "UK", sector: "Cash", grouping: "ISA" },
-      { ticker: "CASH.EUR", name: "Cash EUR", region: "EU", sector: "Cash", grouping: "GIA" },
-      { ticker: "CASH.USD", name: "Cash USD", region: "US", sector: "Cash", grouping: "ISA" },
-      { ticker: "PFE.L", name: "Pfizer L", region: "UK", sector: "Pharma", grouping: "ISA" },
-      { ticker: "PFE.N", name: "Pfizer N", region: "US", sector: "Pharma", grouping: "GIA" },
-    ]);
+    vi.mocked(listInstrumentMetadataScan).mockResolvedValueOnce({
+      warming: false,
+      data: [
+        { ticker: "CASH.GBP", name: "Cash GBP", region: "UK", sector: "Cash", grouping: "ISA" },
+        { ticker: "CASH.EUR", name: "Cash EUR", region: "EU", sector: "Cash", grouping: "GIA" },
+        { ticker: "CASH.USD", name: "Cash USD", region: "US", sector: "Cash", grouping: "ISA" },
+        { ticker: "PFE.L", name: "Pfizer L", region: "UK", sector: "Pharma", grouping: "ISA" },
+        { ticker: "PFE.N", name: "Pfizer N", region: "US", sector: "Pharma", grouping: "GIA" },
+      ],
+    });
 
     render(
       <MemoryRouter>
@@ -300,5 +303,40 @@ describe("InstrumentAdmin page", () => {
     expect(screen.getByDisplayValue("Pfizer L")).toBeInTheDocument();
 
     consoleError.mockRestore();
+  });
+});
+
+describe("InstrumentAdmin while the backend warms its caches (#10754)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it("shows the partial list with a notice, fills in on re-poll and keeps unsaved edits", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(listInstrumentMetadataScan)
+      .mockResolvedValueOnce({ warming: true, data: [{ ticker: "AAA.L", name: "Alpha", grouping: "ISA" }] as any })
+      .mockResolvedValueOnce({
+        warming: false,
+        data: [
+          { ticker: "AAA.L", name: "Alpha", grouping: "ISA" },
+          { ticker: "BBB.N", name: "Beta", grouping: "GIA" },
+        ] as any,
+      });
+
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("admin-warming-notice")).toHaveTextContent("1");
+    fireEvent.change(screen.getByDisplayValue("ISA"), { target: { value: "ISA edited" } });
+
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    expect(await screen.findByDisplayValue("BBB")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("ISA edited")).toBeInTheDocument();
+    expect(screen.queryByTestId("admin-warming-notice")).not.toBeInTheDocument();
   });
 });

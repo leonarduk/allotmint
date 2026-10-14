@@ -8,9 +8,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Response
 
 from backend.auth import get_current_user
+from backend.common.admin_cache_state import TIMESERIES_SUMMARIES, WARMING_HEADER, is_step_warming
 from backend.common.file_signature import FileSignature, file_signature
 from backend.common.instruments import METADATA_BUCKET_ENV, get_instrument_meta, instrument_meta_path
 from backend.config import config
@@ -78,53 +79,79 @@ def _summarize(df: pd.DataFrame, ticker: str, exchange: str) -> dict[str, Any]:
 
 
 @router.get("/admin")
-def timeseries_admin() -> list[dict[str, Any]]:
-    summaries: list[dict[str, Any]] = []
-    if config.app_env == "aws":
-        bucket = os.getenv("DATA_BUCKET")
-        if not bucket:
-            logger.warning("DATA_BUCKET environment variable is required for AWS timeseries admin")
-            return summaries
-        try:
-            import boto3  # type: ignore
-            from botocore.exceptions import ClientError  # type: ignore
-        except Exception:  # pragma: no cover - missing dependency
-            logger.warning("boto3 is not installed; cannot fetch timeseries metadata from S3")
-            return summaries
-        s3 = boto3.client("s3")
-        prefix = "timeseries/meta/"
-        token: str | None = None
-        while True:
-            params = {"Bucket": bucket, "Prefix": prefix}
-            if token:
-                params["ContinuationToken"] = token
-            resp = s3.list_objects_v2(**params)
-            for item in resp.get("Contents", []):
-                key = item.get("Key", "")
-                if not key.endswith(".parquet"):
-                    continue
-                stem = Path(key).stem
-                if "_" not in stem:
-                    continue
-                ticker, exchange = stem.rsplit("_", 1)
-                try:
-                    obj = s3.get_object(Bucket=bucket, Key=key)
-                    body = obj.get("Body")
-                    if not body:
-                        continue
-                    df = _ensure_schema(pd.read_parquet(io.BytesIO(body.read())))
-                except (ClientError, ValueError) as exc:  # pragma: no cover - defensive
-                    logger.warning("Failed to load %s from S3: %s", key, sanitise_log_value(exc))
-                    continue
-                if df.empty:
-                    continue
-                summaries.append(_summarize(df, ticker, exchange))
-            if resp.get("IsTruncated"):
-                token = resp.get("NextContinuationToken")
-            else:
-                break
-        return summaries
+def get_timeseries_admin(
+    response: Response,
+    partial: bool = Query(False, description="While the startup warm-up runs, return only cached summaries"),
+) -> list[dict[str, Any]]:
+    """Every series' summary; with ``partial`` during warm-up, only the cached ones (#10754)."""
+    if partial and config.app_env != "aws" and is_step_warming(TIMESERIES_SUMMARIES):
+        response.headers[WARMING_HEADER] = "true"
+        return local_timeseries_summaries(cached_only=True)
+    return timeseries_admin()
 
+
+def timeseries_admin() -> list[dict[str, Any]]:
+    """Summaries of every cached series, from S3 on AWS, else the local data root."""
+    if config.app_env == "aws":
+        return _s3_timeseries_summaries()
+    return local_timeseries_summaries()
+
+
+def _s3_timeseries_summaries() -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    bucket = os.getenv("DATA_BUCKET")
+    if not bucket:
+        logger.warning("DATA_BUCKET environment variable is required for AWS timeseries admin")
+        return summaries
+    try:
+        import boto3  # type: ignore
+        from botocore.exceptions import ClientError  # type: ignore
+    except Exception:  # pragma: no cover - missing dependency
+        logger.warning("boto3 is not installed; cannot fetch timeseries metadata from S3")
+        return summaries
+    s3 = boto3.client("s3")
+    prefix = "timeseries/meta/"
+    token: str | None = None
+    while True:
+        params = {"Bucket": bucket, "Prefix": prefix}
+        if token:
+            params["ContinuationToken"] = token
+        resp = s3.list_objects_v2(**params)
+        for item in resp.get("Contents", []):
+            key = item.get("Key", "")
+            if not key.endswith(".parquet"):
+                continue
+            stem = Path(key).stem
+            if "_" not in stem:
+                continue
+            ticker, exchange = stem.rsplit("_", 1)
+            try:
+                obj = s3.get_object(Bucket=bucket, Key=key)
+                body = obj.get("Body")
+                if not body:
+                    continue
+                df = _ensure_schema(pd.read_parquet(io.BytesIO(body.read())))
+            except (ClientError, ValueError) as exc:  # pragma: no cover - defensive
+                logger.warning("Failed to load %s from S3: %s", sanitise_log_value(key), sanitise_log_value(exc))
+                continue
+            if df.empty:
+                continue
+            summaries.append(_summarize(df, ticker, exchange))
+        if resp.get("IsTruncated"):
+            token = resp.get("NextContinuationToken")
+        else:
+            break
+    return summaries
+
+
+def local_timeseries_summaries(*, cached_only: bool = False) -> list[dict[str, Any]]:
+    """Summaries of every parquet under ``data_root/timeseries/meta``.
+
+    With ``cached_only`` a parquet with no up-to-date cached summary is skipped
+    instead of read, so the call costs a directory listing plus a ``stat`` per
+    file; used while the startup warm-up is still filling the cache.
+    """
+    summaries: list[dict[str, Any]] = []
     base = config.data_root / "timeseries" / "meta"
     if not base.exists():
         return summaries
@@ -134,7 +161,7 @@ def timeseries_admin() -> list[dict[str, Any]]:
         if "_" not in stem:
             continue
         ticker, exchange = stem.rsplit("_", 1)
-        summary = _local_summary(path, ticker, exchange)
+        summary = _local_summary(path, ticker, exchange, cached_only=cached_only)
         if summary is not None:
             summaries.append(summary)
     _prune_summary_cache(base, set(paths))
@@ -148,8 +175,11 @@ def _meta_signature(ticker: str, exchange: str) -> FileSignature:
         return None
 
 
-def _local_summary(path: Path, ticker: str, exchange: str) -> dict[str, Any] | None:
-    """Summary for one local parquet, served from the cache while its files are unchanged."""
+def _local_summary(path: Path, ticker: str, exchange: str, *, cached_only: bool = False) -> dict[str, Any] | None:
+    """Summary for one local parquet, served from the cache while its files are unchanged.
+
+    With ``cached_only``, ``None`` when there is no up-to-date cached summary.
+    """
     # Same policy as the Data Quality series cache: never on AWS, and not when
     # metadata comes from S3, since either can change without a local file
     # changing.
@@ -160,6 +190,8 @@ def _local_summary(path: Path, ticker: str, exchange: str) -> dict[str, Any] | N
             cached = _SUMMARY_CACHE.get(path)
         if cached is not None and cached[0] == signature:
             return dict(cached[1]) if cached[1] is not None else None
+    if cached_only:
+        return None
     try:
         df = _ensure_schema(pd.read_parquet(path))
     except (OSError, ValueError) as exc:  # pragma: no cover - defensive

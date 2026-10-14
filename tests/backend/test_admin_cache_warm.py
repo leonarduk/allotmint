@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from backend.bootstrap import admin_cache_warm
+from backend.common import admin_cache_state
 
 
 @pytest.mark.parametrize(
@@ -60,7 +61,7 @@ def test_warm_steps_fill_the_real_caches(monkeypatch):
 
     called: list[str] = []
     monkeypatch.setattr(instruments, "list_instruments", lambda: called.append("instruments"))
-    monkeypatch.setattr(timeseries_admin, "timeseries_admin", lambda: called.append("timeseries"))
+    monkeypatch.setattr(timeseries_admin, "local_timeseries_summaries", lambda: called.append("timeseries"))
 
     def fake_series(**_kwargs):
         from backend.timeseries.cache import is_cache_only
@@ -204,3 +205,70 @@ def test_startup_starts_the_warm_thread_only_when_allowed(monkeypatch):
         asyncio.run(startup.AppLifecycleService(cfg).startup(app))
 
     assert started == ["warm"]
+
+
+def test_each_step_stops_warming_as_soon_as_it_finishes(monkeypatch):
+    """An endpoint stops serving partial results once its own step is done, not the whole warm-up."""
+    names = admin_cache_state.WARM_STEP_NAMES
+    observed: list[tuple[bool, ...]] = []
+
+    def step():
+        observed.append(tuple(admin_cache_state.is_step_warming(n) for n in names))
+
+    monkeypatch.setattr(admin_cache_warm, "_warm_steps", lambda: [(n, step) for n in names])
+    admin_cache_state.mark_steps_pending(names)
+
+    admin_cache_warm.warm_admin_caches()
+
+    assert observed == [(True, True, True), (False, True, True), (False, False, True)]
+    assert not any(admin_cache_state.is_step_warming(n) for n in names)
+
+
+def test_a_failing_step_stops_warming(monkeypatch):
+    """A failed step falls back to scanning on request rather than serving partial results forever."""
+
+    def boom():
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(admin_cache_warm, "_warm_steps", lambda: [(admin_cache_state.INSTRUMENT_LIST, boom)])
+    admin_cache_state.mark_steps_pending([admin_cache_state.INSTRUMENT_LIST])
+
+    admin_cache_warm.warm_admin_caches()
+
+    assert not admin_cache_state.is_step_warming(admin_cache_state.INSTRUMENT_LIST)
+
+
+def test_unlisted_steps_are_cleared_when_the_warm_up_ends(monkeypatch):
+    """A step that never ran (e.g. the step list failed to import) is not left pending."""
+
+    def no_steps():
+        raise ImportError("pandas missing")
+
+    monkeypatch.setattr(admin_cache_warm, "_warm_steps", no_steps)
+    admin_cache_state.mark_steps_pending(admin_cache_state.WARM_STEP_NAMES)
+
+    with pytest.raises(ImportError):
+        admin_cache_warm.warm_admin_caches()
+
+    assert not any(admin_cache_state.is_step_warming(n) for n in admin_cache_state.WARM_STEP_NAMES)
+
+
+def test_starting_the_thread_marks_every_step_pending_until_it_runs(monkeypatch):
+    import threading
+
+    release = threading.Event()
+    seen: list[bool] = []
+
+    def blocked_warm():
+        seen.append(all(admin_cache_state.is_step_warming(n) for n in admin_cache_state.WARM_STEP_NAMES))
+        release.wait(5)
+        admin_cache_state.finish_all_steps()
+
+    monkeypatch.setattr(admin_cache_warm, "warm_admin_caches", blocked_warm)
+
+    thread = admin_cache_warm.start_admin_cache_warm_thread()
+    assert admin_cache_state.is_step_warming(admin_cache_state.DATA_QUALITY_SERIES)
+    release.set()
+    thread.join(5)
+
+    assert seen == [True]

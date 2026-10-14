@@ -41,8 +41,12 @@ import {
   ADMIN_SCAN_TIMEOUT_MS,
   DEFAULT_FETCH_TIMEOUT_MS,
   getDataQualityIssues,
+  getDataQualityIssuesScan,
   listInstrumentMetadata,
+  listInstrumentMetadataScan,
   listTimeseries,
+  listTimeseriesScan,
+  ADMIN_CACHE_WARMING_HEADER,
 } from "@/api";
 import {
   clearFetchCache,
@@ -1846,5 +1850,42 @@ describe("saved chat bookkeeping follows the signed-in identity (#8870)", () => 
 
     setAuthToken("token-for-user-b");
     expect(getChatIdentityEpoch()).toBeGreaterThan(epoch);
+  });
+});
+
+describe("admin scans while the backend warms its caches (#10754)", () => {
+  it.each([
+    ["listTimeseriesScan", "/timeseries/admin", [], () => listTimeseriesScan()],
+    ["listInstrumentMetadataScan", "/instrument/admin", [], () => listInstrumentMetadataScan()],
+    [
+      "getDataQualityIssuesScan",
+      "/data-quality/issues",
+      { count: 0, issues: [] },
+      () => getDataQualityIssuesScan(),
+    ],
+  ])("%s asks for partial results and reports the warming header", async (_name, path, body, call) => {
+    const realFetch = global.fetch;
+    const urls: string[] = [];
+    const respond = (warming: boolean) =>
+      vi.fn((url: RequestInfo | URL) => {
+        urls.push(String(url));
+        const headers = new Headers({ "Content-Type": "application/json" });
+        if (warming) headers.set(ADMIN_CACHE_WARMING_HEADER, "true");
+        return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers }));
+      }) as unknown as typeof fetch;
+    try {
+      global.fetch = respond(true);
+      await expect(call()).resolves.toEqual({ data: body, warming: true });
+      global.fetch = respond(false);
+      await expect(call()).resolves.toEqual({ data: body, warming: false });
+    } finally {
+      global.fetch = realFetch;
+    }
+    expect(urls).toHaveLength(2);
+    for (const url of urls) {
+      const parsed = new URL(url, "http://localhost");
+      expect(parsed.pathname.endsWith(path)).toBe(true);
+      expect(parsed.searchParams.get("partial")).toBe("true");
+    }
   });
 });

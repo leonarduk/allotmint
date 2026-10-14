@@ -4151,5 +4151,8 @@
     "close": "Fermer {{label}}",
     "toggle": "Afficher les onglets de travail",
     "toggleHelp": "Gardez plusieurs vues ouvertes, par ex. l'aperçu du groupe et quelques instruments, et passez de l'une à l'autre sans quitter cet onglet du navigateur. Utilisez + pour ouvrir la vue actuelle dans un nouvel onglet et ↻ pour recharger ses données."
+  },
+  "admin": {
+    "cacheWarming": "Chargement en cours après un redémarrage du serveur : {{count}} trouvés pour l'instant. La liste se complète automatiquement."
   }
 }

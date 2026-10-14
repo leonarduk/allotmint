@@ -519,3 +519,48 @@ def test_scanning_another_data_root_keeps_this_roots_summaries(local_series, mon
     timeseries_admin.timeseries_admin()
 
     assert reads == ["ABC_L.parquet", "ZZZ_L.parquet"]
+
+
+def test_partial_summaries_while_warming_serve_only_the_cache(local_series):
+    """?partial=true during warm-up never reads a parquet, and says the list is incomplete (#10754)."""
+    from fastapi import Response
+
+    from backend.common import admin_cache_state
+
+    _, _, reads = local_series
+    admin_cache_state.mark_steps_pending([admin_cache_state.TIMESERIES_SUMMARIES])
+
+    cold = Response()
+    assert timeseries_admin.get_timeseries_admin(cold, partial=True) == []
+    assert cold.headers[admin_cache_state.WARMING_HEADER] == "true"
+    assert reads == []
+
+    full = Response()
+    [summary] = timeseries_admin.get_timeseries_admin(full, partial=False)
+    assert admin_cache_state.WARMING_HEADER not in full.headers
+    assert reads == ["ABC_L.parquet"]
+
+    warm = Response()
+    assert timeseries_admin.get_timeseries_admin(warm, partial=True) == [summary]
+    assert warm.headers[admin_cache_state.WARMING_HEADER] == "true"
+    assert reads == ["ABC_L.parquet"]
+
+    admin_cache_state.finish_step(admin_cache_state.TIMESERIES_SUMMARIES)
+    done = Response()
+    assert timeseries_admin.get_timeseries_admin(done, partial=True) == [summary]
+    assert admin_cache_state.WARMING_HEADER not in done.headers
+
+
+def test_partial_summaries_on_aws_ignore_the_warm_up(monkeypatch):
+    """AWS never warms; a stray pending step must not hide the S3 listing."""
+    from fastapi import Response
+
+    from backend.common import admin_cache_state
+
+    monkeypatch.setattr(config, "app_env", "aws")
+    monkeypatch.setattr(timeseries_admin, "_s3_timeseries_summaries", lambda: [{"ticker": "S3"}])
+    admin_cache_state.mark_steps_pending([admin_cache_state.TIMESERIES_SUMMARIES])
+
+    response = Response()
+    assert timeseries_admin.get_timeseries_admin(response, partial=True) == [{"ticker": "S3"}]
+    assert admin_cache_state.WARMING_HEADER not in response.headers

@@ -141,3 +141,38 @@ def test_unreadable_directory_is_logged_not_silent(instruments_dir, monkeypatch,
 
     assert set(_by_ticker(list_instruments())) == {"AAA.L"}
     assert "Cannot list instrument metadata" in caplog.text
+
+
+def test_cached_only_skips_files_that_are_not_parsed_yet(instruments_dir, load_calls):
+    """``cached_only`` lists only parsed files and opens none (#10754)."""
+    assert list_instruments(cached_only=True) == []
+    assert load_calls == []
+
+    list_instruments()
+    _write(instruments_dir / "L" / "AAA.json", {"ticker": "AAA.L", "name": "Changed"}, bump_ns=10**9)
+    load_calls.clear()
+
+    assert [e["ticker"] for e in list_instruments(cached_only=True)] == ["BBB.N"]
+    assert load_calls == []
+
+
+def test_admin_route_serves_cached_instruments_while_warming(instruments_dir, load_calls):
+    from fastapi import Response
+
+    from backend.common import admin_cache_state
+    from backend.routes.instrument_admin import list_instrument_metadata
+
+    admin_cache_state.mark_steps_pending([admin_cache_state.INSTRUMENT_LIST])
+
+    cold = Response()
+    assert list_instrument_metadata(cold, partial=True) == []
+    assert cold.headers[admin_cache_state.WARMING_HEADER] == "true"
+
+    full = Response()
+    assert {e["ticker"] for e in list_instrument_metadata(full, partial=False)} == {"AAA.L", "BBB.N"}
+    assert admin_cache_state.WARMING_HEADER not in full.headers
+
+    admin_cache_state.finish_step(admin_cache_state.INSTRUMENT_LIST)
+    done = Response()
+    assert {e["ticker"] for e in list_instrument_metadata(done, partial=True)} == {"AAA.L", "BBB.N"}
+    assert admin_cache_state.WARMING_HEADER not in done.headers

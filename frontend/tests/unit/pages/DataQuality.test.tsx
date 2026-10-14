@@ -25,6 +25,7 @@ vi.mock("@/api", async () => {
     ...actual,
     getDataQualityTimeseries: mockGetDataQualityTimeseries,
     getDataQualityIssues: mockGetDataQualityIssues,
+    getDataQualityIssuesScan: async () => ({ data: await mockGetDataQualityIssues(), warming: false }),
     fixDataQualityIssue: mockFixDataQualityIssue,
     fixDataQualityBatch: mockFixDataQualityBatch,
     dedupeDataQualitySeries: mockDedupeDataQualitySeries,

@@ -127,7 +127,6 @@ backend/routes/support.py::_log_refresh_failure::logger.exception('Portfolio hea
 backend/routes/support.py::post_portfolio_health::logger.exception('Portfolio health computation failed: %s', exc)
 backend/routes/support.py::post_portfolio_health::logger.exception('Portfolio health refresh task failed: %s', exc)
 backend/routes/support.py::post_portfolio_health::logger.exception('Portfolio health refresh task failed: %s', exc)
-backend/routes/timeseries_admin.py::timeseries_admin::logger.warning('Failed to load %s from S3: %s', key, sanitise_log_value(exc))
 backend/timeseries/cache.py::_ensure_schema::logger.warning("Timeseries 'Date' column is tz-aware (%s); converting to UTC and stripping timezone before casting to datetime64[ms].", dates.dt.tz)
 backend/timeseries/cache.py::_load_parquet::logger.debug('Cache read miss (%s): %s', path, exc)
 backend/timeseries/cache.py::_load_parquet::logger.debug('Loaded %s rows from cache: %s', len(df), path)

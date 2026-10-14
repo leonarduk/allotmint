@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
-  listTimeseries,
+  listTimeseriesScan,
   refetchTimeseries,
   rebuildTimeseriesCache,
 } from "../api";
+import AdminWarmingNotice from "../components/AdminWarmingNotice";
+import { useAdminScan } from "../hooks/useAdminScan";
 import type { TimeseriesSummary } from "../types";
 
 export default function DataAdmin() {
@@ -13,35 +15,26 @@ export default function DataAdmin() {
   const [rows, setRows] = useState<TimeseriesSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await Promise.resolve(listTimeseries());
-        if (cancelled) return;
-        const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
-          || Boolean((import.meta as any)?.vitest);
-        const rows = Array.isArray(data) ? (data as any) : (isTest ? [
-          {
-            ticker: 'ABC',
-            exchange: 'L',
-            name: 'ABC plc',
-            earliest: '2024-01-01',
-            latest: '2024-02-01',
-            completeness: 100,
-            latest_source: 'Feed',
-            main_source: 'Feed',
-          },
-        ] : []);
-        setRows(rows as TimeseriesSummary[]);
-      } catch (e) {
-        if (!cancelled) setError(String(e));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const onData = useCallback((data: TimeseriesSummary[]) => {
+    const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
+      || Boolean((import.meta as any)?.vitest);
+    const rows = Array.isArray(data) ? (data as any) : (isTest ? [
+      {
+        ticker: 'ABC',
+        exchange: 'L',
+        name: 'ABC plc',
+        earliest: '2024-01-01',
+        latest: '2024-02-01',
+        completeness: 100,
+        latest_source: 'Feed',
+        main_source: 'Feed',
+      },
+    ] : []);
+    setRows(rows as TimeseriesSummary[]);
   }, []);
+  const onError = useCallback((e: unknown) => setError(String(e)), []);
+  // Partial while the backend's startup warm-up runs; re-polls until complete (#10754).
+  const { warming } = useAdminScan(listTimeseriesScan, onData, onError);
 
   if (error) {
     const needsLocalLogin = error.includes(
@@ -75,6 +68,7 @@ export default function DataAdmin() {
   return (
     <div className="container mx-auto p-4 max-w-5xl">
       <h2 className="mb-4 text-xl md:text-2xl">{t("app.modes.dataadmin")}</h2>
+      {warming && <AdminWarmingNotice count={rows.length} />}
       <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>

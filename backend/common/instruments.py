@@ -7,9 +7,10 @@ import json
 import logging
 import os
 import re
+import threading
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from backend.common.cash_tickers import CASH_SYMBOL, is_cash_ticker
 from backend.common.currency import CurrencyNormaliser
@@ -772,18 +773,88 @@ def delete_instrument_meta(ticker: str, exchange: str) -> None:
 #         json.dump(meta, f, indent=2)
 
 
-def list_instruments() -> List[Dict[str, Any]]:
-    """Return metadata for every instrument found under ``data/instruments``."""
+# Parsed instrument files keyed by path, reused while the file's
+# ``(mtime_ns, size)`` is unchanged. The screener universe puts ~12k files
+# under ``data/instruments``; opening every one on each call made
+# GET /instrument/admin take minutes on Windows (#10754).
+_LIST_CACHE: Dict[str, tuple[tuple[int, int], Dict[str, Any]]] = {}
+_LIST_CACHE_LOCK = threading.Lock()
+
+
+def clear_list_instruments_cache() -> None:
+    """Forget every parsed instrument file cached by :func:`list_instruments`."""
+    with _LIST_CACHE_LOCK:
+        _LIST_CACHE.clear()
+
+
+def _iter_json_files(root: Path) -> Iterator[tuple[str, tuple[int, int]]]:
+    """Yield ``(path, (mtime_ns, size))`` for every ``*.json`` under ``root``.
+
+    ``os.scandir`` returns each entry's stat with the directory listing on
+    Windows, so this needs no per-file system call there.
+    """
+    try:
+        with os.scandir(root) as it:
+            entries = list(it)
+    except FileNotFoundError:
+        return  # no instruments directory: nothing to list, as with rglob
+    except OSError as exc:
+        logger.warning("Cannot list instrument metadata in %s: %s", sanitise_log_value(root), sanitise_log_value(exc))
+        return
+    for entry in entries:
+        try:
+            # Like the pathlib rglob this replaced: symlinked directories are not
+            # descended into (a link loop must not hang the listing), symlinked files are listed.
+            if entry.is_dir(follow_symlinks=False):
+                yield from _iter_json_files(Path(entry.path))
+            elif entry.is_file() and os.path.normcase(entry.name).endswith(".json"):
+                stat = entry.stat()
+                yield entry.path, (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            logger.warning("Failed to stat instrument metadata %s", sanitise_log_value(entry.path))
+
+
+def _load_listed_instrument(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        data = _decode_metadata_name(json.load(f), source=path)
+    for field in ("asset_class", "industry", "region", "grouping"):
+        data.setdefault(field, None)
+    return data
+
+
+def list_instruments(*, cached_only: bool = False) -> List[Dict[str, Any]]:
+    """Return metadata for every instrument found under ``data/instruments``.
+
+    Each entry is a fresh shallow copy, so callers may add or change keys.
+    With ``cached_only`` a file with no up-to-date parsed copy in the cache is
+    skipped rather than opened; used while the startup warm-up is still
+    filling the cache.
+    """
 
     instruments: List[Dict[str, Any]] = []
-    for p in _active_instruments_dir().rglob("*.json"):
+    root = _active_instruments_dir()
+    seen: set[str] = set()
+    for path, signature in _iter_json_files(root):
+        seen.add(path)
+        with _LIST_CACHE_LOCK:
+            cached = _LIST_CACHE.get(path)
+        if cached is not None and cached[0] == signature:
+            instruments.append(dict(cached[1]))
+            continue
+        if cached_only:
+            continue
         try:
-            with p.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-                data = _decode_metadata_name(data, source=str(p))
-            for field in ("asset_class", "industry", "region", "grouping"):
-                data.setdefault(field, None)
-            instruments.append(data)
+            data = _load_listed_instrument(path)
         except Exception:
-            logger.warning("Failed to load instrument metadata for %s", p)
+            logger.warning("Failed to load instrument metadata for %s", sanitise_log_value(path))
+            continue
+        with _LIST_CACHE_LOCK:
+            _LIST_CACHE[path] = (signature, data)
+        instruments.append(dict(data))
+    with _LIST_CACHE_LOCK:
+        # Only this root's entries: a listing of another instruments directory
+        # must not evict them.
+        prefix = os.path.normcase(os.path.join(str(root), ""))
+        for stale in [p for p in _LIST_CACHE if os.path.normcase(p).startswith(prefix) and p not in seen]:
+            del _LIST_CACHE[stale]
     return instruments

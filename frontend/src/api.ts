@@ -488,6 +488,17 @@ export function createClient(
     return res.json() as Promise<T>;
   }
 
+  // Same as fetchJson, but also returns the response headers, for endpoints
+  // that signal state out of band (e.g. the admin warming header, #10754).
+  async function fetchJsonWithHeaders<T>(
+    url: string,
+    init: RequestInit = {},
+    timeoutMs: number = fetchTimeoutMs,
+  ): Promise<{ data: T; headers: Headers }> {
+    const res = await sendAuthenticated(url, init, timeoutMs);
+    return { data: (await res.json()) as T, headers: res.headers };
+  }
+
   // Same authenticated request/error handling as fetchJson, but parses the
   // successful response body as text instead of JSON — needed for endpoints
   // like GET /logs that return PlainTextResponse rather than JSON
@@ -497,7 +508,7 @@ export function createClient(
     return res.text();
   }
 
-  return { setAuthToken, getStoredAuthToken, login, logout, fetchJson, fetchText };
+  return { setAuthToken, getStoredAuthToken, login, logout, fetchJson, fetchJsonWithHeaders, fetchText };
 }
 
 // Use a dynamic fetch that resolves to the current global fetch implementation
@@ -515,6 +526,7 @@ export const getStoredAuthToken = defaultClient.getStoredAuthToken;
 export const login = defaultClient.login;
 export const logout = defaultClient.logout;
 export const fetchJson = defaultClient.fetchJson;
+export const fetchJsonWithHeaders = defaultClient.fetchJsonWithHeaders;
 export const fetchText = defaultClient.fetchText;
 
 /* ------------------------------------------------------------------ */
@@ -1821,8 +1833,38 @@ export const getInstrumentMetadata = (ticker: string, exchange: string) =>
     `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,
   );
 
+/**
+ * Data Admin, Instrument Admin and Data Quality list every instrument file or
+ * cached series. The backend caches those scans and warms them at startup
+ * (#10754). While the warm-up is still running, the pages' `*Scan` reads below
+ * get back only what is already cached plus {@link ADMIN_CACHE_WARMING_HEADER},
+ * so they render at once and re-poll until the list is complete. A cold scan
+ * still happens when the warm-up is off or failed, and can take longer than
+ * the default 30s on the full dataset; the longer timeout covers that.
+ */
+export const ADMIN_SCAN_TIMEOUT_MS = 120_000;
+
+/** Set by the admin scans when the result is partial because the warm-up is still running. */
+export const ADMIN_CACHE_WARMING_HEADER = "X-Admin-Cache-Warming";
+
+/** An admin scan result, and whether it is partial because the startup warm-up is still running. */
+export type AdminScan<T> = { data: T; warming: boolean };
+
+const fetchAdminScan = async <T,>(path: string, params = new URLSearchParams()): Promise<AdminScan<T>> => {
+  params.set("partial", "true");
+  const { data, headers } = await fetchJsonWithHeaders<T>(
+    `${API_BASE}${path}?${params.toString()}`,
+    {},
+    ADMIN_SCAN_TIMEOUT_MS,
+  );
+  return { data, warming: headers.get(ADMIN_CACHE_WARMING_HEADER) === "true" };
+};
+
+/** Data Admin's series list; partial while the backend's startup warm-up runs. */
+export const listTimeseriesScan = () => fetchAdminScan<TimeseriesSummary[]>("/timeseries/admin");
+
 export const listTimeseries = () =>
-  fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`);
+  fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`, {}, ADMIN_SCAN_TIMEOUT_MS);
 
 export const refetchTimeseries = (ticker: string, exchange: string) =>
   fetchJson<{ status: string; rows: number }>(
@@ -1849,7 +1891,10 @@ export const getDataExplorerFile = (path: string) =>
 
 // Instrument metadata admin
 export const listInstrumentMetadata = () =>
-  fetchJson<InstrumentMetadata[]>(`${API_BASE}/instrument/admin`);
+  fetchJson<InstrumentMetadata[]>(`${API_BASE}/instrument/admin`, {}, ADMIN_SCAN_TIMEOUT_MS);
+
+/** Instrument Admin's list; partial while the backend's startup warm-up runs. */
+export const listInstrumentMetadataScan = () => fetchAdminScan<InstrumentMetadata[]>("/instrument/admin");
 
 export const listInstrumentGroups = () =>
   fetchJson<string[]>(`${API_BASE}/instrument/admin/groups`);
@@ -3075,8 +3120,16 @@ export const getDataQualityIssues = async (filters: {
   return dataQualityIssuesContractSchema.parse(
     await fetchJson<DataQualityIssuesResponse>(
       `${API_BASE}/data-quality/issues${qs ? `?${qs}` : ""}`,
+      {},
+      ADMIN_SCAN_TIMEOUT_MS,
     ),
   );
+};
+
+/** Data Quality's issue list; partial (series checks so far) while the backend's startup warm-up runs. */
+export const getDataQualityIssuesScan = async (): Promise<AdminScan<DataQualityIssuesResponse>> => {
+  const { data, warming } = await fetchAdminScan<DataQualityIssuesResponse>("/data-quality/issues");
+  return { data: dataQualityIssuesContractSchema.parse(data), warming };
 };
 
 export const getDataQualityIssuePreview = async (

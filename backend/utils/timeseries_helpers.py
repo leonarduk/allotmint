@@ -123,6 +123,15 @@ def _scaling_override_paths() -> list[Path]:
     return paths
 
 
+def scaling_override_paths() -> list[Path]:
+    """The ``scaling_overrides.json`` files that apply, lowest priority first.
+
+    Public so callers caching results derived from the tables can key on these
+    files (#10754).
+    """
+    return _scaling_override_paths()
+
+
 def _load_scaling_overrides() -> tuple[dict, list[Path]]:
     """Load and merge the override tables from :func:`_scaling_override_paths`.
 

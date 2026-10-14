@@ -4240,5 +4240,8 @@
     "assumptions": "supuestos",
     "dataRevision": "revisiones de datos",
     "changed": "Cambiado desde la última ejecución: {{label}}"
+  },
+  "admin": {
+    "cacheWarming": "Todavía cargando tras reiniciar el servidor: se muestran los {{count}} encontrados hasta ahora. La lista se completa automáticamente."
   }
 }

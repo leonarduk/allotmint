@@ -4233,5 +4233,8 @@
     "assumptions": "assumptions",
     "dataRevision": "data revisions",
     "changed": "Changed since the last run: {{label}}"
+  },
+  "admin": {
+    "cacheWarming": "Still loading after a server restart: showing the {{count}} found so far. This list fills in automatically."
   }
 }

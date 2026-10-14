@@ -106,6 +106,10 @@
     "sector": "Indústrias",
     "unknownCurrency": "Moeda desconhecida",
     "viewAllocation": "Ver alocação por {{dimension}}",
+    "viewAllocationBy": {
+      "sector": "Ver alocação por indústrias",
+      "region": "Ver alocação por regiões"
+    },
     "viewContribution": "Ver contribuição para o ganho",
     "chartsUnavailable": "Os gráficos não estão disponíveis neste ambiente.",
     "sleeve": "Blocos",
@@ -418,6 +422,7 @@
       "1m": "1M",
       "1w": "1S",
       "1y": "1A",
+      "3m": "3M",
       "max": "MÁX"
     },
     "selectMember": "Selecione um membro.",
@@ -499,6 +504,14 @@
     "insightCashDrag": "{{percent}} da sua carteira está em numerário",
     "insightConcentration": "A sua maior posição, {{ticker}}, representa {{percent}} da carteira",
     "insightDuplication": "Tem {{ticker}} em {{accountCount}} contas",
+    "indexRows": {
+      "toggle": "Mostrar índices de mercado",
+      "label": "Índices",
+      "help": "FTSE 100, FTSE 250, S&P 500 e NASDAQ para comparação. Níveis e variações em pontos do índice com retorno de preço em %; os dividendos são excluídos, por isso não há retorno total nem ganho desde a compra.",
+      "loading": "A carregar índices…",
+      "error": "Os dados dos índices não estão disponíveis",
+      "empty": "Sem dados de índices"
+    },
     "ownerTable": {
       "portfolioPct": "% da carteira",
       "totalValue": "Valor total",
@@ -1408,17 +1421,17 @@
       "statePensionHelper": "A nova pensão estatal completa para {{year}} é de {{weekly}} por semana ({{annual}} por ano) e exige 35 anos de contribuições para a National Insurance. Verifique o seu valor em gov.uk/check-state-pension e indique-o se for diferente.",
       "totalContribution": "Contribuições mensais totais: {{total}}"
     },
-    "incomeBreakdownHeading": "Retirement income breakdown",
+    "incomeBreakdownHeading": "Repartição do rendimento de reforma",
     "incomeSources": {
-      "definedBenefit": "Defined benefit",
-      "definedContribution": "Defined contribution",
-      "state": "State pension"
+      "definedBenefit": "Benefício definido",
+      "definedContribution": "Contribuição definida",
+      "state": "Pensão do Estado"
     },
     "incomeTable": {
-      "annual": "Annual (£)",
-      "monthly": "Monthly (£)",
-      "share": "Share",
-      "source": "Source"
+      "annual": "Anual (£)",
+      "monthly": "Mensal (£)",
+      "share": "Proporção",
+      "source": "Fonte"
     },
     "livingStandards": {
       "amount": "≈ {{monthly}}/mês ({{annual}}/ano)",
@@ -1436,16 +1449,16 @@
     "monthlyContribution": "Contribuição mensal (£):",
     "pensionPot": "Fundo de pensão",
     "prediction": {
-      "earliest": "Estimated earliest retirement age: {{age}}",
-      "noBreakdown": "No income breakdown available.",
-      "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
-      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} — you could retire as early as age {{age}}.",
-      "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You could retire as early as age {{age}}, but your projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}."
+      "earliest": "Idade estimada de reforma mais cedo: {{age}}",
+      "noBreakdown": "Não há repartição de rendimento disponível.",
+      "onTrack": "Está no bom caminho: o rendimento anual projetado de {{total}} atinge o seu objetivo de {{desired}}.",
+      "onTrackWithAge": "Está no bom caminho: o rendimento projetado de {{total}} atinge o seu objetivo de {{desired}} — poderia reformar-se a partir dos {{age}} anos.",
+      "shortfall": "O rendimento projetado deixa um défice de {{shortfallAnnual}} por ano ({{shortfallMonthly}} por mês) face ao seu objetivo de {{desired}}.",
+      "shortfallWithAge": "Poderia reformar-se a partir dos {{age}} anos, mas o seu rendimento projetado deixa um défice de {{shortfallAnnual}} por ano ({{shortfallMonthly}} por mês) face ao seu objetivo de {{desired}}."
     },
     "retirementAge": "Idade de aposentadoria planejada: {{age}}",
-    "totalAnnualIncome": "Total annual income",
-    "totalMonthlyIncome": "Total monthly income",
+    "totalAnnualIncome": "Rendimento anual total",
+    "totalMonthlyIncome": "Rendimento mensal total",
     "careerPath": {
       "accelerated": {
         "helper": "Maior risco, maior retorno",
@@ -1967,6 +1980,15 @@
     },
     "ticker": "Ticker",
     "title": "Editor de séries temporais",
+    "grid": {
+      "cellLabel": "{{column}} em {{date}}",
+      "cellLabelUndated": "{{column}} da linha sem data {{row}}",
+      "pagination": "Páginas de linhas",
+      "rowsLabel": "Linhas",
+      "previousPage": "Página anterior",
+      "nextPage": "Próxima página",
+      "pageStatus": "Página {{page}} de {{pages}} (linhas {{from}}–{{to}} de {{total}})"
+    },
     "controls": {
       "sort": "Ordenar",
       "sortDesc": "Mais recentes primeiro",
@@ -3120,6 +3142,10 @@
       "daysHeld": "detida há {{daysHeld}} dias",
       "daysRatio": "{{daysHeld}} / {{total}} dias",
       "notLiftable": "Ainda não pode ser colhida",
+      "needsApproval": "Precisa de aprovação",
+      "needsApprovalHeading": "Precisa de aprovação ({{count}})",
+      "needsApprovalNote": "Já cumpriram o período mínimo de detenção; vendê-las precisa de uma aprovação que pode pedir agora.",
+      "tradingRulesLink": "Abrir regras de negociação",
       "readyOn": "Pronta em {{date}}",
       "daysToGo": "Faltam {{daysRemaining}} dias",
       "noteIndeterminate": "Progresso até ao período mínimo de detenção de cada posição, quando o backend o conhece — alguns tabuleiros estão marcados como não vendáveis, sem contagem decrescente para mostrar.",
@@ -3191,6 +3217,7 @@
       "held_other": "Detida {{count}} dias",
       "inPropagatorUntil": "no propagador até {{date}}",
       "notYetLiftable": "ainda não pode ser colhida",
+      "needsApproval": "precisa de aprovação",
       "clearedPropagator": "saiu do propagador em {{date}}",
       "readyToLift": "pronta a colher",
       "notFoundTitle": "Cultura não encontrada",
@@ -3451,7 +3478,32 @@
     "glossaryLink": "Abrir o glossário de métricas",
     "reportTitle": "Comunicar um problema",
     "reportDescription": "Encontrou um erro ou algo confuso? Diga-nos no GitHub para que possa ser registado e corrigido.",
-    "reportLink": "Abrir uma issue no GitHub"
+    "reportLink": "Abrir uma issue no GitHub",
+    "pages": {
+      "dashboardTitle": "Painel",
+      "signalsTitle": "Ideias: Sinais",
+      "screenTitle": "Ideias: Filtro",
+      "group": "A visão geral principal: posições, valores e alocação combinados dos titulares do grupo selecionado.",
+      "market": "Um retrato das condições gerais do mercado e dos índices.",
+      "movers": "Os instrumentos das suas carteiras que mais se moveram, para cima ou para baixo.",
+      "instrument": "Todas as posições agrupadas por setor, com totais e retornos em vários períodos.",
+      "performance": "Rendibilidade ao longo do tempo de um titular, comparada com um índice de referência.",
+      "transactions": "Registe compras, vendas e outras transações, ou importe-as de um CSV.",
+      "dividends": "Dividendos recebidos, por ano fiscal, ano ou mês e por posição, com o total dos últimos 12 meses.",
+      "riskreturn": "Cada conta, cada titular e a carteira completa representados por rendibilidade face à volatilidade, ao lado de índices de mercado que pode adicionar ou remover.",
+      "trading": "Candidatos de compra e venda entre os instrumentos que detém, segundo regras fixas de momentum e risco definidas no servidor. Informativo, não são instruções de negociação.",
+      "screener": "Filtre qualquer lista de observação ou lista de tickers por fundamentais como P/L, margens, alavancagem ou rendimento de dividendos.",
+      "watchlist": "Acompanhe instrumentos que não detém atualmente.",
+      "allocation": "Como as suas posições se dividem por classe de ativos, setor e região.",
+      "rebalance": "Escolha uma alocação-alvo entre estratégias integradas ou suas, e veja o desvio e as operações de reequilíbrio para aproximar a sua carteira dela.",
+      "reports": "Gere e transfira relatórios da carteira.",
+      "query": "Valor de mercado ou ganho das suas próprias posições num intervalo de datas, por titular e ticker, com opções para guardar, partilhar e exportar.",
+      "pension": "Projete no tempo as contribuições e o valor da sua pensão.",
+      "taxtools": "Ajudas para a utilização de isenções e cálculos fiscais.",
+      "research": "Ferramentas de pesquisa aprofundada para instrumentos individuais.",
+      "settings": "Regras de negociação por titular: período mínimo de detenção, limite mensal de operações e instrumentos isentos de aprovação.",
+      "alertsettings": "Configure os limiares que acionam os alertas da carteira."
+    }
   },
   "firstRunHelp": {
     "title": "Novo no AllotMint?",
@@ -3920,9 +3972,11 @@
     "excludesUnknown": "Exclui {{unknown}} de {{total}} posições sem dados de custos",
     "allInCost": "Custo anual total",
     "allInBreakdown": "{{funds}} em encargos de fundos + {{fees}} em taxas pagas (últimos 12 meses)",
+    "allInBreakdownUnknownFunds": "Encargos de fundos desconhecidos + {{fees}} em taxas pagas (últimos 12 meses)",
     "allInNotIncluded": "Não incluído: {{items}}",
     "allInUnknownValue": "{{value}} em {{holdings}} posições sem dados de encargos",
-    "allInUnknownTrades": "{{trades}} negociações sem taxa registada",
+    "allInUnknownTrades_one": "{{trades}} negociação sem taxa registada",
+    "allInUnknownTrades_other": "{{trades}} negociações sem taxa registada",
     "perAccount": "Por conta",
     "partial": "incompleto"
   },
@@ -4164,5 +4218,30 @@
     "close": "Fechar {{label}}",
     "toggle": "Mostrar separadores de trabalho",
     "toggleHelp": "Mantenha várias vistas abertas, p. ex. o resumo do grupo e alguns instrumentos, e alterne entre elas sem sair deste separador do navegador. Use + para abrir a vista atual num novo separador e ↻ para recarregar os seus dados."
+  },
+  "retirementReadiness": {
+    "heading": "Preparação para a reforma: teste histórico de levantamentos",
+    "description": "O fundo projetado reproduzido em cada sequência histórica de rendibilidades desde 1871, em dinheiro de hoje.",
+    "running": "A executar…",
+    "runNow": "Executar agora",
+    "empty": "Ainda não há relatório de preparação. Execute-o para reproduzir as janelas históricas.",
+    "runDate": "Última execução {{date}}",
+    "survival": "Janelas superadas",
+    "income": "Maior rendimento real anual",
+    "window": {
+      "worst": "pior janela",
+      "median": "janela mediana",
+      "best": "melhor janela"
+    },
+    "windowsCount": "{{count}} janelas de {{years}} anos",
+    "change": "Desde {{date}}: {{change}}",
+    "contributions": "contribuições",
+    "markets": "mercados",
+    "assumptions": "pressupostos",
+    "dataRevision": "revisões de dados",
+    "changed": "Alterado desde a última execução: {{label}}"
+  },
+  "admin": {
+    "cacheWarming": "Ainda carregando após reiniciar o servidor: mostrando os {{count}} encontrados até agora. A lista é completada automaticamente."
   }
 }

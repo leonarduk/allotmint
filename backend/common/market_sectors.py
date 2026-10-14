@@ -513,13 +513,25 @@ def period_change(series: pd.Series, period: Period) -> Optional[float]:
 
     if period == "1D":
         return _day_change(series)
-    if series.empty:
-        return None
-    cutoff = pd.Timestamp(series.index[-1]) - timedelta(days=PERIOD_DAYS[period])
-    base = _close_on_or_before(series, cutoff)
+    base = period_base(series, period)
     if base is None:
         return None
     return _pct_change(float(series.iloc[-1]), base)
+
+
+def period_base(series: pd.Series, period: Period) -> Optional[float]:
+    """Return the close ``period`` compares the latest close against (``None`` if too short).
+
+    ``1D`` is the previous close; longer periods are the last close on or
+    before ``PERIOD_DAYS[period]`` calendar days before the latest one.
+    """
+
+    if period == "1D":
+        return float(series.iloc[-2]) if len(series) >= 2 else None
+    if series.empty:
+        return None
+    cutoff = pd.Timestamp(series.index[-1]) - timedelta(days=PERIOD_DAYS[period])
+    return _close_on_or_before(series, cutoff)
 
 
 def download_period_history(symbols: Sequence[str], period: Period) -> PriceHistory:

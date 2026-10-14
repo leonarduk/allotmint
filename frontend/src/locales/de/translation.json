@@ -718,6 +718,7 @@
     "ma50": "50d MA",
     "metadataCurrencyError": "Wählen Sie vor dem Speichern eine unterstützte Währung aus.",
     "metadataLoadError": "Der Instrumentenkatalog konnte nicht geladen werden.",
+    "catalogueWarming": "Instrumentdaten werden nach einem Serverneustart vorbereitet… sie erscheinen automatisch.",
     "metadataMissingExchange": "Die Börse des Instruments ist unbekannt; versuchen Sie, neu zu laden.",
     "metadataSaveError": "Instrumentendetails konnten nicht gespeichert werden.",
     "metadataSaveSuccess": "Instrumentendetails aktualisiert.",

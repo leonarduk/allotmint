@@ -712,6 +712,7 @@
     "ma50": "50d MA",
     "metadataCurrencyError": "Select a supported currency before saving.",
     "metadataLoadError": "Unable to load the instrument catalogue.",
+    "catalogueWarming": "Preparing instrument data after a server restart… this fills in automatically.",
     "metadataMissingExchange": "Instrument exchange is unknown; try reloading.",
     "metadataSaveError": "Unable to save instrument details.",
     "metadataSaveSuccess": "Instrument details updated.",

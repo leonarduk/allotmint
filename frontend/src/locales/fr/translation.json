@@ -504,6 +504,14 @@
     "insightCashDrag": "{{percent}} de votre portefeuille est en liquidités",
     "insightConcentration": "Votre première ligne {{ticker}} représente {{percent}} de votre portefeuille",
     "insightDuplication": "Vous détenez {{ticker}} dans {{accountCount}} comptes",
+    "indexRows": {
+      "toggle": "Afficher les indices de marché",
+      "label": "Indices",
+      "help": "FTSE 100, FTSE 250, S&P 500 et NASDAQ pour comparaison. Niveaux et variations en points d'indice avec rendement de prix en % ; les dividendes sont exclus, donc pas de rendement total ni de plus-value depuis l'achat.",
+      "loading": "Chargement des indices…",
+      "error": "Les données d'indice sont indisponibles",
+      "empty": "Aucune donnée d'indice"
+    },
     "ownerTable": {
       "portfolioPct": "% du portefeuille",
       "totalValue": "Valeur totale",

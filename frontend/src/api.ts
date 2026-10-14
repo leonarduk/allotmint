@@ -91,6 +91,7 @@ import type {
   Nudge,
   HoldingValue,
   MarketOverview,
+  IndexSummary,
   MarketIndexes,
   MarketPeriod,
   RegionSectors,
@@ -738,6 +739,10 @@ export const getMarketIndexes = (period: MarketPeriod, signal?: AbortSignal) =>
     `${API_BASE}/market/indexes?${new URLSearchParams({ period }).toString()}`,
     { signal },
   );
+
+/** Benchmark index levels with day/1W/1M/1Y points and % changes. */
+export const getIndexSummary = (signal?: AbortSignal) =>
+  fetchJson<IndexSummary>(`${API_BASE}/market/index-summary`, { signal });
 
 /**
  * Sector % change for a region over `period`; omit `region` for the

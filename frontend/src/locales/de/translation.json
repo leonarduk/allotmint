@@ -504,6 +504,14 @@
     "insightCashDrag": "{{percent}} Ihres Portfolios liegen in Bargeld",
     "insightConcentration": "Die größte Position {{ticker}} macht {{percent}} Ihres Portfolios aus",
     "insightDuplication": "Sie halten {{ticker}} in {{accountCount}} Konten",
+    "indexRows": {
+      "toggle": "Marktindizes anzeigen",
+      "label": "Indizes",
+      "help": "FTSE 100, FTSE 250, S&P 500 und NASDAQ zum Vergleich. Stände und Veränderungen in Indexpunkten mit Kursrendite in %; Dividenden sind nicht enthalten, daher gibt es keine Gesamtrendite und keinen Gewinn seit Kauf.",
+      "loading": "Indizes werden geladen…",
+      "error": "Indexdaten sind nicht verfügbar",
+      "empty": "Keine Indexdaten"
+    },
     "ownerTable": {
       "portfolioPct": "Portfolio %",
       "totalValue": "Gesamtwert",

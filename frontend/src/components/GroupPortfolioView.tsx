@@ -37,6 +37,8 @@ import { useInstrumentSelection } from "../hooks/useInstrumentSelection";
 import { applyLiveQuotes } from "../lib/liveValuation";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
+import { IndexBenchmarkRows, IndexRowsToggle } from "./IndexBenchmarkRows";
+import { useShowIndexRows } from "../hooks/useShowIndexRows";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
@@ -450,6 +452,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const instrumentKeyRef = useRef<string | null>(null);
   const lastPortfolioAsOfRef = useRef<string | null>(null);
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
+  const [showIndexRows, setShowIndexRows] = useShowIndexRows();
 
   const loadGroupInstruments =
     ("getCachedGroupInstruments" in api
@@ -1508,6 +1511,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       {portfolioLoading && ownerTableSkeleton}
 
       {!portfolioLoading && ownerRows.length > 0 && (
+        <IndexRowsToggle checked={showIndexRows} onChange={setShowIndexRows} />
+      )}
+      {!portfolioLoading && ownerRows.length > 0 && (
         <div className={tableStyles.scrollContainer} style={{ marginBottom: "1rem" }}>
           <table className={tableStyles.table}>
           <thead>
@@ -1708,6 +1714,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 </Fragment>
               );
             })}
+            {showIndexRows && <IndexBenchmarkRows relativeViewEnabled={relativeViewEnabled} />}
           </tbody>
           </table>
         </div>

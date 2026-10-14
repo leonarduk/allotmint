@@ -71,8 +71,11 @@ def _ledger_for(tx_data: Mapping[str, object], transactions: list[Mapping[str, o
     dividends, interest and, under ``trade_cash_effects``, trade settlements
     and fees), which the per-ticker ledger cannot see.  Taking cash from
     :func:`holdings_rebuild.replay_transactions` keeps the reconciler from
-    "correcting" a balance the rebuild already reproduces.
+    "correcting" a balance the rebuild already reproduces.  Future-dated rows
+    are dropped as the rebuild drops them, or a row the rebuild ignores would
+    be "balanced" with a synthetic trade (#10903).
     """
+    transactions = holdings_rebuild.drop_future_dated(transactions, warn=False)
     ledger = dict(_transactions_to_positions(transactions))
     replay = holdings_rebuild.replay_transactions(
         transactions,

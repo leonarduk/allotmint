@@ -221,10 +221,10 @@ def _total_return_1y(
         low, high = TOTAL_RETURN_GAP_PP
         if not low <= gap <= high:
             logger.warning(
-                "Dropping %s 1Y total return from %s: %.1fpp from the price return",
+                "Dropping %s 1Y total return from %s: %spp from the price return",
                 sanitise_log_value(benchmark.name),
                 sanitise_log_value(benchmark.total_return_symbol),
-                gap,
+                sanitise_log_value(f"{gap:.1f}"),
             )
             return None
     return {"pct": pct, "symbol": benchmark.total_return_symbol, "source": benchmark.total_return_source}

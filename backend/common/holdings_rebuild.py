@@ -491,6 +491,8 @@ def rebuild_holdings_document(
     Rows dated after :func:`replay_cutoff` (``as_of``, else tomorrow) are not
     counted; see "Future-dated rows" in the module docstring.
     """
+    cutoff = replay_cutoff(as_of)  # once, so the drop and the acquired_date guard agree across midnight
+    as_of = date.fromisoformat(cutoff)
     transactions = drop_future_dated([t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)], as_of)
     existing = existing if isinstance(existing, Mapping) else {}
     old_holdings = [h for h in existing.get("holdings") or [] if isinstance(h, Mapping)]
@@ -498,7 +500,7 @@ def rebuild_holdings_document(
 
     aliases = name_aliases(transactions, old_holdings)
     replay = replay_transactions(transactions, trade_cash=tx_data.get(TRADE_CASH_FLAG) is True, aliases=aliases)
-    computed = _computed_holdings(replay, previous, replay_cutoff(as_of))
+    computed = _computed_holdings(replay, previous, cutoff)
     tracked = _tracked_instruments(transactions, aliases)
     if replay.cash_seen:
         tracked.add(CASH_TICKER)

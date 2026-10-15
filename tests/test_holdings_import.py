@@ -634,3 +634,42 @@ def test_reconcile_preview_agrees_with_import_when_csv_has_no_cash(client: TestC
     assert h["AAA.L"]["units"] == pytest.approx(11)
     assert h["AAA.L"]["acquired_date"] == "2024-01-02"
     assert stored["account_type"] == "ISA"
+
+
+def test_update_from_csv_adds_cash_line_to_account_without_cash(tmp_path: Path, no_ticker_lookup):
+    account_file = _write_account(tmp_path, [{"ticker": "AAA.L", "units": 10, "cost_basis_gbp": 15}])
+
+    _import_10906(ISSUE_10906_CSV + "CASH.GBP,50,100,50\n")
+
+    h = {h["ticker"]: h for h in json.loads(account_file.read_text())["holdings"]}
+    assert h["CASH.GBP"]["units"] == pytest.approx(50)
+
+
+def test_update_from_csv_uses_form_account_when_stored_type_missing(tmp_path: Path, no_ticker_lookup):
+    account_file = tmp_path / "steve" / "isa.json"
+    account_file.parent.mkdir(parents=True)
+    account_file.write_text(json.dumps({"owner": "steve", "holdings": []}))
+
+    _import_10906()
+
+    assert json.loads(account_file.read_text())["account_type"] == "isa"
+
+
+def test_update_from_csv_shrinks_three_lots_below_first_lot(tmp_path: Path, no_ticker_lookup):
+    lots = [
+        {"ticker": "AAA.L", "units": 6, "acquired_date": "2022-01-01", "cost_basis_gbp": 6},
+        {"ticker": "AAA.L", "units": 4, "acquired_date": "2023-01-01", "cost_basis_gbp": 4},
+        {"ticker": "AAA.L", "units": 2, "acquired_date": "2024-01-01", "cost_basis_gbp": 2},
+    ]
+    account_file = _write_account(tmp_path, lots)
+
+    _import_10906("Code,Units held,Price (pence),Cost (£)\nAAA,3,150,3\n")
+
+    stored = json.loads(account_file.read_text())["holdings"]
+    assert [(lot["acquired_date"], lot["units"]) for lot in stored] == [("2022-01-01", pytest.approx(3))]
+
+
+def test_resize_lots_clamps_negative_target_to_zero():
+    kept = update_holdings_from_csv._resize_lots([{"units": 6}, {"units": 4}], -1)
+
+    assert kept == [{"units": 0.0}]

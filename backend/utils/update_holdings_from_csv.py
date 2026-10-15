@@ -188,8 +188,10 @@ def _resize_lots(lots: List[dict[str, Any]], target_units: float) -> List[dict[s
 
     An increase is added to the last (most recently listed) lot; a decrease is
     taken from the last lots first and lots that reach zero are dropped, so the
-    oldest ``acquired_date`` values survive. At least one lot is always kept.
+    oldest ``acquired_date`` values survive. At least one lot is always kept,
+    and a negative target is treated as zero.
     """
+    target_units = max(target_units, 0.0)
     excess = sum(_number(lot.get("units")) for lot in lots) - target_units
     kept = list(lots)
     while excess > 1e-9 and len(kept) > 1 and _number(kept[-1].get("units")) <= excess + 1e-9:

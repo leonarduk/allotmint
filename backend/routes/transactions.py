@@ -26,7 +26,7 @@ from backend.common.accounts_store import (
 from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
 from backend.common.currency import CurrencyNormaliser
-from backend.common.holdings_rebuild import name_aliases, replay_transactions
+from backend.common.holdings_rebuild import drop_future_dated, name_aliases, replay_transactions
 from backend.common.instruments import get_instrument_meta
 from backend.common.prices import get_price_gbp
 from backend.common.realised_gains import compute_disposal_gains
@@ -1356,8 +1356,10 @@ def _replayed_units(transactions: List[Mapping[str, Any]], holdings: List[Mappin
     """``ticker``'s units after replaying ``transactions`` as the rebuild does.
 
     Uses the rebuild's own replay (including its name -> ticker aliases), so
-    an offset computed from it agrees with the rebuilt holding.
+    an offset computed from it agrees with the rebuilt holding, including
+    leaving out future-dated rows.
     """
+    transactions = drop_future_dated(transactions, warn=False)
     aliases = name_aliases(transactions, holdings)
     position = replay_transactions(transactions, aliases=aliases, warn=False).positions.get(ticker)
     return position.units if position else 0.0

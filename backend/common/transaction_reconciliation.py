@@ -64,15 +64,22 @@ def _transactions_to_positions(transactions: Iterable[Mapping[str, object]]) -> 
     return ledger
 
 
-def _ledger_for(tx_data: Mapping[str, object], transactions: list[Mapping[str, object]]) -> Mapping[str, float]:
+def _ledger_for(
+    tx_data: Mapping[str, object], transactions: list[Mapping[str, object]], *, include_future: bool = False
+) -> Mapping[str, float]:
     """Positions implied by ``transactions``, with cash replayed as the rebuild does.
 
     ``CASH.GBP`` also moves with ticker-less ``amount_minor`` rows (deposits,
     dividends, interest and, under ``trade_cash_effects``, trade settlements
     and fees), which the per-ticker ledger cannot see.  Taking cash from
     :func:`holdings_rebuild.replay_transactions` keeps the reconciler from
-    "correcting" a balance the rebuild already reproduces.
+    "correcting" a balance the rebuild already reproduces.  Future-dated rows
+    are dropped as the rebuild drops them, or a row the rebuild ignores would
+    be "balanced" with a synthetic trade (#10903).  ``include_future`` keeps
+    them, giving the ledger a holdings file rebuilt before that would match.
     """
+    if not include_future:
+        transactions = holdings_rebuild.drop_future_dated(transactions, warn=False)
     ledger = dict(_transactions_to_positions(transactions))
     replay = holdings_rebuild.replay_transactions(
         transactions,
@@ -136,6 +143,9 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
                 continue
 
             ledger = _ledger_for(tx_data, transactions)
+            # Holdings rebuilt before #10903 still count future-dated rows; the
+            # next rebuild corrects them, so don't "balance" them meanwhile.
+            ledger_with_future = _ledger_for(tx_data, transactions, include_future=True)
 
             holdings_raw = account_data.get("holdings") or []
             holdings: dict[str, float] = {}
@@ -155,7 +165,7 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
             # First align holdings we expect to see.
             for ticker, target_qty in holdings.items():
                 diff = target_qty - ledger.get(ticker, 0.0)
-                if abs(diff) <= 1e-6:
+                if abs(diff) <= 1e-6 or abs(target_qty - ledger_with_future.get(ticker, 0.0)) <= 1e-6:
                     continue
                 adjustments.append(
                     {

@@ -328,13 +328,17 @@ def _fetch_index_summary() -> List[Dict[str, Any]]:
         if series.empty:
             logger.warning("No closes for benchmark index %s", sanitise_log_value(benchmark.name))
             continue
-        changes = _index_changes(series, _in_gbp(series, benchmark.currency, history))
+        in_gbp = _in_gbp(series, benchmark.currency, history)
+        changes = _index_changes(series, in_gbp)
         out.append(
             {
                 "name": benchmark.name,
                 "symbol": benchmark.symbol,
                 "currency": benchmark.currency,
                 "value": float(series.iloc[-1]),
+                # The level at the latest GBP rate (the level itself for a GBP
+                # index); ``None`` without an FX rate.
+                "value_gbp": float(in_gbp.iloc[-1]) if in_gbp is not None and not in_gbp.empty else None,
                 "as_of": _index_label_to_iso(series.index[-1]),
                 "changes": changes,
                 "total_return_1y": _total_return_1y(benchmark, history, changes["1Y"]),

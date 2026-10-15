@@ -507,7 +507,8 @@
     "indexRows": {
       "toggle": "Mostra indici di mercato",
       "label": "Indici",
-      "help": "FTSE 100, FTSE 250, S&P 500 e NASDAQ-100 per confronto. Livelli e variazioni in punti indice. Tutte le % sono in sterline: S&P e NASDAQ sono convertiti da USD ai cambi giornalieri, quindi includono il movimento del dollaro rispetto alla sterlina (passa il mouse per vedere il valore in USD). Il rendimento totale 1A % include i dividendi reinvestiti. Il guadagno dall'acquisto non si applica.",
+      "help": "FTSE 100, FTSE 250, S&P 500 e NASDAQ-100 per confronto. Livelli in punti indice, quelli di S&P e NASDAQ convertiti in sterline all'ultimo cambio USD; le variazioni in punti si riferiscono al livello proprio di ciascun indice. Tutte le % sono in sterline: S&P e NASDAQ sono convertiti da USD ai cambi giornalieri, quindi includono il movimento del dollaro rispetto alla sterlina (passa il mouse per vedere il valore in USD). Il rendimento totale 1A % include i dividendi reinvestiti. Il guadagno dall'acquisto non si applica.",
+      "levelConvertedFrom": "{{value}} in {{currency}} prima della conversione in GBP",
       "totalReturnSourceIndex": "Indice total return {{symbol}}",
       "totalReturnSourceEtf": "Approssimazione: ETF {{symbol}} con dividendi reinvestiti e la commissione annua del {{fee}} riaggiunta",
       "convertedFrom": "{{pct}} in {{currency}} prima della conversione in GBP",

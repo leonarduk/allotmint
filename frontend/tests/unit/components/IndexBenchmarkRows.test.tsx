@@ -14,6 +14,7 @@ const summary: IndexSummary = {
       symbol: '^FTSE',
       currency: 'GBP',
       value: 8123.45,
+      value_gbp: 8123.45,
       as_of: '2026-10-13T00:00:00',
       changes: {
         '1D': { change: -12.5, pct: -0.15, local_pct: -0.15 },
@@ -35,6 +36,7 @@ const summary: IndexSummary = {
       symbol: '^FTMC',
       currency: 'GBP',
       value: 20500,
+      value_gbp: 20500,
       as_of: null,
       changes: { '1D': null, '1W': null, '1M': null, '1Y': null },
       total_return_1y: null,
@@ -44,6 +46,7 @@ const summary: IndexSummary = {
       symbol: '^GSPC',
       currency: 'USD',
       value: 7700,
+      value_gbp: 5822.4,
       as_of: null,
       changes: {
         '1D': null,
@@ -170,6 +173,22 @@ describe('IndexBenchmarkRows', () => {
     const ftse100 = screen.getByTestId('index-row-^FTSE');
     expect(within(ftse100).getByText('+40.00 (0.50%)')).not.toHaveAttribute(
       'title'
+    );
+  });
+
+  it('shows a US level in GBP with the USD level on hover', async () => {
+    renderRows();
+
+    const sp500 = await screen.findByTestId('index-row-^GSPC');
+    const level = within(sp500).getByText('5,822.40');
+    expect(level).toHaveAttribute(
+      'title',
+      '7,700.00 in USD before conversion to GBP'
+    );
+    const ftse100 = screen.getByTestId('index-row-^FTSE');
+    expect(within(ftse100).getByText('8,123.45')).toHaveAttribute(
+      'title',
+      '2026-10-13T00:00:00'
     );
   });
 

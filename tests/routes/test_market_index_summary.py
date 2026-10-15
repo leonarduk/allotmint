@@ -56,6 +56,7 @@ def test_index_summary_reports_points_and_pct_per_window(monkeypatch):
     assert row["symbol"] == "^FTSE"
     assert row["currency"] == "GBP"
     assert row["value"] == 1399.0
+    assert row["value_gbp"] == 1399.0
     assert row["as_of"].startswith("2026-02-04")
     changes = row["changes"]
     assert changes["1D"]["change"] == pytest.approx(1.0)
@@ -187,6 +188,28 @@ def test_index_summary_converts_a_usd_total_return_to_gbp(monkeypatch):
         "local_pct": pytest.approx(11.5),
         "fee_pct": 0.0,
     }
+
+
+def test_usd_index_level_is_also_given_in_gbp(monkeypatch):
+    _only(monkeypatch, "S&P 500")
+    frame = _download_frame({"^GSPC": [1000.0] * 400, "USDGBP=X": [0.80] * 399 + [0.75]}, FLAT_YEAR)
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["value"] == 1000.0
+    assert row["value_gbp"] == pytest.approx(750.0)
+
+
+def test_usd_index_level_has_no_gbp_value_without_an_fx_rate(monkeypatch):
+    _only(monkeypatch, "S&P 500")
+    frame = _download_frame({"^GSPC": [1000.0] * 400}, FLAT_YEAR)
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["value"] == 1000.0
+    assert row["value_gbp"] is None
 
 
 def test_gbp_conversion_carries_the_last_rate_over_missing_fx_days(monkeypatch):

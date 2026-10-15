@@ -52,6 +52,19 @@ type RowProps = { row: IndexSummaryRow; relative: boolean };
 function IndexRow({ row, relative }: RowProps) {
   const { t } = useTranslation();
   const day = row.changes['1D'];
+  // A converted level says what it was before conversion, beside its date.
+  const levelTitle =
+    [
+      row.as_of,
+      row.currency === 'GBP'
+        ? null
+        : t('group.indexRows.levelConvertedFrom', {
+            value: points(row.value),
+            currency: row.currency,
+          }),
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined;
   // A converted % says what it was before conversion.
   const convertedTitle = (window: IndexWindowChange | null) =>
     window === null || row.currency === 'GBP'
@@ -69,8 +82,8 @@ function IndexRow({ row, relative }: RowProps) {
         {row.name}
       </td>
       {/* Relative view's "Portfolio %" has no meaning for an index. */}
-      <td className={cell} title={row.as_of ?? undefined}>
-        {relative ? '' : points(row.value)}
+      <td className={cell} title={levelTitle}>
+        {relative ? '' : row.value_gbp === null ? '—' : points(row.value_gbp)}
       </td>
       <BlankCells count={2} />
       {!relative && (

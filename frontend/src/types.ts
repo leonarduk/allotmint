@@ -683,7 +683,10 @@ export interface IndexSummaryRow {
   symbol: string;
   /** The index's own currency; its % figures are converted from it to GBP. */
   currency: string;
+  /** The level in index points, in the index's own currency. */
   value: number;
+  /** The level at the latest GBP rate; `null` without an FX rate. */
+  value_gbp: number | null;
   as_of: string | null;
   /** `null` when there isn't enough history for that window. */
   changes: Record<'1D' | '1W' | '1M' | '1Y', IndexWindowChange | null>;

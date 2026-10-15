@@ -93,6 +93,14 @@ class AppLifecycleService:
         if nav_task is not None:
             app.state.background_tasks.append(nav_task)
 
+        # Bot schedules on a local server, where there is no EventBridge
+        # (#10925); a no-op in any other environment.
+        from backend.bots.local_scheduler import start_local_bot_scheduler
+
+        bot_task = start_local_bot_scheduler(self.cfg)
+        if bot_task is not None:
+            app.state.background_tasks.append(bot_task)
+
         # Fill the admin pages' per-file caches off the event loop so the first
         # Data Admin / Instrument Admin / Data Quality visit is fast (#10754).
         # A daemon thread rather than a task: shutdown must not wait for a scan.

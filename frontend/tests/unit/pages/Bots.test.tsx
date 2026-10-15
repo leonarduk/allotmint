@@ -122,6 +122,26 @@ describe('Bots page', () => {
     expect(screen.getByText('(disabled)')).toBeInTheDocument();
   });
 
+  it('says when a bot is not scheduled on this server and flags overdue ones (#10925)', async () => {
+    api.getBots.mockResolvedValue([
+      { ...bots[0], scheduled_here: true, overdue: true },
+      { ...bots[1], scheduled_here: false },
+    ]);
+    api.getBot.mockResolvedValue(detail({ scheduled_here: false }));
+    renderPage();
+    expect(await screen.findByTestId('bot-overdue')).toHaveTextContent(
+      'Overdue'
+    );
+    expect(screen.getByTestId('bot-not-scheduled')).toHaveTextContent(
+      'Not scheduled on this server'
+    );
+    fireEvent.click(screen.getByText('Trading agent signals'));
+    const panel = await screen.findByRole('region', {
+      name: 'Trading agent signals',
+    });
+    expect(panel).toHaveTextContent('This schedule runs on AWS only');
+  });
+
   it('shows a load error', async () => {
     api.getBots.mockRejectedValue(new Error('boom'));
     renderPage();

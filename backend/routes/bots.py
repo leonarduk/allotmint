@@ -23,6 +23,7 @@ from pydantic import BaseModel, ValidationError
 
 from backend.auth import get_active_user, is_demo_request
 from backend.bots import runner
+from backend.bots.local_scheduler import is_scheduled_here
 from backend.bots.registry import Bot, BotKind, BotScope, get_bot, list_bots
 from backend.bots.runs import MAX_RUNS, RunRecord, get_run, list_runs
 from backend.bots.settings import load_settings, save_settings
@@ -48,6 +49,10 @@ class BotSummary(BaseModel):
     cadence: str
     schedule: Optional[str] = None
     next_run: Optional[datetime] = None
+    # False when the bot has a schedule that this server never fires (a
+    # local server outside ``local_bot_schedule``, #10925).
+    scheduled_here: bool = False
+    overdue: bool = False
     running: bool = False
     last_run: Optional[RunRecord] = None
 
@@ -116,7 +121,7 @@ def _summary(bot: Bot, identity: Optional[str]) -> Dict[str, Any]:
     settings = load_settings(bot)
     all_runs = list_runs(bot.id)
     visible = [r for r in all_runs if _can_view(r, identity)]
-    schedule = bot.default_schedule
+    schedule = bot.default_schedule if is_scheduled_here(bot, config) else None
     return {
         "id": bot.id,
         "name": bot.name,
@@ -125,8 +130,10 @@ def _summary(bot: Bot, identity: Optional[str]) -> Dict[str, Any]:
         "scope": bot.scope,
         "enabled": settings.enabled,
         "cadence": settings.cadence,
-        "schedule": schedule.description if schedule else None,
+        "schedule": bot.default_schedule.description if bot.default_schedule else None,
         "next_run": runner.next_due(schedule, settings, all_runs),
+        "scheduled_here": schedule is not None,
+        "overdue": runner.is_overdue(schedule, settings, all_runs),
         "running": runner.running_record(bot) is not None,
         "last_run": visible[0] if visible else None,
     }

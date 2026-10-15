@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import FastAPI
@@ -192,3 +192,41 @@ def test_owner_scoped_runs_filtered_by_owner_access(monkeypatch):
     ids = {r["id"] for r in client.get("/bots/price-refresh/runs").json()}
     assert ids == {"mine", "system"}
     assert client.get("/bots/price-refresh/runs/theirs").status_code == 404
+
+
+def test_local_list_marks_unscheduled_bots(monkeypatch):
+    """#10925: locally only local_bot_schedule bots get a Next run (default: price/dividend refresh)."""
+
+    monkeypatch.setattr(bots_route.config, "local_bot_schedule", None)
+    by_id = {b["id"]: b for b in _client(monkeypatch).get("/bots").json()}
+    for bot_id in ("price-refresh", "dividend-refresh"):
+        assert by_id[bot_id]["scheduled_here"] is True
+        assert by_id[bot_id]["next_run"] is not None
+    for bot_id in ("trading-agent", "pension-report", "trend-watch", "data-steward"):
+        assert by_id[bot_id]["scheduled_here"] is False
+        assert by_id[bot_id]["next_run"] is None
+        assert by_id[bot_id]["schedule"] is not None  # still shows the AWS schedule
+
+
+def test_local_opt_in_schedules_trading_agent(monkeypatch):
+    monkeypatch.setattr(bots_route.config, "local_bot_schedule", ["trading-agent"])
+    by_id = {b["id"]: b for b in _client(monkeypatch).get("/bots").json()}
+    assert by_id["trading-agent"]["scheduled_here"] is True
+    assert by_id["price-refresh"]["scheduled_here"] is False
+
+
+def test_aws_schedules_every_scheduled_bot(monkeypatch):
+    monkeypatch.setattr(bots_route.config, "local_bot_schedule", [])
+    by_id = {b["id"]: b for b in _client(monkeypatch, app_env="aws").get("/bots").json()}
+    assert by_id["trading-agent"]["scheduled_here"] is True
+    assert by_id["trading-agent"]["next_run"] is not None
+
+
+def test_overdue_scheduled_bot_is_flagged(monkeypatch):
+    monkeypatch.setattr(bots_route.config, "local_bot_schedule", None)
+    old = datetime.now(timezone.utc) - timedelta(days=5)
+    for bot_id in ("price-refresh", "trading-agent"):
+        runs.save_run(runs.RunRecord(id=f"old-{bot_id}", bot_id=bot_id, trigger="manual", status="ok", started_at=old))
+    by_id = {b["id"]: b for b in _client(monkeypatch).get("/bots").json()}
+    assert by_id["price-refresh"]["overdue"] is True
+    assert by_id["trading-agent"]["overdue"] is False  # not scheduled on this server

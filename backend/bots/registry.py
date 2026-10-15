@@ -54,6 +54,9 @@ class BotSettings(BaseModel):
 class Schedule:
     """A UTC cron-like schedule mirroring the bot's EventBridge rule.
 
+    Locally (no EventBridge) it only fires for bots listed in
+    ``local_bot_schedule`` (:mod:`backend.bots.local_scheduler`).
+
     ``weekday`` is 0=Monday..6=Sunday; ``day`` is the day of the month. Leave
     both unset for a daily rule.
     """

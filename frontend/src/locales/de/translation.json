@@ -1568,7 +1568,13 @@
         "custom": "Benutzerdefiniert"
       },
       "selected": "Ausgewählt",
-      "selectedTemplate": "Vorlage: {{name}}"
+      "selectedTemplate": "Vorlage: {{name}}",
+      "create": "Vorlage erstellen",
+      "created": "Vorlage {{name}} gespeichert.",
+      "delete": "Löschen",
+      "deleteLabel": "Vorlage {{name}} löschen",
+      "deleteConfirm": "Vorlage {{name}} löschen? Dies kann nicht rückgängig gemacht werden.",
+      "deleted": "Vorlage {{name}} gelöscht."
     },
     "downloadsTitle": "Berichte herunterladen",
     "downloadsDescription": "Erstellen Sie CSV- oder PDF-Exporte mit der ausgewählten Vorlage und dem Datumsbereich.",
@@ -1576,18 +1582,11 @@
     "builder": {
       "headingCreate": "Berichtsvorlage erstellen",
       "headingEdit": "Berichtsvorlage bearbeiten",
-      "subheading": "Konfigurieren Sie Berichtsspalten, Kennzahlen und optionale Filter, bevor Sie die Vorlage speichern.",
+      "subheading": "Wählen Sie die Abschnitte und Spalten aus, bevor Sie die Vorlage speichern.",
       "nameLabel": "Vorlagenname",
       "descriptionLabel": "Beschreibung (optional)",
-      "metricsLabel": "Metriken",
+      "metricsLabel": "Abschnitte",
       "columnsLabel": "Spalten",
-      "filtersLabel": "Filter (optional)",
-      "addFilter": "Filter hinzufügen",
-      "noFilters": "Keine Filter angewendet. Fügen Sie einen Filter hinzu, um die Ergebnisse auf bestimmte Konten oder Bestände zu beschränken.",
-      "filterField": "Feld",
-      "filterOperator": "Operator",
-      "filterValue": "Wert",
-      "removeFilter": "Entfernen",
       "create": "Vorlage erstellen",
       "saveChanges": "Änderungen speichern",
       "saving": "Wird gespeichert…",
@@ -1600,8 +1599,8 @@
       "loadError": "Die ausgewählte Vorlage konnte nicht geladen werden.",
       "validation": {
         "name": "Name ist erforderlich",
-        "metrics": "Wählen Sie mindestens eine Metrik aus",
-        "columns": "Wählen Sie mindestens eine Spalte aus"
+        "metrics": "Wählen Sie mindestens einen Abschnitt aus",
+        "columns": "Wählen Sie für jeden Abschnitt mindestens eine Spalte aus"
       },
       "metrics": {
         "performance": "Performance-Zusammenfassung",
@@ -1610,24 +1609,20 @@
         "risk": "Risikokennzahlen"
       },
       "columns": {
-        "owner": "Inhaber",
-        "account": "Konto",
+        "metric": "Kennzahl",
+        "value": "Wert",
+        "units": "Einheiten",
         "ticker": "Ticker",
-        "value": "Wert (£)",
-        "gain": "Gewinn %"
-      },
-      "filters": {
-        "accountType": "Kontotyp",
-        "instrumentType": "Instrumententyp",
-        "region": "Region",
-        "sector": "Sektor"
-      },
-      "operators": {
-        "equals": "Ist gleich",
-        "notEquals": "Ist ungleich",
-        "contains": "Enthält",
-        "gt": "Größer als",
-        "lt": "Kleiner als"
+        "exchange": "Börse",
+        "price": "Preis",
+        "date": "Datum",
+        "type": "Typ",
+        "description": "Beschreibung",
+        "amount_gbp": "Betrag (GBP)",
+        "currency": "Währung",
+        "window": "Zeitraum",
+        "peak_date": "Hoch",
+        "trough_date": "Tief"
       }
     }
   },

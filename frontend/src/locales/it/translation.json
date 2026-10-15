@@ -1568,7 +1568,13 @@
         "custom": "Personalizzato"
       },
       "selected": "Selezionato",
-      "selectedTemplate": "Modello: {{name}}"
+      "selectedTemplate": "Modello: {{name}}",
+      "create": "Crea modello",
+      "created": "Modello {{name}} salvato.",
+      "delete": "Elimina",
+      "deleteLabel": "Elimina il modello {{name}}",
+      "deleteConfirm": "Eliminare il modello {{name}}? L’operazione non può essere annullata.",
+      "deleted": "Modello {{name}} eliminato."
     },
     "downloadsTitle": "Scarica report",
     "downloadsDescription": "Genera esportazioni CSV o PDF con il modello e le date selezionate.",
@@ -1576,18 +1582,11 @@
     "builder": {
       "headingCreate": "Crea modello di report",
       "headingEdit": "Modifica modello di report",
-      "subheading": "Configura colonne, metriche e filtri facoltativi del report prima di salvare il modello.",
+      "subheading": "Scegli le sezioni e le colonne da includere prima di salvare il modello.",
       "nameLabel": "Nome del modello",
       "descriptionLabel": "Descrizione (facoltativa)",
-      "metricsLabel": "Metriche",
+      "metricsLabel": "Sezioni",
       "columnsLabel": "Colonne",
-      "filtersLabel": "Filtri (facoltativi)",
-      "addFilter": "Aggiungi filtro",
-      "noFilters": "Nessun filtro applicato. Aggiungi un filtro per limitare i risultati a conti o posizioni specifici.",
-      "filterField": "Campo",
-      "filterOperator": "Operatore",
-      "filterValue": "Valore",
-      "removeFilter": "Rimuovi",
       "create": "Crea modello",
       "saveChanges": "Salva modifiche",
       "saving": "Salvataggio…",
@@ -1600,8 +1599,8 @@
       "loadError": "Impossibile caricare il modello selezionato.",
       "validation": {
         "name": "Il nome è obbligatorio",
-        "metrics": "Seleziona almeno una metrica",
-        "columns": "Seleziona almeno una colonna"
+        "metrics": "Seleziona almeno una sezione",
+        "columns": "Seleziona almeno una colonna per ogni sezione"
       },
       "metrics": {
         "performance": "Riepilogo del rendimento",
@@ -1610,24 +1609,20 @@
         "risk": "Metriche di rischio"
       },
       "columns": {
-        "owner": "Titolare",
-        "account": "Conto",
+        "metric": "Metrica",
+        "value": "Valore",
+        "units": "Unità",
         "ticker": "Ticker",
-        "value": "Valore (£)",
-        "gain": "Guadagno %"
-      },
-      "filters": {
-        "accountType": "Tipo di conto",
-        "instrumentType": "Tipo di strumento",
-        "region": "Regione",
-        "sector": "Settore"
-      },
-      "operators": {
-        "equals": "Uguale a",
-        "notEquals": "Diverso da",
-        "contains": "Contiene",
-        "gt": "Maggiore di",
-        "lt": "Minore di"
+        "exchange": "Borsa",
+        "price": "Prezzo",
+        "date": "Data",
+        "type": "Tipo",
+        "description": "Descrizione",
+        "amount_gbp": "Importo (GBP)",
+        "currency": "Valuta",
+        "window": "Periodo",
+        "peak_date": "Massimo",
+        "trough_date": "Minimo"
       }
     }
   },

@@ -11,11 +11,13 @@ type ReportsCatalogResult = {
   custom: ReportTemplateMetadata[];
   loading: boolean;
   error: Error | null;
+  /** Re-read the catalogue, e.g. after a custom template is deleted. */
+  refetch: () => void;
 };
 
 export function useReportsCatalog(): ReportsCatalogResult {
   const fetchCatalog = useCallback(() => listReportTemplates(), []);
-  const { data, loading, error } = useFetch(fetchCatalog, []);
+  const { data, loading, error, refetch } = useFetch(fetchCatalog, []);
 
   const templates = useMemo(() => data ?? [], [data]);
 
@@ -31,7 +33,7 @@ export function useReportsCatalog(): ReportsCatalogResult {
     return { builtin: builtinTemplates, custom: customTemplates };
   }, [templates]);
 
-  return { templates, builtin, custom, loading, error };
+  return { templates, builtin, custom, loading, error, refetch };
 }
 
 export default useReportsCatalog;

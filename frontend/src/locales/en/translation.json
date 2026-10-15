@@ -1562,7 +1562,13 @@
         "custom": "Custom"
       },
       "selected": "Selected",
-      "selectedTemplate": "Template: {{name}}"
+      "selectedTemplate": "Template: {{name}}",
+      "create": "Create template",
+      "created": "Saved template {{name}}.",
+      "delete": "Delete",
+      "deleteLabel": "Delete {{name}} template",
+      "deleteConfirm": "Delete the {{name}} template? This can't be undone.",
+      "deleted": "Deleted template {{name}}."
     },
     "downloadsTitle": "Download reports",
     "downloadsDescription": "Generate CSV or PDF exports with the selected template and dates.",
@@ -1570,18 +1576,11 @@
     "builder": {
       "headingCreate": "Create report template",
       "headingEdit": "Edit report template",
-      "subheading": "Configure report columns, metrics, and optional filters before saving the template.",
+      "subheading": "Choose the sections and columns to include before saving the template.",
       "nameLabel": "Template name",
       "descriptionLabel": "Description (optional)",
-      "metricsLabel": "Metrics",
+      "metricsLabel": "Sections",
       "columnsLabel": "Columns",
-      "filtersLabel": "Filters (optional)",
-      "addFilter": "Add filter",
-      "noFilters": "No filters applied. Add a filter to limit results to specific accounts or holdings.",
-      "filterField": "Field",
-      "filterOperator": "Operator",
-      "filterValue": "Value",
-      "removeFilter": "Remove",
       "create": "Create template",
       "saveChanges": "Save changes",
       "saving": "Saving…",
@@ -1594,8 +1593,8 @@
       "loadError": "Unable to load the selected template.",
       "validation": {
         "name": "Name is required",
-        "metrics": "Select at least one metric",
-        "columns": "Select at least one column"
+        "metrics": "Select at least one section",
+        "columns": "Select at least one column for each section"
       },
       "metrics": {
         "performance": "Performance summary",
@@ -1604,24 +1603,20 @@
         "risk": "Risk metrics"
       },
       "columns": {
-        "owner": "Owner",
-        "account": "Account",
+        "metric": "Metric",
+        "value": "Value",
+        "units": "Units",
         "ticker": "Ticker",
-        "value": "Value (£)",
-        "gain": "Gain %"
-      },
-      "filters": {
-        "accountType": "Account type",
-        "instrumentType": "Instrument type",
-        "region": "Region",
-        "sector": "Sector"
-      },
-      "operators": {
-        "equals": "Equals",
-        "notEquals": "Does not equal",
-        "contains": "Contains",
-        "gt": "Greater than",
-        "lt": "Less than"
+        "exchange": "Exchange",
+        "price": "Price",
+        "date": "Date",
+        "type": "Type",
+        "description": "Description",
+        "amount_gbp": "Amount (GBP)",
+        "currency": "Currency",
+        "window": "Window",
+        "peak_date": "Peak",
+        "trough_date": "Trough"
       }
     }
   },

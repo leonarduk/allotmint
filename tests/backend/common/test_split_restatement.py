@@ -113,3 +113,57 @@ def test_unreconciled_flags_a_holding_left_on_the_pre_split_count():
 
     assert lp.unreconciled_instruments([ledger], stale, splits_for=splits_for) == ("CGT.L",)
     assert lp.unreconciled_instruments([ledger], current, splits_for=splits_for) == ()
+
+
+def test_every_quantity_field_is_restated():
+    tx = {"date": "2021-01-04", "type": "BUY", "ticker": "CGT.L", "units": 5, "shares": 500_000_000}
+
+    (out,) = restate_for_splits([tx], splits_for)
+
+    assert out["units"] == pytest.approx(50)
+    assert out["shares"] == pytest.approx(5_000_000_000)
+
+
+def test_an_unparseable_row_is_left_whole_not_half_restated(caplog):
+    tx = {"date": "2021-01-04", "type": "BUY", "ticker": "CGT.L", "units": "n/a", "price_gbp": 50.0}
+
+    with caplog.at_level("WARNING", logger="backend.common.split_restatement"):
+        assert restate_for_splits([tx], splits_for) == [tx]
+    assert "Not restating CGT.L" in caplog.text
+
+
+def test_a_time_of_day_does_not_move_the_split_boundary():
+    splits = ((pd.Timestamp("2026-07-23 08:00"), 10.0),)
+    assert split_factor_after(splits, pd.Timestamp("2026-07-23")) == 1.0
+    assert split_factor_after(splits, pd.Timestamp("2026-07-22 23:59")) == 10.0
+
+
+def test_default_loader_reads_split_rows_from_stored_corporate_actions(monkeypatch):
+    from backend.timeseries import corporate_actions
+
+    actions = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-02", "2026-07-23", "2026-08-01"]),
+            "Action": ["dividend", "split", "split"],
+            "Value": [3.0, 10.0, 1.0],
+            "Currency": ["GBp", "GBp", "GBp"],
+            "Source": ["Yahoo"] * 3,
+        }
+    )
+    calls = []
+
+    def fake_load(ticker, exchange, **_):
+        calls.append((ticker, exchange))
+        return actions if (ticker, exchange) == ("CGT", "L") else corporate_actions.empty_actions()
+
+    monkeypatch.setattr(corporate_actions, "load_corporate_actions", fake_load)
+    rows = [
+        {"date": "2021-08-02", "type": "BUY", "ticker": "CGT.L", "units": 400},
+        {"date": "2021-09-01", "type": "BUY", "ticker": "CGT.L", "units": 1},
+        {"date": "2021-08-02", "type": "BUY", "ticker": "AAA.L", "units": 7},
+    ]
+
+    out = restate_for_splits(rows)
+
+    assert [row["units"] for row in out] == pytest.approx([4000, 10, 7])  # dividend and 1.0 "split" ignored
+    assert calls == [("CGT", "L"), ("AAA", "L")]  # one lookup per ticker

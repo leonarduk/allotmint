@@ -67,38 +67,33 @@ def recorded_splits(ticker: str) -> tuple[tuple[pd.Timestamp, float], ...]:
 
 
 def split_factor_after(splits: Sequence[tuple[pd.Timestamp, float]], day: pd.Timestamp) -> float:
-    """Product of the split ratios dated strictly after ``day`` (1.0 when none)."""
+    """Product of the split ratios dated strictly after ``day``'s date (1.0 when none)."""
+    day = pd.Timestamp(day).normalize()
     factor = 1.0
     for when, ratio in splits:
-        if when > day:
+        if pd.Timestamp(when).normalize() > day:
             factor *= ratio
     return factor
 
 
-def _restated(tx: Mapping[str, Any], factor: float) -> dict[str, Any]:
-    out = dict(tx)
-    for key, _scale in _QUANTITY_FIELDS:
-        if out.get(key) is not None:
-            out[key] = _scaled(out, key, factor)
-            break
-    for key in _PRICE_FIELDS:
-        if out.get(key) is not None:
-            out[key] = _scaled(out, key, 1.0 / factor)
-    return out
+def _restated(tx: Mapping[str, Any], factor: float) -> Mapping[str, Any]:
+    """``tx`` with every quantity field multiplied and ``price_gbp`` divided by ``factor``.
 
-
-def _scaled(tx: Mapping[str, Any], key: str, factor: float) -> Any:
-    """``tx[key] * factor``; an unparseable value is kept (and logged), as the replay ignores it."""
+    A row whose quantity cannot be parsed is returned unchanged (and logged):
+    restating its price alone would leave it on two bases at once.
+    """
+    present = [key for key, _scale in _QUANTITY_FIELDS if tx.get(key) is not None]
     try:
-        return float(tx[key]) * factor
+        quantities = {key: float(tx[key]) * factor for key in present}
+        prices = {key: float(tx[key]) / factor for key in _PRICE_FIELDS if tx.get(key) is not None}
     except (TypeError, ValueError):
         logger.warning(
-            "Not restating unparseable %s %r of %s for a split",
-            sanitise_log_value(key),
-            sanitise_log_value(tx[key]),
+            "Not restating %s on %s for a split: unparseable quantity or price",
             sanitise_log_value(tx.get("ticker")),
+            sanitise_log_value(tx.get("date")),
         )
-        return tx[key]
+        return tx
+    return {**tx, **quantities, **prices}
 
 
 def restate_for_splits(

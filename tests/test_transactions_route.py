@@ -490,7 +490,7 @@ def test_transactions_compliance_filters(tmp_path, monkeypatch):
 
 def test_import_transactions_success(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
-    sample = [transactions.Transaction(owner="alice", account="isa", ticker="PFE")]
+    sample = [transactions.Transaction(owner="alice", account="isa", date="2024-05-01", type="BUY", ticker="PFE")]
 
     captured = {}
 
@@ -786,8 +786,12 @@ def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeyp
     ]
     monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", list(pre_existing_posted))
     sample = [
-        transactions.Transaction(owner="alice", account="isa", ticker="PFE", price_gbp=2, units=3),
-        transactions.Transaction(owner="alice", account="isa", ticker="MSFT", price_gbp=5, units=2),
+        transactions.Transaction(
+            owner="alice", account="isa", date="2024-05-01", type="BUY", ticker="PFE", price_gbp=2, units=3
+        ),
+        transactions.Transaction(
+            owner="alice", account="isa", date="2024-05-01", type="BUY", ticker="MSFT", price_gbp=5, units=2
+        ),
     ]
     monkeypatch.setattr(transactions.importers, "parse", lambda provider, data: sample)
     real_persist = transactions._persist_transaction

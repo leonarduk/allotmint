@@ -1086,6 +1086,16 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     return tx_data
 
 
+def _missing_ledger_fields(row: Transaction) -> str:
+    """Return the ledger fields (``date``/``type``) an imported row lacks, joined by ``/``.
+
+    Rows without either cannot be valued, rebuilt or sorted, so the importer
+    skips them rather than persisting blank ledger entries (#10948).
+    """
+    missing = [field for field in ("date", "type") if not str(getattr(row, field) or "").strip()]
+    return "/".join(missing)
+
+
 @router.post("/transactions/import")
 async def import_transactions(
     request: Request,
@@ -1138,6 +1148,12 @@ async def import_transactions(
         row_account = row.account or account
         if not row_owner or not row_account:
             skipped.append({**row.model_dump(mode="json"), "skip_reason": "missing owner/account"})
+            continue
+
+        missing_fields = _missing_ledger_fields(row)
+        if missing_fields:
+            # e.g. a Hargreaves holdings export (Code,Units held,...) has no date or type (#10948).
+            skipped.append({**row.model_dump(mode="json"), "skip_reason": f"missing {missing_fields}"})
             continue
 
         try:

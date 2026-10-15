@@ -68,12 +68,13 @@ def test_import_transactions_hargreaves_uses_owner_account_fallback(tmp_path, mo
     explicitly via the ``owner``/``account`` form fields (#4965).
     """
     client = _make_client(tmp_path, monkeypatch)
-    csv_data = "Code,Units held,Price (pence),Cost (£)\nPFE,2,1050,21.00\n"
+    row = Transaction(owner="", account="", date="2024-05-01", type="BUY", ticker="PFE", price=10.5, units=2)
+    monkeypatch.setattr(importers, "parse", lambda provider, data: [row])
 
     resp = client.post(
         "/transactions/import",
         data={"provider": "hargreaves", "owner": "alice", "account": "ISA"},
-        files={"file": ("tx.csv", csv_data, "text/csv")},
+        files={"file": ("tx.csv", b"unused", "text/csv")},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -105,6 +106,50 @@ def test_import_transactions_skips_rows_with_no_resolvable_owner_account(tmp_pat
     assert len(data["skipped"]) == 1
     assert data["skipped"][0]["skip_reason"] == "missing owner/account"
     assert data["skipped"][0]["ticker"] == "PFE"
+
+
+def test_import_transactions_skips_hargreaves_holdings_rows_without_date_or_type(tmp_path, monkeypatch):
+    """A holdings-format CSV parses to rows with no date and no type; they must
+    be skipped with a reason and never written to the ledger (#10948).
+    """
+    client = _make_client(tmp_path, monkeypatch)
+    csv_data = "Code,Units held,Price (pence),Cost (£)\nPFE,2,1050,21.00\n"
+
+    resp = client.post(
+        "/transactions/import",
+        data={"provider": "hargreaves", "owner": "alice", "account": "ISA"},
+        files={"file": ("tx.csv", csv_data, "text/csv")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["persisted"] == []
+    assert len(data["skipped"]) == 1
+    assert data["skipped"][0]["skip_reason"] == "missing date/type"
+    assert data["skipped"][0]["ticker"] == "PFE"
+    assert not list(tmp_path.rglob("*_transactions.json"))
+    assert client.get("/transactions").json() == []
+
+
+@pytest.mark.parametrize(
+    ("date_value", "type_value", "reason"),
+    [(None, "BUY", "missing date"), ("2024-05-01", None, "missing type"), ("2024-05-01", "  ", "missing type")],
+)
+def test_import_transactions_skips_rows_missing_date_or_type(tmp_path, monkeypatch, date_value, type_value, reason):
+    """Only the incomplete row is skipped; a complete row in the same import still persists (#10948)."""
+    client = _make_client(tmp_path, monkeypatch)
+    bad = Transaction(owner="alice", account="ISA", date=date_value, type=type_value, ticker="BAD", units=1)
+    good = Transaction(owner="alice", account="ISA", date="2024-05-01", type="BUY", ticker="PFE", price=10.5, units=2)
+    monkeypatch.setattr(importers, "parse", lambda provider, data: [bad, good])
+
+    resp = client.post(
+        "/transactions/import",
+        data={"provider": "hargreaves"},
+        files={"file": ("tx.csv", b"unused", "text/csv")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [row["ticker"] for row in data["persisted"]] == ["PFE"]
+    assert [(row["ticker"], row["skip_reason"]) for row in data["skipped"]] == [("BAD", reason)]
 
 
 def test_moneyhub_parse_fixture():
@@ -324,27 +369,32 @@ def test_import_converts_non_gbp_price_at_trade_date_rate(tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize(
-    ("rates", "row_overrides"),
+    ("rates", "row_overrides", "reason_parts"),
     [
-        ({}, {}),
-        ({"USD": {"2024-04-20": 0.8}}, {}),
-        ({"USD": {"2024-05-03": 0.8}}, {"date": None}),
+        ({}, {}, ("USD", "FX")),
+        ({"USD": {"2024-04-20": 0.8}}, {}, ("USD", "FX")),
+        # An undated row is now skipped before any FX lookup (#10948).
+        ({"USD": {"2024-05-03": 0.8}}, {"date": None}, ("missing date",)),
     ],
     ids=["no-fx-history", "no-rate-near-trade-date", "undated-row"],
 )
-def test_import_rejects_non_gbp_price_without_trade_date_rate(tmp_path, monkeypatch, rates, row_overrides):
+def test_import_rejects_non_gbp_price_without_trade_date_rate(
+    tmp_path, monkeypatch, rates, row_overrides, reason_parts
+):
     """No stored trade-date rate means the row is rejected, never stored at a guessed rate (#9679)."""
     client = _make_client(tmp_path, monkeypatch)
     monkeypatch.setattr(timeseries_cache, "load_fx_history", _fake_fx_history(rates))
-    gbp_row = Transaction(owner="alice", account="ISA", date="2024-05-04", ticker="PFE", price=10.5, units=1)
+    gbp_row = Transaction(
+        owner="alice", account="ISA", date="2024-05-04", type="BUY", ticker="PFE", price=10.5, units=1
+    )
 
     data = _post_rows(client, monkeypatch, [_usd_row(**row_overrides), gbp_row])
 
     assert [row["ticker"] for row in data["persisted"]] == ["PFE"]
     [skipped] = data["skipped"]
     assert skipped["ticker"] == "MSFT"
-    assert "USD" in skipped["skip_reason"]
-    assert "FX" in skipped["skip_reason"]
+    for part in reason_parts:
+        assert part in skipped["skip_reason"]
 
 
 @pytest.mark.parametrize("currency", ["GBP", "gbp", None, "", "GBX", "GBp"])
@@ -356,7 +406,7 @@ def test_import_gbp_or_absent_currency_copies_price_unchanged(tmp_path, monkeypa
         raise AssertionError("GBP rows must not consult FX history")
 
     monkeypatch.setattr(timeseries_cache, "load_fx_history", no_fx)
-    row = Transaction(owner="alice", account="ISA", date="2024-05-01", ticker="PFE", price=10.5, units=2)
+    row = Transaction(owner="alice", account="ISA", date="2024-05-01", type="BUY", ticker="PFE", price=10.5, units=2)
     row.currency = currency
 
     data = _post_rows(client, monkeypatch, [row])
@@ -407,7 +457,9 @@ def test_import_skips_conflicting_price_row_and_imports_the_rest(tmp_path, monke
     """A price/price_gbp conflict skips only that row instead of 500-ing the batch (#9701)."""
     client = _make_client(tmp_path, monkeypatch)
     monkeypatch.setattr(timeseries_cache, "load_fx_history", _fake_fx_history({}))
-    gbp_row = Transaction(owner="alice", account="ISA", date="2024-05-04", ticker="PFE", price=10.5, units=1)
+    gbp_row = Transaction(
+        owner="alice", account="ISA", date="2024-05-04", type="BUY", ticker="PFE", price=10.5, units=1
+    )
 
     data = _post_rows(client, monkeypatch, [_usd_row(price=100.0, price_gbp=80.0), gbp_row])
 

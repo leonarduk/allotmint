@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { API_BASE, getOwners } from "../api";
 import { OwnerSelector } from "../components/OwnerSelector";
@@ -183,8 +183,23 @@ export default function Reports() {
   // A template just saved on /reports/new arrives as router state: confirm it
   // and select it so its downloads are one click away (#10914).
   const location = useLocation();
-  const createdTemplate = (location.state as ReportsLocationState | null)
-    ?.createdTemplate;
+  const navigate = useNavigate();
+  // Read once, then dropped from history below so back/forward to /reports
+  // doesn't repeat the "saved" notice.
+  const [createdTemplate] = useState(
+    () => (location.state as ReportsLocationState | null)?.createdTemplate,
+  );
+  const hasCreatedState = Boolean(
+    (location.state as ReportsLocationState | null)?.createdTemplate,
+  );
+  useEffect(() => {
+    if (hasCreatedState) {
+      navigate(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: null,
+      });
+    }
+  }, [hasCreatedState, location.pathname, location.search, navigate]);
   const [explicitTemplateId, setExplicitTemplateId] = useState<string | null>(
     createdTemplate?.template_id ?? null,
   );

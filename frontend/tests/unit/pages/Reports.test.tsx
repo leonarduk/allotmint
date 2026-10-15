@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configContext } from "@/ConfigContext";
@@ -387,6 +387,11 @@ describe("Reports page", () => {
         name: "Select Custom holdings template",
       }),
     ).toBeChecked();
+    // The one-shot state is cleared so back/forward won't repeat the notice.
+    expect(vi.mocked(useNavigate)()).toHaveBeenCalledWith("/reports", {
+      replace: true,
+      state: null,
+    });
   });
 
   it("offers delete only on custom templates", async () => {

@@ -284,6 +284,27 @@ def _load_parquet(path: str) -> pd.DataFrame:
         return _empty_ts()
 
 
+def with_canonical_ticker(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """``df`` with every ``Ticker`` value set to the meta cache key ``ticker`` (#10908).
+
+    The bare, upper-cased ticker is canonical: it is the cache key the parquet
+    is named after (:func:`meta_timeseries_cache_path`), the form the
+    TICKER_MISMATCH data-quality fix and the timeseries editor already write,
+    and what ``backend.common.prices`` keys loads by before restoring the
+    ``.{exchange}`` suffix on its own in-memory copy for display. Fetchers stamp
+    whatever symbol they were given (``3IN`` or ``3IN.L``), so the cache write
+    path normalises here and every writer converges on one form.
+
+    Returns ``df`` unchanged when it already conforms, else a copy.
+    """
+    canonical = ticker.strip().upper()
+    if df.empty or "Ticker" not in df.columns or (df["Ticker"] == canonical).all():
+        return df
+    df = df.copy()
+    df["Ticker"] = canonical
+    return df
+
+
 def _save_parquet(df: pd.DataFrame, path: str) -> None:
     df = _ensure_schema(df)
     _ensure_local_dir(path)
@@ -476,7 +497,14 @@ def _rolling_cache(
     exchange: str,
     loader: Callable[[str], pd.DataFrame] | None = None,
     frozen_before: date | None = None,
+    canonical_ticker: str | None = None,
 ) -> pd.DataFrame:
+    """Serve ``days`` of history from ``cache_path``, fetching and merging any gap.
+
+    ``canonical_ticker``, when given, is stamped on every row the cache writes
+    (and returns after a merge) so the stored ``Ticker`` column never mixes
+    the forms different fetchers use (#10908).
+    """
 
     logger.debug("Rolling cache: %s", cache_path)
     # Only look up to yesterday (we have close prices only)
@@ -497,6 +525,8 @@ def _rolling_cache(
             sanitise_log_value(ticker),
             sanitise_log_value(exchange),
         )
+        if canonical_ticker is not None:
+            existing = with_canonical_ticker(existing, canonical_ticker)
         _save_parquet(existing, cache_path)
 
     if OFFLINE_MODE:
@@ -581,6 +611,10 @@ def _rolling_cache(
         # than interleaved with the cached series (#8597).
         new = compatible_rows(existing, new, label=f"{ticker}.{exchange}")
         combined, changed = _merge_fetched(existing, new) if not new.empty else (existing, False)
+    if changed and canonical_ticker is not None:
+        # Normalise the whole merged series, not just the fetched rows, so a
+        # file already holding the other form converges on its next write.
+        combined = with_canonical_ticker(combined, canonical_ticker)
     if changed:
         _save_parquet(combined, cache_path)
     else:
@@ -932,6 +966,7 @@ def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int, cache_on
         exchange=exchange,
         loader=_load_meta_parquet_cached,
         frozen_before=freeze_date_for(ticker, exchange),
+        canonical_ticker=ticker,
     )
 
 

@@ -447,3 +447,33 @@ def test_missing_metadata_reports_only_the_metadata_issue(monkeypatch, tmp_path)
     issues = aggregate_holding_issues(tmp_path)
 
     assert sorted(i.type for i in issues) == [IssueType.UNRESOLVED_TICKER, IssueType.WRONG_EXCHANGE]
+
+
+def _ticker_mismatches(monkeypatch, tickers):
+    df = pd.DataFrame(
+        {
+            "Date": [f"2026-01-0{i + 1}" for i in range(len(tickers))],
+            "Close": [100.0] * len(tickers),
+            "Ticker": tickers,
+        },
+    )
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [("ERNS", "L")])
+    monkeypatch.setattr(issues_module, "load_cached_meta_timeseries_full", lambda t, e: df.copy())
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {"name": "x"})
+    return [i for i in aggregate_series_issues() if i.type == IssueType.TICKER_MISMATCH]
+
+
+def test_ticker_mismatch_ignores_uniform_full_symbol(monkeypatch):
+    """A series stamped only ``ERNS.L`` names the cache key's instrument (#10908)."""
+    assert _ticker_mismatches(monkeypatch, ["ERNS.L", "ERNS.L"]) == []
+
+
+def test_ticker_mismatch_flags_mixed_forms(monkeypatch):
+    """Bare and suffixed rows in one file still break grouping by Ticker (#10908)."""
+    mismatch = _ticker_mismatches(monkeypatch, ["ERNS", "ERNS.L"])
+    assert len(mismatch) == 1
+    assert mismatch[0].preview["before"]["tickers"] == ["ERNS", "ERNS.L"]
+
+
+def test_ticker_mismatch_flags_other_exchange_suffix(monkeypatch):
+    assert len(_ticker_mismatches(monkeypatch, ["ERNS.N", "ERNS.N"])) == 1

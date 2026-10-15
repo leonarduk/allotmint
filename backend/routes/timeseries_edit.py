@@ -304,11 +304,12 @@ async def post_timeseries_edit(
         ) from exc
 
     df = _ensure_schema(df)
-    for col in ("Ticker", "Source"):
-        if col in df.columns:
-            df[col] = df[col].replace("", pd.NA)
-    if "Ticker" not in df.columns or df["Ticker"].isna().all():
-        df["Ticker"] = ticker
+    if "Source" in df.columns:
+        df["Source"] = df["Source"].replace("", pd.NA)
+    # Stamp the cache key on every row, as the cache's own write path does,
+    # so an upload exported with a suffixed "ERNS.L" Ticker column doesn't
+    # bring the other form back (#10908).
+    df["Ticker"] = ticker
     if "Source" not in df.columns or df["Source"].isna().all():
         df["Source"] = "Manual"
 

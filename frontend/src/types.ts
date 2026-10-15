@@ -669,14 +669,20 @@ export interface MarketIndexes {
 
 /** Points and % change of a benchmark index over one window. */
 export interface IndexWindowChange {
+  /** In index points. */
   change: number;
+  /** In GBP; `null` when a non-sterling index has no FX rate. */
   pct: number | null;
+  /** The same move in the index's own currency. */
+  local_pct: number;
 }
 
 /** One `GET /market/index-summary` row: a price index's level in points. */
 export interface IndexSummaryRow {
   name: string;
   symbol: string;
+  /** The index's own currency; its % figures are converted from it to GBP. */
+  currency: string;
   value: number;
   as_of: string | null;
   /** `null` when there isn't enough history for that window. */
@@ -689,9 +695,13 @@ export interface IndexSummaryRow {
 }
 
 export interface IndexTotalReturn {
+  /** In GBP: converted at daily FX rates when the source isn't sterling. */
   pct: number;
   symbol: string;
   source: 'index' | 'etf';
+  /** The source's own currency and the same return in it, before conversion. */
+  local_currency: string;
+  local_pct: number;
 }
 
 export interface IndexSummary {

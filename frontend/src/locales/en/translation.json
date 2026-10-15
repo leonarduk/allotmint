@@ -2111,6 +2111,8 @@
     "newDateLabel": "Approval date",
     "addApprovalFailed": "Failed to add approval",
     "approvalsForbidden": "You don't have permission to view or manage approvals for this account.",
+    "limitInvalid": "Enter a whole number of 0 or more, or leave blank to use the default.",
+    "fixErrors": "Fix the highlighted fields before saving.",
     "approvalsSessionExpired": "Your session has expired. Sign in again to manage approvals.",
     "avatarAlt": "user avatar",
     "complianceDocsLink": "Learn more about compliance",

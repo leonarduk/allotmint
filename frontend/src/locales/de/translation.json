@@ -2118,6 +2118,8 @@
     "pageDescription": "Regeln, die festlegen, welche Trades dieses Konto ohne zusätzliche Genehmigung tätigen kann.",
     "addApprovalFailed": "Genehmigung konnte nicht hinzugefügt werden",
     "approvalsForbidden": "Sie haben keine Berechtigung, Genehmigungen für dieses Konto anzuzeigen oder zu verwalten.",
+    "limitInvalid": "Geben Sie eine ganze Zahl ab 0 ein oder lassen Sie das Feld leer, um den Standardwert zu verwenden.",
+    "fixErrors": "Korrigieren Sie die markierten Felder vor dem Speichern.",
     "approvalsSessionExpired": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um Genehmigungen zu verwalten.",
     "avatarAlt": "Benutzeravatar",
     "complianceDocsLink": "Mehr zur Compliance erfahren",

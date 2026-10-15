@@ -17,6 +17,8 @@ from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
+_CASH_TICKER = "CASH.GBP"
+
 
 def _to_holding(tx: Any) -> dict[str, object]:
     cost = (tx.amount_minor or 0.0) / 100.0 if tx.amount_minor is not None else 0.0
@@ -94,9 +96,10 @@ def reconcile_from_csv(
     transactions: List[Any] = importers.parse(provider, data)
     imported = _index_holdings([_to_holding(tx) for tx in transactions if tx.ticker], provider)
     stored = _index_holdings(stored_holdings, provider)
-    cash_ticker = "CASH.GBP"
-    imported_cash = float(imported.pop(cash_ticker, {}).get("value_gbp", 0.0))
-    stored_cash = float(stored.pop(cash_ticker, {}).get("value_gbp", 0.0))
+    stored_cash = float(stored.pop(_CASH_TICKER, {}).get("value_gbp", 0.0))
+    # A CSV without a cash line leaves stored cash unchanged on import (#10906),
+    # so the preview must not report it as a cash withdrawal.
+    imported_cash = float(imported.pop(_CASH_TICKER, {"value_gbp": stored_cash})["value_gbp"])
 
     added = [imported[ticker] for ticker in sorted(imported.keys() - stored.keys())]
     removed = [stored[ticker] for ticker in sorted(stored.keys() - imported.keys())]
@@ -167,6 +170,88 @@ def _aggregate_for_storage(raw_holdings: List[Mapping[str, object]], provider: s
     ]
 
 
+def _distribute(total: float, weights: List[float]) -> List[float]:
+    """Split ``total`` across ``weights`` in proportion, rounded to pence.
+
+    The last share absorbs the rounding residue so the parts sum to ``total``.
+    Zero total weight puts everything on the last part.
+    """
+    weight_sum = sum(weights)
+    if weight_sum <= 0:
+        return [0.0] * (len(weights) - 1) + [round(total, 2)]
+    shares = [round(total * weight / weight_sum, 2) for weight in weights[:-1]]
+    return [*shares, round(total - sum(shares), 2)]
+
+
+def _resize_lots(lots: List[dict[str, Any]], target_units: float) -> List[dict[str, Any]]:
+    """Bring the lots' total units to ``target_units`` keeping earlier lots intact.
+
+    An increase is added to the last (most recently listed) lot; a decrease is
+    taken from the last lots first and lots that reach zero are dropped, so the
+    oldest ``acquired_date`` values survive. At least one lot is always kept,
+    and a negative target is treated as zero.
+    """
+    target_units = max(target_units, 0.0)
+    excess = sum(_number(lot.get("units")) for lot in lots) - target_units
+    kept = list(lots)
+    while excess > 1e-9 and len(kept) > 1 and _number(kept[-1].get("units")) <= excess + 1e-9:
+        excess -= _number(kept.pop().get("units"))
+    others = sum(_number(lot.get("units")) for lot in kept[:-1])
+    kept[-1]["units"] = target_units - others
+    return kept
+
+
+def _apply_import_to_lots(lots: List[dict[str, Any]], update: Mapping[str, object]) -> List[dict[str, Any]]:
+    """Update a ticker's stored lots from the imported totals, keeping other fields.
+
+    ``units``/``value_gbp``/``cost_basis_gbp`` come from the CSV; everything
+    else on each lot (``acquired_date`` and the like) is preserved (#10906).
+    Cost is split in proportion to the lots' existing cost (units as fallback).
+    """
+    kept = _resize_lots(lots, _number(update.get("units")))
+    units = [_number(lot.get("units")) for lot in kept]
+    costs = [_number(lot.get("cost_basis_gbp")) for lot in kept]
+    values = _distribute(_number(update.get("value_gbp")), units)
+    new_costs = _distribute(_number(update.get("cost_basis_gbp")), costs if sum(costs) > 0 else units)
+    for lot, value, cost in zip(kept, values, new_costs):
+        lot["value_gbp"] = value
+        lot["cost_basis_gbp"] = cost
+    return kept
+
+
+def _group_stored_lots(stored: List[object], provider: str) -> dict[str, List[dict[str, Any]]]:
+    """Group stored holdings by canonical ticker, preserving stored order."""
+    grouped: dict[str, List[dict[str, Any]]] = {}
+    for raw in stored:
+        if not isinstance(raw, Mapping):
+            logger.warning("Dropping malformed stored holding during CSV import: %s", sanitise_log_value(raw))
+            continue
+        ticker = _normalise_ticker(raw.get("ticker"), provider)
+        grouped.setdefault(ticker, []).append(dict(raw))
+    return grouped
+
+
+def _merge_holdings(stored: List[object], imported: List[dict[str, object]], provider: str) -> List[dict[str, Any]]:
+    """Merge imported per-ticker totals into the stored holdings (#10906).
+
+    Matches :func:`reconcile_from_csv`: tickers in both are updated in place,
+    new tickers are appended (with no ``acquired_date``), and stored tickers
+    the CSV omits are removed -- except cash, which stays unchanged unless the
+    CSV reports a cash line.
+    """
+    imported_by_ticker = {str(holding["ticker"]): holding for holding in imported}
+    merged: List[dict[str, Any]] = []
+    grouped = _group_stored_lots(stored, provider)
+    for ticker, lots in grouped.items():
+        update = imported_by_ticker.get(ticker)
+        if update is not None:
+            merged.extend(_apply_import_to_lots(lots, update))
+        elif ticker == _CASH_TICKER:
+            merged.extend(lots)
+    merged.extend(imported_by_ticker[ticker] for ticker in sorted(imported_by_ticker.keys() - grouped.keys()))
+    return merged
+
+
 def update_from_csv(
     owner: str,
     account: str,
@@ -175,8 +260,9 @@ def update_from_csv(
 ) -> dict[str, str]:
     """Parse ``data`` from ``provider`` and update ``owner``/``account`` holdings.
 
-    Merges the parsed holdings into the existing stored document (preserving
-    any other fields already on it) rather than overwriting it wholesale.
+    Merges the parsed holdings into the existing stored document per ticker
+    (see :func:`_merge_holdings`), preserving any other fields already on the
+    document and on each holding, including ``account_type`` casing (#10906).
     Returns a mapping containing the path to the written holdings file. A
     dictionary is returned instead of a plain string so callers (and tests)
     can easily extend the response with additional metadata in the future
@@ -185,7 +271,7 @@ def update_from_csv(
 
     transactions: List[Any] = importers.parse(provider, data)
     raw_holdings = [_to_holding(t) for t in transactions if t.ticker]
-    holdings = _aggregate_for_storage(raw_holdings, provider)
+    imported = _aggregate_for_storage(raw_holdings, provider)
 
     try:
         base_dir = safe_join(Path(config.accounts_root), owner)
@@ -203,13 +289,14 @@ def update_from_csv(
             if isinstance(loaded, dict):
                 existing = loaded
 
+    stored_holdings = existing.get("holdings")
     payload = {
         **existing,
         "owner": owner,
-        "account_type": account,
+        "account_type": existing.get("account_type") or account,
         "currency": existing.get("currency", "GBP"),
         "last_updated": date.today().isoformat(),
-        "holdings": holdings,
+        "holdings": _merge_holdings(stored_holdings if isinstance(stored_holdings, list) else [], imported, provider),
     }
 
     base_dir.mkdir(parents=True, exist_ok=True)

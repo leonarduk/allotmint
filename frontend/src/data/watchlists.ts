@@ -10,8 +10,11 @@
 //     Schroders -> Balfour Beatty in the FTSE 100, with ASOS and Meridian
 //     Mining filling the FTSE 250 places (1 Oct); Senior -> Amaroq (8 Oct);
 //     Pinewood -> Young & Co's Brewery (9 Oct).
-// FTSE_AS_OF is the effective date of the last index change applied above
-// (shown in the UI). Separately, every ticker was checked on 14 Oct 2026 to
+// FTSE_AS_OF (shown in the UI) is the date the FTSE lists are current to:
+// every FTSE Russell change effective on or before it has been applied to
+// both indices, whether or not that index itself changed on that day. On a
+// refresh, set it to the latest effective date checked, not just the latest
+// change found. Separately, every ticker was checked on 14 Oct 2026 to
 // resolve to the named company and trade on the LSE. Standard Life (SDLF.L,
 // formerly Phoenix) and Aberdeen Group (ABDN.L) are distinct constituents.
 // When refreshing, update FTSE_AS_OF and WATCHLIST_META below.

@@ -41,3 +41,28 @@ def test_uk_business_days_between_excludes_christmas_period():
 
 def test_uk_business_days_between_empty_when_start_after_end():
     assert uk_business_days_between(date(2026, 1, 5), date(2026, 1, 1)) == []
+
+
+def test_uk_bank_holidays_include_one_offs():
+    # Jubilees, royal events and VE Day moves gov.uk lists for individual years (#10961).
+    for one_off in (
+        date(1999, 12, 31),
+        date(2002, 6, 3),
+        date(2002, 6, 4),
+        date(2011, 4, 29),
+        date(2012, 6, 4),
+        date(2012, 6, 5),
+        date(2020, 5, 8),
+        date(2022, 6, 2),
+        date(2022, 6, 3),
+        date(2022, 9, 19),
+        date(2023, 5, 8),
+    ):
+        assert one_off in uk_bank_holidays(one_off.year), one_off
+
+
+def test_uk_bank_holidays_drop_standard_dates_that_moved():
+    # The usual spring / early May Monday was a normal working day in these years.
+    for moved in (date(2002, 5, 27), date(2012, 5, 28), date(2020, 5, 4), date(2022, 5, 30)):
+        assert moved not in uk_bank_holidays(moved.year), moved
+    assert is_uk_business_day(date(2022, 5, 30)) is True

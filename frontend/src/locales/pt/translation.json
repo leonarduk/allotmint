@@ -509,7 +509,7 @@
       "label": "Índices",
       "help": "FTSE 100, FTSE 250, S&P 500 e NASDAQ-100 para comparação. Níveis e variações em pontos do índice. Todas as % estão em libras: S&P e NASDAQ são convertidos de USD a taxas diárias, pelo que incluem o movimento do dólar face à libra (passe o cursor para ver o valor em USD). O retorno total 1A % inclui dividendos reinvestidos. O ganho desde a compra não se aplica.",
       "totalReturnSourceIndex": "Índice de retorno total {{symbol}}",
-      "totalReturnSourceEtf": "Aproximação: ETF {{symbol}} com dividendos reinvestidos (inclui as comissões do fundo)",
+      "totalReturnSourceEtf": "Aproximação: ETF {{symbol}} com dividendos reinvestidos e a comissão anual de {{fee}} adicionada de volta",
       "convertedFrom": "{{pct}} em {{currency}} antes da conversão para GBP",
       "loading": "A carregar índices…",
       "error": "Os dados dos índices não estão disponíveis",

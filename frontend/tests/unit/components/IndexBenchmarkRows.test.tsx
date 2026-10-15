@@ -27,6 +27,7 @@ const summary: IndexSummary = {
         source: 'etf',
         local_currency: 'GBP',
         local_pct: 11.5,
+        fee_pct: 0.07,
       },
     },
     {
@@ -56,6 +57,7 @@ const summary: IndexSummary = {
         source: 'index',
         local_currency: 'USD',
         local_pct: 17.53,
+        fee_pct: 0,
       },
     },
   ],
@@ -132,7 +134,7 @@ describe('IndexBenchmarkRows', () => {
     const ftse100 = await screen.findByTestId('index-row-^FTSE');
     expect(within(ftse100).getByText('11.50%')).toHaveAttribute(
       'title',
-      expect.stringContaining('ISF.L')
+      'Proxy: ISF.L tracker ETF with dividends reinvested and its 0.07% annual fee added back'
     );
     const ftse250 = screen.getByTestId('index-row-^FTMC');
     expect(cellTexts(ftse250)[10]).toBe('—');

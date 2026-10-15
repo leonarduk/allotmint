@@ -125,6 +125,7 @@ function TotalReturnCell({
         })
       : t('group.indexRows.totalReturnSourceEtf', {
           symbol: totalReturn.symbol,
+          fee: percent(totalReturn.fee_pct),
         });
   const title =
     totalReturn.local_currency === 'GBP'

@@ -702,6 +702,8 @@ export interface IndexTotalReturn {
   /** The source's own currency and the same return in it, before conversion. */
   local_currency: string;
   local_pct: number;
+  /** An ETF proxy's annual fee (%), added back to its return; 0 for an index. */
+  fee_pct: number;
 }
 
 export interface IndexSummary {

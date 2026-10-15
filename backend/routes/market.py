@@ -162,14 +162,21 @@ class Benchmark(NamedTuple):
     # The source's currency. The 1Y total return is converted to sterling so it
     # compares with the owners' GBP returns; a GBP source needs no conversion.
     currency: str
+    # An ETF proxy's annual ongoing charge, in %. Funds take it out of the
+    # price daily, so it is added back to measure the index rather than the
+    # fund; a total-return index has none.
+    fee_pct: float = 0.0
 
 
-# Benchmark rows beside the owner summary table, in display order.
+# Benchmark rows beside the owner summary table, in display order. Fees are
+# Yahoo's ``netExpenseRatio`` for each fund, checked 2026-10-15; hard-coded
+# because the quoteSummary endpoint behind it often rejects requests (see
+# ``backend.common.yahoo_chart``) and a fund's charge rarely changes.
 BENCHMARKS: tuple[Benchmark, ...] = (
-    Benchmark("FTSE 100", "^FTSE", "ISF.L", "etf", "GBP"),
-    Benchmark("FTSE 250", "^FTMC", "MIDD.L", "etf", "GBP"),
+    Benchmark("FTSE 100", "^FTSE", "ISF.L", "etf", "GBP", fee_pct=0.07),
+    Benchmark("FTSE 250", "^FTMC", "MIDD.L", "etf", "GBP", fee_pct=0.40),
     Benchmark("S&P 500", "^GSPC", "^SP500TR", "index", "USD"),
-    Benchmark("NASDAQ-100", "^NDX", "QQQ", "etf", "USD"),
+    Benchmark("NASDAQ-100", "^NDX", "QQQ", "etf", "USD", fee_pct=0.18),
 )
 # Yahoo FX pairs quoting GBP per one unit of each non-sterling currency.
 GBP_PER_UNIT_SYMBOLS: Dict[str, str] = {"USD": "USDGBP=X"}
@@ -200,6 +207,8 @@ class IndexTotalReturn(TypedDict):
     source: Literal["index", "etf"]
     local_currency: str
     local_pct: float
+    # The annual fee added back to an ETF proxy's return (0 for an index).
+    fee_pct: float
 
 
 def _index_changes(series: pd.Series, in_gbp: Optional[pd.Series]) -> Dict[str, Optional[IndexChange]]:
@@ -249,12 +258,27 @@ def _in_gbp(series: pd.Series, currency: str, history: market_sectors.PriceHisto
     return (series * aligned).dropna()
 
 
+def _without_fee(series: pd.Series, fee_pct: float) -> pd.Series:
+    """``series`` with an annual ``fee_pct`` added back, compounding daily.
+
+    Each close grows by the fee for the time since the first close, so any
+    window's return rises by about the fee prorated over its length.
+    """
+
+    if not fee_pct or series.empty:
+        return series
+    years = (pd.DatetimeIndex(series.index) - pd.Timestamp(series.index[0])).days / 365.25
+    return series * (1.0 + fee_pct / 100.0) ** years
+
+
 def _total_return_1y(
     benchmark: Benchmark, history: market_sectors.PriceHistory, price_1y: Optional[IndexChange]
 ) -> Optional[IndexTotalReturn]:
     """1Y total return % of ``benchmark`` in GBP, or ``None`` when missing or implausible."""
 
-    series = market_sectors.series_for(history.total_return, benchmark.total_return_symbol)
+    series = _without_fee(
+        market_sectors.series_for(history.total_return, benchmark.total_return_symbol), benchmark.fee_pct
+    )
     local_pct = market_sectors.period_change(series, "1Y") if not series.empty else None
     if local_pct is None:
         return None
@@ -282,6 +306,7 @@ def _total_return_1y(
         "source": benchmark.total_return_source,
         "local_currency": benchmark.currency,
         "local_pct": local_pct,
+        "fee_pct": benchmark.fee_pct,
     }
 
 

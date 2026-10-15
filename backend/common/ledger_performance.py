@@ -56,6 +56,7 @@ from backend.common.holdings_rebuild import (
     replay_transactions,
 )
 from backend.common.path_utils import safe_join
+from backend.common.split_restatement import SplitLoader, restate_for_splits
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -508,19 +509,32 @@ def _chain_returns(values: pd.Series, flows: pd.Series, income: pd.Series) -> tu
     return returns, denominators
 
 
+def _split_restated(ledgers: Sequence[AccountLedger], splits_for: SplitLoader | None) -> list[AccountLedger]:
+    """``ledgers`` with pre-split units on the basis of the split-adjusted closes (#10915)."""
+    return [
+        AccountLedger(ledger.account, restate_for_splits(ledger.transactions, splits_for), ledger.trade_cash)
+        for ledger in ledgers
+    ]
+
+
 def build_ledger_performance(
     ledgers: Sequence[AccountLedger],
     end: date,
     *,
     holdings: Iterable[Mapping[str, Any]] = (),
     price_loader: PriceLoader | None = None,
+    splits_for: SplitLoader | None = None,
 ) -> LedgerPerformance | None:
     """Rebuild daily values and returns from ``ledgers`` up to ``end``.
 
     ``holdings`` (current holding records) only contribute instrument-name
     aliases so ticker-less trades join the right pool, as in the rebuild.
+    Transactions are first restated onto the current share basis for the
+    splits recorded after them (``splits_for``, default: stored corporate
+    actions), because the closes are back-adjusted for those splits.
     Returns ``None`` when no dated transaction falls on or before ``end``.
     """
+    ledgers = _split_restated(ledgers, splits_for)
     all_txs = [tx for ledger in ledgers for tx in ledger.transactions]
     aliases = name_aliases(all_txs, list(holdings))
     replayed = _replay_accounts(ledgers, end, aliases)
@@ -566,13 +580,19 @@ def build_ledger_performance(
 
 
 def unreconciled_instruments(
-    ledgers: Sequence[AccountLedger], holdings: Iterable[Mapping[str, Any]]
+    ledgers: Sequence[AccountLedger],
+    holdings: Iterable[Mapping[str, Any]],
+    *,
+    splits_for: SplitLoader | None = None,
 ) -> tuple[str, ...]:
     """Current non-cash holdings whose units the full ledger does not reproduce.
 
     Such holdings (typically entered by hand, or imported as a snapshot) are
-    missing from the rebuilt history, so returns would exclude them.
+    missing from the rebuilt history, so returns would exclude them. The
+    ledger is split-restated as in :func:`build_ledger_performance`, so a
+    holding still on a pre-split unit count is reported too.
     """
+    ledgers = _split_restated(ledgers, splits_for)
     holding_list = list(holdings)
     held: dict[str, float] = defaultdict(float)
     for holding in holding_list:

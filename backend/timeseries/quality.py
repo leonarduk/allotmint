@@ -13,7 +13,7 @@ from typing import TypedDict
 import numpy as np
 import pandas as pd
 
-from backend.utils.uk_holidays import uk_business_days_between
+from backend.utils.market_holidays import business_days_between
 
 DEFAULT_GAP_THRESHOLD_DAYS = 1
 DEFAULT_OUTLIER_SIGMA = 3.0
@@ -57,11 +57,17 @@ def find_duplicate_dates(df: pd.DataFrame) -> list[date]:
     return sorted(counts[counts > 1].index)
 
 
-def find_gaps(df: pd.DataFrame, gap_threshold_days: int = DEFAULT_GAP_THRESHOLD_DAYS) -> list[GapPeriod]:
-    """Return contiguous runs of missing UK business days longer than the threshold.
+def find_gaps(
+    df: pd.DataFrame,
+    gap_threshold_days: int = DEFAULT_GAP_THRESHOLD_DAYS,
+    exchange: str | None = None,
+) -> list[GapPeriod]:
+    """Return contiguous runs of missing trading days longer than the threshold.
 
-    Weekends and UK bank holidays are excluded from "expected" days, so a gap
-    over a weekend or holiday is never reported.
+    Weekends and ``exchange``'s holidays (see
+    :func:`backend.utils.market_holidays.exchange_holidays`; the UK calendar
+    when the exchange is unknown) are excluded from "expected" days, so a gap
+    over a weekend or a market closure is never reported (#10961).
     """
     if df.empty:
         return []
@@ -69,7 +75,7 @@ def find_gaps(df: pd.DataFrame, gap_threshold_days: int = DEFAULT_GAP_THRESHOLD_
     if len(present) < 2:
         return []
     first_date, last_date = min(present), max(present)
-    expected = uk_business_days_between(first_date, last_date)
+    expected = business_days_between(first_date, last_date, exchange)
     missing = [d for d in expected if d not in present]
     if not missing:
         return []
@@ -157,7 +163,7 @@ def compute_quality(
         )
 
     dates = _to_date_series(df)
-    gaps = find_gaps(df, gap_threshold_days=gap_threshold_days)
+    gaps = find_gaps(df, gap_threshold_days=gap_threshold_days, exchange=exchange)
 
     return TimeseriesQuality(
         ticker=ticker,

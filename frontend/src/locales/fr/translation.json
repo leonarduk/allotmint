@@ -2173,7 +2173,8 @@
     "confirmDelete": "Supprimer la liste de suivi « {{name}} » ?",
     "nameTaken": "Une liste de suivi nommée « {{name}} » existe déjà.",
     "cannotDeleteLast": "Il faut au moins une liste de suivi.",
-    "listNotFound": "Aucune liste de suivi nommée « {{name}} » dans ce navigateur — affichage de « {{shown}} »."
+    "listNotFound": "Aucune liste de suivi nommée « {{name}} » dans ce navigateur — affichage de « {{shown}} ».",
+    "constituentsAsOf": "Composition au {{date}} · {{source}}"
   },
   "scenarioFx": {
     "title": "Choc de change",

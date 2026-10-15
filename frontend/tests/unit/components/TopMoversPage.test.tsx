@@ -8,6 +8,7 @@ import enTranslation from "@/locales/en/translation.json";
 
 vi.mock("@/data/watchlists", () => ({
   WATCHLISTS: { "FTSE 100": ["AAA", "BBB"] },
+  WATCHLIST_META: { "FTSE 100": { asOf: "2026-10-09", source: "FTSE Russell" } },
 }));
 
 const signal: TradingSignal = {
@@ -321,6 +322,10 @@ describe("TopMoversPage", () => {
     const selects = await screen.findAllByRole("combobox");
     const watchlistSelect = selects[0] as HTMLSelectElement;
     await waitFor(() => expect(watchlistSelect.value).toBe("FTSE 100"));
+    // #10912: built-in lists show when their constituents were last checked.
+    expect(screen.getByTestId("watchlist-as-of")).toHaveTextContent(
+      /2026.*FTSE Russell/,
+    );
 
     expect(
       await screen.findByText(/log in to view portfolio-based movers/i),

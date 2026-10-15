@@ -2173,7 +2173,8 @@
     "confirmDelete": "Beobachtungsliste „{{name}}“ löschen?",
     "nameTaken": "Eine Beobachtungsliste namens „{{name}}“ existiert bereits.",
     "cannotDeleteLast": "Mindestens eine Beobachtungsliste ist erforderlich.",
-    "listNotFound": "Keine Watchlist namens „{{name}}“ in diesem Browser – stattdessen wird „{{shown}}“ angezeigt."
+    "listNotFound": "Keine Watchlist namens „{{name}}“ in diesem Browser – stattdessen wird „{{shown}}“ angezeigt.",
+    "constituentsAsOf": "Bestandteile Stand {{date}} · {{source}}"
   },
   "scenarioFx": {
     "title": "Währungsschock",

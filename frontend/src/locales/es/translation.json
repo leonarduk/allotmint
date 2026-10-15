@@ -2173,7 +2173,8 @@
     "confirmDelete": "¿Eliminar la lista de seguimiento «{{name}}»?",
     "nameTaken": "Ya existe una lista de seguimiento llamada «{{name}}».",
     "cannotDeleteLast": "Necesitas al menos una lista de seguimiento.",
-    "listNotFound": "No hay ninguna lista llamada \"{{name}}\" en este navegador; se muestra \"{{shown}}\"."
+    "listNotFound": "No hay ninguna lista llamada \"{{name}}\" en este navegador; se muestra \"{{shown}}\".",
+    "constituentsAsOf": "Componentes a fecha de {{date}} · {{source}}"
   },
   "scenarioFx": {
     "title": "Shock de divisa",

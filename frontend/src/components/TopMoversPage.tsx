@@ -18,6 +18,7 @@ import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
 import InfoTip from "./InfoTip";
+import { WatchlistAsOf } from "./WatchlistAsOf";
 
 import { useFetch } from "../hooks/useFetch";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
@@ -250,6 +251,7 @@ export function TopMoversPage() {
             ))}
           </select>
         </label>
+        {watchlist !== "Portfolio" && <WatchlistAsOf name={watchlist} />}
         {watchlist === "Portfolio" && (
           <label style={{ marginLeft: "0.5rem" }}>
             <input

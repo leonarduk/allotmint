@@ -2173,7 +2173,8 @@
     "confirmDelete": "Excluir a lista de observação \"{{name}}\"?",
     "nameTaken": "Já existe uma lista de observação chamada \"{{name}}\".",
     "cannotDeleteLast": "É necessária pelo menos uma lista de observação.",
-    "listNotFound": "Nenhuma lista chamada \"{{name}}\" neste navegador — a mostrar \"{{shown}}\"."
+    "listNotFound": "Nenhuma lista chamada \"{{name}}\" neste navegador — a mostrar \"{{shown}}\".",
+    "constituentsAsOf": "Constituintes em {{date}} · {{source}}"
   },
   "scenarioFx": {
     "title": "Choque cambial",

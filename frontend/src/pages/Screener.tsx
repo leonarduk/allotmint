@@ -7,6 +7,7 @@ import { useSortableTable } from "../hooks/useSortableTable";
 import { InstrumentDetail } from "../components/InstrumentDetail";
 import InfoTip from "../components/InfoTip";
 import WatchlistToggle from "../components/WatchlistToggle";
+import { WatchlistAsOf } from "../components/WatchlistAsOf";
 import SavedScreensBar from "../components/SavedScreensBar";
 import ScreenPresetButtons from "../components/ScreenPresetButtons";
 import type { SavedScreen } from "../lib/savedScreensStore";
@@ -379,6 +380,7 @@ export function Screener() {
               />
             </label>
           )}
+          {watchlist !== "Custom" && <WatchlistAsOf name={watchlist} />}
           {FILTER_FIELDS.map(({ param, labelKey, kind }) => {
             const label = t(`screener.${labelKey}`);
             return (

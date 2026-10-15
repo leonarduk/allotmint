@@ -2113,6 +2113,8 @@
     "pageDescription": "Regras que controlam quais operações esta conta pode realizar sem aprovação adicional.",
     "addApprovalFailed": "Falha ao adicionar a aprovação",
     "approvalsForbidden": "Não tem permissão para ver ou gerir as aprovações desta conta.",
+    "limitInvalid": "Introduza um número inteiro igual ou superior a 0, ou deixe em branco para usar o valor predefinido.",
+    "fixErrors": "Corrija os campos destacados antes de guardar.",
     "approvalsSessionExpired": "A sua sessão expirou. Inicie sessão novamente para gerir as aprovações.",
     "avatarAlt": "avatar do utilizador",
     "complianceDocsLink": "Saber mais sobre conformidade",

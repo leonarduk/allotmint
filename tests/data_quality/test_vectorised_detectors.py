@@ -119,6 +119,26 @@ def test_injected_one_day_spike_is_flagged():
     assert outliers[0]["z_score"] > 50
 
 
+def _with_spike(jump: float, revert_to: float) -> pd.DataFrame:
+    """Flat 100 series: day 100 jumps by ``jump`` and day 101 closes at ``revert_to``, then 100 again."""
+    closes = np.full(200, 100.0)
+    closes[100] = 100.0 * jump
+    closes[101] = revert_to
+    return pd.DataFrame({"Date": pd.bdate_range("2020-01-01", periods=200), "Close": closes})
+
+
+def test_partial_revert_is_not_flagged():
+    """A 2x jump that only gives back half the move isn't a one-day bad tick."""
+    assert find_outliers(_with_spike(2.0, 100.0 * 2.0**0.5)) == []
+    assert len(find_outliers(_with_spike(2.0, 100.0 * 2.0**0.1))) == 1  # 90% undone
+
+
+def test_move_and_back_below_jump_floor_is_not_flagged():
+    """A 10% move-and-back is tick/bid-ask noise even in a flat series with a huge z-score."""
+    assert find_outliers(_with_spike(1.10, 100.0)) == []
+    assert len(find_outliers(_with_spike(1.20, 100.0))) == 1
+
+
 def test_spike_on_latest_point_is_not_flagged():
     """A last-day jump can't be confirmed as reverting; LARGE_DAILY_MOVE covers it."""
     df = _trending_frame()

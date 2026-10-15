@@ -73,7 +73,10 @@ def get_timeseries_quality(
         DEFAULT_OUTLIER_SIGMA,
         gt=0,
         le=10,
-        description="Standard deviations from the rolling mean beyond which a point is an outlier",
+        description=(
+            "Robust z-score of a daily return (vs the rolling median/MAD) beyond which "
+            "a one-day spike that reverts is an outlier"
+        ),
     ),
     rolling_window: int = Query(
         DEFAULT_ROLLING_WINDOW, ge=2, le=250, description="Rolling window size (trading days) for outlier detection"

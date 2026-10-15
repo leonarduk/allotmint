@@ -26,7 +26,7 @@ from backend.common.accounts_store import (
 from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
 from backend.common.currency import CurrencyNormaliser
-from backend.common.holdings_rebuild import name_aliases, replay_transactions
+from backend.common.holdings_rebuild import drop_future_dated, name_aliases, replay_transactions
 from backend.common.instruments import get_instrument_meta
 from backend.common.prices import get_price_gbp
 from backend.common.realised_gains import compute_disposal_gains
@@ -770,6 +770,23 @@ def _rollback_import(store: "AccountsStore", persisted: List[Dict[str, Any]]) ->
 
 _TRADE_ONLY_FIELDS = ("price_gbp", "units", "fees")
 
+_FUTURE_DATE_DETAIL = "date cannot be in the future"
+
+
+def _is_future_date(tx_date: Optional[date]) -> bool:
+    """Whether ``tx_date`` is more than a day after the server's today.
+
+    One day of slack allows for a browser whose local date is ahead of the
+    server's (e.g. just after midnight in the UK against a UTC server).
+    """
+    return tx_date is not None and tx_date > date.today() + timedelta(days=1)
+
+
+def _reject_future_date(tx_date: Optional[date]) -> None:
+    """400 for a future-dated write, which the rebuild would count in today's holdings (#10898)."""
+    if _is_future_date(tx_date):
+        raise HTTPException(status_code=400, detail=_FUTURE_DATE_DETAIL)
+
 
 def _validate_create_shape(tx_data: Dict[str, Any]) -> None:
     """Check ``tx_data`` has the fields its type needs, and drop the ones it cannot use.
@@ -812,6 +829,7 @@ def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     account = _validate_component(tx_data.pop("account"), "account")
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
+    _reject_future_date(tx.date)
 
     _validate_create_shape(tx_data)
 
@@ -831,6 +849,7 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
     new_account = _validate_component(tx_data.pop("account"), "account")
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
+    _reject_future_date(tx.date)
 
     original_account_canonical = _find_transaction_account(original_owner, original_account, store)
 
@@ -1133,6 +1152,10 @@ async def import_transactions(
         except ImportPriceCurrencyError as exc:
             skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc)})
             continue
+        if _is_future_date(_parse_date(tx_data.get("date"))):
+            # Skipped per row, like other bad rows, so one typo does not block a historical import.
+            skipped.append({**row.model_dump(mode="json"), "skip_reason": _FUTURE_DATE_DETAIL})
+            continue
         target = (row_owner, row_account)
         if target not in file_accounts:
             file_accounts[target] = _transactions_account_name(row_owner, row_account, store)
@@ -1333,8 +1356,10 @@ def _replayed_units(transactions: List[Mapping[str, Any]], holdings: List[Mappin
     """``ticker``'s units after replaying ``transactions`` as the rebuild does.
 
     Uses the rebuild's own replay (including its name -> ticker aliases), so
-    an offset computed from it agrees with the rebuilt holding.
+    an offset computed from it agrees with the rebuilt holding, including
+    leaving out future-dated rows.
     """
+    transactions = drop_future_dated(transactions, warn=False)
     aliases = name_aliases(transactions, holdings)
     position = replay_transactions(transactions, aliases=aliases, warn=False).positions.get(ticker)
     return position.units if position else 0.0
@@ -1407,15 +1432,10 @@ def _manual_price_warning(ticker: str, price: float) -> Optional[Dict[str, Any]]
 
 
 def _manual_tx_date(payload: ManualHoldingCreate) -> Optional[str]:
-    """The requested transaction date as ISO text, rejecting a future date.
-
-    One day of slack allows for a browser whose local date is ahead of the
-    server's (e.g. just after midnight in the UK against a UTC server).
-    """
+    """The requested transaction date as ISO text, rejecting a future date."""
     if payload.date is None:
         return None
-    if payload.date > date.today() + timedelta(days=1):
-        raise HTTPException(status_code=400, detail="date cannot be in the future")
+    _reject_future_date(payload.date)
     return payload.date.isoformat()
 
 

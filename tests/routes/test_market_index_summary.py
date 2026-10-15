@@ -54,6 +54,7 @@ def test_index_summary_reports_points_and_pct_per_window(monkeypatch):
     [row] = body["indexes"]
     assert row["name"] == "FTSE 100"
     assert row["symbol"] == "^FTSE"
+    assert row["currency"] == "GBP"
     assert row["value"] == 1399.0
     assert row["as_of"].startswith("2026-02-04")
     changes = row["changes"]
@@ -74,7 +75,7 @@ def test_index_summary_marks_short_history_windows_as_none(monkeypatch):
 
     [row] = _client().get("/market/index-summary").json()["indexes"]
 
-    assert row["changes"]["1W"] == {"change": 0.0, "pct": 0.0}
+    assert row["changes"]["1W"] == {"change": 0.0, "pct": 0.0, "local_pct": 0.0}
     assert row["changes"]["1M"] is None
     assert row["changes"]["1Y"] is None
 
@@ -144,19 +145,110 @@ def test_index_summary_reinvests_etf_proxy_dividends_for_total_return(monkeypatc
     [row] = _client().get("/market/index-summary").json()["indexes"]
 
     assert row["changes"]["1Y"]["pct"] == pytest.approx(0.0)
-    assert row["total_return_1y"] == {"pct": pytest.approx(5.0), "symbol": "ISF.L", "source": "etf"}
+    assert row["total_return_1y"] == {
+        "pct": pytest.approx(5.0),
+        "symbol": "ISF.L",
+        "source": "etf",
+        "local_currency": "GBP",
+        "local_pct": pytest.approx(5.0),
+    }
 
 
-def test_index_summary_reads_a_total_return_index_directly(monkeypatch):
+def test_index_summary_converts_a_usd_total_return_to_gbp(monkeypatch):
+    # 11.5% in USD while the dollar rises 10% against sterling: 1.115 * 1.1 - 1 in GBP.
     _only(monkeypatch, "S&P 500")
     price = [1000.0] * 399 + [1100.0]
     total_return = [1000.0] * 399 + [1115.0]
-    frame = _download_frame({"^GSPC": price, "^SP500TR": total_return}, FLAT_YEAR)
+    gbp_per_usd = [0.80] * 399 + [0.88]
+    frame = _download_frame({"^GSPC": price, "^SP500TR": total_return, "USDGBP=X": gbp_per_usd}, FLAT_YEAR)
     monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
 
     [row] = _client().get("/market/index-summary").json()["indexes"]
 
-    assert row["total_return_1y"] == {"pct": pytest.approx(11.5), "symbol": "^SP500TR", "source": "index"}
+    # Points stay index points; the % is in GBP, with the USD move beside it.
+    assert row["changes"]["1Y"] == {
+        "change": pytest.approx(100.0),
+        "pct": pytest.approx(21.0),
+        "local_pct": pytest.approx(10.0),
+    }
+    assert row["total_return_1y"] == {
+        "pct": pytest.approx(22.65),
+        "symbol": "^SP500TR",
+        "source": "index",
+        "local_currency": "USD",
+        "local_pct": pytest.approx(11.5),
+    }
+
+
+def test_gbp_conversion_carries_the_last_rate_over_missing_fx_days(monkeypatch):
+    # No FX print on the final index day: the previous day's rate applies.
+    _only(monkeypatch, "NASDAQ-100")
+    gbp_per_usd = [0.80] * 398 + [0.88, float("nan")]
+    frame = _download_frame(
+        {"^NDX": [100.0] * 399 + [108.0], "QQQ": [100.0] * 399 + [110.0], "USDGBP=X": gbp_per_usd}, FLAT_YEAR
+    )
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["total_return_1y"]["local_pct"] == pytest.approx(10.0)
+    assert row["total_return_1y"]["pct"] == pytest.approx(21.0)
+
+
+def test_index_summary_has_no_usd_total_return_without_an_fx_rate(monkeypatch):
+    # Showing the USD figure as if it were sterling would be wrong, so none is shown.
+    _only(monkeypatch, "S&P 500")
+    frame = _download_frame({"^GSPC": [1000.0] * 400, "^SP500TR": [1000.0] * 399 + [1015.0]}, FLAT_YEAR)
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["total_return_1y"] is None
+
+
+def test_usd_price_change_has_no_gbp_pct_without_an_fx_rate(monkeypatch):
+    _only(monkeypatch, "NASDAQ-100")
+    frame = _download_frame({"^NDX": [100.0] * 399 + [110.0]}, FLAT_YEAR)
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["changes"]["1Y"] == {"change": pytest.approx(10.0), "pct": None, "local_pct": pytest.approx(10.0)}
+
+
+def test_plausibility_band_ignores_the_fx_move(monkeypatch):
+    # A 20% sterling move is far outside the dividend band, but the band is
+    # judged in USD, where the total return is only 1.5pp above price.
+    _only(monkeypatch, "S&P 500")
+    frame = _download_frame(
+        {
+            "^GSPC": [1000.0] * 400,
+            "^SP500TR": [1000.0] * 399 + [1015.0],
+            "USDGBP=X": [0.80] * 399 + [0.96],
+        },
+        FLAT_YEAR,
+    )
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["total_return_1y"]["pct"] == pytest.approx(21.8)
+
+
+def test_index_summary_downloads_fx_with_the_indices(monkeypatch):
+    requested = []
+    index = FLAT_YEAR[:3]
+
+    def fake_download(symbols, *_args, **_kwargs):
+        requested.append(list(symbols))
+        return _download_frame({"^GSPC": [1.0, 2.0, 3.0]}, index)
+
+    _only(monkeypatch, "S&P 500")
+    monkeypatch.setattr(market_sectors.yf, "download", fake_download)
+
+    _client().get("/market/index-summary")
+
+    assert requested == [["^GSPC", "^SP500TR", "USDGBP=X"]]
 
 
 def test_total_return_frame_keeps_a_symbol_without_dividends():

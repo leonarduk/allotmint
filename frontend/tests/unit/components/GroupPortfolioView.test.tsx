@@ -415,6 +415,7 @@ describe("GroupPortfolioView", () => {
         {
           name: "FTSE 100",
           symbol: "^FTSE",
+          currency: "GBP",
           value: 8000,
           as_of: null,
           changes: { "1D": null, "1W": null, "1M": null, "1Y": null },

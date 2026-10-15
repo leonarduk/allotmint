@@ -507,9 +507,10 @@
     "indexRows": {
       "toggle": "Mostrar índices de mercado",
       "label": "Índices",
-      "help": "FTSE 100, FTSE 250, S&P 500 y NASDAQ-100 como comparación. Niveles y variaciones 1D/1S/1M/1A en puntos del índice con rentabilidad de precio en %. La rentabilidad total 1A % incluye dividendos reinvertidos, en la divisa del índice (GBP para FTSE, USD para S&P y NASDAQ), sin convertir a libras. La ganancia desde la compra no aplica.",
-      "totalReturnSourceIndex": "Índice de rentabilidad total {{symbol}}, en la divisa del índice",
-      "totalReturnSourceEtf": "Aproximación: ETF {{symbol}} con dividendos reinvertidos, en la divisa del índice (incluye las comisiones del fondo)",
+      "help": "FTSE 100, FTSE 250, S&P 500 y NASDAQ-100 como comparación. Niveles y variaciones en puntos del índice. Todos los % están en libras: S&P y NASDAQ se convierten desde USD a tipos diarios, por lo que incluyen el movimiento del dólar frente a la libra (pase el cursor para ver la cifra en USD). La rentabilidad total 1A % incluye dividendos reinvertidos. La ganancia desde la compra no aplica.",
+      "totalReturnSourceIndex": "Índice de rentabilidad total {{symbol}}",
+      "totalReturnSourceEtf": "Aproximación: ETF {{symbol}} con dividendos reinvertidos (incluye las comisiones del fondo)",
+      "convertedFrom": "{{pct}} en {{currency}} antes de convertir a GBP",
       "loading": "Cargando índices…",
       "error": "Los datos de índices no están disponibles",
       "empty": "Sin datos de índices"
@@ -2117,6 +2118,8 @@
     "pageDescription": "Reglas que controlan qué operaciones puede realizar esta cuenta sin aprobación adicional.",
     "addApprovalFailed": "No se pudo añadir la aprobación",
     "approvalsForbidden": "No tienes permiso para ver ni gestionar las aprobaciones de esta cuenta.",
+    "limitInvalid": "Introduce un número entero igual o mayor que 0, o déjalo en blanco para usar el valor predeterminado.",
+    "fixErrors": "Corrige los campos resaltados antes de guardar.",
     "approvalsSessionExpired": "Tu sesión ha caducado. Inicia sesión de nuevo para gestionar las aprobaciones.",
     "avatarAlt": "avatar de usuario",
     "complianceDocsLink": "Más información sobre cumplimiento",

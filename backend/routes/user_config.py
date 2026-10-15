@@ -4,7 +4,7 @@ from backend.auth import get_active_user
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.common.settings_file import SettingsUnreadableError
-from backend.common.user_config import load_user_config, save_user_config
+from backend.common.user_config import InvalidUserConfigError, load_user_config, save_user_config
 from backend.routes._accounts import resolve_accounts_root
 
 router = APIRouter(prefix="/user-config", tags=["user-config"])
@@ -32,6 +32,8 @@ async def update_user_config(owner: str, request: Request, identity: str | None 
         return cfg.to_dict()
     except FileNotFoundError:
         raise_owner_not_found(owner)
+    except InvalidUserConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except SettingsUnreadableError as exc:
         raise HTTPException(
             status_code=409, detail="Owner settings file is unreadable; fix or remove it before saving"

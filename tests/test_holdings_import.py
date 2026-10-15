@@ -478,3 +478,198 @@ def test_price_in_gbp_returns_value_per_unit_when_neither_scale_agrees():
     row = {"Price (pence)": "12700", "Value (£)": "1000"}
 
     assert hargreaves._price_in_gbp(row, 10) == pytest.approx(100.0)
+
+
+ISSUE_10906_CSV = "Code,Units held,Price (pence),Cost (£)\n" "3IN,597,350,1800\n" "AAA,10,150,15\n"
+
+
+def _write_account(tmp_path: Path, holdings: list[dict], account_type: str = "ISA") -> Path:
+    account_file = tmp_path / "steve" / "isa.json"
+    account_file.parent.mkdir(parents=True, exist_ok=True)
+    account_file.write_text(
+        json.dumps({"owner": "steve", "account_type": account_type, "currency": "GBP", "holdings": holdings})
+    )
+    return account_file
+
+
+@pytest.fixture()
+def no_ticker_lookup(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    monkeypatch.setattr(update_holdings_from_csv, "resolve_instrument_ticker", lambda ticker: None)
+
+
+def _import_10906(csv_data: str = ISSUE_10906_CSV) -> None:
+    update_holdings_from_csv.update_from_csv(
+        owner="steve", account="isa", provider="hargreaves", data=csv_data.encode()
+    )
+
+
+def test_update_from_csv_preserves_stored_holding_fields(tmp_path: Path, no_ticker_lookup):
+    """A units change keeps acquired_date and other stored fields on every holding (#10906)."""
+    account_file = _write_account(
+        tmp_path,
+        [
+            {"ticker": "3IN.L", "units": 596, "acquired_date": "2025-06-03", "cost_basis_gbp": 1797, "note": "x"},
+            {"ticker": "AAA.L", "units": 10, "acquired_date": "2024-01-02", "cost_basis_gbp": 15},
+        ],
+    )
+
+    _import_10906()
+
+    h = {h["ticker"]: h for h in json.loads(account_file.read_text())["holdings"]}
+    assert h["3IN.L"]["units"] == pytest.approx(597)
+    assert h["3IN.L"]["cost_basis_gbp"] == pytest.approx(1800)
+    assert h["3IN.L"]["value_gbp"] == pytest.approx(2089.5)
+    assert h["3IN.L"]["acquired_date"] == "2025-06-03"
+    assert h["3IN.L"]["note"] == "x"
+    assert h["AAA.L"]["acquired_date"] == "2024-01-02"
+
+
+def test_update_from_csv_keeps_account_type_casing(tmp_path: Path, no_ticker_lookup):
+    account_file = _write_account(tmp_path, [], account_type="ISA")
+
+    _import_10906()
+
+    assert json.loads(account_file.read_text())["account_type"] == "ISA"
+
+
+def test_update_from_csv_without_cash_line_keeps_cash(tmp_path: Path, no_ticker_lookup):
+    cash = {"ticker": "CASH.GBP", "units": 8367.63, "cost_basis_gbp": 8367.63}
+    account_file = _write_account(tmp_path, [{"ticker": "AAA.L", "units": 10, "cost_basis_gbp": 15}, cash])
+
+    _import_10906()
+
+    h = {h["ticker"]: h for h in json.loads(account_file.read_text())["holdings"]}
+    assert h["CASH.GBP"] == cash
+
+
+def test_update_from_csv_with_cash_line_updates_cash(tmp_path: Path, no_ticker_lookup):
+    account_file = _write_account(tmp_path, [{"ticker": "CASH.GBP", "units": 100, "cost_basis_gbp": 100}])
+
+    _import_10906(ISSUE_10906_CSV + "CASH.GBP,110,100,110\n")
+
+    h = {h["ticker"]: h for h in json.loads(account_file.read_text())["holdings"]}
+    assert h["CASH.GBP"]["units"] == pytest.approx(110)
+    assert h["CASH.GBP"]["value_gbp"] == pytest.approx(110)
+
+
+def test_update_from_csv_adds_new_and_removes_missing_tickers(tmp_path: Path, no_ticker_lookup):
+    account_file = _write_account(
+        tmp_path,
+        [
+            {"ticker": "3IN.L", "units": 597, "acquired_date": "2025-06-03", "cost_basis_gbp": 1800},
+            {"ticker": "OLD.L", "units": 2, "acquired_date": "2020-01-01", "cost_basis_gbp": 4},
+        ],
+    )
+
+    _import_10906()
+
+    h = {h["ticker"]: h for h in json.loads(account_file.read_text())["holdings"]}
+    assert set(h) == {"3IN.L", "AAA.L"}
+    assert "acquired_date" not in h["AAA.L"]
+
+
+def test_update_from_csv_keeps_lot_dates_for_multi_lot_ticker(tmp_path: Path, no_ticker_lookup):
+    """Unchanged units leave each lot's units and date alone; cost/value are split across lots."""
+    account_file = _write_account(
+        tmp_path,
+        [
+            {"ticker": "AAA.L", "units": 6, "acquired_date": "2023-05-01", "cost_basis_gbp": 6},
+            {"ticker": "AAA.L", "units": 4, "acquired_date": "2024-01-20", "cost_basis_gbp": 6},
+        ],
+    )
+
+    _import_10906("Code,Units held,Price (pence),Cost (£)\nAAA,10,150,24\n")
+
+    lots = json.loads(account_file.read_text())["holdings"]
+    assert [(lot["acquired_date"], lot["units"]) for lot in lots] == [("2023-05-01", 6), ("2024-01-20", 4)]
+    assert [lot["value_gbp"] for lot in lots] == pytest.approx([9.0, 6.0])
+    assert [lot["cost_basis_gbp"] for lot in lots] == pytest.approx([12.0, 12.0])
+
+
+@pytest.mark.parametrize(
+    ("units", "expected"),
+    [
+        (12, [("2023-05-01", 6), ("2024-01-20", 6)]),
+        (5, [("2023-05-01", 5)]),
+        (8, [("2023-05-01", 6), ("2024-01-20", 2)]),
+    ],
+)
+def test_update_from_csv_resizes_latest_lot_first(tmp_path: Path, no_ticker_lookup, units, expected):
+    account_file = _write_account(
+        tmp_path,
+        [
+            {"ticker": "AAA.L", "units": 6, "acquired_date": "2023-05-01", "cost_basis_gbp": 6},
+            {"ticker": "AAA.L", "units": 4, "acquired_date": "2024-01-20", "cost_basis_gbp": 4},
+        ],
+    )
+
+    _import_10906(f"Code,Units held,Price (pence),Cost (£)\nAAA,{units},150,{units}\n")
+
+    lots = json.loads(account_file.read_text())["holdings"]
+    assert [(lot["acquired_date"], lot["units"]) for lot in lots] == [(d, pytest.approx(u)) for d, u in expected]
+
+
+def test_reconcile_preview_agrees_with_import_when_csv_has_no_cash(client: TestClient, tmp_path: Path):
+    """Preview reports no cash change and the import then leaves cash alone (#10906)."""
+    account_file = _write_account(
+        tmp_path,
+        [
+            {"ticker": "AAA.L", "units": 10, "acquired_date": "2024-01-02", "cost_basis_gbp": 15},
+            {"ticker": "CASH.GBP", "units": 8367.63, "cost_basis_gbp": 8367.63},
+        ],
+    )
+    csv_data = "Code,Units held,Price (pence),Cost (£)\nAAA,11,150,16.5\n"
+    form = {"provider": "hargreaves", "owner": "steve", "account": "isa"}
+
+    preview = client.post("/holdings/reconcile", data=form, files={"file": ("h.csv", csv_data.encode())}).json()
+    imported = client.post("/holdings/import", data=form, files={"file": ("h.csv", csv_data.encode())})
+
+    assert preview["removed"] == []
+    assert preview["cash_balance"] == {"stored_gbp": 8367.63, "imported_gbp": 8367.63, "delta_gbp": 0.0}
+    assert imported.status_code == 200
+    stored = json.loads(account_file.read_text())
+    h = {h["ticker"]: h for h in stored["holdings"]}
+    assert set(h) == {"AAA.L", "CASH.GBP"}
+    assert h["AAA.L"]["units"] == pytest.approx(11)
+    assert h["AAA.L"]["acquired_date"] == "2024-01-02"
+    assert stored["account_type"] == "ISA"
+
+
+def test_update_from_csv_adds_cash_line_to_account_without_cash(tmp_path: Path, no_ticker_lookup):
+    account_file = _write_account(tmp_path, [{"ticker": "AAA.L", "units": 10, "cost_basis_gbp": 15}])
+
+    _import_10906(ISSUE_10906_CSV + "CASH.GBP,50,100,50\n")
+
+    h = {h["ticker"]: h for h in json.loads(account_file.read_text())["holdings"]}
+    assert h["CASH.GBP"]["units"] == pytest.approx(50)
+
+
+def test_update_from_csv_uses_form_account_when_stored_type_missing(tmp_path: Path, no_ticker_lookup):
+    account_file = tmp_path / "steve" / "isa.json"
+    account_file.parent.mkdir(parents=True)
+    account_file.write_text(json.dumps({"owner": "steve", "holdings": []}))
+
+    _import_10906()
+
+    assert json.loads(account_file.read_text())["account_type"] == "isa"
+
+
+def test_update_from_csv_shrinks_three_lots_below_first_lot(tmp_path: Path, no_ticker_lookup):
+    lots = [
+        {"ticker": "AAA.L", "units": 6, "acquired_date": "2022-01-01", "cost_basis_gbp": 6},
+        {"ticker": "AAA.L", "units": 4, "acquired_date": "2023-01-01", "cost_basis_gbp": 4},
+        {"ticker": "AAA.L", "units": 2, "acquired_date": "2024-01-01", "cost_basis_gbp": 2},
+    ]
+    account_file = _write_account(tmp_path, lots)
+
+    _import_10906("Code,Units held,Price (pence),Cost (£)\nAAA,3,150,3\n")
+
+    stored = json.loads(account_file.read_text())["holdings"]
+    assert [(lot["acquired_date"], lot["units"]) for lot in stored] == [("2022-01-01", pytest.approx(3))]
+
+
+def test_resize_lots_clamps_negative_target_to_zero():
+    kept = update_holdings_from_csv._resize_lots([{"units": 6}, {"units": 4}], -1)
+
+    assert kept == [{"units": 0.0}]

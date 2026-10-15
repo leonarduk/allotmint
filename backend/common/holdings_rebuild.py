@@ -14,6 +14,14 @@ transfers always move ``CASH.GBP``.  Trade settlements (``BUY``/``SELL``) and
 charges (``FEES``/``FEES_REFUND``/``INTEREST_CHARGE``) move it only when the
 transactions document opts in with ``"trade_cash_effects": true``; accounts
 whose cash balance was reconciled without them keep their existing behaviour.
+
+Future-dated rows
+-----------------
+Rows dated after the replay cutoff (``as_of`` when given, else tomorrow, one
+day of slack for timezone skew) are left out of current holdings, their cost
+and ``acquired_date`` (#10903).  New rows like that are rejected on write
+(#10898); this keeps ones stored before that from counting.  The rows
+themselves are left untouched in the transactions file.
 """
 
 from __future__ import annotations
@@ -21,7 +29,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Callable, Mapping, Sequence
 
 from backend.common.ticker_utils import canonical_ticker
@@ -246,6 +254,33 @@ class Replay:
     on_disposal: Callable[[Disposal], None] | None = None
 
 
+def replay_cutoff(as_of: date | None = None) -> str:
+    """Last ISO date a current-holdings replay counts: ``as_of``, else tomorrow."""
+    return (as_of or date.today() + timedelta(days=1)).isoformat()
+
+
+def drop_future_dated(
+    transactions: Sequence[Mapping[str, Any]], as_of: date | None = None, *, warn: bool = True
+) -> list[Mapping[str, Any]]:
+    """``transactions`` without rows dated after :func:`replay_cutoff`; undated rows are kept."""
+    cutoff = replay_cutoff(as_of)
+    kept: list[Mapping[str, Any]] = []
+    for tx in transactions:
+        day = str(tx.get("date") or "")[:10]
+        if _ISO_DATE_RE.match(day) and day > cutoff:
+            if warn:
+                logger.warning(
+                    "Ignoring %s of %s dated %s, after %s",
+                    sanitise_log_value(tx.get("type")),
+                    sanitise_log_value(tx.get("ticker") or tx.get("instrument_name")),
+                    sanitise_log_value(day),
+                    sanitise_log_value(cutoff),
+                )
+            continue
+        kept.append(tx)
+    return kept
+
+
 def _apply_trade(replay: Replay, index: int, tx: Mapping[str, Any], tx_type: str, key: str, trade_cash: bool) -> None:
     qty = _quantity(tx)
     if not qty:
@@ -328,6 +363,7 @@ def transaction_cost_hints(transactions: Sequence[Mapping[str, Any]]) -> dict[st
     Read-time callers use these for holdings whose stored cost is 0, instead of
     reporting a false break-even.
     """
+    transactions = drop_future_dated(transactions, warn=False)
     replay = replay_transactions(transactions, aliases=name_aliases(transactions), warn=False)
     hints: dict[str, tuple[float | None, str | None]] = {}
     for key, pos in replay.positions.items():
@@ -375,7 +411,9 @@ def _merge_holding(
     return holding
 
 
-def _computed_holdings(replay: Replay, previous: Mapping[str, Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+def _computed_holdings(
+    replay: Replay, previous: Mapping[str, Mapping[str, Any]], cutoff: str
+) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for key, position in replay.positions.items():
         if position.units <= _EPS:
@@ -385,7 +423,11 @@ def _computed_holdings(replay: Replay, previous: Mapping[str, Mapping[str, Any]]
             continue
         prev = previous.get(key)
         units = round(position.units, 8)
-        out[key] = _merge_holding(key, units, _cost_basis(position, prev), position.acquired_date, prev)
+        holding = _merge_holding(key, units, _cost_basis(position, prev), position.acquired_date, prev)
+        if str(holding.get("acquired_date") or "") > cutoff:
+            # Carried forward from a rebuild that counted a future-dated row.
+            holding.pop("acquired_date")
+        out[key] = holding
     cash = round(replay.cash, 2)
     if replay.cash_seen and abs(cash) >= 0.005:
         out[CASH_TICKER] = _merge_holding(CASH_TICKER, cash, cash, None, previous.get(CASH_TICKER))
@@ -442,16 +484,24 @@ def rebuild_holdings_document(
     owner: str,
     account: str,
     existing: Mapping[str, Any] | None = None,
+    as_of: date | None = None,
 ) -> dict[str, Any]:
-    """Return the rebuilt holdings document, carrying forward ``existing`` data."""
-    transactions = [t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)]
+    """Return the rebuilt holdings document, carrying forward ``existing`` data.
+
+    Rows dated after :func:`replay_cutoff` (``as_of``, else tomorrow) are not
+    counted; see "Future-dated rows" in the module docstring.
+    """
+    cutoff = replay_cutoff(as_of)  # once, so the drop and the acquired_date guard agree across midnight
+    cutoff_date = date.fromisoformat(cutoff)
+    rows = [t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)]
+    transactions = drop_future_dated(rows, cutoff_date)
     existing = existing if isinstance(existing, Mapping) else {}
     old_holdings = [h for h in existing.get("holdings") or [] if isinstance(h, Mapping)]
     previous = _holdings_by_ticker(old_holdings)
 
     aliases = name_aliases(transactions, old_holdings)
     replay = replay_transactions(transactions, trade_cash=tx_data.get(TRADE_CASH_FLAG) is True, aliases=aliases)
-    computed = _computed_holdings(replay, previous)
+    computed = _computed_holdings(replay, previous, cutoff)
     tracked = _tracked_instruments(transactions, aliases)
     if replay.cash_seen:
         tracked.add(CASH_TICKER)

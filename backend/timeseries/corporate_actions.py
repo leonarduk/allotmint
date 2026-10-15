@@ -316,14 +316,20 @@ def dividends_series(actions: pd.DataFrame) -> pd.Series:
 
 
 def _is_frequent_payer(dates: pd.Series) -> bool:
-    """True when most gaps between ``dates`` are within the twin window (e.g. a weekly payer).
+    """True when ``dates`` show a cadence within the twin window (e.g. a weekly payer).
 
     Such a series pays similar amounts days apart for real, so its dividends
-    are never collapsed as twins. Fewer than three gaps say nothing about
-    cadence (one twin pair is a single short gap), so they count as not frequent.
+    are never collapsed as twins. It needs three short gaps in a row (four
+    payments each within the window of the last): twins, however many a
+    series has accumulated, are isolated pairs or triples between long gaps.
     """
     gaps = pd.Series(sorted(set(dates))).diff().dt.days.dropna()
-    return len(gaps) >= 3 and gaps.median() <= _TWIN_MAX_DAYS
+    run = 0
+    for gap in gaps:
+        run = run + 1 if gap <= _TWIN_MAX_DAYS else 0
+        if run >= 3:
+            return True
+    return False
 
 
 def _twin_of(day: pd.Timestamp, value: float, kept: list[tuple[pd.Timestamp, float]]) -> pd.Timestamp | None:
@@ -377,7 +383,7 @@ def merge_actions(existing: pd.DataFrame, new: pd.DataFrame, *, label: str = "")
         return existing, False
     new = _normalise(new)
     if existing.empty:
-        return _without_dividend_twins(existing, new, label), True
+        return _without_dividend_twins(empty_actions(), new, label), True
     existing = _normalise(existing)
     new = _without_dividend_twins(existing, new, label)
     merged = _normalise(pd.concat([existing, new], ignore_index=True))

@@ -106,6 +106,35 @@ def test_weekly_payer_is_never_collapsed():
     assert len(merged) == 7
 
 
+def test_accumulated_twin_pairs_do_not_read_as_a_frequent_payer():
+    """Four stored twin pairs make most gaps short, but none run three in a row."""
+    stored = _divs(
+        *[
+            row
+            for a, b in [
+                ("2025-08-14", "2025-08-21"),
+                ("2025-11-13", "2025-11-20"),
+                ("2026-02-12", "2026-02-20"),
+                ("2026-05-13", "2026-05-21"),
+            ]
+            for row in [(a, 0.05), (b, 0.05)]
+        ]
+    )
+    merged, changed = merge_actions(stored, _divs(("2026-08-12", 0.042187), ("2026-08-20", 0.042187)))
+
+    assert changed is True
+    assert _days(merged)[-1] == "2026-08-12"
+    assert len(merged) == len(stored) + 1
+
+
+def test_fetch_with_only_the_earlier_twin_keeps_the_stored_later_date():
+    stored = _divs(*QUARTERLY, ("2026-08-20", 0.042187))
+    merged, changed = merge_actions(stored, _divs(("2026-08-12", 0.042187)))
+
+    assert changed is False
+    assert _days(merged)[-1] == "2026-08-20"
+
+
 def test_a_manual_stored_row_is_kept_over_a_yahoo_twin():
     stored = _actions([("2026-05-21", DIVIDEND, 0.079257)], source="Manual")
     merged, changed = merge_actions(stored, _divs(("2026-05-13", 0.079257)))

@@ -122,7 +122,11 @@ def test_purge_write_normalises_suffixed_cache_without_a_fetch(monkeypatch, tmp_
 
     fetches = []
 
-    cache._rolling_cache(fetches.append, path, {}, days=20, ticker="ERNS", exchange="L", canonical_ticker="ERNS")
+    def fetch(**kwargs):
+        fetches.append(kwargs)
+        return cache._empty_ts()
+
+    cache._rolling_cache(fetch, path, {}, days=20, ticker="ERNS", exchange="L", canonical_ticker="ERNS")
 
     assert fetches == []  # the cache covers the window
     stored = pd.read_parquet(path)

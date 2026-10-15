@@ -151,3 +151,30 @@ def test_update_refuses_unreadable_settings_file(monkeypatch, tmp_path):
     # Reads still work, falling back to defaults.
     resp = client.get("/user-config/alice")
     assert resp.status_code == 200
+
+
+@pytest.mark.parametrize("payload", [{"max_trades_per_month": -5}, {"hold_days_min": -3}])
+def test_update_rejects_negative_trading_limits(monkeypatch, tmp_path, payload):
+    # Real files, no load/save mocks: a negative limit must 400 and leave
+    # settings.json untouched (#10916).
+    from fastapi import FastAPI
+
+    from backend.routes import user_config as user_config_route
+
+    monkeypatch.setattr(config, "disable_auth", True)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    settings = owner_dir / "settings.json"
+    original = '{"hold_days_min": 30, "max_trades_per_month": 10}'
+    settings.write_text(original)
+
+    app = FastAPI()
+    app.include_router(user_config_route.router)
+    app.state.accounts_root = tmp_path
+    client = TestClient(app)
+
+    resp = client.post("/user-config/alice", json=payload)
+    assert resp.status_code == 400
+    (field,) = payload
+    assert field in resp.json()["detail"]
+    assert settings.read_text() == original

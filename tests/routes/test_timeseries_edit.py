@@ -139,6 +139,21 @@ def test_post_csv_saves_parquet(tmp_path, monkeypatch):
     assert list(df["Source"]) == ["Manual", "Manual"]
 
 
+def test_post_normalises_suffixed_ticker_to_cache_key(tmp_path, monkeypatch):
+    """An upload exported with "ERNS.L" rows is stored with the bare cache key (#10908)."""
+    client = _make_client(tmp_path, monkeypatch)
+    data = [
+        {"Date": "2024-01-01", "Close": 1.5, "Ticker": "ERNS.L", "Source": "Yahoo"},
+        {"Date": "2024-01-02", "Close": 1.6, "Ticker": "ERNS", "Source": "Yahoo"},
+    ]
+
+    resp = client.post("/timeseries/edit?ticker=ERNS&exchange=L", json=data)
+
+    assert resp.status_code == 200
+    df = pd.read_parquet(timeseries_edit.meta_timeseries_cache_path("ERNS", "L"))
+    assert list(df["Ticker"]) == ["ERNS", "ERNS"]
+
+
 def test_get_cached_series_with_missing_values_serialises_as_null(tmp_path, monkeypatch):
     """NaN in a cached parquet must not 500 the GET (browser shows "Failed to fetch")."""
     client = _make_client(tmp_path, monkeypatch)

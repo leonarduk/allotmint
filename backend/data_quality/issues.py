@@ -972,11 +972,17 @@ def _stale_issue(
 
 
 def _ticker_mismatch_issue(ticker: str, exchange: str, df: pd.DataFrame) -> DataQualityIssue | None:
-    """Flag cache rows whose Ticker column does not match the cache key."""
+    """Flag cache rows whose Ticker column does not match the cache key.
+
+    A series stamped uniformly with the full ``{ticker}.{exchange}`` symbol
+    names the same instrument; until the cache write path (#10908) rewrites
+    it on the next refresh, it is not reported. A series mixing forms, or
+    carrying a different ticker, still is.
+    """
     if "Ticker" not in df.columns:
         return None
     row_tickers = {str(v).strip().upper() for v in df["Ticker"].dropna().unique() if str(v).strip()}
-    if not row_tickers or row_tickers == {ticker}:
+    if not row_tickers or row_tickers in ({ticker}, {f"{ticker}.{exchange}".upper()}):
         return None
     return DataQualityIssue(
         id=_issue_id(IssueType.TICKER_MISMATCH, ticker, exchange),

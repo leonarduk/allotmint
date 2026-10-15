@@ -99,3 +99,32 @@ def test_meta_loader_passes_cache_key_as_canonical_ticker(monkeypatch, tmp_path)
     cache._load_meta_timeseries_cached("ERNS", "L", 30)
 
     assert seen["canonical_ticker"] == "ERNS"
+
+
+def test_with_canonical_ticker_returns_empty_frame_as_is(monkeypatch, tmp_path):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    df = cache._empty_ts()
+
+    assert cache.with_canonical_ticker(df, "ERNS") is df
+
+
+def test_purge_write_normalises_suffixed_cache_without_a_fetch(monkeypatch, tmp_path):
+    """Dropping unpriced rows rewrites the file, and that write stores the key too."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    yesterday = datetime.today().date() - timedelta(days=1)
+    path = cache._cache_path("meta", "ERNS_L.parquet")
+    seeded = _rows(pd.bdate_range(end=yesterday + timedelta(days=7), periods=60), "ERNS.L")
+    seeded.loc[0, "Close"] = float("nan")  # an unpriced row forces the purge write
+    cache._save_parquet(seeded, path)
+
+    fetches = []
+
+    cache._rolling_cache(fetches.append, path, {}, days=20, ticker="ERNS", exchange="L", canonical_ticker="ERNS")
+
+    assert fetches == []  # the cache covers the window
+    stored = pd.read_parquet(path)
+    assert len(stored) == 59
+    assert set(stored["Ticker"]) == {"ERNS"}

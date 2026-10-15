@@ -82,6 +82,16 @@ def test_a_different_payment_days_apart_is_kept():
     assert merged["Value"].tolist() == [0.40, 0.40, 1.50]
 
 
+def test_a_same_sized_separate_payment_days_apart_is_dropped_as_a_known_limitation():
+    # Accepted trade-off (#10926): a real second payment this close in date
+    # and value can't be told apart from a Yahoo twin, so it is dropped.
+    stored = _divs(("2026-02-12", 0.40), ("2026-05-14", 0.40))
+    merged, changed = merge_actions(stored, _divs(("2026-05-21", 0.40)))
+
+    assert changed is False
+    assert _days(merged) == ["2026-02-12", "2026-05-14"]
+
+
 def test_a_split_near_a_dividend_is_kept():
     stored = _divs(("2026-02-12", 2.0), ("2026-05-14", 2.0))
     merged, _ = merge_actions(stored, _actions([("2026-05-18", SPLIT, 2.0)]))

@@ -31,7 +31,11 @@ Rows are filled from the same Yahoo ``history`` call that fetches prices,
 so no request path ever makes an extra network call for them. Writes merge
 incrementally (fetched rows win per key) and are skipped when nothing
 changes. A fetched dividend that repeats a kept one under another ex-date a
-few days away is dropped (#10926).
+few days away is dropped (#10926). Known limitation: a genuinely separate
+payment within ``_TWIN_MAX_DAYS`` of another and within ``_TWIN_REL_TOL`` of
+its value (e.g. a same-sized special right after a regular dividend) is
+indistinguishable from a twin and is dropped too, with an INFO log line;
+series paying that often as a cadence (see ``_is_frequent_payer``) are exempt.
 
 A successful fetch writes the file even when it found no events (#9567), so
 "checked: none paid" is told apart from "never checked" (no file). The file

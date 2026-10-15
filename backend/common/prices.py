@@ -222,7 +222,8 @@ def _live_quote_is_stale(
         return True
     if now - ts <= LIVE_QUOTE_MAX_AGE:
         return False
-    if market_state is None or market_state.upper() == _MARKET_OPEN_STATE:
+    # An unknown state (None, blank or not a string) keeps the 15-minute rule.
+    if not isinstance(market_state, str) or market_state.strip().upper() in ("", _MARKET_OPEN_STATE):
         return True
     return ts.date() < last_trading_day
 

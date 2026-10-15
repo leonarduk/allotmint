@@ -127,6 +127,12 @@ def test_unknown_market_state_keeps_15_minute_rule(monkeypatch: pytest.MonkeyPat
     assert entry["is_stale"] is True
 
 
+@pytest.mark.parametrize("state", [0, "", "  "])
+def test_non_string_or_blank_market_state_keeps_15_minute_rule(state: object) -> None:
+    now = datetime(2026, 10, 15, 5, 59, tzinfo=UTC)
+    assert prices._live_quote_is_stale(LAST_TRADE, state, now, date(2026, 10, 14)) is True  # type: ignore[arg-type]
+
+
 def test_missing_timestamp_is_stale() -> None:
     now = datetime(2026, 10, 15, 5, 59, tzinfo=UTC)
     assert prices._live_quote_is_stale(None, "CLOSED", now, date(2026, 10, 14)) is True

@@ -57,3 +57,16 @@ def test_compute_quality_uses_series_exchange():
     frame = _frame(["2012-10-26", "2012-10-31"])
     assert compute_quality(frame, "AAPL", "N")["gap_count"] == 0
     assert compute_quality(frame, "VOD", "L")["gap_count"] == 1
+
+
+def test_canada_day_and_civic_holiday_are_not_gaps_on_toronto():
+    # Mon 30 Jun 2025 then Wed 2 Jul: Tue 1 Jul (Canada Day) closed; then Fri 1 Aug
+    # -> Tue 5 Aug spans Civic Holiday (Mon 4 Aug).
+    for dates in (["2025-06-30", "2025-07-02"], ["2025-08-01", "2025-08-05"]):
+        assert find_gaps(_frame(dates), gap_threshold_days=0, exchange="TO") == []
+
+
+def test_unknown_exchange_falls_back_to_uk_calendar():
+    # The Platinum Jubilee is skipped for an exchange with no calendar of its own.
+    assert find_gaps(_frame(["2022-06-01", "2022-06-06"]), exchange="ZZ") == []
+    assert find_gaps(_frame(["2022-06-01", "2022-06-06"])) == []

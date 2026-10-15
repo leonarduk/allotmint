@@ -39,7 +39,8 @@ def test_nyse_holidays_special_closures():
 
 
 def test_nyse_new_year_on_saturday_is_not_observed():
-    # 1 Jan 2022 was a Saturday; the NYSE traded on Friday 31 Dec 2021.
+    # 1 Jan 2022 was a Saturday; the NYSE traded on Friday 31 Dec 2021 because
+    # it does not close on the last trading day of a year (NYSE Rule 7.2).
     assert date(2021, 12, 31) not in nyse_holidays(2021)
     assert date(2021, 12, 31) not in nyse_holidays(2022)
 

@@ -669,11 +669,14 @@ export interface MarketIndexes {
 
 /** Points and % change of a benchmark index over one window. */
 export interface IndexWindowChange {
-  /** In index points. */
-  change: number;
-  /** In GBP; `null` when a non-sterling index has no FX rate. */
+  /**
+   * Points and % on the GBP level (`value_gbp`), so they agree with each
+   * other; `null` when a non-sterling index has no FX rate.
+   */
+  change: number | null;
   pct: number | null;
-  /** The same move in the index's own currency. */
+  /** The same move on the index's own-currency level. */
+  local_change: number;
   local_pct: number;
 }
 

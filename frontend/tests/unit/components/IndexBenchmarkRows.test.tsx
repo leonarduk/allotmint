@@ -17,10 +17,15 @@ const summary: IndexSummary = {
       value_gbp: 8123.45,
       as_of: '2026-10-13T00:00:00',
       changes: {
-        '1D': { change: -12.5, pct: -0.15, local_pct: -0.15 },
-        '1W': { change: 40, pct: 0.5, local_pct: 0.5 },
+        '1D': {
+          change: -12.5,
+          pct: -0.15,
+          local_change: -12.5,
+          local_pct: -0.15,
+        },
+        '1W': { change: 40, pct: 0.5, local_change: 40, local_pct: 0.5 },
         '1M': null,
-        '1Y': { change: 600, pct: 7.98, local_pct: 7.98 },
+        '1Y': { change: 600, pct: 7.98, local_change: 600, local_pct: 7.98 },
       },
       total_return_1y: {
         pct: 11.5,
@@ -50,8 +55,8 @@ const summary: IndexSummary = {
       as_of: null,
       changes: {
         '1D': null,
-        '1W': { change: -40, pct: 0.4, local_pct: -0.5 },
-        '1M': null,
+        '1W': { change: 23.3, pct: 0.4, local_change: -40, local_pct: -0.5 },
+        '1M': { change: null, pct: null, local_change: 10, local_pct: 0.13 },
         '1Y': null,
       },
       total_return_1y: {
@@ -159,17 +164,19 @@ describe('IndexBenchmarkRows', () => {
     );
   });
 
-  it('shows a US price change in GBP, coloured by it, with the USD move on hover', async () => {
+  it('shows a US price change in GBP points and %, with the USD move on hover', async () => {
     renderRows();
 
     const sp500 = await screen.findByTestId('index-row-^GSPC');
-    const week = within(sp500).getByText('-40.00 (0.40%)');
+    // Up in sterling though the index fell in USD: points, % and colour all follow GBP.
+    const week = within(sp500).getByText('+23.30 (0.40%)');
     expect(week).toHaveAttribute(
       'title',
-      '-0.50% in USD before conversion to GBP'
+      '-40.00 (-0.50%) in USD before conversion to GBP'
     );
-    // Up in sterling though down in points: the colour follows the GBP %.
     expect(week).toHaveStyle({ color: 'var(--gain-positive)' });
+    // No GBP rate for that window: no converted figure rather than a USD one.
+    expect(cellTexts(sp500)[7]).toBe('—');
     const ftse100 = screen.getByTestId('index-row-^FTSE');
     expect(within(ftse100).getByText('+40.00 (0.50%)')).not.toHaveAttribute(
       'title'

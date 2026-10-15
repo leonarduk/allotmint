@@ -76,7 +76,7 @@ def test_index_summary_marks_short_history_windows_as_none(monkeypatch):
 
     [row] = _client().get("/market/index-summary").json()["indexes"]
 
-    assert row["changes"]["1W"] == {"change": 0.0, "pct": 0.0, "local_pct": 0.0}
+    assert row["changes"]["1W"] == {"change": 0.0, "pct": 0.0, "local_change": 0.0, "local_pct": 0.0}
     assert row["changes"]["1M"] is None
     assert row["changes"]["1Y"] is None
 
@@ -174,10 +174,11 @@ def test_index_summary_converts_a_usd_total_return_to_gbp(monkeypatch):
 
     [row] = _client().get("/market/index-summary").json()["indexes"]
 
-    # Points stay index points; the % is in GBP, with the USD move beside it.
+    # Points and % are on the GBP level (800 -> 968), with the USD move beside them.
     assert row["changes"]["1Y"] == {
-        "change": pytest.approx(100.0),
+        "change": pytest.approx(168.0),
         "pct": pytest.approx(21.0),
+        "local_change": pytest.approx(100.0),
         "local_pct": pytest.approx(10.0),
     }
     assert row["total_return_1y"] == {
@@ -239,14 +240,19 @@ def test_index_summary_has_no_usd_total_return_without_an_fx_rate(monkeypatch):
     assert row["total_return_1y"] is None
 
 
-def test_usd_price_change_has_no_gbp_pct_without_an_fx_rate(monkeypatch):
+def test_usd_price_change_has_no_gbp_move_without_an_fx_rate(monkeypatch):
     _only(monkeypatch, "NASDAQ-100")
     frame = _download_frame({"^NDX": [100.0] * 399 + [110.0]}, FLAT_YEAR)
     monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
 
     [row] = _client().get("/market/index-summary").json()["indexes"]
 
-    assert row["changes"]["1Y"] == {"change": pytest.approx(10.0), "pct": None, "local_pct": pytest.approx(10.0)}
+    assert row["changes"]["1Y"] == {
+        "change": None,
+        "pct": None,
+        "local_change": pytest.approx(10.0),
+        "local_pct": pytest.approx(10.0),
+    }
 
 
 def test_plausibility_band_ignores_the_fx_move(monkeypatch):

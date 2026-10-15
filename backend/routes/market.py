@@ -193,10 +193,12 @@ _BENCHMARK_CACHE: TTLCache[List[Dict[str, Any]]] = TTLCache(300, name="market_in
 
 
 class IndexChange(TypedDict):
-    # ``change`` is in index points; ``pct`` is in GBP (``None`` without an FX
-    # rate) and ``local_pct`` is the same move in the index's own currency.
-    change: float
+    # ``change`` (points) and ``pct`` are on the GBP level, so they agree with
+    # each other and with ``value_gbp``; ``None`` without an FX rate. The
+    # ``local_`` pair is the same move on the index's own-currency level.
+    change: Optional[float]
     pct: Optional[float]
+    local_change: float
     local_pct: float
 
 
@@ -215,30 +217,37 @@ def _index_changes(series: pd.Series, in_gbp: Optional[pd.Series]) -> Dict[str, 
     """Points and % change of ``series`` over each benchmark period (``None`` when too short).
 
     ``in_gbp`` is ``series`` in sterling (the series itself for a GBP index);
-    its % is what the row shows, so a US index's move includes the dollar's.
+    its move is what the row shows, so a US index's includes the dollar's.
     """
 
-    latest = float(series.iloc[-1])
     out: Dict[str, Optional[IndexChange]] = {}
     for period in BENCHMARK_PERIODS:
-        # Points and % share one base close, so the pair can never disagree.
-        # A zero base is a bad tick (no index closes at 0), so it counts as no data.
-        base = market_sectors.period_base(series, period)
-        if not base:
+        local = _move(series, period)
+        if local is None:
             out[period] = None
             continue
-        local_pct = (latest - base) / base * 100.0
-        out[period] = {"change": latest - base, "pct": _gbp_pct(in_gbp, period), "local_pct": local_pct}
+        gbp = _move(in_gbp, period) if in_gbp is not None and not in_gbp.empty else None
+        out[period] = {
+            "change": gbp[0] if gbp else None,
+            "pct": gbp[1] if gbp else None,
+            "local_change": local[0],
+            "local_pct": local[1],
+        }
     return out
 
 
-def _gbp_pct(in_gbp: Optional[pd.Series], period: market_sectors.Period) -> Optional[float]:
-    """% change of a sterling series over ``period``, ``None`` without one or its base."""
+def _move(series: pd.Series, period: market_sectors.Period) -> Optional[tuple[float, float]]:
+    """Points and % change of ``series`` over ``period``, ``None`` when too short.
 
-    if in_gbp is None or in_gbp.empty:
+    Points and % share one base close, so the pair can never disagree. A zero
+    base is a bad tick (no index closes at 0), so it counts as no data.
+    """
+
+    base = market_sectors.period_base(series, period)
+    if not base:
         return None
-    base = market_sectors.period_base(in_gbp, period)
-    return (float(in_gbp.iloc[-1]) - base) / base * 100.0 if base else None
+    change = float(series.iloc[-1]) - base
+    return change, change / base * 100.0
 
 
 def _in_gbp(series: pd.Series, currency: str, history: market_sectors.PriceHistory) -> Optional[pd.Series]:

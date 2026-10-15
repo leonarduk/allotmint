@@ -507,11 +507,11 @@
     "indexRows": {
       "toggle": "Marktindizes anzeigen",
       "label": "Indizes",
-      "help": "FTSE 100, FTSE 250, S&P 500 und NASDAQ-100 zum Vergleich. Stände in Indexpunkten, S&P und NASDAQ zum aktuellen USD-Kurs in Pfund umgerechnet; Punktveränderungen beziehen sich auf den eigenen Stand des Index. Alle %-Werte sind in Pfund: S&P und NASDAQ werden zu Tageskursen aus USD umgerechnet und enthalten daher die Bewegung des Dollars gegenüber dem Pfund (Mauszeiger darüber zeigt den USD-Wert). 1J-Gesamtrendite % enthält wiederangelegte Dividenden. Gewinn seit Kauf entfällt.",
+      "help": "FTSE 100, FTSE 250, S&P 500 und NASDAQ-100 zum Vergleich. Alles ist in Pfund: Stände sowie Punkt- und %-Veränderungen von S&P und NASDAQ werden zu Tageskursen aus USD umgerechnet und enthalten daher die Bewegung des Dollars gegenüber dem Pfund (Mauszeiger darüber zeigt den USD-Wert). 1J-Gesamtrendite % enthält wiederangelegte Dividenden. Gewinn seit Kauf entfällt.",
       "levelConvertedFrom": "{{value}} in {{currency}} vor Umrechnung in GBP",
       "totalReturnSourceIndex": "Gesamtrendite-Index {{symbol}}",
       "totalReturnSourceEtf": "Näherung: ETF {{symbol}} mit wiederangelegten Dividenden, jährliche Gebühr von {{fee}} herausgerechnet",
-      "convertedFrom": "{{pct}} in {{currency}} vor Umrechnung in GBP",
+      "convertedFrom": "{{value}} in {{currency}} vor Umrechnung in GBP",
       "loading": "Indizes werden geladen…",
       "error": "Indexdaten sind nicht verfügbar",
       "empty": "Keine Indexdaten"

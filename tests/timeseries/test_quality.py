@@ -100,6 +100,7 @@ def test_find_gaps_multiple_disjoint_gaps():
 def test_find_outliers_flags_spike():
     rows = [{"Date": f"2026-01-{d:02d}", "Close": 100.0} for d in range(1, 21)]
     rows.append({"Date": "2026-01-21", "Close": 1000.0})
+    rows.append({"Date": "2026-01-22", "Close": 100.0})  # reverts: a one-day bad tick
     df = _df(rows)
     outliers = find_outliers(df, sigma=3.0, window=20)
     assert len(outliers) == 1

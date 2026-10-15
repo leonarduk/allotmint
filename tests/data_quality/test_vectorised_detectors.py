@@ -1,39 +1,50 @@
-"""The vectorised outlier / price-step detectors match the per-row loops they replaced (#10754).
+"""The vectorised outlier / price-step detectors match per-row reference loops (#10754).
 
-The reference implementations below are the pre-#10754 loops, kept here so
-the faster versions are pinned to exactly the same output on awkward input:
-NaNs, flat windows, 10x/100x steps, inverse steps and short series.
+The reference implementations below are plain loops (the price-step ones are
+the pre-#10754 code; the outlier one follows the #10962 returns-based rule),
+kept here so the faster versions are pinned to exactly the same output on
+awkward input: NaNs, flat windows, 10x/100x steps, inverse steps and short
+series.
 """
 
 from __future__ import annotations
 
 import math
+import statistics
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from backend.common.numeric_utils import is_nan
 from backend.data_quality import price_scale
+from backend.timeseries import quality
 from backend.timeseries.quality import find_outliers
 
 
 def _reference_outliers(df: pd.DataFrame, sigma: float, window: int) -> list[dict]:
+    """Per-row reference for the returns-based spike-and-revert detector (#10962)."""
     sorted_df = df.sort_values("Date").reset_index(drop=True)
     close = pd.to_numeric(sorted_df["Close"], errors="coerce")
-    min_periods = max(2, window // 2)
-    rolling_mean = close.rolling(window=window, min_periods=min_periods).mean()
-    rolling_std = close.rolling(window=window, min_periods=min_periods).std()
+    rows = [(pos, float(v)) for pos, v in enumerate(close) if math.isfinite(v) and v > 0]
+    returns = [math.nan] + [math.log(b / a) for (_, a), (_, b) in zip(rows, rows[1:])]
+    min_periods = max(3, window // 4)
     out = []
-    for pos, value in enumerate(close):
-        mean = rolling_mean.iloc[pos]
-        std = rolling_std.iloc[pos]
-        if is_nan(value) or is_nan(mean) or is_nan(std) or std == 0:
+    for i in range(1, len(rows) - 1):
+        prior = [r for r in returns[max(0, i - window) : i] if not math.isnan(r)]
+        if len(prior) < min_periods:
             continue
-        z_score = abs(value - mean) / std
-        if z_score > sigma:
+        median = statistics.median(prior)
+        mad = statistics.median(abs(r - median) for r in prior)
+        scale = max(quality.MAD_TO_STD * mad, quality.MIN_RETURN_SCALE)
+        ret, nxt = returns[i], returns[i + 1]
+        z_score = abs(ret - median) / scale
+        spike = z_score > sigma and abs(ret) >= quality.MIN_SPIKE_LOG_RETURN
+        undone = abs(ret + nxt) <= (1 - quality.MIN_REVERSION_FRACTION) * abs(ret)
+        reverts = (ret > 0) != (nxt > 0) and nxt != 0 and undone
+        if spike and reverts:
+            pos, value = rows[i]
             row_date = pd.to_datetime(sorted_df["Date"].iloc[pos]).date()
-            out.append({"date": row_date.isoformat(), "value": float(value), "z_score": float(z_score)})
+            out.append({"date": row_date.isoformat(), "value": value, "z_score": pytest.approx(z_score)})
     return out
 
 
@@ -57,7 +68,7 @@ def _noisy_frame(seed: int, size: int = 400) -> pd.DataFrame:
 
 
 @pytest.mark.parametrize("seed", range(6))
-@pytest.mark.parametrize(("sigma", "window"), [(3.0, 20), (1.5, 5), (2.0, 250)])
+@pytest.mark.parametrize(("sigma", "window"), [(5.0, 20), (1.5, 5), (2.0, 250)])
 def test_find_outliers_matches_reference_loop(seed, sigma, window):
     df = _noisy_frame(seed)
     assert find_outliers(df, sigma=sigma, window=window) == _reference_outliers(df, sigma, window)
@@ -78,6 +89,78 @@ def test_find_outliers_matches_reference_loop(seed, sigma, window):
 def test_find_outliers_edge_cases_match_reference(closes):
     df = pd.DataFrame({"Date": pd.bdate_range("2024-01-01", periods=len(closes)), "Close": closes})
     assert find_outliers(df, sigma=1.0, window=4) == _reference_outliers(df, 1.0, 4)
+
+
+def _trending_frame(size: int = 500) -> pd.DataFrame:
+    rng = np.random.default_rng(7)
+    # ~60%/yr drift with 1.5% daily noise: the old level z-score flagged
+    # dozens of points on a series like this.
+    closes = 100 * np.exp(np.cumsum(0.002 + rng.normal(0, 0.015, size)))
+    return pd.DataFrame({"Date": pd.bdate_range("2020-01-01", periods=size), "Close": closes})
+
+
+def test_trending_series_has_no_outliers():
+    assert find_outliers(_trending_frame()) == []
+
+
+def test_breakout_that_holds_is_not_an_outlier():
+    df = _trending_frame()
+    df.loc[300:, "Close"] *= 1.4  # a 40% jump that sticks is a real move, not a bad tick
+    assert find_outliers(df) == []
+
+
+def test_injected_one_day_spike_is_flagged():
+    df = _trending_frame()
+    spike_close = df.loc[250, "Close"] * 3.0
+    df.loc[250, "Close"] = spike_close
+    outliers = find_outliers(df)
+    assert [o["date"] for o in outliers] == [df.loc[250, "Date"].date().isoformat()]
+    assert outliers[0]["value"] == spike_close
+    assert outliers[0]["z_score"] > 50
+
+
+def _with_spike(jump: float, revert_to: float) -> pd.DataFrame:
+    """Flat 100 series: day 100 jumps by ``jump`` and day 101 closes at ``revert_to``, then 100 again."""
+    closes = np.full(200, 100.0)
+    closes[100] = 100.0 * jump
+    closes[101] = revert_to
+    return pd.DataFrame({"Date": pd.bdate_range("2020-01-01", periods=200), "Close": closes})
+
+
+def test_partial_revert_is_not_flagged():
+    """A 2x jump that only gives back half the move isn't a one-day bad tick."""
+    assert find_outliers(_with_spike(2.0, 100.0 * 2.0**0.5)) == []
+    assert len(find_outliers(_with_spike(2.0, 100.0 * 2.0**0.1))) == 1  # 90% undone
+
+
+def test_move_and_back_below_jump_floor_is_not_flagged():
+    """A 10% move-and-back is tick/bid-ask noise even in a flat series with a huge z-score."""
+    assert find_outliers(_with_spike(1.10, 100.0)) == []
+    assert len(find_outliers(_with_spike(1.20, 100.0))) == 1
+
+
+def test_flat_window_uses_return_scale_floor():
+    """MAD == 0 (or tiny) falls back to MIN_RETURN_SCALE, so z stays finite and comparable."""
+    [outlier] = find_outliers(_with_spike(1.20, 100.0))
+    assert outlier["z_score"] == pytest.approx(math.log(1.20) / quality.MIN_RETURN_SCALE)
+
+    near_flat = _with_spike(1.20, 100.0)
+    near_flat.loc[:99, "Close"] += np.tile([0.0, 0.001], 50)  # MAD ~1e-5, far below the floor
+    assert find_outliers(near_flat)[0]["z_score"] == pytest.approx(outlier["z_score"], rel=1e-4)
+
+
+def test_spike_on_latest_point_is_not_flagged():
+    """A last-day jump can't be confirmed as reverting; LARGE_DAILY_MOVE covers it."""
+    df = _trending_frame()
+    df.loc[df.index[-1], "Close"] *= 3.0
+    assert find_outliers(df) == []
+
+
+def test_nan_row_next_to_spike_does_not_hide_it():
+    df = _trending_frame()
+    df.loc[250, "Close"] *= 0.2
+    df.loc[251, "Close"] = np.nan
+    assert [o["date"] for o in find_outliers(df)] == [df.loc[250, "Date"].date().isoformat()]
 
 
 @pytest.mark.parametrize("seed", range(6))

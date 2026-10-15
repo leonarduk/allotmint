@@ -365,9 +365,9 @@ def _without_dividend_twins(existing: pd.DataFrame, new: pd.DataFrame, label: st
         logger.info(
             "Skipping dividend %s on %s for %s: same payment as the one on %s",
             sanitise_log_value(row["Value"]),
-            row["Date"].date().isoformat(),
+            sanitise_log_value(row["Date"].date().isoformat()),
             sanitise_log_value(label),
-            twin.date().isoformat(),
+            sanitise_log_value(twin.date().isoformat()),
         )
     return new.drop(index=drop).reset_index(drop=True) if drop else new
 

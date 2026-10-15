@@ -1,362 +1,385 @@
+// FTSE constituents (allotmint#10912). Source: FTSE Russell "Constituents &
+// Weights" for FTSE 100 (UKX) and FTSE 250 (MCX) as at 30 June 2026
+// (published 19 August 2026), plus every change since:
+//   - September 2026 quarterly review, effective 21 September 2026:
+//     FTSE 100 +Easyjet +Ithaca Energy, -Entain -Persimmon;
+//     FTSE 250 +Entain +Persimmon +Volex, -Aston Martin -GB Group.
+//   - Takeover deletions with FTSE Russell's replacements: Bluefield Solar ->
+//     Halfords and International Personal Finance -> Auction Technology
+//     (4 Aug); JTC -> North American Income Trust (20 Aug); Beazley -> WPP,
+//     Schroders -> Balfour Beatty in the FTSE 100, with ASOS and Meridian
+//     Mining filling the FTSE 250 places (1 Oct); Senior -> Amaroq (8 Oct);
+//     Pinewood -> Young & Co's Brewery (9 Oct).
+// FTSE_AS_OF (shown in the UI) is the date the FTSE lists are current to:
+// every FTSE Russell change effective on or before it has been applied to
+// both indices, whether or not that index itself changed on that day. On a
+// refresh, set it to the latest effective date checked, not just the latest
+// change found. Separately, every ticker was checked on 14 Oct 2026 to
+// resolve to the named company and trade on the LSE. Standard Life (SDLF.L,
+// formerly Phoenix) and Aberdeen Group (ABDN.L) are distinct constituents.
+// When refreshing, update FTSE_AS_OF and WATCHLIST_META below.
+const FTSE_AS_OF = "2026-10-09";
+
 export const FTSE100 = [
-  "III.L",
-  "ABF.L",
-  "ADM.L",
-  "AAL.L",
-  "ANTO.L",
-  "AHT.L",
-  "AZN.L",
-  "AUTO.L",
-  "AVV.L",
-  "AV.L",
-  "BA.L",
-  "BARC.L",
-  "BDEV.L",
-  "BKG.L",
-  "BHP.L",
-  "BP.L",
-  "BATS.L",
-  "BLND.L",
-  "BT-A.L",
-  "BNZL.L",
-  "BRBY.L",
-  "CCL.L",
-  "CNA.L",
-  "CCH.L",
-  "CPG.L",
-  "CRH.L",
-  "CRDA.L",
-  "DCC.L",
-  "DGE.L",
-  "EVR.L",
-  "EXPN.L",
-  "FERG.L",
-  "FLTR.L",
-  "FRES.L",
-  "GSK.L",
-  "GLEN.L",
-  "HLMA.L",
-  "HL.L",
-  "HIK.L",
-  "HSX.L",
-  "HSBA.L",
-  "IMB.L",
-  "INF.L",
-  "IHG.L",
-  "ITRK.L",
-  "IAG.L",
-  "ITV.L",
-  "JD.L",
-  "JMAT.L",
-  "JE.L",
-  "KGF.L",
-  "LAND.L",
-  "LGEN.L",
-  "LLOY.L",
-  "LSE.L",
-  "MGGT.L",
-  "MRO.L",
-  "MNDI.L",
-  "MRW.L",
-  "NG.L",
-  "NXT.L",
-  "NMC.L",
-  "OCDO.L",
-  "PSON.L",
-  "PSN.L",
-  "PHNX.L",
-  "POLY.L",
-  "PRU.L",
-  "RDSA.L",
-  "RDSB.L",
-  "RB.L",
-  "REL.L",
-  "RTO.L",
-  "RMV.L",
-  "RIO.L",
-  "RR.L",
-  "RBS.L",
-  "RSA.L",
-  "SGE.L",
-  "SBRY.L",
-  "SDR.L",
-  "SMT.L",
-  "SGRO.L",
-  "SVT.L",
-  "SN.L",
-  "SMDS.L",
-  "SMIN.L",
-  "SKG.L",
-  "SPX.L",
-  "SSE.L",
-  "STJ.L",
-  "STAN.L",
-  "SLA.L",
-  "TW.L",
-  "TSCO.L",
-  "TUI.L",
-  "ULVR.L",
-  "UU.L",
-  "VOD.L",
-  "WTB.L",
-  "WPP.L",
+  "III.L", // 3i Group
+  "ABDN.L", // Aberdeen Group
+  "ADM.L", // Admiral Group
+  "AAF.L", // Airtel Africa
+  "ALW.L", // Alliance Witan
+  "AAL.L", // Anglo American
+  "ANTO.L", // Antofagasta
+  "ABF.L", // Associated British Foods
+  "AZN.L", // AstraZeneca
+  "AUTO.L", // Autotrader Group
+  "AV.L", // Aviva
+  "BAB.L", // Babcock International Group
+  "BA.L", // BAE Systems
+  "BBY.L", // Balfour Beatty
+  "BARC.L", // Barclays
+  "BTRW.L", // Barratt Redrow
+  "BP.L", // BP
+  "BATS.L", // British American Tobacco
+  "BLND.L", // British Land Co
+  "BT-A.L", // BT Group
+  "BNZL.L", // Bunzl
+  "BRBY.L", // Burberry Group
+  "CNA.L", // Centrica
+  "CCEP.L", // Coca-Cola Europacific Partners
+  "CCH.L", // Coca-Cola HBC AG
+  "CPG.L", // Compass Group
+  "CCC.L", // Computacenter
+  "CTEC.L", // ConvaTec Group
+  "CRDA.L", // Croda International
+  "DCC.L", // DCC
+  "DGE.L", // Diageo
+  "DPLM.L", // Diploma
+  "EZJ.L", // Easyjet
+  "EDV.L", // Endeavour Mining
+  "EXPN.L", // Experian
+  "FCIT.L", // F&C Investment Trust
+  "FRES.L", // Fresnillo
+  "GAW.L", // Games Workshop Group
+  "GLEN.L", // Glencore
+  "GSK.L", // GSK
+  "HLN.L", // Haleon
+  "HLMA.L", // Halma
+  "HSX.L", // Hiscox
+  "HWDN.L", // Howden Joinery Group
+  "HSBA.L", // HSBC Hldgs
+  "ICG.L", // ICG
+  "IGG.L", // IG Group Holdings
+  "IMI.L", // IMI
+  "IMB.L", // Imperial Brands
+  "INF.L", // Informa
+  "IHG.L", // InterContinental Hotels Group
+  "IAG.L", // International Consolidated Airlines Group
+  "ITRK.L", // Intertek Group
+  "INVP.L", // Investec
+  "ITH.L", // Ithaca Energy
+  "JD.L", // JD Sports Fashion
+  "KGF.L", // Kingfisher
+  "LAND.L", // Land Securities Group
+  "LGEN.L", // Legal & General Group
+  "BGEO.L", // Lion Finance Group
+  "LLOY.L", // Lloyds Banking Group
+  "LSEG.L", // London Stock Exchange Group
+  "LMP.L", // LondonMetric Property
+  "MNG.L", // M&G
+  "MKS.L", // Marks & Spencer Group
+  "MRO.L", // Melrose Industries
+  "MTLN.L", // Metlen Energy & Metals
+  "NG.L", // National Grid
+  "NWG.L", // Natwest Group
+  "NXT.L", // Next
+  "PSON.L", // Pearson
+  "PSH.L", // Pershing Square Holdings
+  "PCT.L", // Polar Capital Technology Trust
+  "PRU.L", // Prudential
+  "RKT.L", // Reckitt Benckiser Group
+  "REL.L", // RELX
+  "RTO.L", // Rentokil Initial
+  "RIO.L", // Rio Tinto
+  "RR.L", // Rolls-Royce Holdings
+  "SGE.L", // Sage Group
+  "SBRY.L", // Sainsbury (J)
+  "SMT.L", // Scottish Mortgage Inv Tst
+  "SGRO.L", // Segro
+  "SVT.L", // Severn Trent
+  "SHEL.L", // Shell
+  "SN.L", // Smith & Nephew
+  "SMIN.L", // Smiths Group
+  "SPX.L", // Spirax Group
+  "SSE.L", // SSE
+  "STJ.L", // St. James's Place
+  "STAN.L", // Standard Chartered
+  "SDLF.L", // Standard Life
+  "TSCO.L", // Tesco
+  "BBOX.L", // Tritax Big Box REIT
+  "ULVR.L", // Unilever
+  "UU.L", // United Utilities Group
+  "VOD.L", // Vodafone Group
+  "WEIR.L", // Weir Group
+  "WTB.L", // Whitbread
+  "WPP.L", // WPP
 ];
 
 export const FTSE250 = [
-  "3IN.L",
-  "FOUR.L",
-  "AJB.L",
-  "ASL.L",
-  "APEO.L",
-  "ATST.L",
-  "ATT.L",
-  "APAX.L",
-  "ASCL.L",
-  "ASHM.L",
-  "AGR.L",
-  "AML.L",
-  "ATG.L",
-  "AGT.L",
-  "BAB.L",
-  "BGFD.L",
-  "BAKK.L",
-  "BCPT.L",
-  "BBY.L",
-  "BCG.L",
-  "BGEO.L",
-  "BNKR.L",
-  "BAG.L",
-  "BBGI.L",
-  "BBH.L",
-  "BWY.L",
-  "BHMG.L",
-  "BYG.L",
-  "BRGE.L",
-  "BRSC.L",
-  "THRG.L",
-  "BRWM.L",
-  "BSIF.L",
-  "BOY.L",
-  "BPT.L",
-  "BLND.L",
-  "BVIC.L",
-  "BYIT.L",
-  "CCR.L",
-  "CLDN.L",
-  "CPI.L",
-  "CGT.L",
-  "CCL.L",
-  "CEY.L",
-  "CHG.L",
-  "CTY.L",
-  "CKN.L",
-  "CBG.L",
-  "CLI.L",
-  "CMCX.L",
-  "COA.L",
-  "CCC.L",
-  "CWK.L",
-  "CRST.L",
-  "CURY.L",
-  "DARK.L",
-  "DPH.L",
-  "DLN.L",
-  "DGI9.L",
-  "DPLM.L",
-  "DLG.L",
-  "DSCV.L",
-  "DEC.L",
-  "DOM.L",
-  "DWL.L",
-  "DOCS.L",
-  "DRX.L",
-  "DNLM.L",
-  "EZJ.L",
-  "EDIN.L",
-  "EWI.L",
-  "ELM.L",
-  "ESP.L",
-  "ENOG.L",
-  "ESNT.L",
-  "EOT.L",
-  "FDM.L",
-  "FXPO.L",
-  "FCSS.L",
-  "FEML.L",
-  "FEV.L",
-  "FSV.L",
-  "FGT.L",
-  "FGP.L",
-  "FSFL.L",
-  "FUTR.L",
-  "GAW.L",
-  "GCP.L",
-  "GEN.L",
-  "GNS.L",
-  "GFTU.L",
-  "GRI.L",
-  "GPE.L",
-  "UKW.L",
-  "GRG.L",
-  "HMSO.L",
-  "HBR.L",
-  "HVPE.L",
-  "HAS.L",
-  "HTWS.L",
-  "HSL.L",
-  "HRI.L",
-  "HGT.L",
-  "HICL.L",
-  "HIK.L",
-  "HILS.L",
-  "HFG.L",
-  "SONG.L",
-  "HWDN.L",
-  "IBST.L",
-  "ICGT.L",
-  "IGG.L",
-  "IEM.L",
-  "INCH.L",
-  "INDV.L",
-  "IHP.L",
-  "ICP.L",
-  "IDS.L",
-  "INPP.L",
-  "INVP.L",
-  "IPO.L",
-  "ITH.L",
-  "ITV.L",
-  "IWG.L",
-  "JLEN.L",
-  "JAM.L",
-  "JMG.L",
-  "JEDT.L",
-  "JGGI.L",
-  "JII.L",
-  "JFJ.L",
-  "JTC.L",
-  "JUP.L",
-  "JUST.L",
-  "KNOS.L",
-  "KLR.L",
-  "LRE.L",
-  "LWDB.L",
-  "LIO.L",
-  "LMP.L",
-  "LXI.L",
-  "EMG.L",
-  "MKS.L",
-  "MSLH.L",
-  "MEGP.L",
-  "MRC.L",
-  "MRCH.L",
-  "MAB.L",
-  "MTO.L",
-  "MCG.L",
-  "GROW.L",
-  "MONY.L",
-  "MNKS.L",
-  "MGAM.L",
-  "MGNS.L",
-  "MUT.L",
-  "MYI.L",
-  "NBPE.L",
-  "NETW.L",
-  "NESF.L",
-  "N91.L",
-  "NAS.L",
-  "ORIT.L",
-  "OSB.L",
-  "OXIG.L",
-  "PHI.L",
-  "PAGE.L",
-  "PIN.L",
-  "PAG.L",
-  "PNN.L",
-  "PNL.L",
-  "PHLL.L",
-  "PETS.L",
-  "PTEC.L",
-  "PLUS.L",
-  "PCT.L",
-  "PFD.L",
-  "PHP.L",
-  "PRTC.L",
-  "PZC.L",
-  "QQ.L",
-  "QLT.L",
-  "RAT.L",
-  "REDD.L",
-  "RDW.L",
-  "RSW.L",
-  "RHIM.L",
-  "RCP.L",
-  "ROR.L",
-  "RICA.L",
-  "SAFE.L",
-  "SVS.L",
-  "SDP.L",
-  "SOI.L",
-  "SAIN.L",
-  "SEIT.L",
-  "SNR.L",
-  "SEQI.L",
-  "SRP.L",
-  "SHC.L",
-  "SRE.L",
-  "SSON.L",
-  "SCT.L",
-  "SXS.L",
-  "SPI.L",
-  "SPT.L",
-  "SSPG.L",
-  "STEM.L",
-  "SUPR.L",
-  "SYNC.L",
-  "SYNT.L",
-  "THRL.L",
-  "TATE.L",
-  "TBCG.L",
-  "TEP.L",
-  "TMPL.L",
-  "TEM.L",
-  "ESCT.L",
-  "GSCT.L",
-  "TRIG.L",
-  "TIFS.L",
-  "TCAP.L",
-  "TRY.L",
-  "TRN.L",
-  "TPK.L",
-  "BBOX.L",
-  "EBOX.L",
-  "TUI.L",
-  "TFIF.L",
-  "TYMN.L",
-  "UKCM.L",
-  "SHED.L",
-  "VANQ.L",
-  "VSVS.L",
-  "VCT.L",
-  "VEIL.L",
-  "VOF.L",
-  "VMUK.L",
-  "VTY.L",
-  "FAN.L",
-  "WPS.L",
-  "WHR.L",
-  "WOSG.L",
-  "JDW.L",
-  "SMWH.L",
-  "WTAN.L",
-  "WIZZ.L",
-  "WG.L",
-  "WKP.L",
-  "WWH.L",
+  "3IN.L", // 3i Infrastructure
+  "FOUR.L", // 4imprint Group
+  "AAS.L", // Aberdeen Asia Focus
+  "ASL.L", // Aberforth Smaller Companies Tst
+  "AEP.L", // AEP Plantations Plc
+  "AJB.L", // AJ Bell
+  "ALFA.L", // Alfa Financial Software Holdings
+  "ATT.L", // Allianz Technology Trust
+  "AMRQ.L", // Amaroq
+  "AO.L", // AO World
+  "APN.L", // Applied Nutrition
+  "ASHM.L", // Ashmore Group
+  "AIE.L", // Ashoka India Equity Investment Trust
+  "ASC.L", // ASOS
+  "ATYM.L", // Atalaya Mining Copper
+  "ATG.L", // Auction Technology Group
+  "AGT.L", // Avi Global Trust
+  "AVON.L", // Avon Technologies
+  "BME.L", // B&M European Value Retail
+  "BGFD.L", // Baillie Gifford Japan Trust
+  "USA.L", // Baillie Gifford US Growth Trust
+  "BCG.L", // Baltic Classifieds Group
+  "BNKR.L", // Bankers Investment Trust
+  "BAG.L", // Barr (A.G.)
+  "BWY.L", // Bellway
+  "BKG.L", // Berkeley Group Holdings
+  "BHMG.L", // BH Macro (GBP)
+  "BYG.L", // Big Yellow Group
+  "BPCR.L", // Biopharma Credit
+  "BRGE.L", // BlackRock Greater Euro Inv Tst
+  "BRSC.L", // BlackRock Smaller Companies Tst
+  "BRWM.L", // BlackRock World Mining Trust
+  "BMY.L", // Bloomsbury Publishing
+  "BOY.L", // Bodycote
+  "BREE.L", // Breedon Group
+  "BPT.L", // Bridgepoint Group
+  "BUT.L", // Brunner Investment Trust
+  "BYIT.L", // Bytes Technology Group
+  "CLDN.L", // Caledonia Investments
+  "CGT.L", // Capital Gearing Trust
+  "CWR.L", // Ceres Power Holdings
+  "CHG.L", // Chemring Group
+  "CSN.L", // Chesnara
+  "CTY.L", // City of London Investment Trust
+  "CKN.L", // Clarkson
+  "CBG.L", // Close Brothers Group
+  "CMCX.L", // CMC Markets
+  "COA.L", // Coats Group
+  "CORD.L", // Cordiant Digital Infrastructure
+  "COST.L", // Costain Group
+  "CWK.L", // Cranswick
+  "CURY.L", // Currys
+  "CVSG.L", // CVS Group
+  "DLN.L", // Derwent London
+  "DSCV.L", // Discoverie Group
+  "DOM.L", // Dominos Pizza Group
+  "DOCS.L", // Dr Martens
+  "DRX.L", // Drax Group
+  "DNLM.L", // Dunelm Group
+  "EDIN.L", // Edinburgh Investment Trust
+  "EWI.L", // Edinburgh Worldwide Inv Tst
+  "ELM.L", // Elementis
+  "ENOG.L", // Energean
+  "ENT.L", // Entain
+  "ESCT.L", // European Smaller Companies Trust
+  "FCSS.L", // Fidelity China Special Situations
+  "FEML.L", // Fidelity Emerging Markets
+  "FEV.L", // Fidelity European Trust
+  "FSV.L", // Fidelity Special Values
+  "FGT.L", // Finsbury Growth & Income Trust
+  "FGP.L", // FirstGroup
+  "FGEN.L", // Foresight Environmental Infrastructure
+  "FSG.L", // Foresight Group Holdings
+  "FRAS.L", // Frasers Group
+  "FCH.L", // Funding Circle Holdings
+  "GFRD.L", // Galliford Try Holdings
+  "GAMA.L", // Gamma Communications
+  "GCP.L", // GCP Infrastructure Investments
+  "GEN.L", // Genuit Group
+  "GNS.L", // Genus
+  "GSCT.L", // Global Smaller Companies Trust
+  "DATA.L", // Globaldata
+  "GDWN.L", // Goodwin
+  "GFTU.L", // Grafton Group
+  "GRI.L", // Grainger
+  "GPE.L", // Great Portland Estates
+  "UKW.L", // Greencoat UK Wind
+  "GNC.L", // Greencore Group
+  "GRG.L", // Greggs
+  "HFD.L", // Halfords Group
+  "HMSO.L", // Hammerson
+  "HAN.L", // Hansa Investment Company
+  "HBR.L", // Harbour Energy
+  "HVPE.L", // HarbourVest Global Private Equity
+  "HWG.L", // Harworth Group
+  "HAS.L", // Hays
+  "HTWS.L", // Helios Towers
+  "HFEL.L", // Henderson Far East Income
+  "HSL.L", // Henderson Smaller Cos Inv Tst
+  "HRI.L", // Herald Investment Trust
+  "HGT.L", // HG Capital Trust
+  "HICL.L", // HICL Infrastructure
+  "HIK.L", // Hikma Pharmaceuticals
+  "HILS.L", // Hill & Smith
+  "HFG.L", // Hilton Food Group
+  "HOC.L", // Hochschild Mining
+  "BOWL.L", // Hollywood Bowl Group
+  "HTG.L", // Hunting
+  "ICGT.L", // ICG Enterprise Trust
+  "INCH.L", // Inchcape
+  "IHP.L", // Integrafin Holdings
+  "INPP.L", // International Public Partnership
+  "IWG.L", // International Workplace Group
+  "IAD.L", // INVESCO Asia Dragon Trust Plc
+  "IPO.L", // IP Group
+  "ITV.L", // ITV
+  "JMAT.L", // Johnson Matthey
+  "JSG.L", // Johnson Service Group
+  "JAM.L", // JPMorgan American IT
+  "JCH.L", // Jpmorgan Claverhouse IT
+  "JEMI.L", // JPMorgan Emerging Markets Dividend Income plc
+  "JMGI.L", // JPMorgan Emerging Markets Growth & Income
+  "JEDT.L", // JPMorgan European Discovery Trust
+  "JEGI.L", // JPMorgan European Growth & Income
+  "JGGI.L", // JPMorgan Global Growth & Income
+  "JFJ.L", // JPMorgan Japanese Inv. Trust
+  "JUP.L", // Jupiter Fund Management
+  "KNOS.L", // Kainos Group
+  "KLR.L", // Keller Group
+  "KIE.L", // Kier Group
+  "LRE.L", // Lancashire Holdings
+  "LWDB.L", // Law Debenture Corp
+  "EMG.L", // Man Group
+  "MEGP.L", // Me Group International
+  "MRC.L", // Mercantile Investment Tst
+  "MRCH.L", // Merchants Trust
+  "MNO.L", // Meridian Mining
+  "MTRO.L", // Metro Bank Holdings
+  "MAB.L", // Mitchells & Butlers
+  "MTO.L", // MITIE Group
+  "GROW.L", // Molten Ventures
+  "MNDI.L", // Mondi
+  "MNKS.L", // Monks Investment Trust
+  "MONY.L", // MONY Group Plc
+  "MOON.L", // Moonpig Group
+  "MGAM.L", // Morgan Advanced Materials
+  "MGNS.L", // Morgan Sindall Group
+  "MUT.L", // Murray Income Trust (Ord)
+  "MYI.L", // Murray International Trust (Ord)
+  "NCC.L", // NCC Group
+  "NBPE.L", // Neuberger Private Equity Partners (A)
+  "N91.L", // Ninety One
+  "NAIT.L", // North American Income Trust
+  "NAS.L", // North Atlantic SmallerCosInvTst
+  "OCI.L", // Oakley Capital Investments
+  "OCDO.L", // Ocado Group
+  "OSB.L", // OSB Group
+  "OXB.L", // Oxford Biomedica
+  "OXIG.L", // Oxford Instruments
+  "ONT.L", // Oxford Nanopore Technologies
+  "PHI.L", // Pacific Horizon Investment Trust
+  "PAGE.L", // Pagegroup
+  "PAF.L", // Pan African Resources
+  "PINT.L", // Pantheon Infrastructure
+  "PIN.L", // Pantheon International
+  "PAG.L", // Paragon Banking Group
+  "PEY.L", // Partners Group Private Equity
+  "PPET.L", // Patria Private Equity Trust
+  "PNN.L", // Pennon Group
+  "PSN.L", // Persimmon
+  "PNL.L", // Personal Assets Trust
+  "PETS.L", // Pets At Home Group
+  "PTEC.L", // Playtech
+  "PLUS.L", // Plus500
+  "PCGH.L", // Polar Capital Global Healthcare Trust
+  "POLN.L", // Pollen Street Group
+  "PPH.L", // PPHE Hotel Group
+  "PFD.L", // Premier Foods
+  "PHP.L", // Primary Health Prop.
+  "PRN.L", // Princes Group
+  "QQ.L", // Qinetiq Group
+  "QLT.L", // Quilter
+  "RNK.L", // Rank Group
+  "RPI.L", // Raspberry Pi Holdings
+  "RAT.L", // Rathbones Group
+  "TRIG.L", // Renewables Infrastructure Group
+  "RSW.L", // Renishaw
+  "RHIM.L", // RHI Magnesita
+  "RMV.L", // Rightmove
+  "RCP.L", // RIT Capital Partners
+  "ROSE.L", // Rosebank Industries
+  "ROR.L", // Rotork
+  "RS1.L", // RS Group
+  "RTW.L", // RTW Biotech Opportunities
+  "RICA.L", // Ruffer Investment Company
+  "SAFE.L", // Safestore Holdings
+  "SAGA.L", // Saga
+  "SVS.L", // Savills
+  "MNTN.L", // The Schiehallion Fund
+  "SDP.L", // Schroder Asia Pacific Fund
+  "ATR.L", // Schroder Asian Total Return Investment Company
+  "SOI.L", // Schroder Oriental Income Fund
+  "SAIN.L", // Scottish American Investment
+  "SEIT.L", // SDCL Efficiency Income Trust
+  "SEQI.L", // Sequoia Economic Infrastructure Income Fund
+  "SSIT.L", // Seraphim Space Investment Trust
+  "SRP.L", // Serco Group
+  "SHC.L", // Shaftesbury Capital
+  "SHAW.L", // Shawbrook Group
+  "SRE.L", // Sirius Real Estate
+  "SCT.L", // Softcat
+  "SPI.L", // Spire Healthcare Group
+  "SSPG.L", // SSP Group
+  "SUPR.L", // Supermarket Income REIT
+  "SYNC.L", // Syncona
+  "THRL.L", // Target Healthcare REIT
+  "TATE.L", // Tate & Lyle
+  "TW.L", // Taylor Wimpey
+  "TBCG.L", // TBC Bank Group
+  "TEP.L", // Telecom Plus
+  "TMPL.L", // Temple Bar Inv Tst
+  "TEM.L", // Templeton Emerging Markets IT
+  "THG.L", // THG
+  "TCAP.L", // TP ICAP Group
+  "TRY.L", // TR Property Investment Trust
+  "TRN.L", // Trainline
+  "TPK.L", // Travis Perkins
+  "TRST.L", // Trustpilot Group
+  "TFIF.L", // Twentyfour Income Fund
+  "UTG.L", // Unite Group
+  "UEM.L", // Utilico Emerging Markets Trust
+  "VSVS.L", // Vesuvius
+  "VCT.L", // Victrex
+  "VEIL.L", // Vietnam Enterprise Investments
+  "VOF.L", // Vinacapital Vietnam Opportunity Fund
+  "VTY.L", // Vistry Group
+  "VLX.L", // Volex
+  "FAN.L", // Volution Group
+  "EWG.L", // WAG Payment Solutions
+  "WOSG.L", // Watches of Switzerland Group
+  "JDW.L", // Wetherspoon(J D)
+  "SMWH.L", // WH Smith
+  "WIX.L", // Wickes Group
+  "WIZZ.L", // Wizz Air Holdings
+  "WKP.L", // Workspace Group
+  "WWH.L", // Worldwide Healthcare Trust
+  "XPP.L", // XP Power
+  "XPS.L", // XPS Pensions Group
+  "YNGA.L", // Young & Co's Brewery (A)
+  "ZIG.L", // ZIGUP
 ];
 
 export const FTSE350 = Array.from(new Set([...FTSE100, ...FTSE250]));
 
+// Approximation: the real All-Share also includes ~250 FTSE SmallCap
+// members, which this list does not carry (see WATCHLIST_META).
 export const FTSEAllShare = [...FTSE350];
 
 export const SP500 = [
@@ -900,3 +923,22 @@ export const WATCHLISTS = {
 } as const;
 
 export type WatchlistName = keyof typeof WATCHLISTS;
+
+export interface WatchlistMeta {
+  /** ISO date the constituents were last checked against `source`. */
+  asOf: string;
+  source: string;
+}
+
+export const WATCHLIST_META: Record<WatchlistName, WatchlistMeta> = {
+  "FTSE 100": { asOf: FTSE_AS_OF, source: "FTSE Russell" },
+  "FTSE 250": { asOf: FTSE_AS_OF, source: "FTSE Russell" },
+  "FTSE 350": { asOf: FTSE_AS_OF, source: "FTSE 100 + FTSE 250" },
+  "FTSE All-Share": {
+    asOf: FTSE_AS_OF,
+    source: "FTSE 350 only, excludes SmallCap",
+  },
+  // Last refreshed in #1219; not re-checked against S&P Dow Jones Indices.
+  "S&P 500": { asOf: "2025-09-10", source: "S&P Dow Jones Indices" },
+  "Core ETFs": { asOf: "2026-10-11", source: "curated list" },
+};

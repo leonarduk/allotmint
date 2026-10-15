@@ -133,6 +133,18 @@ describe("Screener", () => {
     expect(await screen.findByLabelText("Watchlist")).toBeInTheDocument();
   });
 
+  it("shows the built-in watchlist's as-of date and hides it for Custom (#10912)", async () => {
+    renderScreener();
+
+    expect(await screen.findByTestId("watchlist-as-of")).toHaveTextContent(
+      /2026.*FTSE Russell/,
+    );
+    fireEvent.change(screen.getByLabelText("Watchlist"), {
+      target: { value: "Custom" },
+    });
+    expect(screen.queryByTestId("watchlist-as-of")).not.toBeInTheDocument();
+  });
+
   it("sanitizes a 402 raised mid-submit instead of showing the raw backend detail", async () => {
     mockGetScreener.mockRejectedValueOnce(
       Object.assign(

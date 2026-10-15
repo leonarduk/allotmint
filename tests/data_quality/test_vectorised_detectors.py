@@ -139,6 +139,16 @@ def test_move_and_back_below_jump_floor_is_not_flagged():
     assert len(find_outliers(_with_spike(1.20, 100.0))) == 1
 
 
+def test_flat_window_uses_return_scale_floor():
+    """MAD == 0 (or tiny) falls back to MIN_RETURN_SCALE, so z stays finite and comparable."""
+    [outlier] = find_outliers(_with_spike(1.20, 100.0))
+    assert outlier["z_score"] == pytest.approx(math.log(1.20) / quality.MIN_RETURN_SCALE)
+
+    near_flat = _with_spike(1.20, 100.0)
+    near_flat.loc[:99, "Close"] += np.tile([0.0, 0.001], 50)  # MAD ~1e-5, far below the floor
+    assert find_outliers(near_flat)[0]["z_score"] == pytest.approx(outlier["z_score"], rel=1e-4)
+
+
 def test_spike_on_latest_point_is_not_flagged():
     """A last-day jump can't be confirmed as reverting; LARGE_DAILY_MOVE covers it."""
     df = _trending_frame()

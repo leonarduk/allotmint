@@ -66,7 +66,7 @@ describe('built-in FTSE watchlists', () => {
   });
 
   it('includes current constituents that replaced defunct tickers', () => {
-    for (const t of ['SHEL.L', 'NWG.L', 'RKT.L', 'AAF.L', 'SDLF.L']) {
+    for (const t of ['SHEL.L', 'NWG.L', 'ABDN.L', 'RKT.L', 'AAF.L', 'SDLF.L']) {
       expect(FTSE100).toContain(t);
     }
   });

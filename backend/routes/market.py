@@ -162,14 +162,21 @@ class Benchmark(NamedTuple):
     # The source's currency. The 1Y total return is converted to sterling so it
     # compares with the owners' GBP returns; a GBP source needs no conversion.
     currency: str
+    # An ETF proxy's annual ongoing charge, in %. Funds take it out of the
+    # price daily, so it is added back to measure the index rather than the
+    # fund; a total-return index has none.
+    fee_pct: float = 0.0
 
 
-# Benchmark rows beside the owner summary table, in display order.
+# Benchmark rows beside the owner summary table, in display order. Fees are
+# Yahoo's ``netExpenseRatio`` for each fund, checked 2026-10-15; hard-coded
+# because the quoteSummary endpoint behind it often rejects requests (see
+# ``backend.common.yahoo_chart``) and a fund's charge rarely changes.
 BENCHMARKS: tuple[Benchmark, ...] = (
-    Benchmark("FTSE 100", "^FTSE", "ISF.L", "etf", "GBP"),
-    Benchmark("FTSE 250", "^FTMC", "MIDD.L", "etf", "GBP"),
+    Benchmark("FTSE 100", "^FTSE", "ISF.L", "etf", "GBP", fee_pct=0.07),
+    Benchmark("FTSE 250", "^FTMC", "MIDD.L", "etf", "GBP", fee_pct=0.40),
     Benchmark("S&P 500", "^GSPC", "^SP500TR", "index", "USD"),
-    Benchmark("NASDAQ-100", "^NDX", "QQQ", "etf", "USD"),
+    Benchmark("NASDAQ-100", "^NDX", "QQQ", "etf", "USD", fee_pct=0.18),
 )
 # Yahoo FX pairs quoting GBP per one unit of each non-sterling currency.
 GBP_PER_UNIT_SYMBOLS: Dict[str, str] = {"USD": "USDGBP=X"}
@@ -186,10 +193,12 @@ _BENCHMARK_CACHE: TTLCache[List[Dict[str, Any]]] = TTLCache(300, name="market_in
 
 
 class IndexChange(TypedDict):
-    # ``change`` is in index points; ``pct`` is in GBP (``None`` without an FX
-    # rate) and ``local_pct`` is the same move in the index's own currency.
-    change: float
+    # ``change`` (points) and ``pct`` are on the GBP level, so they agree with
+    # each other and with ``value_gbp``; ``None`` without an FX rate. The
+    # ``local_`` pair is the same move on the index's own-currency level.
+    change: Optional[float]
     pct: Optional[float]
+    local_change: float
     local_pct: float
 
 
@@ -200,36 +209,45 @@ class IndexTotalReturn(TypedDict):
     source: Literal["index", "etf"]
     local_currency: str
     local_pct: float
+    # The annual fee added back to an ETF proxy's return (0 for an index).
+    fee_pct: float
 
 
 def _index_changes(series: pd.Series, in_gbp: Optional[pd.Series]) -> Dict[str, Optional[IndexChange]]:
     """Points and % change of ``series`` over each benchmark period (``None`` when too short).
 
     ``in_gbp`` is ``series`` in sterling (the series itself for a GBP index);
-    its % is what the row shows, so a US index's move includes the dollar's.
+    its move is what the row shows, so a US index's includes the dollar's.
     """
 
-    latest = float(series.iloc[-1])
     out: Dict[str, Optional[IndexChange]] = {}
     for period in BENCHMARK_PERIODS:
-        # Points and % share one base close, so the pair can never disagree.
-        # A zero base is a bad tick (no index closes at 0), so it counts as no data.
-        base = market_sectors.period_base(series, period)
-        if not base:
+        local = _move(series, period)
+        if local is None:
             out[period] = None
             continue
-        local_pct = (latest - base) / base * 100.0
-        out[period] = {"change": latest - base, "pct": _gbp_pct(in_gbp, period), "local_pct": local_pct}
+        gbp = _move(in_gbp, period) if in_gbp is not None and not in_gbp.empty else None
+        out[period] = {
+            "change": gbp[0] if gbp else None,
+            "pct": gbp[1] if gbp else None,
+            "local_change": local[0],
+            "local_pct": local[1],
+        }
     return out
 
 
-def _gbp_pct(in_gbp: Optional[pd.Series], period: market_sectors.Period) -> Optional[float]:
-    """% change of a sterling series over ``period``, ``None`` without one or its base."""
+def _move(series: pd.Series, period: market_sectors.Period) -> Optional[tuple[float, float]]:
+    """Points and % change of ``series`` over ``period``, ``None`` when too short.
 
-    if in_gbp is None or in_gbp.empty:
+    Points and % share one base close, so the pair can never disagree. A zero
+    base is a bad tick (no index closes at 0), so it counts as no data.
+    """
+
+    base = market_sectors.period_base(series, period)
+    if not base:
         return None
-    base = market_sectors.period_base(in_gbp, period)
-    return (float(in_gbp.iloc[-1]) - base) / base * 100.0 if base else None
+    change = float(series.iloc[-1]) - base
+    return change, change / base * 100.0
 
 
 def _in_gbp(series: pd.Series, currency: str, history: market_sectors.PriceHistory) -> Optional[pd.Series]:
@@ -249,12 +267,27 @@ def _in_gbp(series: pd.Series, currency: str, history: market_sectors.PriceHisto
     return (series * aligned).dropna()
 
 
+def _without_fee(series: pd.Series, fee_pct: float) -> pd.Series:
+    """``series`` with an annual ``fee_pct`` added back, compounding daily.
+
+    Each close grows by the fee for the time since the first close, so any
+    window's return rises by about the fee prorated over its length.
+    """
+
+    if not fee_pct or series.empty:
+        return series
+    years = (pd.DatetimeIndex(series.index) - pd.Timestamp(series.index[0])).days / 365.25
+    return series * (1.0 + fee_pct / 100.0) ** years
+
+
 def _total_return_1y(
     benchmark: Benchmark, history: market_sectors.PriceHistory, price_1y: Optional[IndexChange]
 ) -> Optional[IndexTotalReturn]:
     """1Y total return % of ``benchmark`` in GBP, or ``None`` when missing or implausible."""
 
-    series = market_sectors.series_for(history.total_return, benchmark.total_return_symbol)
+    series = _without_fee(
+        market_sectors.series_for(history.total_return, benchmark.total_return_symbol), benchmark.fee_pct
+    )
     local_pct = market_sectors.period_change(series, "1Y") if not series.empty else None
     if local_pct is None:
         return None
@@ -282,6 +315,7 @@ def _total_return_1y(
         "source": benchmark.total_return_source,
         "local_currency": benchmark.currency,
         "local_pct": local_pct,
+        "fee_pct": benchmark.fee_pct,
     }
 
 
@@ -303,13 +337,17 @@ def _fetch_index_summary() -> List[Dict[str, Any]]:
         if series.empty:
             logger.warning("No closes for benchmark index %s", sanitise_log_value(benchmark.name))
             continue
-        changes = _index_changes(series, _in_gbp(series, benchmark.currency, history))
+        in_gbp = _in_gbp(series, benchmark.currency, history)
+        changes = _index_changes(series, in_gbp)
         out.append(
             {
                 "name": benchmark.name,
                 "symbol": benchmark.symbol,
                 "currency": benchmark.currency,
                 "value": float(series.iloc[-1]),
+                # The level at the latest GBP rate (the level itself for a GBP
+                # index); ``None`` without an FX rate.
+                "value_gbp": float(in_gbp.iloc[-1]) if in_gbp is not None and not in_gbp.empty else None,
                 "as_of": _index_label_to_iso(series.index[-1]),
                 "changes": changes,
                 "total_return_1y": _total_return_1y(benchmark, history, changes["1Y"]),

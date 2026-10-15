@@ -14,12 +14,18 @@ const summary: IndexSummary = {
       symbol: '^FTSE',
       currency: 'GBP',
       value: 8123.45,
+      value_gbp: 8123.45,
       as_of: '2026-10-13T00:00:00',
       changes: {
-        '1D': { change: -12.5, pct: -0.15, local_pct: -0.15 },
-        '1W': { change: 40, pct: 0.5, local_pct: 0.5 },
+        '1D': {
+          change: -12.5,
+          pct: -0.15,
+          local_change: -12.5,
+          local_pct: -0.15,
+        },
+        '1W': { change: 40, pct: 0.5, local_change: 40, local_pct: 0.5 },
         '1M': null,
-        '1Y': { change: 600, pct: 7.98, local_pct: 7.98 },
+        '1Y': { change: 600, pct: 7.98, local_change: 600, local_pct: 7.98 },
       },
       total_return_1y: {
         pct: 11.5,
@@ -27,6 +33,7 @@ const summary: IndexSummary = {
         source: 'etf',
         local_currency: 'GBP',
         local_pct: 11.5,
+        fee_pct: 0.07,
       },
     },
     {
@@ -34,6 +41,7 @@ const summary: IndexSummary = {
       symbol: '^FTMC',
       currency: 'GBP',
       value: 20500,
+      value_gbp: 20500,
       as_of: null,
       changes: { '1D': null, '1W': null, '1M': null, '1Y': null },
       total_return_1y: null,
@@ -43,11 +51,12 @@ const summary: IndexSummary = {
       symbol: '^GSPC',
       currency: 'USD',
       value: 7700,
+      value_gbp: 5822.4,
       as_of: null,
       changes: {
         '1D': null,
-        '1W': { change: -40, pct: 0.4, local_pct: -0.5 },
-        '1M': null,
+        '1W': { change: 23.3, pct: 0.4, local_change: -40, local_pct: -0.5 },
+        '1M': { change: null, pct: null, local_change: 10, local_pct: 0.13 },
         '1Y': null,
       },
       total_return_1y: {
@@ -56,6 +65,7 @@ const summary: IndexSummary = {
         source: 'index',
         local_currency: 'USD',
         local_pct: 17.53,
+        fee_pct: 0,
       },
     },
   ],
@@ -132,7 +142,7 @@ describe('IndexBenchmarkRows', () => {
     const ftse100 = await screen.findByTestId('index-row-^FTSE');
     expect(within(ftse100).getByText('11.50%')).toHaveAttribute(
       'title',
-      expect.stringContaining('ISF.L')
+      'Proxy: ISF.L tracker ETF with dividends reinvested and its 0.07% annual fee added back'
     );
     const ftse250 = screen.getByTestId('index-row-^FTMC');
     expect(cellTexts(ftse250)[10]).toBe('—');
@@ -154,20 +164,38 @@ describe('IndexBenchmarkRows', () => {
     );
   });
 
-  it('shows a US price change in GBP, coloured by it, with the USD move on hover', async () => {
+  it('shows a US price change in GBP points and %, with the USD move on hover', async () => {
     renderRows();
 
     const sp500 = await screen.findByTestId('index-row-^GSPC');
-    const week = within(sp500).getByText('-40.00 (0.40%)');
+    // Up in sterling though the index fell in USD: points, % and colour all follow GBP.
+    const week = within(sp500).getByText('+23.30 (0.40%)');
     expect(week).toHaveAttribute(
       'title',
-      '-0.50% in USD before conversion to GBP'
+      '-40.00 (-0.50%) in USD before conversion to GBP'
     );
-    // Up in sterling though down in points: the colour follows the GBP %.
     expect(week).toHaveStyle({ color: 'var(--gain-positive)' });
+    // No GBP rate for that window: no converted figure rather than a USD one.
+    expect(cellTexts(sp500)[7]).toBe('—');
     const ftse100 = screen.getByTestId('index-row-^FTSE');
     expect(within(ftse100).getByText('+40.00 (0.50%)')).not.toHaveAttribute(
       'title'
+    );
+  });
+
+  it('shows a US level in GBP with the USD level on hover', async () => {
+    renderRows();
+
+    const sp500 = await screen.findByTestId('index-row-^GSPC');
+    const level = within(sp500).getByText('5,822.40');
+    expect(level).toHaveAttribute(
+      'title',
+      '7,700.00 in USD before conversion to GBP'
+    );
+    const ftse100 = screen.getByTestId('index-row-^FTSE');
+    expect(within(ftse100).getByText('8,123.45')).toHaveAttribute(
+      'title',
+      '2026-10-13T00:00:00'
     );
   });
 

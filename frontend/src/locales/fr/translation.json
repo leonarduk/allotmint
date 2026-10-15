@@ -507,10 +507,11 @@
     "indexRows": {
       "toggle": "Afficher les indices de marché",
       "label": "Indices",
-      "help": "FTSE 100, FTSE 250, S&P 500 et NASDAQ-100 pour comparaison. Niveaux et variations en points d'indice. Tous les % sont en livres : le S&P et le NASDAQ sont convertis depuis l'USD au cours du jour et incluent donc le mouvement du dollar face à la livre (survolez pour voir le chiffre en USD). Le rendement total 1A % inclut les dividendes réinvestis. La plus-value depuis l'achat ne s'applique pas.",
+      "help": "FTSE 100, FTSE 250, S&P 500 et NASDAQ-100 pour comparaison. Tout est en livres : les niveaux du S&P et du NASDAQ et leurs variations en points et en % sont convertis depuis l'USD au cours du jour, et incluent donc le mouvement du dollar face à la livre (survolez pour voir le chiffre en USD). Le rendement total 1A % inclut les dividendes réinvestis. La plus-value depuis l'achat ne s'applique pas.",
+      "levelConvertedFrom": "{{value}} en {{currency}} avant conversion en GBP",
       "totalReturnSourceIndex": "Indice de rendement total {{symbol}}",
-      "totalReturnSourceEtf": "Approximation : ETF {{symbol}} avec dividendes réinvestis (frais du fonds inclus)",
-      "convertedFrom": "{{pct}} en {{currency}} avant conversion en GBP",
+      "totalReturnSourceEtf": "Approximation : ETF {{symbol}} avec dividendes réinvestis et ses frais annuels de {{fee}} réintégrés",
+      "convertedFrom": "{{value}} en {{currency}} avant conversion en GBP",
       "loading": "Chargement des indices…",
       "error": "Les données d'indice sont indisponibles",
       "empty": "Aucune donnée d'indice"

@@ -669,11 +669,14 @@ export interface MarketIndexes {
 
 /** Points and % change of a benchmark index over one window. */
 export interface IndexWindowChange {
-  /** In index points. */
-  change: number;
-  /** In GBP; `null` when a non-sterling index has no FX rate. */
+  /**
+   * Points and % on the GBP level (`value_gbp`), so they agree with each
+   * other; `null` when a non-sterling index has no FX rate.
+   */
+  change: number | null;
   pct: number | null;
-  /** The same move in the index's own currency. */
+  /** The same move on the index's own-currency level. */
+  local_change: number;
   local_pct: number;
 }
 
@@ -683,7 +686,10 @@ export interface IndexSummaryRow {
   symbol: string;
   /** The index's own currency; its % figures are converted from it to GBP. */
   currency: string;
+  /** The level in index points, in the index's own currency. */
   value: number;
+  /** The level at the latest GBP rate; `null` without an FX rate. */
+  value_gbp: number | null;
   as_of: string | null;
   /** `null` when there isn't enough history for that window. */
   changes: Record<'1D' | '1W' | '1M' | '1Y', IndexWindowChange | null>;
@@ -702,6 +708,8 @@ export interface IndexTotalReturn {
   /** The source's own currency and the same return in it, before conversion. */
   local_currency: string;
   local_pct: number;
+  /** An ETF proxy's annual fee (%), added back to its return; 0 for an index. */
+  fee_pct: number;
 }
 
 export interface IndexSummary {

@@ -501,10 +501,11 @@
     "indexRows": {
       "toggle": "Show market indices",
       "label": "Indices",
-      "help": "FTSE 100, FTSE 250, S&P 500 and NASDAQ-100 for comparison. Levels and point changes are index points. Every % is in sterling: the S&P and NASDAQ figures are converted from USD at daily rates, so they include the dollar's move against the pound (hover one to see the USD figure). 1Y Total Return % adds reinvested dividends. Gain since purchase does not apply.",
+      "help": "FTSE 100, FTSE 250, S&P 500 and NASDAQ-100 for comparison. Everything is in sterling: the S&P and NASDAQ levels and their point and % changes are converted from USD at daily rates, so they include the dollar's move against the pound (hover one to see the USD figure). 1Y Total Return % adds reinvested dividends. Gain since purchase does not apply.",
+      "levelConvertedFrom": "{{value}} in {{currency}} before conversion to GBP",
       "totalReturnSourceIndex": "Total return index {{symbol}}",
-      "totalReturnSourceEtf": "Proxy: {{symbol}} tracker ETF with dividends reinvested (includes the fund's fees)",
-      "convertedFrom": "{{pct}} in {{currency}} before conversion to GBP",
+      "totalReturnSourceEtf": "Proxy: {{symbol}} tracker ETF with dividends reinvested and its {{fee}} annual fee added back",
+      "convertedFrom": "{{value}} in {{currency}} before conversion to GBP",
       "loading": "Loading indices…",
       "error": "Index data is unavailable",
       "empty": "No index data"

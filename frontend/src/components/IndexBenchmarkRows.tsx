@@ -30,13 +30,13 @@ const points = (v: number, signed = false): string => {
   return signed && v > 0 ? `+${text}` : text;
 };
 
-// Coloured by the GBP %, what a sterling investor got; points can disagree
-// with it for a US index when the dollar moves against the pound.
-const changeColor = (window: IndexWindowChange | null): string | undefined => {
-  if (window === null) return undefined;
-  const move = window.pct ?? window.change;
-  return move >= 0 ? 'var(--gain-positive)' : 'var(--gain-negative)';
-};
+// Coloured by the GBP move, what a sterling investor got; none without one.
+const changeColor = (window: IndexWindowChange | null): string | undefined =>
+  window?.pct == null
+    ? undefined
+    : window.pct >= 0
+      ? 'var(--gain-positive)'
+      : 'var(--gain-negative)';
 
 /** Owner-table columns an index has no figure for: stock/cash split, total return £, gain since purchase. */
 const BlankCells = ({ count }: { count: number }) => (
@@ -52,12 +52,25 @@ type RowProps = { row: IndexSummaryRow; relative: boolean };
 function IndexRow({ row, relative }: RowProps) {
   const { t } = useTranslation();
   const day = row.changes['1D'];
-  // A converted % says what it was before conversion.
+  // A converted level says what it was before conversion, beside its date.
+  const levelTitle =
+    [
+      row.as_of,
+      row.currency === 'GBP'
+        ? null
+        : t('group.indexRows.levelConvertedFrom', {
+            value: points(row.value),
+            currency: row.currency,
+          }),
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined;
+  // A converted move says what it was before conversion.
   const convertedTitle = (window: IndexWindowChange | null) =>
     window === null || row.currency === 'GBP'
       ? undefined
       : t('group.indexRows.convertedFrom', {
-          pct: percent(window.local_pct),
+          value: `${points(window.local_change, true)} (${percent(window.local_pct)})`,
           currency: row.currency,
         });
   return (
@@ -69,13 +82,17 @@ function IndexRow({ row, relative }: RowProps) {
         {row.name}
       </td>
       {/* Relative view's "Portfolio %" has no meaning for an index. */}
-      <td className={cell} title={row.as_of ?? undefined}>
-        {relative ? '' : points(row.value)}
+      <td className={cell} title={levelTitle}>
+        {relative ? '' : row.value_gbp === null ? '—' : points(row.value_gbp)}
       </td>
       <BlankCells count={2} />
       {!relative && (
-        <td className={cell} style={{ color: changeColor(day) }}>
-          {day ? points(day.change, true) : '—'}
+        <td
+          className={cell}
+          style={{ color: changeColor(day) }}
+          title={convertedTitle(day)}
+        >
+          {day?.change == null ? '—' : points(day.change, true)}
         </td>
       )}
       <td
@@ -94,7 +111,7 @@ function IndexRow({ row, relative }: RowProps) {
             style={{ color: changeColor(window) }}
             title={convertedTitle(window)}
           >
-            {window === null
+            {window?.change == null
               ? '—'
               : relative
                 ? percent(window.pct)
@@ -125,12 +142,13 @@ function TotalReturnCell({
         })
       : t('group.indexRows.totalReturnSourceEtf', {
           symbol: totalReturn.symbol,
+          fee: percent(totalReturn.fee_pct),
         });
   const title =
     totalReturn.local_currency === 'GBP'
       ? source
       : `${source}. ${t('group.indexRows.convertedFrom', {
-          pct: percent(totalReturn.local_pct),
+          value: percent(totalReturn.local_pct),
           currency: totalReturn.local_currency,
         })}`;
   return (

@@ -271,7 +271,7 @@ def test_total_return_frame_keeps_a_symbol_without_dividends():
     assert list(market_sectors.series_for(history.total_return, "^SP500TR")) == [1.0, 2.0, 3.0]
 
 
-def test_etf_proxy_fee_is_added_back_daily_from_the_window_start(monkeypatch):
+def test_etf_proxy_fee_is_added_back_prorated_to_the_window(monkeypatch):
     # A flat MIDD.L would show 0%; adding back its 0.40% fee shows the index's
     # return before the fund's charge, prorated to the window.
     monkeypatch.setattr(
@@ -286,6 +286,22 @@ def test_etf_proxy_fee_is_added_back_daily_from_the_window_start(monkeypatch):
     assert row["total_return_1y"]["fee_pct"] == 0.40
     # Only the total return is adjusted; the price index's change is untouched.
     assert row["changes"]["1Y"]["pct"] == pytest.approx(0.0)
+
+
+def test_etf_fee_add_back_does_not_depend_on_how_far_back_the_history_starts(monkeypatch):
+    # The add-back is a factor of the time since the first close, which cancels
+    # in any window's ratio: an 800-day history gives the same 1Y fee as a
+    # 400-day one, prorated to the window rather than to the download.
+    monkeypatch.setattr(
+        market, "BENCHMARKS", (market.Benchmark("FTSE 250", "^FTMC", "MIDD.L", "etf", "GBP", fee_pct=0.40),)
+    )
+    long_history = pd.date_range("2024-01-01", periods=800, freq="D")
+    frame = _download_frame({"^FTMC": [20000.0] * 800, "MIDD.L": [100.0] * 800}, long_history)
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["total_return_1y"]["pct"] == pytest.approx(_plus_fee(0.0, 0.40))
 
 
 def test_benchmark_fees_apply_only_to_etf_proxies():

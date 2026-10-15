@@ -9,6 +9,7 @@ import type { InstrumentPosition, OwnerSummary } from "../types";
 import {
   buildTransactionPayload,
   EMPTY_TRANSACTION_FORM_VALUES,
+  maxTransactionDate,
   type TradeType,
   type TransactionFormValues,
 } from "./transactions/transactionForm";
@@ -239,7 +240,13 @@ function TradeCoreFields({ values, onField, accounts, accountValue, onAccountCha
       </label>
       <label style={column}>
         {t("transactionEditor.date")}
-        <input type="date" value={values.date} onChange={onField("date")} required />
+        <input
+          type="date"
+          value={values.date}
+          onChange={onField("date")}
+          max={maxTransactionDate()}
+          required
+        />
       </label>
       <label style={column}>
         {t("transactionEditor.units")}

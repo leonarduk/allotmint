@@ -50,6 +50,33 @@ export function StatusBadge({ status }: { status?: BotRunStatus | null }) {
   );
 }
 
+function notScheduledHere(bot: BotSummary): boolean {
+  return Boolean(bot.schedule) && bot.scheduled_here === false;
+}
+
+function NextRun({ bot }: { bot: BotSummary }) {
+  const { t } = useTranslation();
+  if (notScheduledHere(bot))
+    return (
+      <span className="text-sm opacity-70" data-testid="bot-not-scheduled">
+        {t('bots.notScheduled')}
+      </span>
+    );
+  return (
+    <>
+      {formatTime(bot.next_run)}
+      {bot.overdue && (
+        <span
+          className="ml-2 rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
+          data-testid="bot-overdue"
+        >
+          {t('bots.overdue')}
+        </span>
+      )}
+    </>
+  );
+}
+
 function BotList({
   bots,
   selected,
@@ -104,7 +131,9 @@ function BotList({
               <td className={tableStyles.cell}>
                 {bot.last_run?.summary ?? '—'}
               </td>
-              <td className={tableStyles.cell}>{formatTime(bot.next_run)}</td>
+              <td className={tableStyles.cell}>
+                <NextRun bot={bot} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -434,6 +463,14 @@ function BotDetailPanel({
           scope: t(`bots.scope.${bot.scope}`),
         })}
       </p>
+      {notScheduledHere(bot) && (
+        <p className="text-sm opacity-80">{t('bots.notScheduledDetail')}</p>
+      )}
+      {bot.overdue && (
+        <p className="text-sm text-red-700" role="status">
+          {t('bots.overdueDetail')}
+        </p>
+      )}
       {bot.can_manage && (
         <button
           type="button"

@@ -32,6 +32,20 @@ backend lives in `backend/bots/`; the API in `backend/routes/bots.py`.
   frequent cadence the bot supports; the runner records a `skipped` run when
   the bot is disabled or not due for its `cadence`. Direct invocations (deploy
   Trigger, CI warm-up) always run.
+- **Scheduled on a local server** (`app_env: local`, #10925): there is no
+  EventBridge, so `backend/bots/local_scheduler.py` fires the bots listed in
+  `local_bot_schedule` (config.yaml, `server` section) at their
+  `default_schedule` through `runner.execute(..., "schedule")` -- the same
+  enabled/due/in-progress checks as a Lambda firing. The default is
+  `[price-refresh, dividend-refresh]`; bots that send external messages
+  (trading agent, pension report, trend watch, data steward) run on a schedule
+  locally only when listed. On startup a bot whose latest slot was missed while
+  the server was down runs once straight away. `[]` schedules nothing; any
+  other `app_env` schedules nothing locally, so a deployment never runs a bot
+  twice. Run one server process: each process starts its own scheduler. The
+  Bots page shows "Not scheduled on this server" (no Next run) for scheduled
+  bots this server never fires, and flags a scheduled bot as **Overdue** when
+  its last completed run is older than twice its schedule/cadence period.
 - **Event-driven** (e.g. on upload): set `default_schedule = None` and call
   `backend.bots.runner.execute("<bot-id>", "event", owner=..., payload=...)`.
   `statement-reconciliation` (`backend/reconciliation/bot.py`) is the worked

@@ -4173,6 +4173,10 @@ export interface BotSummary {
   cadence: string;
   schedule?: string | null;
   next_run?: string | null;
+  /** False when the bot has a schedule this server never fires (#10925). */
+  scheduled_here?: boolean;
+  /** Scheduled here but no completed run for over twice its period. */
+  overdue?: boolean;
   running: boolean;
   last_run?: BotRun | null;
 }

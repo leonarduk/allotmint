@@ -24,6 +24,12 @@ server:
   sns_topic_arn: ''
   telegram_bot_token: ''
   telegram_chat_id: ''
+  # Bots this server runs on schedule itself when app_env is local (#10925;
+  # docs/bots.md). Price/dividend refresh by default; add e.g. trading-agent
+  # to send its Telegram alerts on schedule too. [] schedules nothing.
+  local_bot_schedule:
+  - price-refresh
+  - dividend-refresh
   cors:
     local:
     - http://localhost:3000

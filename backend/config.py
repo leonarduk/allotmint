@@ -239,6 +239,13 @@ class Config:
     # fetched page is reused within a run.
     nav_refresh_request_interval_seconds: float = 2.0
     nav_refresh_cache_ttl_seconds: float = 3600.0
+    # Bots run on schedule by the app itself when ``app_env == "local"``
+    # (#10925; backend/bots/local_scheduler.py). AWS keeps EventBridge as the
+    # scheduler. Lists bot ids; ``None`` means the default (price and
+    # dividend refresh only), ``[]`` schedules nothing. Bots that send
+    # external messages (trading agent, pension report, ...) must be listed
+    # explicitly to run on a schedule locally.
+    local_bot_schedule: Optional[List[str]] = None
     stooq_timeout: Optional[int] = None
     news_requests_per_day: int = 25
     yahoo_news_endpoint: Optional[str] = None
@@ -766,6 +773,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
             default=False,
         ),
         nav_refresh_time=_parse_hh_mm(data.get("nav_refresh_time"), key="nav_refresh_time", default="18:30"),
+        local_bot_schedule=_parse_str_list(data.get("local_bot_schedule")),
         nav_refresh_request_interval_seconds=_parse_non_negative(
             data.get("nav_refresh_request_interval_seconds"),
             key="nav_refresh_request_interval_seconds",

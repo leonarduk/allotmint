@@ -8,7 +8,9 @@ Schedules stay in CDK: each EventBridge rule fires at the most frequent
 cadence the bot supports, and :func:`execute` checks the stored settings
 (``enabled``, ``cadence``) on each firing, recording a skipped run when the
 bot is not due. The app therefore never needs permission to edit
-EventBridge rules.
+EventBridge rules. A local server has no EventBridge: there
+:mod:`backend.bots.local_scheduler` fires the bots listed in
+``local_bot_schedule`` through :func:`execute` the same way (#10925).
 
 Run now (:func:`start_run`) is idempotent per bot: while a non-stale
 ``running`` record exists a second start is refused with
@@ -100,6 +102,39 @@ def next_due(
         if is_due(settings.cadence, last, fire):
             return fire
     return None
+
+
+_CADENCE_PERIOD = {"daily": timedelta(days=1), "weekly": timedelta(days=7), "monthly": timedelta(days=31)}
+
+
+def _schedule_period(schedule: Schedule) -> timedelta:
+    if schedule.day is not None:
+        return _CADENCE_PERIOD["monthly"]
+    if schedule.weekday is not None:
+        return _CADENCE_PERIOD["weekly"]
+    return _CADENCE_PERIOD["daily"]
+
+
+def is_overdue(
+    schedule: Optional[Schedule],
+    settings: BotSettings,
+    records: Iterable[RunRecord],
+    now: Optional[datetime] = None,
+) -> bool:
+    """Whether an enabled, scheduled bot has gone over twice its period without a run.
+
+    The period is the longer of the rule's and the cadence's. Any completed
+    run counts, manual or scheduled; a bot that has never run is not flagged
+    (there is nothing to measure from).
+    """
+
+    if schedule is None or not settings.enabled:
+        return False
+    last = next((r for r in records if r.status not in ("skipped", "running")), None)
+    if last is None:
+        return False
+    period = max(_schedule_period(schedule), _CADENCE_PERIOD[settings.cadence])
+    return (now or _now()) - last.started_at > 2 * period
 
 
 def running_record(bot: Bot, now: Optional[datetime] = None) -> Optional[RunRecord]:
@@ -399,6 +434,7 @@ __all__ = [
     "execute",
     "handle_lambda_event",
     "is_due",
+    "is_overdue",
     "last_scheduled_run",
     "next_due",
     "running_record",

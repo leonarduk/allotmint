@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { ChangeEventHandler, FormEventHandler } from "react";
-import { isTradeType, type TransactionFormValues } from "./transactionForm";
+import { isTradeType, maxTransactionDate, type TransactionFormValues } from "./transactionForm";
 import { useDemoReadOnly } from "../../hooks/useDemoReadOnly";
 
 interface TransactionEditorFormProps {
@@ -71,7 +71,13 @@ export function TransactionEditorForm({
       </label>
       <label style={{ display: "flex", flexDirection: "column" }}>
         {t("transactionEditor.date")}
-        <input type="date" value={values.date} onChange={onFieldChange("date")} required />
+        <input
+          type="date"
+          value={values.date}
+          onChange={onFieldChange("date")}
+          max={maxTransactionDate()}
+          required
+        />
       </label>
       <label style={{ display: "flex", flexDirection: "column" }}>
         {t("transactionEditor.ticker")}

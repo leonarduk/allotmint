@@ -13,6 +13,24 @@ from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
+# Trading-rule limits that must be whole numbers >= 0 when set. ``None``
+# (blank in the form) still means "use the deployment default" (#10916).
+_NON_NEGATIVE_INT_FIELDS = ("hold_days_min", "max_trades_per_month")
+
+
+class InvalidUserConfigError(ValueError):
+    """Raised when a submitted user config value is out of range."""
+
+
+def _validate_trading_limits(updates: dict[str, object]) -> None:
+    for field in _NON_NEGATIVE_INT_FIELDS:
+        value = updates.get(field)
+        if value is None:
+            continue
+        # ``bool`` is an ``int`` subclass; ``true`` is not a day count.
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise InvalidUserConfigError(f"{field} must be a whole number of 0 or more")
+
 
 def _parse_str_list(val: object) -> Optional[List[str]]:
     if isinstance(val, list):
@@ -75,7 +93,9 @@ def save_user_config(owner: str, cfg: UserConfig | dict[str, object], accounts_r
 
     Raises :class:`SettingsUnreadableError` rather than overwriting an
     unreadable file, which would silently drop every other setting in it,
-    e.g. the rebalance ``allocation_policy`` (#9514).
+    e.g. the rebalance ``allocation_policy`` (#9514), and
+    :class:`InvalidUserConfigError` for a negative or non-integer trading
+    limit, before anything is written (#10916).
     """
     path = settings_path(owner, accounts_root)
     existing = read_settings(path)
@@ -85,6 +105,7 @@ def save_user_config(owner: str, cfg: UserConfig | dict[str, object], accounts_r
     else:
         allowed = {"hold_days_min", "max_trades_per_month", "approval_exempt_types", "approval_exempt_tickers"}
         updates = {k: v for k, v in cfg.items() if k in allowed and v is not None}
+    _validate_trading_limits(updates)
 
     data = {**existing, **updates}
     path.write_text(json.dumps(data, indent=2, sort_keys=True))

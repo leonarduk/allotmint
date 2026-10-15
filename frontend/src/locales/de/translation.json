@@ -507,9 +507,10 @@
     "indexRows": {
       "toggle": "Marktindizes anzeigen",
       "label": "Indizes",
-      "help": "FTSE 100, FTSE 250, S&P 500 und NASDAQ-100 zum Vergleich. Stände und 1T/1W/1M/1J-Veränderungen in Indexpunkten mit Kursrendite in %. 1J-Gesamtrendite % enthält wiederangelegte Dividenden in der Währung des Index (GBP für FTSE, USD für S&P und NASDAQ) und ist nicht in Pfund umgerechnet. Gewinn seit Kauf entfällt.",
-      "totalReturnSourceIndex": "Gesamtrendite-Index {{symbol}}, in der Währung des Index",
-      "totalReturnSourceEtf": "Näherung: ETF {{symbol}} mit wiederangelegten Dividenden, in der Währung des Index (inklusive Fondskosten)",
+      "help": "FTSE 100, FTSE 250, S&P 500 und NASDAQ-100 zum Vergleich. Stände und Punktveränderungen in Indexpunkten. Alle %-Werte sind in Pfund: S&P und NASDAQ werden zu Tageskursen aus USD umgerechnet und enthalten daher die Bewegung des Dollars gegenüber dem Pfund (Mauszeiger darüber zeigt den USD-Wert). 1J-Gesamtrendite % enthält wiederangelegte Dividenden. Gewinn seit Kauf entfällt.",
+      "totalReturnSourceIndex": "Gesamtrendite-Index {{symbol}}",
+      "totalReturnSourceEtf": "Näherung: ETF {{symbol}} mit wiederangelegten Dividenden (inklusive Fondskosten)",
+      "convertedFrom": "{{pct}} in {{currency}} vor Umrechnung in GBP",
       "loading": "Indizes werden geladen…",
       "error": "Indexdaten sind nicht verfügbar",
       "empty": "Keine Indexdaten"
@@ -2117,6 +2118,8 @@
     "pageDescription": "Regeln, die festlegen, welche Trades dieses Konto ohne zusätzliche Genehmigung tätigen kann.",
     "addApprovalFailed": "Genehmigung konnte nicht hinzugefügt werden",
     "approvalsForbidden": "Sie haben keine Berechtigung, Genehmigungen für dieses Konto anzuzeigen oder zu verwalten.",
+    "limitInvalid": "Geben Sie eine ganze Zahl ab 0 ein oder lassen Sie das Feld leer, um den Standardwert zu verwenden.",
+    "fixErrors": "Korrigieren Sie die markierten Felder vor dem Speichern.",
     "approvalsSessionExpired": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um Genehmigungen zu verwalten.",
     "avatarAlt": "Benutzeravatar",
     "complianceDocsLink": "Mehr zur Compliance erfahren",

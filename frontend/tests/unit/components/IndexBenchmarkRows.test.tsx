@@ -12,23 +12,51 @@ const summary: IndexSummary = {
     {
       name: 'FTSE 100',
       symbol: '^FTSE',
+      currency: 'GBP',
       value: 8123.45,
       as_of: '2026-10-13T00:00:00',
       changes: {
-        '1D': { change: -12.5, pct: -0.15 },
-        '1W': { change: 40, pct: 0.5 },
+        '1D': { change: -12.5, pct: -0.15, local_pct: -0.15 },
+        '1W': { change: 40, pct: 0.5, local_pct: 0.5 },
         '1M': null,
-        '1Y': { change: 600, pct: 7.98 },
+        '1Y': { change: 600, pct: 7.98, local_pct: 7.98 },
       },
-      total_return_1y: { pct: 11.5, symbol: 'ISF.L', source: 'etf' },
+      total_return_1y: {
+        pct: 11.5,
+        symbol: 'ISF.L',
+        source: 'etf',
+        local_currency: 'GBP',
+        local_pct: 11.5,
+      },
     },
     {
       name: 'FTSE 250',
       symbol: '^FTMC',
+      currency: 'GBP',
       value: 20500,
       as_of: null,
       changes: { '1D': null, '1W': null, '1M': null, '1Y': null },
       total_return_1y: null,
+    },
+    {
+      name: 'S&P 500',
+      symbol: '^GSPC',
+      currency: 'USD',
+      value: 7700,
+      as_of: null,
+      changes: {
+        '1D': null,
+        '1W': { change: -40, pct: 0.4, local_pct: -0.5 },
+        '1M': null,
+        '1Y': null,
+      },
+      total_return_1y: {
+        pct: 18.8,
+        symbol: '^SP500TR',
+        source: 'index',
+        local_currency: 'USD',
+        local_pct: 17.53,
+      },
     },
   ],
 };
@@ -108,6 +136,39 @@ describe('IndexBenchmarkRows', () => {
     );
     const ftse250 = screen.getByTestId('index-row-^FTMC');
     expect(cellTexts(ftse250)[10]).toBe('—');
+  });
+
+  it('shows a converted total return in GBP with the USD figure in its tooltip', async () => {
+    renderRows();
+
+    const sp500 = await screen.findByTestId('index-row-^GSPC');
+    const cellWithReturn = within(sp500).getByText('18.80%');
+    expect(cellWithReturn).toHaveAttribute(
+      'title',
+      expect.stringContaining('17.53% in USD before conversion to GBP')
+    );
+    const ftse100 = screen.getByTestId('index-row-^FTSE');
+    expect(within(ftse100).getByText('11.50%')).toHaveAttribute(
+      'title',
+      expect.not.stringContaining('before conversion')
+    );
+  });
+
+  it('shows a US price change in GBP, coloured by it, with the USD move on hover', async () => {
+    renderRows();
+
+    const sp500 = await screen.findByTestId('index-row-^GSPC');
+    const week = within(sp500).getByText('-40.00 (0.40%)');
+    expect(week).toHaveAttribute(
+      'title',
+      '-0.50% in USD before conversion to GBP'
+    );
+    // Up in sterling though down in points: the colour follows the GBP %.
+    expect(week).toHaveStyle({ color: 'var(--gain-positive)' });
+    const ftse100 = screen.getByTestId('index-row-^FTSE');
+    expect(within(ftse100).getByText('+40.00 (0.50%)')).not.toHaveAttribute(
+      'title'
+    );
   });
 
   it('collapses and expands the index rows from the Indices row', async () => {

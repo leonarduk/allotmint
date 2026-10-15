@@ -1,3 +1,4 @@
+import { localDateISO } from "@/lib/date";
 import { transactionUnits } from "@/lib/transactionQuantity";
 import type { Transaction } from "@/types";
 
@@ -88,6 +89,17 @@ function formTypeFor(type: string | null | undefined): string {
   return (type ?? "").toUpperCase();
 }
 
+/**
+ * Latest date a transaction may carry: tomorrow in the browser's timezone.
+ * Matches the backend's one day of slack for clock skew (#10898); a later
+ * date would be counted in today's holdings.
+ */
+export function maxTransactionDate(now: Date = new Date()): string {
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return localDateISO(tomorrow);
+}
+
 export type TransactionPayload = {
   owner: string;
   account: string;
@@ -109,6 +121,7 @@ export function buildTransactionPayload(
   values: TransactionFormValues,
   owner: string,
   account: string,
+  now: Date = new Date(),
 ): BuildTransactionPayloadResult {
   const price = Number.parseFloat(values.price);
   const units = Number.parseFloat(values.units);
@@ -125,6 +138,11 @@ export function buildTransactionPayload(
       payload: null,
       error: "Please complete all required fields.",
     };
+  }
+
+  // ISO YYYY-MM-DD strings compare in date order.
+  if (values.date > maxTransactionDate(now)) {
+    return { payload: null, error: "Date cannot be in the future." };
   }
 
   if (!Number.isFinite(price) || price <= 0) {

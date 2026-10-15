@@ -284,16 +284,22 @@ def load_latest_closes(
 def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     """Fetch real-time quotes for ``full_tickers``.
 
-    Returns a mapping ``{'TICKER': {'price': float, 'timestamp': datetime}}``
+    Returns a mapping
+    ``{'TICKER': {'price': float, 'timestamp': datetime, 'market_state': str | None}}``
     keyed by the upper-cased input ticker, where ``price`` is GBP, scaled
-    exactly like the stored closes (see :mod:`backend.common.live_prices`) and
-    the timestamp is timezone-aware (UTC). Tickers without a usable quote are
-    skipped.
+    exactly like the stored closes (see :mod:`backend.common.live_prices`),
+    the timestamp is timezone-aware (UTC) and ``market_state`` is Yahoo's
+    ``marketState`` when the quote was fetched (``REGULAR`` while the market
+    is open; ``None`` when unknown). Tickers without a usable quote are skipped.
     """
     from backend.common import live_prices  # local import: live_prices imports this module
 
     return {
-        full: {"price": quote["price_gbp"], "timestamp": quote["timestamp"]}
+        full: {
+            "price": quote["price_gbp"],
+            "timestamp": quote["timestamp"],
+            "market_state": quote.get("market_state"),
+        }
         for full, quote in live_prices.load_live_quotes(full_tickers).items()
     }
 
@@ -639,8 +645,9 @@ def _period_changes(
 def _snapshot_is_stale(snap: Dict[str, Any], reporting_date: dt.date) -> bool:
     """Staleness of a price snapshot entry relative to ``reporting_date`` (#7919).
 
-    Stale when the entry says so (live quotes older than 15 minutes, set in
-    ``backend/common/prices.py``) *or* its ``last_price_date`` is before the
+    Stale when the entry says so (set in ``backend/common/prices.py``: a live
+    quote older than 15 minutes while its market is open, or one older than
+    the latest completed session once it has closed, #10929) *or* its ``last_price_date`` is before the
     reporting date. The timeseries-built snapshot
     (``portfolio_utils.refresh_snapshot_in_memory_from_timeseries``) carries
     only ``last_price_date``; an entry with neither field is treated as stale

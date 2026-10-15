@@ -69,6 +69,11 @@ or it silently undoes them in the snapshot.
 Note on is_stale semantics (#8595)
 ----------------------------------
 * A live quote is fresh while its timestamp is under 15 minutes old.
+  Once its market has closed (Yahoo ``marketState`` other than ``REGULAR``)
+  the quote is the last trade of the latest completed session, so it is also
+  fresh when dated on or after the latest completed trading day (#10929);
+  otherwise the scheduled after-close refresh would flag every entry stale.
+  An unknown market state keeps the 15-minute rule.
 * A last close is fresh when it is from the latest completed trading day
   (``PricingDateCalculator.reporting_date``); older closes are stale.
   ``last_price_date`` carries the close's own date so consumers can show it.
@@ -194,6 +199,34 @@ def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
     return value
 
 
+LIVE_QUOTE_MAX_AGE = timedelta(minutes=15)
+# Yahoo marketState while the regular session is trading (yahoo_chart.market_state).
+_MARKET_OPEN_STATE = "REGULAR"
+
+
+def _live_quote_is_stale(
+    ts: Optional[datetime],
+    market_state: Optional[str],
+    now: datetime,
+    last_trading_day: date,
+) -> bool:
+    """Whether a live quote taken at ``ts`` is stale at ``now`` (#8595, #10929).
+
+    While the market is open (or its state is unknown) a quote is stale once
+    it is more than :data:`LIVE_QUOTE_MAX_AGE` old. Once the market has
+    closed, the quote is the last trade of the latest session: it is fresh
+    when dated on or after ``last_trading_day`` (the latest completed trading
+    day) and stale only when older, matching the rule for last closes.
+    """
+    if ts is None:
+        return True
+    if now - ts <= LIVE_QUOTE_MAX_AGE:
+        return False
+    if market_state is None or market_state.upper() == _MARKET_OPEN_STATE:
+        return True
+    return ts.date() < last_trading_day
+
+
 def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     """Return last price and 7/30 day % changes for each ticker.
 
@@ -240,8 +273,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
             if is_nan(price):
                 price = None
             ts = live_info.get("timestamp")
-            if ts:
-                is_stale = (now - ts) > timedelta(minutes=15)
+            is_stale = _live_quote_is_stale(ts, live_info.get("market_state"), now, last_trading_day)
             # Live quotes are dated by the trading day their 7/30-day changes
             # are anchored to; last_price_time carries the quote's own time.
             price_date = last_trading_day

@@ -30,7 +30,12 @@ one row per event, keyed on ``(Date, Action)``:
 Rows are filled from the same Yahoo ``history`` call that fetches prices,
 so no request path ever makes an extra network call for them. Writes merge
 incrementally (fetched rows win per key) and are skipped when nothing
-changes.
+changes. A fetched dividend that repeats a kept one under another ex-date a
+few days away is dropped (#10926). Known limitation: a genuinely separate
+payment within ``_TWIN_MAX_DAYS`` of another and within ``_TWIN_REL_TOL`` of
+its value (e.g. a same-sized special right after a regular dividend) is
+indistinguishable from a twin and is dropped too, with an INFO log line;
+series paying that often as a cadence (see ``_is_frequent_payer``) are exempt.
 
 A successful fetch writes the file even when it found no events (#9567), so
 "checked: none paid" is told apart from "never checked" (no file). The file
@@ -74,6 +79,13 @@ CONFIRMED_FROM = "confirmed_from"
 DIVIDEND = "dividend"
 SPLIT = "split"
 CAPITAL_GAIN = "capital_gain"
+
+# Two dividends this close, with values this close (relative), are one
+# payment reported under two ex-dates (#10926). Real back-to-back payments
+# (a special beside a regular dividend) differ in value; monthly payers are
+# ~28+ days apart.
+_TWIN_MAX_DAYS = 10
+_TWIN_REL_TOL = 0.01
 
 # yfinance ``history(actions=True)`` column -> stored ``Action``.
 _YAHOO_ACTION_COLUMNS = {
@@ -307,14 +319,77 @@ def dividends_series(actions: pd.DataFrame) -> pd.Series:
     return series.astype(float)
 
 
-def merge_actions(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
-    """Merge ``new`` into ``existing`` by ``(Date, Action)``; return ``(merged, changed)``."""
+def _is_frequent_payer(dates: pd.Series) -> bool:
+    """True when ``dates`` show a cadence within the twin window (e.g. a weekly payer).
+
+    Such a series pays similar amounts days apart for real, so its dividends
+    are never collapsed as twins. It needs three short gaps in a row (four
+    payments each within the window of the last): twins, however many a
+    series has accumulated, are isolated pairs or triples between long gaps.
+    """
+    gaps = pd.Series(sorted(set(dates))).diff().dt.days.dropna()
+    run = 0
+    for gap in gaps:
+        run = run + 1 if gap <= _TWIN_MAX_DAYS else 0
+        if run >= 3:
+            return True
+    return False
+
+
+def _twin_of(day: pd.Timestamp, value: float, kept: list[tuple[pd.Timestamp, float]]) -> pd.Timestamp | None:
+    """Date of a dividend in ``kept`` on another day that ``(day, value)`` duplicates, if any."""
+    for other_day, other_value in kept:
+        near = 0 < abs((day - other_day).days) <= _TWIN_MAX_DAYS
+        if near and abs(value - other_value) <= _TWIN_REL_TOL * max(abs(value), abs(other_value)):
+            return other_day
+    return None
+
+
+def _without_dividend_twins(existing: pd.DataFrame, new: pd.DataFrame, label: str) -> pd.DataFrame:
+    """``new`` minus fetched dividends that duplicate one already kept under another ex-date (#10926).
+
+    Yahoo sometimes reports one payment on two ex-dates a few days apart.
+    A stored dividend is always kept over its fetched twin, so a refetch
+    never moves a stored date; within ``new``, the earlier date is kept.
+    A fetched row on a stored dividend's own date is an update, not a twin.
+    """
+    is_div = new["Action"] == DIVIDEND
+    stored = existing.loc[existing["Action"] == DIVIDEND]
+    if not is_div.any() or _is_frequent_payer(pd.concat([stored["Date"], new.loc[is_div, "Date"]])):
+        return new
+    kept = list(zip(stored["Date"], stored["Value"]))
+    stored_days = set(stored["Date"])
+    drop = []
+    for idx, row in new.loc[is_div].iterrows():
+        twin = None if row["Date"] in stored_days else _twin_of(row["Date"], row["Value"], kept)
+        if twin is None:
+            kept.append((row["Date"], row["Value"]))
+            continue
+        drop.append(idx)
+        logger.info(
+            "Skipping dividend %s on %s for %s: same payment as the one on %s",
+            sanitise_log_value(row["Value"]),
+            sanitise_log_value(row["Date"].date().isoformat()),
+            sanitise_log_value(label),
+            sanitise_log_value(twin.date().isoformat()),
+        )
+    return new.drop(index=drop).reset_index(drop=True) if drop else new
+
+
+def merge_actions(existing: pd.DataFrame, new: pd.DataFrame, *, label: str = "") -> tuple[pd.DataFrame, bool]:
+    """Merge ``new`` into ``existing`` by ``(Date, Action)``; return ``(merged, changed)``.
+
+    A fetched dividend that duplicates another under a different ex-date is
+    dropped (see :func:`_without_dividend_twins`); ``label`` names the
+    instrument in that log line.
+    """
     if new is None or new.empty:
         return existing, False
     new = _normalise(new)
     if existing.empty:
-        return new, True
+        return _without_dividend_twins(empty_actions(), new, label), True
     existing = _normalise(existing)
+    new = _without_dividend_twins(existing, new, label)
     merged = _normalise(pd.concat([existing, new], ignore_index=True))
     if len(merged) != len(existing):
         return merged, True
@@ -378,7 +453,7 @@ def record_corporate_actions(
         return False
     stored = _read_actions(ticker, exchange, base=base)
     existing = empty_actions() if stored is None else stored
-    merged, changed = merge_actions(existing, actions)
+    merged, changed = merge_actions(existing, actions, label=f"{ticker}.{exchange}")
     confirmed = _merged_confirmed_from(stored, window_start)
     if not (changed or stored is None or confirmed != existing.attrs.get(CONFIRMED_FROM)):
         return False

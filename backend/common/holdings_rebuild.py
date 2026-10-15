@@ -489,12 +489,17 @@ def rebuild_holdings_document(
     """Return the rebuilt holdings document, carrying forward ``existing`` data.
 
     Rows dated after :func:`replay_cutoff` (``as_of``, else tomorrow) are not
-    counted; see "Future-dated rows" in the module docstring.
+    counted; see "Future-dated rows" in the module docstring. Rows before a
+    recorded split are replayed on the post-split share basis (#10915), so the
+    rebuilt units are what the broker holds now; cost is unchanged.
     """
+    # Imported here: split_restatement imports this module.
+    from backend.common.split_restatement import restate_for_splits
+
     cutoff = replay_cutoff(as_of)  # once, so the drop and the acquired_date guard agree across midnight
     cutoff_date = date.fromisoformat(cutoff)
     rows = [t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)]
-    transactions = drop_future_dated(rows, cutoff_date)
+    transactions = restate_for_splits(drop_future_dated(rows, cutoff_date))
     existing = existing if isinstance(existing, Mapping) else {}
     old_holdings = [h for h in existing.get("holdings") or [] if isinstance(h, Mapping)]
     previous = _holdings_by_ticker(old_holdings)

@@ -167,3 +167,21 @@ def test_default_loader_reads_split_rows_from_stored_corporate_actions(monkeypat
 
     assert [row["units"] for row in out] == pytest.approx([4000, 10, 7])  # dividend and 1.0 "split" ignored
     assert calls == [("CGT", "L"), ("AAA", "L")]  # one lookup per ticker
+
+
+def test_holdings_rebuild_stores_post_split_units_at_unchanged_cost(monkeypatch):
+    from backend.common import split_restatement
+    from backend.common.holdings_rebuild import rebuild_holdings_document
+
+    monkeypatch.setattr(split_restatement, "recorded_splits", splits_for)
+    tx_data = {
+        "transactions": [
+            {"date": "2021-08-02", "type": "BUY", "ticker": "CGT.L", "units": 400, "amount_minor": 2000000},
+            {"date": "2026-08-03", "type": "BUY", "ticker": "CGT.L", "units": 100, "amount_minor": 50000},
+        ]
+    }
+
+    (holding,) = rebuild_holdings_document(tx_data, "lucy", "isa", as_of=date(2026, 10, 1))["holdings"]
+
+    assert holding["units"] == pytest.approx(4100)
+    assert holding["cost_basis_gbp"] == pytest.approx(20500.0)

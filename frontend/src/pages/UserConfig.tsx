@@ -50,6 +50,15 @@ function approvalsErrorMessage(
   return fallback;
 }
 
+/**
+ * Trading-rule limits must be whole numbers of 0 or more; blank (undefined)
+ * means "use the deployment default" (#10916 -- a stray "-" used to save
+ * negative limits that corrupted the compliance rules).
+ */
+function isInvalidLimit(value: number | null | undefined): boolean {
+  return value != null && (!Number.isInteger(value) || value < 0);
+}
+
 type UserConfigPageProps = {
   selectedOwner?: string;
 };
@@ -142,9 +151,20 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
     }
   }, [owner, t]);
 
+  const holdDaysInvalid = isInvalidLimit(cfg.hold_days_min);
+  const maxTradesInvalid = isInvalidLimit(cfg.max_trades_per_month);
+  const limitErrorText = t(
+    'userConfig.limitInvalid',
+    'Enter a whole number of 0 or more, or leave blank to use the default.'
+  );
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!owner) return;
+    if (holdDaysInvalid || maxTradesInvalid) {
+      setStatus('invalid');
+      return;
+    }
     setStatus('saving');
     try {
       const payload: any = {
@@ -288,7 +308,10 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
       )}
       {owner && (
         <>
-          <form onSubmit={save} className="space-y-2">
+          {/* noValidate: the limits below are checked in save() so the
+           * inline errors are the one message, rather than a browser
+           * tooltip that skips them (#10916). */}
+          <form onSubmit={save} noValidate className="space-y-2">
             <div>
               <label htmlFor="userConfig-holdDays" className="block text-sm">
                 {t('userConfig.holdDays', 'Min Hold Days (days)')}
@@ -305,8 +328,15 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               <input
                 id="userConfig-holdDays"
                 type="number"
+                min={0}
+                step={1}
                 className="w-full border p-1"
-                aria-describedby="userConfig-holdDays-help"
+                aria-describedby={
+                  holdDaysInvalid
+                    ? 'userConfig-holdDays-help userConfig-holdDays-error'
+                    : 'userConfig-holdDays-help'
+                }
+                aria-invalid={holdDaysInvalid}
                 value={cfg.hold_days_min ?? ''}
                 onChange={(e) =>
                   setCfg({
@@ -317,6 +347,11 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
                   })
                 }
               />
+              {holdDaysInvalid && (
+                <p id="userConfig-holdDays-error" className="text-xs text-red-500">
+                  {limitErrorText}
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="userConfig-maxTrades" className="block text-sm">
@@ -334,8 +369,15 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               <input
                 id="userConfig-maxTrades"
                 type="number"
+                min={0}
+                step={1}
                 className="w-full border p-1"
-                aria-describedby="userConfig-maxTrades-help"
+                aria-describedby={
+                  maxTradesInvalid
+                    ? 'userConfig-maxTrades-help userConfig-maxTrades-error'
+                    : 'userConfig-maxTrades-help'
+                }
+                aria-invalid={maxTradesInvalid}
                 value={cfg.max_trades_per_month ?? ''}
                 onChange={(e) =>
                   setCfg({
@@ -346,6 +388,11 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
                   })
                 }
               />
+              {maxTradesInvalid && (
+                <p id="userConfig-maxTrades-error" className="text-xs text-red-500">
+                  {limitErrorText}
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="userConfig-exemptTickers" className="block text-sm">
@@ -429,6 +476,14 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             </button>
             {status === 'saved' && (
               <span>{t('userConfig.saved', 'Saved')}</span>
+            )}
+            {status === 'invalid' && (
+              <span role="alert" className="text-red-500">
+                {t(
+                  'userConfig.fixErrors',
+                  'Fix the highlighted fields before saving.'
+                )}
+              </span>
             )}
             {status === 'error' && (
               <span className="text-red-500">

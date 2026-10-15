@@ -2119,6 +2119,8 @@
     "pageDescription": "Règles qui déterminent quelles opérations ce compte peut effectuer sans approbation supplémentaire.",
     "addApprovalFailed": "Échec de l'ajout de l'approbation",
     "approvalsForbidden": "Vous n'avez pas l'autorisation d'afficher ou de gérer les approbations de ce compte.",
+    "limitInvalid": "Saisissez un nombre entier supérieur ou égal à 0, ou laissez vide pour utiliser la valeur par défaut.",
+    "fixErrors": "Corrigez les champs en surbrillance avant d'enregistrer.",
     "approvalsSessionExpired": "Votre session a expiré. Reconnectez-vous pour gérer les approbations.",
     "avatarAlt": "avatar de l'utilisateur",
     "complianceDocsLink": "En savoir plus sur la conformité",

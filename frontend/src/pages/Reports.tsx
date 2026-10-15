@@ -1,10 +1,13 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { API_BASE, getOwners } from "../api";
 import { OwnerSelector } from "../components/OwnerSelector";
+import { deleteReportTemplate } from "../api/reports";
 import { useReportsCatalog } from "../hooks/useReportsCatalog";
+import type { ReportsLocationState } from "./ReportTemplateCreator";
 import type {
   OwnerSummary,
   ReportTemplateMetadata,
@@ -53,12 +56,17 @@ function TemplateGroup({
   templates,
   selectedTemplateId,
   onSelect,
+  onDelete,
+  deletingId,
   t,
 }: {
   title: string;
   templates: ReportTemplateMetadata[];
   selectedTemplateId: string | null;
   onSelect: (templateId: string) => void;
+  /** Only passed for custom templates: built-ins stay read-only. */
+  onDelete?: (template: ReportTemplateMetadata) => void;
+  deletingId?: string | null;
   t: TFunction;
 }) {
   if (!templates.length) return null;
@@ -81,13 +89,13 @@ function TemplateGroup({
           const fieldsLabel = buildFieldSummary(template, t);
 
           return (
-            <li key={template.template_id}>
+            <li key={template.template_id} className="flex items-start gap-2">
               <label
                 className={`flex gap-4 rounded-lg border bg-[var(--surface-card-bg)] p-4 text-[var(--surface-card-color)] shadow-sm transition focus-within:ring-2 focus-within:ring-indigo-400/40 ${
                   checked
                     ? "border-indigo-500 ring-2 ring-indigo-400/40"
                     : "border-[var(--surface-card-border)] hover:border-indigo-400"
-                }`}
+                } flex-1`}
               >
                 <input
                   type="radio"
@@ -137,6 +145,21 @@ function TemplateGroup({
                   <p className="text-sm text-[var(--surface-muted-color)]">{fieldsLabel}</p>
                 </div>
               </label>
+              {onDelete && !template.builtin ? (
+                <button
+                  type="button"
+                  onClick={() => onDelete(template)}
+                  disabled={deletingId === template.template_id}
+                  aria-label={t("reports.catalog.deleteLabel", {
+                    name: template.name,
+                  })}
+                  className="mt-4 rounded border border-red-300 px-3 py-1 text-sm font-medium text-[var(--gain-negative)] hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deletingId === template.template_id
+                    ? t("reports.builder.deleting")
+                    : t("reports.catalog.delete")}
+                </button>
+              ) : null}
             </li>
           );
         })}
@@ -157,11 +180,64 @@ export default function Reports() {
   const setOwner = route ? route.setSelectedOwner : setLocalOwner;
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [explicitTemplateId, setExplicitTemplateId] = useState<string | null>(
-    null,
+  // A template just saved on /reports/new arrives as router state: confirm it
+  // and select it so its downloads are one click away (#10914).
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Read once, then dropped from history below so back/forward to /reports
+  // doesn't repeat the "saved" notice.
+  const [createdTemplate] = useState(
+    () => (location.state as ReportsLocationState | null)?.createdTemplate,
   );
+  const hasCreatedState = Boolean(
+    (location.state as ReportsLocationState | null)?.createdTemplate,
+  );
+  useEffect(() => {
+    if (hasCreatedState) {
+      navigate(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: null,
+      });
+    }
+  }, [hasCreatedState, location.pathname, location.search, navigate]);
+  const [explicitTemplateId, setExplicitTemplateId] = useState<string | null>(
+    createdTemplate?.template_id ?? null,
+  );
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletedName, setDeletedName] = useState<string | null>(null);
 
-  const { templates, builtin, custom, loading, error } = useReportsCatalog();
+  const { templates, builtin, custom, loading, error, refetch } =
+    useReportsCatalog();
+
+  const handleDelete = async (template: ReportTemplateMetadata) => {
+    if (
+      !window.confirm(
+        t("reports.catalog.deleteConfirm", { name: template.name }),
+      )
+    ) {
+      return;
+    }
+    setDeleteError(null);
+    setDeletedName(null);
+    setDeletingId(template.template_id);
+    try {
+      await deleteReportTemplate(template.template_id);
+      if (explicitTemplateId === template.template_id) {
+        setExplicitTemplateId(null);
+      }
+      setDeletedName(template.name);
+      refetch();
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error && err.message
+          ? err.message
+          : t("reports.builder.deleteError"),
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   useEffect(() => {
     getOwners()
@@ -245,7 +321,28 @@ export default function Reports() {
               {t("reports.templatesDescription")}
             </p>
           </div>
+          <Link
+            to="/reports/new"
+            className="inline-flex items-center self-start rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 md:self-auto"
+          >
+            {t("reports.catalog.create")}
+          </Link>
         </div>
+        {createdTemplate && !deletedName ? (
+          <p role="status" className="text-sm text-[var(--gain-positive)]">
+            {t("reports.catalog.created", { name: createdTemplate.name })}
+          </p>
+        ) : null}
+        {deletedName ? (
+          <p role="status" className="text-sm text-[var(--gain-positive)]">
+            {t("reports.catalog.deleted", { name: deletedName })}
+          </p>
+        ) : null}
+        {deleteError ? (
+          <p role="alert" className="text-sm text-[var(--gain-negative)]">
+            {deleteError}
+          </p>
+        ) : null}
         <div className="space-y-8">
           {loading ? (
             <p className="text-sm text-[var(--surface-muted-color)]">
@@ -273,6 +370,8 @@ export default function Reports() {
                 templates={custom}
                 selectedTemplateId={selectedTemplateId}
                 onSelect={setExplicitTemplateId}
+                onDelete={handleDelete}
+                deletingId={deletingId}
                 t={t}
               />
             </>

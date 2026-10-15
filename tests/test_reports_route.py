@@ -507,3 +507,55 @@ def test_owner_template_report_invalid_template(client, monkeypatch):
 
     assert resp.status_code == 400
     assert resp.json() == {"detail": "bad template"}
+
+
+# The exact body frontend/src/components/ReportBuilder/sections.ts
+# (buildTemplatePayload) sends for "QA temp template" with the holdings section
+# limited to Ticker and Value (#10914). Keep the two in step.
+FRONTEND_CREATE_PAYLOAD = {
+    "template_id": "qa-temp-template",
+    "name": "QA temp template",
+    "sections": [
+        {
+            "id": "holdings",
+            "title": "Holdings breakdown",
+            "source": "allocation",
+            "columns": [
+                {"key": "ticker", "label": "Ticker", "type": "string"},
+                {"key": "value", "label": "Value", "type": "number"},
+            ],
+        }
+    ],
+}
+
+
+def test_frontend_created_template_persists_and_downloads(client, monkeypatch, tmp_path):
+    """Contract: the creator's payload saves, lists as custom, renders, deletes."""
+    monkeypatch.setattr(reports, "get_template_store", lambda: reports.FileTemplateStore(tmp_path))
+    monkeypatch.setattr(
+        reports.ReportContext,
+        "allocation",
+        lambda self: [{"ticker": "VWRL", "exchange": "L", "units": 10, "price": 100.0, "value": 1000.0}],
+    )
+
+    resp = client.post("/reports/templates", json=FRONTEND_CREATE_PAYLOAD)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["builtin"] is False
+
+    listed = {t["template_id"]: t for t in client.get("/reports/templates").json()}
+    assert listed["qa-temp-template"]["builtin"] is False
+
+    duplicate = client.post("/reports/templates", json=FRONTEND_CREATE_PAYLOAD)
+    assert duplicate.status_code == 400
+    assert "already exists" in duplicate.json()["detail"]
+
+    csv_resp = client.get("/reports/lucy/qa-temp-template?format=csv")
+    assert csv_resp.status_code == 200
+    text = csv_resp.content.decode("utf-8")
+    assert "Ticker,Value" in text
+    assert "VWRL" in text
+    assert "Exchange" not in text
+
+    assert client.delete("/reports/templates/qa-temp-template").status_code == 204
+    remaining = [t["template_id"] for t in client.get("/reports/templates").json()]
+    assert "qa-temp-template" not in remaining

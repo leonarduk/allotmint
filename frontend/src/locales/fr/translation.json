@@ -1568,7 +1568,13 @@
         "custom": "Personnalisé"
       },
       "selected": "Sélectionné",
-      "selectedTemplate": "Modèle : {{name}}"
+      "selectedTemplate": "Modèle : {{name}}",
+      "create": "Créer un modèle",
+      "created": "Modèle {{name}} enregistré.",
+      "delete": "Supprimer",
+      "deleteLabel": "Supprimer le modèle {{name}}",
+      "deleteConfirm": "Supprimer le modèle {{name}} ? Cette action est irréversible.",
+      "deleted": "Modèle {{name}} supprimé."
     },
     "downloadsTitle": "Télécharger les rapports",
     "downloadsDescription": "Générez des exports CSV ou PDF avec le modèle et les dates sélectionnés.",
@@ -1576,18 +1582,11 @@
     "builder": {
       "headingCreate": "Créer un modèle de rapport",
       "headingEdit": "Modifier le modèle de rapport",
-      "subheading": "Configurez les colonnes, les métriques et les filtres facultatifs du rapport avant d'enregistrer le modèle.",
+      "subheading": "Choisissez les sections et colonnes à inclure avant d’enregistrer le modèle.",
       "nameLabel": "Nom du modèle",
       "descriptionLabel": "Description (facultatif)",
-      "metricsLabel": "Métriques",
+      "metricsLabel": "Sections",
       "columnsLabel": "Colonnes",
-      "filtersLabel": "Filtres (facultatif)",
-      "addFilter": "Ajouter un filtre",
-      "noFilters": "Aucun filtre appliqué. Ajoutez un filtre pour limiter les résultats à certains comptes ou positions.",
-      "filterField": "Champ",
-      "filterOperator": "Opérateur",
-      "filterValue": "Valeur",
-      "removeFilter": "Supprimer",
       "create": "Créer le modèle",
       "saveChanges": "Enregistrer les modifications",
       "saving": "Enregistrement…",
@@ -1600,8 +1599,8 @@
       "loadError": "Impossible de charger le modèle sélectionné.",
       "validation": {
         "name": "Le nom est requis",
-        "metrics": "Sélectionnez au moins une métrique",
-        "columns": "Sélectionnez au moins une colonne"
+        "metrics": "Sélectionnez au moins une section",
+        "columns": "Sélectionnez au moins une colonne pour chaque section"
       },
       "metrics": {
         "performance": "Résumé de performance",
@@ -1610,24 +1609,20 @@
         "risk": "Métriques de risque"
       },
       "columns": {
-        "owner": "Titulaire",
-        "account": "Compte",
+        "metric": "Indicateur",
+        "value": "Valeur",
+        "units": "Unités",
         "ticker": "Symbole",
-        "value": "Valeur (£)",
-        "gain": "Gain %"
-      },
-      "filters": {
-        "accountType": "Type de compte",
-        "instrumentType": "Type d'instrument",
-        "region": "Région",
-        "sector": "Secteur"
-      },
-      "operators": {
-        "equals": "Égal à",
-        "notEquals": "Différent de",
-        "contains": "Contient",
-        "gt": "Supérieur à",
-        "lt": "Inférieur à"
+        "exchange": "Place de cotation",
+        "price": "Prix",
+        "date": "Date",
+        "type": "Type",
+        "description": "Description",
+        "amount_gbp": "Montant (GBP)",
+        "currency": "Devise",
+        "window": "Période",
+        "peak_date": "Sommet",
+        "trough_date": "Creux"
       }
     }
   },

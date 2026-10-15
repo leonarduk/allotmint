@@ -1568,7 +1568,13 @@
         "custom": "Personalizado"
       },
       "selected": "Selecionado",
-      "selectedTemplate": "Modelo: {{name}}"
+      "selectedTemplate": "Modelo: {{name}}",
+      "create": "Criar modelo",
+      "created": "Modelo {{name}} guardado.",
+      "delete": "Eliminar",
+      "deleteLabel": "Eliminar o modelo {{name}}",
+      "deleteConfirm": "Eliminar o modelo {{name}}? Esta ação não pode ser anulada.",
+      "deleted": "Modelo {{name}} eliminado."
     },
     "downloadsTitle": "Baixar relatórios",
     "downloadsDescription": "Gere exports CSV ou PDF com o modelo e as datas selecionadas.",
@@ -1576,18 +1582,11 @@
     "builder": {
       "headingCreate": "Criar modelo de relatório",
       "headingEdit": "Editar modelo de relatório",
-      "subheading": "Configure as colunas, métricas e filtros opcionais do relatório antes de guardar o modelo.",
+      "subheading": "Escolha as secções e colunas a incluir antes de guardar o modelo.",
       "nameLabel": "Nome do modelo",
       "descriptionLabel": "Descrição (opcional)",
-      "metricsLabel": "Métricas",
+      "metricsLabel": "Secções",
       "columnsLabel": "Colunas",
-      "filtersLabel": "Filtros (opcional)",
-      "addFilter": "Adicionar filtro",
-      "noFilters": "Nenhum filtro aplicado. Adicione um filtro para limitar os resultados a contas ou posições específicas.",
-      "filterField": "Campo",
-      "filterOperator": "Operador",
-      "filterValue": "Valor",
-      "removeFilter": "Remover",
       "create": "Criar modelo",
       "saveChanges": "Guardar alterações",
       "saving": "A guardar…",
@@ -1600,8 +1599,8 @@
       "loadError": "Não foi possível carregar o modelo selecionado.",
       "validation": {
         "name": "O nome é obrigatório",
-        "metrics": "Selecione pelo menos uma métrica",
-        "columns": "Selecione pelo menos uma coluna"
+        "metrics": "Selecione pelo menos uma secção",
+        "columns": "Selecione pelo menos uma coluna para cada secção"
       },
       "metrics": {
         "performance": "Resumo de desempenho",
@@ -1610,24 +1609,20 @@
         "risk": "Métricas de risco"
       },
       "columns": {
-        "owner": "Titular",
-        "account": "Conta",
+        "metric": "Métrica",
+        "value": "Valor",
+        "units": "Unidades",
         "ticker": "Ticker",
-        "value": "Valor (£)",
-        "gain": "Ganho %"
-      },
-      "filters": {
-        "accountType": "Tipo de conta",
-        "instrumentType": "Tipo de instrumento",
-        "region": "Região",
-        "sector": "Setor"
-      },
-      "operators": {
-        "equals": "É igual a",
-        "notEquals": "Não é igual a",
-        "contains": "Contém",
-        "gt": "Maior que",
-        "lt": "Menor que"
+        "exchange": "Bolsa",
+        "price": "Preço",
+        "date": "Data",
+        "type": "Tipo",
+        "description": "Descrição",
+        "amount_gbp": "Montante (GBP)",
+        "currency": "Moeda",
+        "window": "Período",
+        "peak_date": "Pico",
+        "trough_date": "Vale"
       }
     }
   },

@@ -1568,7 +1568,13 @@
         "custom": "Personalizada"
       },
       "selected": "Seleccionada",
-      "selectedTemplate": "Plantilla: {{name}}"
+      "selectedTemplate": "Plantilla: {{name}}",
+      "create": "Crear plantilla",
+      "created": "Plantilla {{name}} guardada.",
+      "delete": "Eliminar",
+      "deleteLabel": "Eliminar la plantilla {{name}}",
+      "deleteConfirm": "¿Eliminar la plantilla {{name}}? Esta acción no se puede deshacer.",
+      "deleted": "Plantilla {{name}} eliminada."
     },
     "downloadsTitle": "Descargar informes",
     "downloadsDescription": "Genera exportaciones CSV o PDF con la plantilla y fechas seleccionadas.",
@@ -1576,18 +1582,11 @@
     "builder": {
       "headingCreate": "Crear plantilla de informe",
       "headingEdit": "Editar plantilla de informe",
-      "subheading": "Configura las columnas, métricas y filtros opcionales del informe antes de guardar la plantilla.",
+      "subheading": "Elija las secciones y columnas que desea incluir antes de guardar la plantilla.",
       "nameLabel": "Nombre de la plantilla",
       "descriptionLabel": "Descripción (opcional)",
-      "metricsLabel": "Métricas",
+      "metricsLabel": "Secciones",
       "columnsLabel": "Columnas",
-      "filtersLabel": "Filtros (opcional)",
-      "addFilter": "Añadir filtro",
-      "noFilters": "No se han aplicado filtros. Añade un filtro para limitar los resultados a cuentas o posiciones concretas.",
-      "filterField": "Campo",
-      "filterOperator": "Operador",
-      "filterValue": "Valor",
-      "removeFilter": "Quitar",
       "create": "Crear plantilla",
       "saveChanges": "Guardar cambios",
       "saving": "Guardando…",
@@ -1600,8 +1599,8 @@
       "loadError": "No se pudo cargar la plantilla seleccionada.",
       "validation": {
         "name": "El nombre es obligatorio",
-        "metrics": "Selecciona al menos una métrica",
-        "columns": "Selecciona al menos una columna"
+        "metrics": "Seleccione al menos una sección",
+        "columns": "Seleccione al menos una columna para cada sección"
       },
       "metrics": {
         "performance": "Resumen de rendimiento",
@@ -1610,24 +1609,20 @@
         "risk": "Métricas de riesgo"
       },
       "columns": {
-        "owner": "Titular",
-        "account": "Cuenta",
+        "metric": "Métrica",
+        "value": "Valor",
+        "units": "Unidades",
         "ticker": "Ticker",
-        "value": "Valor (£)",
-        "gain": "Ganancia %"
-      },
-      "filters": {
-        "accountType": "Tipo de cuenta",
-        "instrumentType": "Tipo de instrumento",
-        "region": "Región",
-        "sector": "Sector"
-      },
-      "operators": {
-        "equals": "Igual a",
-        "notEquals": "Distinto de",
-        "contains": "Contiene",
-        "gt": "Mayor que",
-        "lt": "Menor que"
+        "exchange": "Bolsa",
+        "price": "Precio",
+        "date": "Fecha",
+        "type": "Tipo",
+        "description": "Descripción",
+        "amount_gbp": "Importe (GBP)",
+        "currency": "Moneda",
+        "window": "Periodo",
+        "peak_date": "Máximo",
+        "trough_date": "Mínimo"
       }
     }
   },

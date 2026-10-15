@@ -2048,19 +2048,6 @@ export interface TrailResponse {
   today: string;
 }
 
-export type ReportTemplateFilterOperator =
-  | "equals"
-  | "not_equals"
-  | "contains"
-  | "gt"
-  | "lt";
-
-export interface ReportTemplateFilter {
-  field: string;
-  operator: ReportTemplateFilterOperator;
-  value: string;
-}
-
 export interface ReportTemplateColumnMetadata {
   key: string;
   label: string;
@@ -2083,22 +2070,22 @@ export interface ReportTemplateMetadata {
   sections: ReportTemplateSectionMetadata[];
 }
 
+/** One builder section and the column keys picked for it (#10914). */
+export interface ReportTemplateSectionInput {
+  id: string;
+  columns: string[];
+}
+
 export interface ReportTemplate {
   id: string;
   name: string;
-  metrics: string[];
-  columns: string[];
-  filters: ReportTemplateFilter[];
+  sections: ReportTemplateSectionInput[];
   description?: string | null;
-  updated_at?: string | null;
-  optimistic?: boolean;
 }
 
 export interface ReportTemplateInput {
   name: string;
-  metrics: string[];
-  columns: string[];
-  filters: ReportTemplateFilter[];
+  sections: ReportTemplateSectionInput[];
   description?: string | null;
 }
 

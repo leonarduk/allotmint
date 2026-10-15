@@ -3,40 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import type {
   ReportTemplate,
-  ReportTemplateFilter,
-  ReportTemplateFilterOperator,
   ReportTemplateInput,
+  ReportTemplateSectionInput,
 } from "@/types";
 
-const METRIC_OPTIONS = [
-  { id: "performance", labelKey: "reports.builder.metrics.performance" },
-  { id: "holdings", labelKey: "reports.builder.metrics.holdings" },
-  { id: "transactions", labelKey: "reports.builder.metrics.transactions" },
-  { id: "risk", labelKey: "reports.builder.metrics.risk" },
-];
-
-const COLUMN_OPTIONS = [
-  { id: "owner", labelKey: "reports.builder.columns.owner" },
-  { id: "account", labelKey: "reports.builder.columns.account" },
-  { id: "ticker", labelKey: "reports.builder.columns.ticker" },
-  { id: "value_gbp", labelKey: "reports.builder.columns.value" },
-  { id: "gain_pct", labelKey: "reports.builder.columns.gain" },
-];
-
-const FILTER_FIELDS = [
-  { id: "account_type", labelKey: "reports.builder.filters.accountType" },
-  { id: "instrument_type", labelKey: "reports.builder.filters.instrumentType" },
-  { id: "region", labelKey: "reports.builder.filters.region" },
-  { id: "sector", labelKey: "reports.builder.filters.sector" },
-];
-
-const OPERATORS: { id: ReportTemplateFilterOperator; labelKey: string }[] = [
-  { id: "equals", labelKey: "reports.builder.operators.equals" },
-  { id: "not_equals", labelKey: "reports.builder.operators.notEquals" },
-  { id: "contains", labelKey: "reports.builder.operators.contains" },
-  { id: "gt", labelKey: "reports.builder.operators.gt" },
-  { id: "lt", labelKey: "reports.builder.operators.lt" },
-];
+import { REPORT_SECTION_OPTIONS } from "./sections";
 
 export interface ReportBuilderProps {
   template?: ReportTemplate;
@@ -46,16 +17,12 @@ export interface ReportBuilderProps {
   onCancel: () => void;
 }
 
-const hasContent = (value: string) => value.trim().length > 0;
-
-const cleanFilters = (filters: ReportTemplateFilter[]): ReportTemplateFilter[] =>
-  filters
-    .filter((filter) => hasContent(filter.field) && hasContent(filter.value))
-    .map((filter) => ({
-      ...filter,
-      field: filter.field.trim(),
-      value: filter.value.trim(),
-    }));
+const defaultSections = (): ReportTemplateSectionInput[] => [
+  {
+    id: REPORT_SECTION_OPTIONS[0].id,
+    columns: REPORT_SECTION_OPTIONS[0].columns.map((column) => column.key),
+  },
+];
 
 export function ReportBuilder({
   template,
@@ -68,18 +35,9 @@ export function ReportBuilder({
   const isEdit = Boolean(template);
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
-    template?.metrics && template.metrics.length > 0
-      ? template.metrics
-      : [METRIC_OPTIONS[0].id],
-  );
-  const [selectedColumns, setSelectedColumns] = useState<string[]>(
-    template?.columns && template.columns.length > 0
-      ? template.columns
-      : COLUMN_OPTIONS.slice(0, 3).map((option) => option.id),
-  );
-  const [filters, setFilters] = useState<ReportTemplateFilter[]>(
-    template?.filters?.length ? template.filters : [],
+  // Ordered as REPORT_SECTION_OPTIONS so the saved template is stable.
+  const [sections, setSections] = useState<ReportTemplateSectionInput[]>(
+    template?.sections?.length ? template.sections : defaultSections(),
   );
   const [validationErrors, setValidationErrors] = useState<{
     name?: string;
@@ -91,60 +49,56 @@ export function ReportBuilder({
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const metricOptions = useMemo(
-    () => METRIC_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) })),
-    [t],
-  );
-  const columnOptions = useMemo(
-    () => COLUMN_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) })),
-    [t],
-  );
-  const availableFilters = useMemo(
-    () => FILTER_FIELDS.map((option) => ({ ...option, label: t(option.labelKey) })),
-    [t],
-  );
-  const operatorOptions = useMemo(
-    () => OPERATORS.map((option) => ({ ...option, label: t(option.labelKey) })),
+  const sectionOptions = useMemo(
+    () =>
+      REPORT_SECTION_OPTIONS.map((option) => ({
+        ...option,
+        label: t(option.labelKey),
+        columns: option.columns.map((column) => ({
+          ...column,
+          label: t(`reports.builder.columns.${column.key}`, column.label),
+        })),
+      })),
     [t],
   );
 
-  const toggleSelection = (
-    value: string,
-    selected: string[],
-    setSelected: (next: string[]) => void,
-  ) => {
-    setSelected(
-      selected.includes(value)
-        ? selected.filter((item) => item !== value)
-        : [...selected, value],
-    );
-  };
+  const selectionFor = (id: string) =>
+    sections.find((section) => section.id === id);
 
-  const handleFilterChange = (
-    index: number,
-    key: keyof ReportTemplateFilter,
-    value: string,
-  ) => {
-    setFilters((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [key]: value };
-      return next;
+  const toggleSection = (id: string) => {
+    setSections((prev) => {
+      if (prev.some((section) => section.id === id)) {
+        return prev.filter((section) => section.id !== id);
+      }
+      const option = REPORT_SECTION_OPTIONS.find((item) => item.id === id);
+      const added = {
+        id,
+        columns: option ? option.columns.map((column) => column.key) : [],
+      };
+      return REPORT_SECTION_OPTIONS.flatMap((item) => {
+        if (item.id === id) return [added];
+        const existing = prev.find((section) => section.id === item.id);
+        return existing ? [existing] : [];
+      });
     });
   };
 
-  const handleAddFilter = () => {
-    setFilters((prev) => [
-      ...prev,
-      {
-        field: availableFilters[0]?.id ?? "account_type",
-        operator: "equals",
-        value: "",
-      },
-    ]);
-  };
-
-  const handleRemoveFilter = (index: number) => {
-    setFilters((prev) => prev.filter((_, idx) => idx !== index));
+  const toggleColumn = (sectionId: string, key: string) => {
+    setSections((prev) =>
+      prev.map((section) => {
+        if (section.id !== sectionId) return section;
+        const option = REPORT_SECTION_OPTIONS.find((item) => item.id === sectionId);
+        const next = section.columns.includes(key)
+          ? section.columns.filter((column) => column !== key)
+          : [...section.columns, key];
+        // Keep the source's own column order regardless of click order.
+        const order = option?.columns.map((column) => column.key) ?? next;
+        return {
+          ...section,
+          columns: order.filter((column) => next.includes(column)),
+        };
+      }),
+    );
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -159,16 +113,16 @@ export function ReportBuilder({
     if (!trimmedName) {
       nextErrors.name = t("reports.builder.validation.name", "Name is required");
     }
-    if (selectedMetrics.length === 0) {
+    if (sections.length === 0) {
       nextErrors.metrics = t(
         "reports.builder.validation.metrics",
-        "Select at least one metric",
+        "Select at least one section",
       );
     }
-    if (selectedColumns.length === 0) {
+    if (sections.some((section) => section.columns.length === 0)) {
       nextErrors.columns = t(
         "reports.builder.validation.columns",
-        "Select at least one column",
+        "Select at least one column for each section",
       );
     }
 
@@ -180,9 +134,7 @@ export function ReportBuilder({
     const payload: ReportTemplateInput = {
       name: trimmedName,
       description: trimmedDescription ? trimmedDescription : undefined,
-      metrics: selectedMetrics,
-      columns: selectedColumns,
-      filters: cleanFilters(filters),
+      sections,
     };
 
     try {
@@ -283,132 +235,53 @@ export function ReportBuilder({
             <p className="text-sm font-medium text-gray-700">
               {t("reports.builder.metricsLabel")}
             </p>
-            <div className="mt-2 grid gap-2 md:grid-cols-2">
-              {metricOptions.map((option) => (
-                <label key={option.id} className="flex items-center gap-2 rounded border border-gray-200 p-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedMetrics.includes(option.id)}
-                    onChange={() => toggleSelection(option.id, selectedMetrics, setSelectedMetrics)}
-                    disabled={submitting}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
+            <div className="mt-2 space-y-2">
+              {sectionOptions.map((option) => {
+                const selection = selectionFor(option.id);
+                return (
+                  <div key={option.id} className="rounded border border-gray-200 p-2">
+                    <label className="flex items-center gap-2 font-medium">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(selection)}
+                        onChange={() => toggleSection(option.id)}
+                        disabled={submitting}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                    {selection ? (
+                      <fieldset className="mt-2 pl-6">
+                        <legend className="text-xs uppercase tracking-wide text-gray-500">
+                          {t("reports.builder.columnsLabel")}
+                        </legend>
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                          {option.columns.map((column) => (
+                            <label
+                              key={column.key}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                aria-label={`${option.label}: ${column.label}`}
+                                checked={selection.columns.includes(column.key)}
+                                onChange={() => toggleColumn(option.id, column.key)}
+                                disabled={submitting}
+                              />
+                              <span>{column.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
             {validationErrors.metrics && (
               <p className="mt-1 text-sm text-red-600">{validationErrors.metrics}</p>
             )}
-          </div>
-
-          <div>
-            <p className="text-sm font-medium text-gray-700">
-              {t("reports.builder.columnsLabel")}
-            </p>
-            <div className="mt-2 grid gap-2 md:grid-cols-2">
-              {columnOptions.map((option) => (
-                <label key={option.id} className="flex items-center gap-2 rounded border border-gray-200 p-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedColumns.includes(option.id)}
-                    onChange={() => toggleSelection(option.id, selectedColumns, setSelectedColumns)}
-                    disabled={submitting}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
             {validationErrors.columns && (
               <p className="mt-1 text-sm text-red-600">{validationErrors.columns}</p>
-            )}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700">
-                {t("reports.builder.filtersLabel")}
-              </p>
-              <button
-                type="button"
-                onClick={handleAddFilter}
-                className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                disabled={submitting}
-              >
-                {t("reports.builder.addFilter")}
-              </button>
-            </div>
-            {filters.length === 0 ? (
-              <p className="mt-2 text-sm text-gray-500">{t("reports.builder.noFilters")}</p>
-            ) : (
-              <div className="mt-2 space-y-3">
-                {filters.map((filter, index) => (
-                  <div
-                    key={`filter-${index}`}
-                    className="flex flex-col gap-2 rounded border border-gray-200 p-3 md:flex-row md:items-center"
-                  >
-                    <label className="flex-1 text-sm">
-                      <span className="mb-1 block font-medium text-gray-700">
-                        {t("reports.builder.filterField")}
-                      </span>
-                      <select
-                        value={filter.field}
-                        onChange={(event) => handleFilterChange(index, "field", event.target.value)}
-                        className="w-full rounded border border-gray-300 px-2 py-1"
-                        disabled={submitting}
-                      >
-                        {availableFilters.map((field) => (
-                          <option key={field.id} value={field.id}>
-                            {field.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex-1 text-sm">
-                      <span className="mb-1 block font-medium text-gray-700">
-                        {t("reports.builder.filterOperator")}
-                      </span>
-                      <select
-                        value={filter.operator}
-                        onChange={(event) =>
-                          handleFilterChange(
-                            index,
-                            "operator",
-                            event.target.value as ReportTemplateFilterOperator,
-                          )
-                        }
-                        className="w-full rounded border border-gray-300 px-2 py-1"
-                        disabled={submitting}
-                      >
-                        {operatorOptions.map((operator) => (
-                          <option key={operator.id} value={operator.id}>
-                            {operator.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex-1 text-sm">
-                      <span className="mb-1 block font-medium text-gray-700">
-                        {t("reports.builder.filterValue")}
-                      </span>
-                      <input
-                        type="text"
-                        value={filter.value}
-                        onChange={(event) => handleFilterChange(index, "value", event.target.value)}
-                        className="w-full rounded border border-gray-300 px-2 py-1"
-                        disabled={submitting}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFilter(index)}
-                      className="self-start rounded border border-red-200 px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50"
-                      disabled={submitting}
-                    >
-                      {t("reports.builder.removeFilter")}
-                    </button>
-                  </div>
-                ))}
-              </div>
             )}
           </div>
 

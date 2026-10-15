@@ -1,11 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configContext } from "@/ConfigContext";
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockListTemplates = vi.hoisted(() => vi.fn());
+const mockDeleteTemplate = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", () => ({
   API_BASE: "http://test",
@@ -30,6 +31,7 @@ vi.mock("@/api", () => ({
 
 vi.mock("@/api/reports", () => ({
   listReportTemplates: mockListTemplates,
+  deleteReportTemplate: mockDeleteTemplate,
 }));
 
 const mockCompleteTrackedChore = vi.hoisted(() => vi.fn());
@@ -347,5 +349,120 @@ describe("Reports page", () => {
     fireEvent.click(csvLink);
 
     expect(mockCompleteTrackedChore).toHaveBeenCalledWith("run_a_report");
+  });
+
+  it("links to the template creator from /reports (#10914)", async () => {
+    await renderReports();
+
+    expect(
+      await screen.findByRole("link", { name: "Create template" }),
+    ).toHaveAttribute("href", "/reports/new");
+  });
+
+  it("confirms and selects a template saved on /reports/new", async () => {
+    const { default: Reports } = await import("@/pages/Reports");
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: "/reports",
+            state: {
+              createdTemplate: {
+                template_id: "custom-holdings",
+                name: "Custom holdings",
+              },
+            },
+          },
+        ]}
+      >
+        <Reports />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText("Saved template Custom holdings."),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("radio", {
+        name: "Select Custom holdings template",
+      }),
+    ).toBeChecked();
+    // The one-shot state is cleared so back/forward won't repeat the notice.
+    expect(vi.mocked(useNavigate)()).toHaveBeenCalledWith("/reports", {
+      replace: true,
+      state: null,
+    });
+  });
+
+  it("offers delete only on custom templates", async () => {
+    await renderReports();
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Delete Custom holdings template",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Delete Performance summary template",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("deletes a custom template after confirmation and reloads the catalogue", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    mockDeleteTemplate.mockResolvedValue(undefined);
+    await renderReports();
+
+    const button = await screen.findByRole("button", {
+      name: "Delete Custom holdings template",
+    });
+    mockListTemplates.mockResolvedValue([builtinTemplate]);
+    fireEvent.click(button);
+
+    expect(mockDeleteTemplate).toHaveBeenCalledWith("custom-holdings");
+    expect(
+      await screen.findByText("Deleted template Custom holdings."),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("radio", { name: "Select Custom holdings template" }),
+      ).not.toBeInTheDocument(),
+    );
+    confirmSpy.mockRestore();
+  });
+
+  it("does nothing when the delete is not confirmed", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await renderReports();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete Custom holdings template",
+      }),
+    );
+
+    expect(mockDeleteTemplate).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("shows the error when a delete fails", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    mockDeleteTemplate.mockRejectedValue(new Error("Template not found"));
+    await renderReports();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete Custom holdings template",
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Template not found",
+    );
+    expect(
+      screen.getByRole("radio", { name: "Select Custom holdings template" }),
+    ).toBeInTheDocument();
+    confirmSpy.mockRestore();
   });
 });

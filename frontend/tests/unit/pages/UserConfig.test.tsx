@@ -654,5 +654,60 @@ describe("UserConfig page", () => {
     });
     expect(mockUpdateUserConfig).not.toHaveBeenCalled();
   });
+
+  async function renderForAlex(config: Record<string, unknown> = {}) {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue(config);
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+    mockUpdateUserConfig.mockResolvedValue(undefined);
+    render(<UserConfig />);
+    await waitFor(() => expect(mockGetUserConfig).toHaveBeenCalledWith("alex"));
+    return {
+      holdDays: (await screen.findByLabelText(/min hold days/i)) as HTMLInputElement,
+      maxTrades: screen.getByLabelText(/max trades/i) as HTMLInputElement,
+    };
+  }
+
+  it("sets min=0 on the trading-limit inputs (#10916)", async () => {
+    const { holdDays, maxTrades } = await renderForAlex();
+    expect(holdDays.min).toBe("0");
+    expect(maxTrades.min).toBe("0");
+  });
+
+  it.each([
+    ["min hold days", /min hold days/i, -3],
+    ["max trades", /max trades/i, -5],
+  ])("rejects a negative %s value without saving (#10916)", async (_name, label, value) => {
+    await renderForAlex();
+    const input = (await screen.findByLabelText(label)) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: String(value) } });
+
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.getByText(/enter a whole number of 0 or more/i),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    });
+    expect(mockUpdateUserConfig).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/fix the highlighted fields/i);
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+  });
+
+  it("saves zero limits, and blank still means use the default (#10916)", async () => {
+    const { holdDays, maxTrades } = await renderForAlex({ hold_days_min: 5 });
+    fireEvent.change(holdDays, { target: { value: "0" } });
+    fireEvent.change(maxTrades, { target: { value: "" } });
+    expect(holdDays).toHaveAttribute("aria-invalid", "false");
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    });
+    expect(mockUpdateUserConfig).toHaveBeenCalledTimes(1);
+    const payload = mockUpdateUserConfig.mock.calls[0][1];
+    expect(payload.hold_days_min).toBe(0);
+    expect(payload.max_trades_per_month).toBeUndefined();
+  });
 });
 

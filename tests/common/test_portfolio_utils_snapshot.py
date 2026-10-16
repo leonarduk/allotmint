@@ -170,7 +170,9 @@ def test_refresh_snapshot_logs_warning_when_timeseries_missing(tmp_path, monkeyp
         "GOOD.L": {"last_price": 101.0, "price_currency": "GBP", "last_price_date": "2024-02-02"},
     }
 
-    assert refreshed["snapshot"] == expected_snapshot
+    # The in-memory snapshot is replaced wholesale, so BAD.N's placeholder is
+    # kept there (exchange resolution relies on it); the file gets prices only.
+    assert refreshed["snapshot"] == {**expected_snapshot, "BAD.N": {}}
     assert json.loads(prices_path.read_text()) == expected_snapshot
 
 
@@ -249,7 +251,8 @@ async def test_refresh_snapshot_skips_nan_close_price_and_keeps_seeded_value(tmp
 
     pu.refresh_snapshot_in_memory_from_timeseries(days=7)
 
-    assert "VWRL.L" not in recorded["snapshot"]
+    # The seeded price survives in memory too, not just on disk (#10960).
+    assert recorded["snapshot"]["VWRL.L"]["last_price"] == pytest.approx(97.5)
     assert "Skipping VWRL.L" in "\n".join(caplog.messages)
 
     result = json.loads(prices_path.read_text())
@@ -373,5 +376,6 @@ def test_refresh_snapshot_skips_native_close_with_unknown_currency(tmp_path, mon
     with caplog.at_level("WARNING"):
         pu.refresh_snapshot_in_memory_from_timeseries(days=7)
 
-    assert refreshed == {}
+    # The unpriced placeholder is kept as-is; nothing is rebuilt for ODD.X.
+    assert refreshed == {"ODD.X": {}}
     assert "instrument currency is unknown" in caplog.text

@@ -3020,6 +3020,36 @@ def _snapshot_close_column(df: pd.DataFrame, ticker: str) -> tuple[str, str] | N
     return native_col, _normalize_currency_code(currency)
 
 
+def _snapshot_entry_age_key(entry: Any) -> tuple[str, str]:
+    """``(last_price_date, last_price_time)`` of a snapshot entry, ``""`` when absent.
+
+    Both fields are ISO strings (``YYYY-MM-DD`` and ``YYYY-MM-DDTHH:MM:SSZ``),
+    so they order correctly as strings.
+    """
+    if not isinstance(entry, dict):
+        return "", ""
+    return str(entry.get("last_price_date") or ""), str(entry.get("last_price_time") or "")
+
+
+def _merge_snapshot_keep_newer(existing: Dict[str, Any], rebuilt: Dict[str, Dict]) -> Dict[str, Any]:
+    """Merge cache-rebuilt entries into ``existing``, never replacing a newer entry (#10960).
+
+    A rebuilt entry fills a ticker that has no priced entry yet (#5192) and
+    replaces one with an older ``last_price_date``. On the same date the
+    existing entry is kept when it carries a ``last_price_time``: that is a
+    price-refresh quote for the session, at least as fresh as the cache's
+    daily close, and its staleness flags (#8595, #10929) stay intact.
+    """
+    merged = dict(existing)
+    for ticker, entry in rebuilt.items():
+        current_date, current_time = _snapshot_entry_age_key(merged.get(ticker))
+        rebuilt_date, rebuilt_time = _snapshot_entry_age_key(entry)
+        if current_date > rebuilt_date or (current_date == rebuilt_date and current_time > rebuilt_time):
+            continue
+        merged[ticker] = entry
+    return merged
+
+
 def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
     """
     Pull a closing-price snapshot from the meta timeseries cache
@@ -3055,6 +3085,16 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                 close = _snapshot_close_column(df, t)
                 if close:
                     close_col, close_currency = close
+                    if close_currency == "GBX":
+                        # get_scaling_override returns the factor that turns a
+                        # cached sterling close into pounds, and apply_scaling
+                        # has applied it, so the stored value is GBP (#10960).
+                        # That holds for a factor of 1 too: for a GBX instrument
+                        # the metadata fallback is always 0.01, so 1 only comes
+                        # from an explicit scaling_overrides.json entry saying
+                        # the source already quotes pounds. Overrides are
+                        # validated to 0.01, 1 or 100 (is_valid_override_factor).
+                        close_currency = "GBP"
                     # Prefer the most recent row with a finite close over the
                     # literal last row: the current day's row can be an
                     # incomplete placeholder (NaN OHLC) before intraday data
@@ -3075,30 +3115,55 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("Could not get timeseries for %s: %s", sanitise_log_value(t), sanitise_log_value(e))
 
-    refresh_snapshot_in_memory(snapshot, datetime.now(UTC))
+    _apply_rebuilt_snapshot(snapshot)
+    logger.info("Refreshed %d price entries", len(snapshot))
 
+
+def _read_prices_file() -> Dict[str, Any]:
+    """The persisted price snapshot, or ``{}`` when it is unset, missing or unreadable."""
+    if not _PRICES_PATH or not _PRICES_PATH.exists():
+        return {}
     try:
-        if _PRICES_PATH and snapshot:
-            existing: Dict[str, Any] = {}
-            if _PRICES_PATH.exists():
-                try:
-                    existing = json.loads(_PRICES_PATH.read_text())
-                except (json.JSONDecodeError, OSError):
-                    pass
-            merged = {**existing, **snapshot}
-            _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
-            _PRICES_PATH.write_text(json.dumps(merged, indent=2))
-            logger.info("Wrote %d prices to %s", len(merged), _PRICES_PATH)
-        elif not _PRICES_PATH:
-            logger.info(
-                "Price snapshot path not configured; skipping write" " (expected when config.prices_json is unset)"
-            )
-        else:
-            logger.info("Skipping price snapshot write — no timeseries data found")
+        loaded = json.loads(_PRICES_PATH.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Could not read %s: %s", sanitise_log_value(_PRICES_PATH), sanitise_log_value(exc))
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _apply_rebuilt_snapshot(rebuilt: Dict[str, Dict]) -> None:
+    """Merge cache-rebuilt entries into the in-memory and persisted snapshot (#10960).
+
+    One base is used for both: the persisted file and the in-memory snapshot
+    combined newest-first, so a price refresh entry is never lost or
+    downgraded whichever copy holds it when this runs. The in-memory snapshot
+    is replaced (``refresh_snapshot_in_memory``), so passing only ``rebuilt``
+    would also drop every ticker the rebuild does not cover.
+    """
+    on_disk = _read_prices_file()
+    base = _merge_snapshot_keep_newer(on_disk, dict(_PRICE_SNAPSHOT))
+    merged = _merge_snapshot_keep_newer(base, rebuilt)
+    refresh_snapshot_in_memory(merged, datetime.now(UTC))
+    # Empty in-memory placeholders let _resolve_full_ticker map a bare ticker to
+    # its exchange; they carry no price, so don't add them to the file.
+    to_write = {ticker: entry for ticker, entry in merged.items() if entry or ticker in on_disk}
+
+    if not _PRICES_PATH:
+        logger.info("Price snapshot path not configured; skipping write (expected when config.prices_json is unset)")
+        return
+    if not rebuilt:
+        logger.info("Skipping price snapshot write — no timeseries data found")
+        return
+    if to_write == on_disk:
+        # Every rebuilt entry lost to a fresher one: nothing to persist.
+        logger.info("Price snapshot unchanged; skipping write")
+        return
+    try:
+        _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _PRICES_PATH.write_text(json.dumps(to_write, indent=2))
+        logger.info("Wrote %d prices to %s", len(to_write), sanitise_log_value(_PRICES_PATH))
     except OSError as e:
         logger.warning("Failed to write latest_prices.json: %s", sanitise_log_value(e))
-
-    logger.info("Refreshed %d price entries", len(snapshot))
 
 
 def refresh_snapshot_async(days: int = 365) -> asyncio.Task:

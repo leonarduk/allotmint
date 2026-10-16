@@ -67,6 +67,7 @@ export interface Holding {
   change_1w_gbp?: number | null;
   change_1m_gbp?: number | null;
   change_1y_gbp?: number | null;
+  change_3y_gbp?: number | null;
   instrument_type?: string | null;
   sector?: string | null;
   /** Where the money is invested; for a fund this can differ from its domicile (#9296). */
@@ -692,12 +693,13 @@ export interface IndexSummaryRow {
   value_gbp: number | null;
   as_of: string | null;
   /** `null` when there isn't enough history for that window. */
-  changes: Record<'1D' | '1W' | '1M' | '1Y', IndexWindowChange | null>;
+  changes: Record<'1D' | '1W' | '1M' | '1Y' | '3Y', IndexWindowChange | null>;
   /**
-   * 1Y total return % (dividends reinvested) in the index's own currency,
+   * 1Y / 3Y total return % (dividends reinvested) in the index's own currency,
    * from a total-return index or a tracker ETF proxy; `null` when unavailable.
    */
   total_return_1y: IndexTotalReturn | null;
+  total_return_3y: IndexTotalReturn | null;
 }
 
 export interface IndexTotalReturn {

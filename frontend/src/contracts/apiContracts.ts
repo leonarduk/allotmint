@@ -89,6 +89,7 @@ export const holdingContractSchema = z.object({
   change_1w_gbp: nullableNumber.optional(),
   change_1m_gbp: nullableNumber.optional(),
   change_1y_gbp: nullableNumber.optional(),
+  change_3y_gbp: nullableNumber.optional(),
   instrument_type: nullableString.optional(),
   sector: nullableString.optional(),
   region: nullableString.optional(),

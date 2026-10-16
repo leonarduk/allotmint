@@ -419,6 +419,12 @@
                           "null"
                         ]
                       },
+                      "change_3y_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
                       "instrument_type": {
                         "type": [
                           "string",
@@ -842,6 +848,12 @@
                         ]
                       },
                       "change_1y_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "change_3y_gbp": {
                         "type": [
                           "number",
                           "null"

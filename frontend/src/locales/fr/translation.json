@@ -525,16 +525,17 @@
       "cashValue": "Valeur des liquidités",
       "dayChange": "Variation du jour",
       "dayChangePct": "Variation du jour %",
-      "totalGain": "Gain depuis l'achat",
-      "totalGainPct": "Gain depuis l'achat %",
-      "totalGainHelp": "Plus-value latente des positions actuelles : valeur actuelle moins le prix payé. Elle couvre toute la durée de détention de chaque position ; ce n'est donc pas un rendement sur une période fixe, et elle exclut les revenus perçus et les gains déjà réalisés.",
       "change_1w": "Variation 1S",
       "change_1m": "Variation 1M",
       "change_1y": "Variation 1A",
-      "periodChangeHelp": "Variation de prix sur les parts détenues actuellement au cours des 7 / 30 / 365 derniers jours (depuis la date d'achat pour un achat dans la période). Pas un rendement pondéré dans le temps : versements, transactions et revenus de la période sont ignorés. — signifie historique de prix insuffisant.",
-      "totalReturn1y": "Rendement total 1A",
-      "totalReturn1yPct": "Rendement total 1A %",
-      "totalReturnHelp": "Rendement sur les 365 derniers jours, dividendes et intérêts compris, d'après l'historique des transactions : variations de prix plus revenus, hors versements et retraits. Le % est pondéré dans le temps (le chiffre 1A de la page Performance). Par titulaire uniquement ; — signifie aucun historique de transactions."
+      "change_3y": "Variation 3A",
+      "periodChangeHelp": "Variation de prix sur les parts détenues actuellement au cours des 7 / 30 / 365 / 1095 derniers jours (depuis la date d'achat pour un achat dans la période). Pas un rendement pondéré dans le temps : versements, transactions et revenus de la période sont ignorés. — signifie historique de prix insuffisant.",
+      "totalReturn_1y": "Rendement total 1A",
+      "totalReturnPct_1y": "Rendement total 1A %",
+      "totalReturn_3y": "Rendement total 3A",
+      "totalReturnPct_3y": "Rendement total 3A %",
+      "totalReturnHelp_1y": "Rendement sur les 365 derniers jours, dividendes et intérêts compris, d'après l'historique des transactions : variations de prix plus revenus, hors versements et retraits. Le % est pondéré dans le temps (le chiffre 1A de la page Performance). Par titulaire uniquement ; — signifie aucun historique de transactions.",
+      "totalReturnHelp_3y": "Rendement sur les 3 dernières années (1095 jours), dividendes et intérêts compris, d'après l'historique des transactions : variations de prix plus revenus, hors versements et retraits. Le % est pondéré dans le temps et cumulé, non annualisé ; si l'historique couvre moins de 3 ans, il porte sur tout l'historique. Par titulaire uniquement ; — signifie aucun historique de transactions."
     }
   },
   "holdingsTable": {

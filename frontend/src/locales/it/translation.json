@@ -525,16 +525,17 @@
       "cashValue": "Valore liquidità",
       "dayChange": "Variazione giornaliera",
       "dayChangePct": "Variazione giornaliera %",
-      "totalGain": "Guadagno dall'acquisto",
-      "totalGainPct": "Guadagno dall'acquisto %",
-      "totalGainHelp": "Guadagno non realizzato sulle posizioni attuali: valore attuale meno il prezzo pagato. Copre l'intero periodo di detenzione di ogni posizione, quindi non è un rendimento su un periodo fisso, ed esclude i proventi ricevuti e i guadagni già realizzati.",
       "change_1w": "Variazione 1S",
       "change_1m": "Variazione 1M",
       "change_1y": "Variazione 1A",
-      "periodChangeHelp": "Variazione di prezzo sulle quote detenute ora negli ultimi 7 / 30 / 365 giorni (dalla data di acquisto per acquisti nel periodo). Non è un rendimento ponderato nel tempo: versamenti, operazioni e proventi nel periodo sono ignorati. — indica storico prezzi insufficiente.",
-      "totalReturn1y": "Rendimento totale 1A",
-      "totalReturn1yPct": "Rendimento totale 1A %",
-      "totalReturnHelp": "Rendimento degli ultimi 365 giorni inclusi dividendi e interessi, dallo storico delle transazioni: variazioni di prezzo più proventi, esclusi versamenti e prelievi. La % è ponderata nel tempo (il dato 1A della pagina Performance). Solo per titolare; — indica nessuno storico delle transazioni."
+      "change_3y": "Variazione 3A",
+      "periodChangeHelp": "Variazione di prezzo sulle quote detenute ora negli ultimi 7 / 30 / 365 / 1095 giorni (dalla data di acquisto per acquisti nel periodo). Non è un rendimento ponderato nel tempo: versamenti, operazioni e proventi nel periodo sono ignorati. — indica storico prezzi insufficiente.",
+      "totalReturn_1y": "Rendimento totale 1A",
+      "totalReturnPct_1y": "Rendimento totale 1A %",
+      "totalReturn_3y": "Rendimento totale 3A",
+      "totalReturnPct_3y": "Rendimento totale 3A %",
+      "totalReturnHelp_1y": "Rendimento degli ultimi 365 giorni inclusi dividendi e interessi, dallo storico delle transazioni: variazioni di prezzo più proventi, esclusi versamenti e prelievi. La % è ponderata nel tempo (il dato 1A della pagina Performance). Solo per titolare; — indica nessuno storico delle transazioni.",
+      "totalReturnHelp_3y": "Rendimento degli ultimi 3 anni (1095 giorni) inclusi dividendi e interessi, dallo storico delle transazioni: variazioni di prezzo più proventi, esclusi versamenti e prelievi. La % è ponderata nel tempo e cumulativa, non annualizzata; se lo storico è più breve di 3 anni copre l'intero storico. Solo per titolare; — indica nessuno storico delle transazioni."
     }
   },
   "holdingsTable": {

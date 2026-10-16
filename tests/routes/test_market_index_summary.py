@@ -359,3 +359,49 @@ def test_index_summary_has_no_total_return_without_the_source(monkeypatch):
 
     assert row["symbol"] == "^NDX"
     assert row["total_return_1y"] is None
+
+
+def test_index_summary_reports_a_3y_window_and_total_return(monkeypatch):
+    # 1200 daily closes; index and ETF both rise 10% on the last day, and a 5p
+    # ETF dividend two years back is inside the 3Y window but not the 1Y one.
+    _only(monkeypatch, "FTSE 100")
+    days = pd.date_range("2023-06-01", periods=1200, freq="D")
+    frame = _download_frame(
+        {"^FTSE": [8000.0] * 1199 + [8800.0], "ISF.L": [100.0] * 1199 + [110.0]}, days, {("ISF.L", 400): 5.0}
+    )
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["changes"]["3Y"]["change"] == pytest.approx(800.0)
+    assert row["changes"]["3Y"]["pct"] == pytest.approx(10.0)
+    fee_3y = (1 + 0.07 / 100) ** (1095 / 365.25)
+    assert row["total_return_3y"]["pct"] == pytest.approx((1.10 * 1.05 * fee_3y - 1) * 100)
+    assert row["total_return_1y"]["pct"] == pytest.approx(_plus_fee(10.0, 0.07))
+
+
+def test_index_summary_has_no_3y_figures_with_only_a_year_of_history(monkeypatch):
+    _only(monkeypatch, "FTSE 100")
+    frame = _download_frame({"^FTSE": [8000.0] * 400, "ISF.L": [100.0] * 400}, FLAT_YEAR)
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    [row] = _client().get("/market/index-summary").json()["indexes"]
+
+    assert row["changes"]["3Y"] is None
+    assert row["total_return_3y"] is None
+    assert row["total_return_1y"] is not None
+
+
+def test_index_summary_downloads_enough_history_for_3y(monkeypatch):
+    periods = []
+
+    def fake_download(symbols, *_args, period, **_kwargs):
+        periods.append(period)
+        return _download_frame({"^FTSE": [1.0, 2.0, 3.0]}, FLAT_YEAR[:3])
+
+    _only(monkeypatch, "FTSE 100")
+    monkeypatch.setattr(market_sectors.yf, "download", fake_download)
+
+    _client().get("/market/index-summary")
+
+    assert periods == ["5y"]

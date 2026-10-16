@@ -26,6 +26,12 @@ const summary: IndexSummary = {
         '1W': { change: 40, pct: 0.5, local_change: 40, local_pct: 0.5 },
         '1M': null,
         '1Y': { change: 600, pct: 7.98, local_change: 600, local_pct: 7.98 },
+        '3Y': {
+          change: 1100,
+          pct: 15.66,
+          local_change: 1100,
+          local_pct: 15.66,
+        },
       },
       total_return_1y: {
         pct: 11.5,
@@ -33,6 +39,14 @@ const summary: IndexSummary = {
         source: 'etf',
         local_currency: 'GBP',
         local_pct: 11.5,
+        fee_pct: 0.07,
+      },
+      total_return_3y: {
+        pct: 27.25,
+        symbol: 'ISF.L',
+        source: 'etf',
+        local_currency: 'GBP',
+        local_pct: 27.25,
         fee_pct: 0.07,
       },
     },
@@ -43,8 +57,9 @@ const summary: IndexSummary = {
       value: 20500,
       value_gbp: 20500,
       as_of: null,
-      changes: { '1D': null, '1W': null, '1M': null, '1Y': null },
+      changes: { '1D': null, '1W': null, '1M': null, '1Y': null, '3Y': null },
       total_return_1y: null,
+      total_return_3y: null,
     },
     {
       name: 'S&P 500',
@@ -58,7 +73,9 @@ const summary: IndexSummary = {
         '1W': { change: 23.3, pct: 0.4, local_change: -40, local_pct: -0.5 },
         '1M': { change: null, pct: null, local_change: 10, local_pct: 0.13 },
         '1Y': null,
+        '3Y': null,
       },
+      total_return_3y: null,
       total_return_1y: {
         pct: 18.8,
         symbol: '^SP500TR',
@@ -111,10 +128,11 @@ describe('IndexBenchmarkRows', () => {
       '+40.00 (0.50%)',
       '—',
       '+600.00 (7.98%)',
+      '+1,100.00 (15.66%)',
       '',
       '11.50%',
       '',
-      '',
+      '27.25%',
     ]);
   });
 
@@ -131,8 +149,9 @@ describe('IndexBenchmarkRows', () => {
       '0.50%',
       '—',
       '7.98%',
+      '15.66%',
       '11.50%',
-      '',
+      '27.25%',
     ]);
   });
 
@@ -145,7 +164,8 @@ describe('IndexBenchmarkRows', () => {
       'Proxy: ISF.L tracker ETF with dividends reinvested and its 0.07% annual fee added back'
     );
     const ftse250 = screen.getByTestId('index-row-^FTMC');
-    expect(cellTexts(ftse250)[10]).toBe('—');
+    expect(cellTexts(ftse250)[11]).toBe('—');
+    expect(cellTexts(ftse250)[13]).toBe('—');
   });
 
   it('shows a converted total return in GBP with the USD figure in its tooltip', async () => {

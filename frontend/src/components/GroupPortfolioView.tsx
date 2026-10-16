@@ -153,6 +153,7 @@ const PERIOD_CHANGES = [
   { key: "1w", field: "change_1w_gbp" },
   { key: "1m", field: "change_1m_gbp" },
   { key: "1y", field: "change_1y_gbp" },
+  { key: "3y", field: "change_3y_gbp" },
 ] as const;
 type PeriodKey = (typeof PERIOD_CHANGES)[number]["key"];
 // ``value`` is the current market value of the holdings with a known change;
@@ -164,7 +165,17 @@ const emptyPeriodTotals = (): PeriodTotals => ({
   "1w": { change: 0, value: 0, known: false },
   "1m": { change: 0, value: 0, known: false },
   "1y": { change: 0, value: 0, known: false },
+  "3y": { change: 0, value: 0, known: false },
 });
+
+// Owner total-return windows (#10763), in column order.
+const TOTAL_RETURN_WINDOWS = [
+  { key: "1y", days: 365 },
+  { key: "3y", days: 1095 },
+] as const;
+type TotalReturnKey = (typeof TOTAL_RETURN_WINDOWS)[number]["key"];
+// Per window: absent while loading, null when unavailable.
+type OwnerTotalReturns = Partial<Record<TotalReturnKey, OwnerTotalReturn | null>>;
 
 // Only holdings with a known change count toward the % base, so a holding
 // without enough price history doesn't dilute the figure.
@@ -469,9 +480,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     setAsOfOverride(null);
   }, [slug]);
 
-  // 1Y total return per owner slug (#10763): absent while loading, null when
+  // 1Y/3Y total return per owner slug (#10763): absent while loading, null when
   // unavailable (no transaction ledger, or the request failed).
-  const [totalReturns, setTotalReturns] = useState<Record<string, OwnerTotalReturn | null>>({});
+  const [totalReturns, setTotalReturns] = useState<Record<string, OwnerTotalReturns>>({});
   const ownerSlugsKey = useMemo(
     () =>
       Array.from(new Set((portfolio?.accounts ?? []).map((acct) => acct.owner)))
@@ -484,19 +495,23 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     setTotalReturns({});
     if (!ownerSlugsKey) return;
     let cancelled = false;
-    const ownerSlugs = ownerSlugsKey.split(",");
+    const requests = ownerSlugsKey.split(",").flatMap((owner) =>
+      TOTAL_RETURN_WINDOWS.map(({ key, days }) => ({ owner, key, days })),
+    );
     Promise.allSettled(
-      ownerSlugs.map((owner) => api.getOwnerTotalReturn(owner, 365, { asOf: asOfOverride })),
+      requests.map(({ owner, days }) => api.getOwnerTotalReturn(owner, days, { asOf: asOfOverride })),
     ).then((results) => {
       if (cancelled) return;
-      const next: Record<string, OwnerTotalReturn | null> = {};
+      const next: Record<string, OwnerTotalReturns> = {};
       results.forEach((result, index) => {
+        const { owner, key } = requests[index];
+        const entry = (next[owner] ??= {});
         if (result.status === "fulfilled") {
-          next[ownerSlugs[index]] = result.value;
+          entry[key] = result.value;
           return;
         }
-        console.warn(`1Y total return unavailable for ${ownerSlugs[index]}`, result.reason);
-        next[ownerSlugs[index]] = null;
+        console.warn(`${key.toUpperCase()} total return unavailable for ${owner}`, result.reason);
+        entry[key] = null;
       });
       setTotalReturns(next);
     });
@@ -842,8 +857,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     type OwnerAggregate = {
       value: number;
       dayChange: number;
-      gain: number;
-      cost: number;
       stock: number;
       cash: number;
       periods: PeriodTotals;
@@ -852,8 +865,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         label: string;
         value: number;
         dayChange: number;
-        gain: number;
-        cost: number;
         stock: number;
         cash: number;
         periods: PeriodTotals;
@@ -869,8 +880,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         (perOwner[owner] = {
           value: 0,
           dayChange: 0,
-          gain: 0,
-          cost: 0,
           stock: 0,
           cash: 0,
           periods: emptyPeriodTotals(),
@@ -888,8 +897,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         label: accountLabel,
         value: acct.value_estimate_gbp ?? 0,
         dayChange: 0,
-        gain: 0,
-        cost: 0,
         stock: 0,
         cash: 0,
         periods: emptyPeriodTotals(),
@@ -900,25 +907,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       entry.value += acct.value_estimate_gbp ?? 0;
 
       for (const h of acct.holdings ?? []) {
-        const cost =
-          h.cost_basis_gbp && h.cost_basis_gbp > 0
-            ? h.cost_basis_gbp
-            : h.effective_cost_basis_gbp ?? 0;
         const market = h.market_value_gbp ?? 0;
-        const gain =
-          h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
-            ? h.gain_gbp
-            : market - cost;
         const dayChg = h.day_change_gbp ?? 0;
 
         const typeKey = (h.instrument_type ?? "other").toLowerCase();
         perType[typeKey] = (perType[typeKey] || 0) + market;
 
-        entry.cost += cost;
-        entry.gain += gain;
         entry.dayChange += dayChg;
-        accountEntry.cost += cost;
-        accountEntry.gain += gain;
         accountEntry.dayChange += dayChg;
         addPeriodChanges(entry.periods, h, market);
         addPeriodChanges(accountEntry.periods, h, market);
@@ -940,13 +935,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     const totalValue = totals.totalValue;
 
     const ownerRows = Object.entries(perOwner).map(([owner, data]) => {
-      const gainPct = data.cost > 0 ? (data.gain / data.cost) * 100 : 0;
       const dayChangePct = computeDayChangePct(data.value, data.dayChange);
       const valuePct = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
       const stockPct = totalValue > 0 ? (data.stock / totalValue) * 100 : 0;
       const cashPct = totalValue > 0 ? (data.cash / totalValue) * 100 : 0;
       const accounts = data.accounts.map((acct) => {
-        const accountGainPct = acct.cost > 0 ? (acct.gain / acct.cost) * 100 : 0;
         const accountDayChangePct = computeDayChangePct(acct.value, acct.dayChange);
         const accountValuePct =
           totalValue > 0 ? (acct.value / totalValue) * 100 : 0;
@@ -956,7 +949,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           totalValue > 0 ? (acct.cash / totalValue) * 100 : 0;
         return {
           ...acct,
-          gainPct: accountGainPct,
           dayChangePct: accountDayChangePct,
           periodChanges: summarisePeriodChanges(acct.periods),
           valuePct: accountValuePct,
@@ -972,7 +964,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         owner,
         ownerDisplay,
         ...data,
-        gainPct,
         dayChangePct,
         periodChanges: summarisePeriodChanges(data.periods),
         valuePct,
@@ -1065,7 +1056,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   // implausible values instead of guessing a unit (#8570).
 
   /* ── render ────────────────────────────────────────────── */
-  // 1W/1M/1Y cells (#10746): "£x (y%)", or just the % in Relative view.
+  // 1W/1M/1Y/3Y cells (#10746): "£x (y%)", or just the % in Relative view.
   const renderPeriodCells = (periods: PeriodChange[]) =>
     periods.map(({ key, change, pct }) => (
       <td
@@ -1551,34 +1542,24 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                   {t(`group.ownerTable.change_${key}`)}
                 </th>
               ))}
-              {!relativeViewEnabled && (
-                <th
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  title={t("group.ownerTable.totalReturnHelp")}
-                >
-                  {t("group.ownerTable.totalReturn1y")}
-                </th>
-              )}
-              <th
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                title={t("group.ownerTable.totalReturnHelp")}
-              >
-                {t("group.ownerTable.totalReturn1yPct")}
-              </th>
-              {!relativeViewEnabled && (
-                <th
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  title={t("group.ownerTable.totalGainHelp")}
-                >
-                  {t("group.ownerTable.totalGain")}
-                </th>
-              )}
-              <th
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                title={t("group.ownerTable.totalGainHelp")}
-              >
-                {t("group.ownerTable.totalGainPct")}
-              </th>
+              {TOTAL_RETURN_WINDOWS.map(({ key }) => (
+                <Fragment key={key}>
+                  {!relativeViewEnabled && (
+                    <th
+                      className={`${tableStyles.cell} ${tableStyles.right}`}
+                      title={t(`group.ownerTable.totalReturnHelp_${key}`)}
+                    >
+                      {t(`group.ownerTable.totalReturn_${key}`)}
+                    </th>
+                  )}
+                  <th
+                    className={`${tableStyles.cell} ${tableStyles.right}`}
+                    title={t(`group.ownerTable.totalReturnHelp_${key}`)}
+                  >
+                    {t(`group.ownerTable.totalReturnPct_${key}`)}
+                  </th>
+                </Fragment>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -1633,21 +1614,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                       {percent(row.dayChangePct)}
                     </td>
                     {renderPeriodCells(row.periodChanges)}
-                    {renderTotalReturnCells(totalReturns[row.owner])}
-                    {!relativeViewEnabled && (
-                      <td
-                        className={`${tableStyles.cell} ${tableStyles.right}`}
-                        style={{ color: row.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)" }}
-                      >
-                        {reporting.format(row.gain)}
-                      </td>
-                    )}
-                    <td
-                      className={`${tableStyles.cell} ${tableStyles.right}`}
-                      style={{ color: row.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)" }}
-                    >
-                      {percent(row.gainPct)}
-                    </td>
+                    {TOTAL_RETURN_WINDOWS.map(({ key }) => (
+                      <Fragment key={key}>
+                        {renderTotalReturnCells(totalReturns[row.owner]?.[key])}
+                      </Fragment>
+                    ))}
                   </tr>
                   {isExpanded &&
                     row.accounts.map((acct) => (
@@ -1692,23 +1663,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                           {percent(acct.dayChangePct)}
                         </td>
                         {renderPeriodCells(acct.periodChanges)}
-                        {renderTotalReturnCells(null)}
-                        {!relativeViewEnabled && (
-                          <td
-                            className={`${tableStyles.cell} ${tableStyles.right}`}
-                            style={{
-                              color: acct.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
-                            }}
-                          >
-                            {reporting.format(acct.gain)}
-                          </td>
-                        )}
-                        <td
-                          className={`${tableStyles.cell} ${tableStyles.right}`}
-                          style={{ color: acct.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)" }}
-                        >
-                          {percent(acct.gainPct)}
-                        </td>
+                        {TOTAL_RETURN_WINDOWS.map(({ key }) => (
+                          <Fragment key={key}>{renderTotalReturnCells(null)}</Fragment>
+                        ))}
                       </tr>
                     ))}
                 </Fragment>

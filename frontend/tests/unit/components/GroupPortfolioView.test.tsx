@@ -148,6 +148,7 @@ const mockAllFetches = (
     sectorContributions?: any[];
     regionContributions?: any[];
     liveQuotes?: Record<string, any>;
+    // Keyed by owner, or by "owner:days" for one window only.
     totalReturns?: Record<string, { total_return_gbp: number | null; total_return_pct: number | null }>;
   } = {},
 ) => {
@@ -265,12 +266,14 @@ const mockAllFetches = (
       } as Response);
     }
     if (url.includes("/total-return")) {
-      const owner = decodeURIComponent(new URL(url).pathname.split("/").slice(-2)[0]);
-      const figures = totalReturns[owner];
+      const parsed = new URL(url);
+      const owner = decodeURIComponent(parsed.pathname.split("/").slice(-2)[0]);
+      const days = Number(parsed.searchParams.get("days"));
+      const figures = totalReturns[`${owner}:${days}`] ?? totalReturns[owner];
       if (!figures) return Promise.reject(new Error(`no total return for ${owner}`));
       return Promise.resolve({
         ok: true,
-        json: async () => ({ owner, days: 365, ...figures }),
+        json: async () => ({ owner, days, ...figures }),
       } as Response);
     }
     if (url.includes("/alpha")) {
@@ -392,8 +395,10 @@ describe("GroupPortfolioView", () => {
     expect(within(ownerTable!).getByText("Alice Example")).toBeInTheDocument();
     expect(within(ownerTable!).getByText("Bob Example")).toBeInTheDocument();
     expect(within(ownerTable!).getAllByText("66.67%").length).toBeGreaterThan(0);
-    expect(within(ownerTable!).getByText("25.00%")).toBeInTheDocument();
+    expect(within(ownerTable!).getByText("5.26%")).toBeInTheDocument();
     expect(within(ownerTable!).getByText("-4.76%")).toBeInTheDocument();
+    // Gain since purchase (alice: 25%) is no longer a column.
+    expect(within(ownerTable!).queryByText("25.00%")).toBeNull();
     expect(screen.queryByText("Total Value")).toBeNull();
   });
 
@@ -419,8 +424,9 @@ describe("GroupPortfolioView", () => {
           value: 8000,
           value_gbp: 8000,
           as_of: null,
-          changes: { "1D": null, "1W": null, "1M": null, "1Y": null },
+          changes: { "1D": null, "1W": null, "1M": null, "1Y": null, "3Y": null },
           total_return_1y: null,
+          total_return_3y: null,
         },
       ],
     });
@@ -445,7 +451,7 @@ describe("GroupPortfolioView", () => {
     window.localStorage.clear();
   });
 
-  it("shows 1W/1M/1Y changes over holdings with known history (#10746)", async () => {
+  it("shows 1W/1M/1Y/3Y changes over holdings with known history (#10746)", async () => {
     const mockPortfolio = {
       name: "At a glance",
       accounts: [
@@ -462,6 +468,7 @@ describe("GroupPortfolioView", () => {
               change_1w_gbp: 10,
               change_1m_gbp: -20,
               change_1y_gbp: null,
+              change_3y_gbp: 40,
             },
             {
               // No history for any window: left out of the totals and the % base.
@@ -472,6 +479,7 @@ describe("GroupPortfolioView", () => {
               change_1w_gbp: null,
               change_1m_gbp: null,
               change_1y_gbp: null,
+              change_3y_gbp: null,
             },
             {
               // Cash: a known 0 change, so its value is in the % base.
@@ -483,6 +491,7 @@ describe("GroupPortfolioView", () => {
               change_1w_gbp: 0,
               change_1m_gbp: 0,
               change_1y_gbp: 0,
+              change_3y_gbp: 0,
             },
           ],
         },
@@ -502,10 +511,8 @@ describe("GroupPortfolioView", () => {
       .find((table) => within(table).queryByText("Owner"));
     expect(ownerTable).toBeTruthy();
     expect(within(ownerTable!).getByText("1W Change")).toBeInTheDocument();
-    expect(within(ownerTable!).getByText("Gain Since Purchase")).toHaveAttribute(
-      "title",
-      expect.stringContaining("not a return for any fixed period"),
-    );
+    expect(within(ownerTable!).getByText("3Y Change")).toBeInTheDocument();
+    expect(within(ownerTable!).queryByText("Gain Since Purchase")).toBeNull();
 
     const ownerRow = within(ownerTable!)
       .getAllByRole("row")
@@ -514,10 +521,11 @@ describe("GroupPortfolioView", () => {
       .getAllByRole("cell")
       .map((cell) => cell.textContent?.trim());
     // Base = £100 holding + £50 cash: 10 on a start value of 140; -20 on 170.
-    // 1Y: only the cash has a known change, so £0 (0%).
+    // 1Y: only the cash has a known change, so £0 (0%). 3Y: 40 on 110.
     expect(cells[6]).toBe("£10.00 (7.14%)");
     expect(cells[7]).toBe("-£20.00 (-11.76%)");
     expect(cells[8]).toBe("£0.00 (0.00%)");
+    expect(cells[9]).toBe("£40.00 (36.36%)");
 
     await userEvent.click(screen.getAllByLabelText("Relative view")[0]);
     const relativeRow = within(ownerTable!)
@@ -527,10 +535,10 @@ describe("GroupPortfolioView", () => {
     const relativeCells = within(relativeRow!)
       .getAllByRole("cell")
       .map((cell) => cell.textContent?.trim());
-    expect(relativeCells.slice(5, 8)).toEqual(["7.14%", "-11.76%", "0.00%"]);
+    expect(relativeCells.slice(5, 9)).toEqual(["7.14%", "-11.76%", "0.00%", "36.36%"]);
   });
 
-  it("shows the 1Y total return per owner, including income (#10763)", async () => {
+  it("shows the 1Y and 3Y total return per owner, including income (#10763)", async () => {
     const holding = (owner: string) => ({
       owner,
       account_type: "isa",
@@ -539,7 +547,12 @@ describe("GroupPortfolioView", () => {
     });
     mockAllFetches(
       { name: "At a glance", accounts: [holding("alice"), holding("bob")] },
-      { totalReturns: { alice: { total_return_gbp: 55.5, total_return_pct: 0.0567 } } },
+      {
+        totalReturns: {
+          "alice:365": { total_return_gbp: 55.5, total_return_pct: 0.0567 },
+          "alice:1095": { total_return_gbp: 210, total_return_pct: 0.2345 },
+        },
+      },
     );
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
@@ -555,6 +568,10 @@ describe("GroupPortfolioView", () => {
       "title",
       expect.stringContaining("including dividends and interest"),
     );
+    expect(within(ownerTable).getByText("3Y Total Return")).toHaveAttribute(
+      "title",
+      expect.stringContaining("not annualised"),
+    );
     const cellsFor = (name: string) =>
       within(
         within(ownerTable)
@@ -564,17 +581,21 @@ describe("GroupPortfolioView", () => {
         .getAllByRole("cell")
         .map((cell) => cell.textContent?.trim());
 
-    // Columns 9 and 10 follow the price-only 1Y Change in column 8.
+    // 1Y then 3Y total return (£, %) follow the price-only 3Y Change in column 9.
     await waitFor(() =>
-      expect(cellsFor("Alice Example").slice(8, 11)).toEqual([
+      expect(cellsFor("Alice Example").slice(8, 14)).toEqual([
         "£20.00 (2.04%)",
+        "—",
         "£55.50",
         "5.67%",
+        "£210.00",
+        "23.45%",
       ]),
     );
-    // Bob's request failed: shown as unavailable, never as a zero return.
-    expect(cellsFor("Bob Example").slice(9, 11)).toEqual(["—", "—"]);
+    // Bob's requests failed: shown as unavailable, never as a zero return.
+    expect(cellsFor("Bob Example").slice(10, 14)).toEqual(["—", "—", "—", "—"]);
     expect(consoleWarnSpy).toHaveBeenCalledWith("1Y total return unavailable for bob", expect.any(Error));
+    expect(consoleWarnSpy).toHaveBeenCalledWith("3Y total return unavailable for bob", expect.any(Error));
   });
 
   it("renders the pricing as-of date", async () => {

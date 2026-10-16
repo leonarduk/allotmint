@@ -525,16 +525,17 @@
       "cashValue": "Bargeldwert",
       "dayChange": "Tagesänderung",
       "dayChangePct": "Tagesänderung %",
-      "totalGain": "Gewinn seit Kauf",
-      "totalGainPct": "Gewinn seit Kauf %",
-      "totalGainHelp": "Nicht realisierter Gewinn der aktuellen Positionen: aktueller Wert minus Kaufpreis. Er umfasst die gesamte Haltedauer jeder Position, ist also keine Rendite für einen festen Zeitraum, und enthält weder Erträge noch bereits realisierte Gewinne.",
       "change_1w": "Änderung 1W",
       "change_1m": "Änderung 1M",
       "change_1y": "Änderung 1J",
-      "periodChangeHelp": "Kursänderung der aktuell gehaltenen Stücke über die letzten 7 / 30 / 365 Tage (ab Kaufdatum bei Käufen innerhalb des Zeitraums). Keine zeitgewichtete Rendite: Einzahlungen, Trades und Erträge im Zeitraum werden ignoriert. — bedeutet zu wenig Kurshistorie.",
-      "totalReturn1y": "Gesamtrendite 1J",
-      "totalReturn1yPct": "Gesamtrendite 1J %",
-      "totalReturnHelp": "Rendite der letzten 365 Tage einschließlich Dividenden und Zinsen, aus der Transaktionshistorie: Kursänderungen plus Erträge, ohne Ein- und Auszahlungen. Der %-Wert ist zeitgewichtet (der 1J-Wert der Performance-Seite). Nur pro Inhaber; — bedeutet keine Transaktionshistorie."
+      "change_3y": "Änderung 3J",
+      "periodChangeHelp": "Kursänderung der aktuell gehaltenen Stücke über die letzten 7 / 30 / 365 / 1095 Tage (ab Kaufdatum bei Käufen innerhalb des Zeitraums). Keine zeitgewichtete Rendite: Einzahlungen, Trades und Erträge im Zeitraum werden ignoriert. — bedeutet zu wenig Kurshistorie.",
+      "totalReturn_1y": "Gesamtrendite 1J",
+      "totalReturnPct_1y": "Gesamtrendite 1J %",
+      "totalReturn_3y": "Gesamtrendite 3J",
+      "totalReturnPct_3y": "Gesamtrendite 3J %",
+      "totalReturnHelp_1y": "Rendite der letzten 365 Tage einschließlich Dividenden und Zinsen, aus der Transaktionshistorie: Kursänderungen plus Erträge, ohne Ein- und Auszahlungen. Der %-Wert ist zeitgewichtet (der 1J-Wert der Performance-Seite). Nur pro Inhaber; — bedeutet keine Transaktionshistorie.",
+      "totalReturnHelp_3y": "Rendite der letzten 3 Jahre (1095 Tage) einschließlich Dividenden und Zinsen, aus der Transaktionshistorie: Kursänderungen plus Erträge, ohne Ein- und Auszahlungen. Der %-Wert ist zeitgewichtet und kumuliert, nicht annualisiert; ist die Historie kürzer als 3 Jahre, deckt er die gesamte Historie ab. Nur pro Inhaber; — bedeutet keine Transaktionshistorie."
     }
   },
   "holdingsTable": {

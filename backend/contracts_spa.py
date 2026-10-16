@@ -170,11 +170,12 @@ class HoldingContract(SpaContractBase):
     fx_rate_source: str | None = None
     day_change_gbp: float | None = None
     day_change_currency: str | None = None  # currency code e.g. "GBP"
-    # Price change on current units over trailing 7/30/365 days (#10746);
+    # Price change on current units over trailing 7/30/365/1095 days (#10746);
     # None when there is no close for the window start.
     change_1w_gbp: float | None = None
     change_1m_gbp: float | None = None
     change_1y_gbp: float | None = None
+    change_3y_gbp: float | None = None
     instrument_type: str | None = None
     sector: str | None = None
     region: str | None = None

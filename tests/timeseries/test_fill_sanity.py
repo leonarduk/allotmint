@@ -201,3 +201,29 @@ def test_refetch_over_a_clean_cache_keeps_every_row(cache):
     cache._rolling_cache(lambda **_k: traded, path, {}, 10000, ticker="SGLN", exchange="L")
 
     assert len(cache._load_parquet(path)) == len(traded)
+
+
+def test_reference_currency_without_stored_fx_is_skipped(cache, monkeypatch):
+    """A currency with no FX file contributes no factor and does not break the refresh."""
+    monkeypatch.setattr(cache, "fx_reference_currencies", lambda: ["USD", "JPY"])
+    path = cache._cache_path("meta", "SGLN_L.parquet")
+
+    _rolling(cache, path)
+
+    assert len(cache._load_parquet(path)) == len(_SGLN_TRADED)
+
+
+def test_zero_fx_rate_offers_no_factor():
+    candidates = _frame(_SGLN_USD_ROWS)
+
+    assert not mismatched_fills(_frame(_SGLN_TRADED), candidates, [np.zeros(len(candidates))]).any()
+
+
+def test_fetched_frame_without_volume_goes_through_rolling_cache(cache):
+    """_ensure_schema adds Volume as missing, so every fetched row counts as untraded and is kept."""
+    path = cache._cache_path("meta", "SGLN_L.parquet")
+    fetched = _yahoo_history().drop(columns="Volume")
+
+    cache._rolling_cache(lambda **_k: fetched, path, {}, 10000, ticker="SGLN", exchange="L")
+
+    assert len(cache._load_parquet(path)) == len(fetched)

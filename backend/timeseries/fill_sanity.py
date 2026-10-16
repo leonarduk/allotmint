@@ -116,7 +116,9 @@ def _factor_matrix(fx_rates: Sequence[np.ndarray], fx_rows: np.ndarray) -> np.nd
     """
     columns = [np.full(len(fx_rows), f) for f in _UNIT_FACTORS]
     for rate in fx_rates:
-        rate = np.where(fx_rows, np.asarray(rate, dtype=float), np.nan)
+        rate = np.asarray(rate, dtype=float)
+        # A missing or non-positive stored rate offers no factor.
+        rate = np.where(fx_rows & (rate > 0), rate, np.nan)
         for base in (rate, 1.0 / rate):
             columns.extend((base, base * 100.0, base / 100.0))
     return np.column_stack(columns)

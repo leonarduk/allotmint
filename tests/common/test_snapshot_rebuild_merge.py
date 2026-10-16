@@ -118,6 +118,53 @@ def test_pence_instrument_close_is_labelled_gbp_after_scaling(tmp_path, monkeypa
     assert entry["price_currency"] == "GBP"
 
 
+def test_pence_instrument_with_pounds_override_is_labelled_gbp(tmp_path, monkeypatch):
+    """A factor of 1 on a GBX instrument means the source already quotes pounds, so the value is GBP."""
+    prices_path, _ = _stub_rebuild(
+        monkeypatch,
+        tmp_path,
+        {"3IN": _closes("2026-10-13", 3.945)},
+        existing={},
+        currency="GBX",
+        scale=1,
+    )
+
+    pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+
+    entry = json.loads(prices_path.read_text())["3IN.L"]
+    assert entry["last_price"] == pytest.approx(3.945)
+    assert entry["price_currency"] == "GBP"
+
+
+def test_empty_rebuild_keeps_memory_and_does_not_rewrite_file(tmp_path, monkeypatch):
+    """No cache data: the file is left untouched and the in-memory snapshot keeps its entries."""
+    prices_path, in_memory = _stub_rebuild(monkeypatch, tmp_path, {}, existing={"3IN.L": _REFRESHED_3IN})
+    prices_path.write_text("SENTINEL")  # unreadable as JSON, so any rewrite would replace it
+
+    pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+
+    assert prices_path.read_text() == "SENTINEL"
+    assert in_memory["3IN.L"] == _REFRESHED_3IN
+
+
+def test_kept_refresh_entry_is_not_stale_for_its_reporting_date(tmp_path, monkeypatch):
+    """The issue's outcome: after refresh + restart rebuild, the holding is not stale for 2026-10-14."""
+    from datetime import date
+
+    from backend.common.holding_utils import _snapshot_is_stale
+
+    _, in_memory = _stub_rebuild(
+        monkeypatch,
+        tmp_path,
+        {"3IN": _closes("2026-10-13", 3.945)},
+        existing={"3IN.L": _REFRESHED_3IN},
+    )
+
+    pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+
+    assert _snapshot_is_stale(in_memory["3IN.L"], date(2026, 10, 14)) is False
+
+
 def test_startup_with_empty_memory_keeps_newer_file_entry(tmp_path, monkeypatch):
     """At startup the in-memory snapshot can still be empty; the file's newer entry must win in memory too."""
     prices_path, in_memory = _stub_rebuild(

@@ -3089,6 +3089,10 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                         # get_scaling_override returns the factor that turns a
                         # cached sterling close into pounds, and apply_scaling
                         # has applied it, so the stored value is GBP (#10960).
+                        # That holds for a factor of 1 too: for a GBX instrument
+                        # the metadata fallback is always 0.01, so 1 only comes
+                        # from an explicit scaling_overrides.json entry saying
+                        # the source already quotes pounds.
                         close_currency = "GBP"
                     # Prefer the most recent row with a finite close over the
                     # literal last row: the current day's row can be an

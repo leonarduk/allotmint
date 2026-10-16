@@ -228,6 +228,12 @@ def test_rebuild_keeps_non_held_entries_in_memory(tmp_path, monkeypatch):
             True,
         ),
         ({"last_price_date": "2026-10-14"}, {"last_price_date": "2026-10-14"}, False),
+        # Same date, only the rebuilt entry carries a time: the more precise entry wins.
+        (
+            {"last_price_date": "2026-10-14"},
+            {"last_price_date": "2026-10-14", "last_price_time": "2026-10-14T16:30:00Z"},
+            False,
+        ),
         ({}, {"last_price_date": "2026-10-14"}, False),
     ],
 )

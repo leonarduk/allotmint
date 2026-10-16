@@ -2,6 +2,7 @@
 
 import importlib
 import sys
+from datetime import date
 
 import numpy as np
 import pandas as pd
@@ -233,3 +234,16 @@ def test_fetched_frame_without_volume_goes_through_rolling_cache(cache):
     cache._rolling_cache(lambda **_k: fetched, path, {}, 10000, ticker="SGLN", exchange="L")
 
     assert len(cache._load_parquet(path)) == len(fetched)
+
+
+def test_public_range_loader_reaches_the_fill_check(cache, monkeypatch):
+    """load_meta_timeseries_range (also what the refresh queue behind admin_cache_warm calls)
+    writes through _rolling_cache, so a cold-cache fetch of SGLN.L stores no USD rows."""
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", lambda **_k: _yahoo_history())
+    path = cache.meta_timeseries_cache_path("SGLN", "L")
+
+    cache.load_meta_timeseries_range("SGLN", "L", date(2011, 4, 1), date(2011, 6, 30), base_currency="GBX")
+
+    stored = cache._load_parquet(str(path))
+    assert sorted(stored["Date"].dt.strftime("%Y-%m-%d")) == [d for d, _, _ in _SGLN_TRADED]

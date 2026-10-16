@@ -46,6 +46,7 @@ from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
+from backend.timeseries.fill_sanity import mismatched_fills
 from backend.timeseries.history_freeze import drop_frozen_rows, freeze_date_for
 from backend.timeseries.outlier_guard import drop_zero_volume_spikes
 from backend.timeseries.price_adjustments import PriceAdjustment, adjustments_for, apply_price_adjustments
@@ -459,6 +460,50 @@ def _merge_fetched(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFr
     return combined, not added.empty or not corrected.empty
 
 
+def _fill_anchors(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """``(anchors, candidates)`` for the #10971 currency/unit check on ``new``.
+
+    Against a cached series the anchors are the cached rows and the candidates
+    the fetched rows on dates it lacks. On a cold fetch there is no cache to
+    trust, so rows that traded (``Volume > 0``) anchor the untraded ones.
+    """
+    if existing.empty:
+        traded = (pd.to_numeric(new["Volume"], errors="coerce") > 0).to_numpy()
+        return new.loc[traded], new.loc[~traded]
+    added = ~new["Date"].dt.date.isin(set(existing["Date"].dt.date)).to_numpy()
+    return existing, new.loc[added]
+
+
+def _without_mismatched_fills(existing: pd.DataFrame, new: pd.DataFrame, *, ticker: str, exchange: str) -> pd.DataFrame:
+    """``new`` minus filled rows quoted in another currency or unit than their neighbours (#10971).
+
+    See ``backend.timeseries.fill_sanity``. FX rates come from the stored FX
+    cache only (no fetch), for the reference currencies.
+    """
+    if new.empty:
+        return new
+    anchors, candidates = _fill_anchors(existing, new)
+    if anchors.empty or candidates.empty:
+        return new
+    fx_rates = [
+        align_fx_rates(_cached_fx_frame(curr), pd.Index(candidates["Date"])).to_numpy()
+        for curr in fx_reference_currencies()
+    ]
+    bad = mismatched_fills(anchors, candidates, fx_rates)
+    if not bad.any():
+        return new
+    dropped = candidates.loc[bad]
+    rows = ", ".join(f"{d.date().isoformat()}={c:g}" for d, c in zip(dropped["Date"], dropped["Close"]))
+    logger.warning(
+        "Rejecting %s fetched row(s) for %s.%s quoted on a different currency/unit than the cached closes: %s",
+        sanitise_log_value(len(dropped)),
+        sanitise_log_value(ticker),
+        sanitise_log_value(exchange),
+        sanitise_log_value(rows),
+    )
+    return new.drop(index=dropped.index)
+
+
 def _fetch_window(existing: pd.DataFrame, fetch_from: date, today: date) -> tuple[bool, Dict]:
     """``(covered, dates)`` for a live refresh of ``existing`` over ``[fetch_from, today]``.
 
@@ -582,7 +627,7 @@ def _rolling_cache(
             sanitise_log_value(ticker),
             sanitise_log_value(exchange),
         )
-    new = kept
+    new = _without_mismatched_fills(existing, kept, ticker=ticker, exchange=exchange)
 
     if new.empty:
         logger.warning("No new timeseries data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))

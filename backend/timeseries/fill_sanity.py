@@ -69,8 +69,11 @@ _UNIT_FACTORS = (100.0, 0.01)
 _Direction = Literal["backward", "forward"]
 
 
-def _neighbour_closes(anchors: pd.DataFrame, dates: pd.Series, direction: _Direction, window_days: int) -> np.ndarray:
-    """Close of the nearest anchor on ``direction`` of each of ``dates`` (NaN when none within ``window_days``)."""
+def _neighbours(anchors: pd.DataFrame, dates: pd.Series, direction: _Direction) -> tuple[np.ndarray, np.ndarray]:
+    """``(close, gap_days)`` of the nearest anchor on ``direction`` of each of ``dates``.
+
+    Both are NaN when no anchor lies within :data:`NEIGHBOUR_WINDOW_DAYS`.
+    """
     ref = pd.DataFrame(
         {
             "Date": pd.to_datetime(anchors["Date"]).astype("datetime64[ns]").to_numpy(),
@@ -78,6 +81,7 @@ def _neighbour_closes(anchors: pd.DataFrame, dates: pd.Series, direction: _Direc
         }
     )
     ref = ref[ref["Anchor"] > 0].sort_values("Date", kind="stable").drop_duplicates("Date", keep="last")
+    ref["AnchorDate"] = ref["Date"]
     keys = pd.to_datetime(dates).astype("datetime64[ns]").to_numpy()
     order = np.argsort(keys, kind="stable")
     merged = pd.merge_asof(
@@ -86,25 +90,33 @@ def _neighbour_closes(anchors: pd.DataFrame, dates: pd.Series, direction: _Direc
         on="Date",
         direction=direction,
         allow_exact_matches=False,
-        tolerance=pd.Timedelta(days=window_days),
+        tolerance=pd.Timedelta(days=NEIGHBOUR_WINDOW_DAYS),
     )
-    out = np.empty(len(keys), dtype=float)
-    out[order] = merged["Anchor"].to_numpy(dtype=float)
-    return out
+    gap = (merged["AnchorDate"] - merged["Date"]).abs().dt.days.to_numpy(dtype=float)
+    close, gap_days = np.empty(len(keys), dtype=float), np.empty(len(keys), dtype=float)
+    close[order] = merged["Anchor"].to_numpy(dtype=float)
+    gap_days[order] = gap
+    return close, gap_days
 
 
-def _untraded(df: pd.DataFrame) -> np.ndarray:
+def untraded(df: pd.DataFrame) -> np.ndarray:
     """True for rows with no positive ``Volume`` (or no ``Volume`` column)."""
     if "Volume" not in df.columns:
         return np.ones(len(df), dtype=bool)
     return ~(pd.to_numeric(df["Volume"], errors="coerce").to_numpy(dtype=float) > 0)
 
 
-def _factor_matrix(fx_rates: Sequence[np.ndarray], untraded: np.ndarray) -> np.ndarray:
-    """Per-row currency/unit factors: the unit factors, plus each FX rate (inverted, x100) on untraded rows."""
-    columns = [np.full(len(untraded), f) for f in _UNIT_FACTORS]
+def _factor_matrix(fx_rates: Sequence[np.ndarray], fx_rows: np.ndarray) -> np.ndarray:
+    """Per-row currency/unit factors: the unit factors, plus each FX rate on ``fx_rows``.
+
+    Each rate is tried as GBP-per-unit and inverted, each also x100 and /100:
+    the six ways a pence or pounds series can meet the other currency's major
+    or minor unit (GBp vs USD, GBp vs US cents, GBP vs USD, GBP vs US cents,
+    and the same from a USD series' side).
+    """
+    columns = [np.full(len(fx_rows), f) for f in _UNIT_FACTORS]
     for rate in fx_rates:
-        rate = np.where(untraded, np.asarray(rate, dtype=float), np.nan)
+        rate = np.where(fx_rows, np.asarray(rate, dtype=float), np.nan)
         for base in (rate, 1.0 / rate):
             columns.extend((base, base * 100.0, base / 100.0))
     return np.column_stack(columns)
@@ -125,8 +137,8 @@ def _side_matches(
     ``alone_ok``: the anchor is close and far enough off to judge the fill on
     its own when the other side has none.
     """
-    neighbour = _neighbour_closes(anchors, dates, direction, NEIGHBOUR_WINDOW_DAYS)
-    near = ~np.isnan(_neighbour_closes(anchors, dates, direction, ONE_SIDED_WINDOW_DAYS))
+    neighbour, gap_days = _neighbours(anchors, dates, direction)
+    near = gap_days <= ONE_SIDED_WINDOW_DAYS
     with np.errstate(divide="ignore", invalid="ignore"):
         ratio = close / neighbour
         matched = _matches_factor(ratio, factors)
@@ -147,7 +159,7 @@ def mismatched_fills(anchors: pd.DataFrame, candidates: pd.DataFrame, fx_rates: 
     if candidates.empty or anchors.empty:
         return np.zeros(len(candidates), dtype=bool)
     close = pd.to_numeric(candidates["Close"], errors="coerce").to_numpy(dtype=float)
-    factors = _factor_matrix(fx_rates, _untraded(candidates))
+    factors = _factor_matrix(fx_rates, untraded(candidates))
     dates = candidates["Date"]
     prev, prev_alone, prev_match = _side_matches(close, anchors, dates, "backward", factors)
     nxt, next_alone, next_match = _side_matches(close, anchors, dates, "forward", factors)

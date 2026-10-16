@@ -108,6 +108,12 @@ def test_one_sided_fill_needs_a_near_and_clear_mismatch(day, close, expected):
     assert bool(mismatched_fills(anchors, fill, fx)[0]) is expected
 
 
+def test_without_a_volume_column_every_row_counts_as_untraded():
+    candidates = _frame(_SGLN_USD_ROWS).drop(columns="Volume")
+
+    assert mismatched_fills(_frame(_SGLN_TRADED), candidates, _usd(len(candidates))).all()
+
+
 def test_no_anchors_or_no_candidates_flags_nothing():
     rows = _frame(_SGLN_USD_ROWS)
 

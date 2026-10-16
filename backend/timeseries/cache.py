@@ -46,7 +46,7 @@ from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
-from backend.timeseries.fill_sanity import mismatched_fills
+from backend.timeseries.fill_sanity import mismatched_fills, untraded
 from backend.timeseries.history_freeze import drop_frozen_rows, freeze_date_for
 from backend.timeseries.outlier_guard import drop_zero_volume_spikes
 from backend.timeseries.price_adjustments import PriceAdjustment, adjustments_for, apply_price_adjustments
@@ -468,8 +468,8 @@ def _fill_anchors(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFra
     trust, so rows that traded (``Volume > 0``) anchor the untraded ones.
     """
     if existing.empty:
-        traded = (pd.to_numeric(new["Volume"], errors="coerce") > 0).to_numpy()
-        return new.loc[traded], new.loc[~traded]
+        idle = untraded(new)
+        return new.loc[~idle], new.loc[idle]
     added = ~new["Date"].dt.date.isin(set(existing["Date"].dt.date)).to_numpy()
     return existing, new.loc[added]
 

@@ -114,6 +114,12 @@ def test_without_a_volume_column_every_row_counts_as_untraded():
     assert mismatched_fills(_frame(_SGLN_TRADED), candidates, _usd(len(candidates))).all()
 
 
+@pytest.mark.parametrize("close", [0.0, float("nan")])
+def test_unpriced_candidate_is_never_flagged(close):
+    """A missing close is not a currency mismatch; _without_unpriced_rows handles it."""
+    assert not mismatched_fills(_frame(_SGLN_TRADED), _frame([("2011-04-15", close, 0)]), _usd(1)).any()
+
+
 def test_no_anchors_or_no_candidates_flags_nothing():
     rows = _frame(_SGLN_USD_ROWS)
 

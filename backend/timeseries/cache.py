@@ -468,6 +468,8 @@ def _fill_anchors(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFra
     trust, so rows that traded (``Volume > 0``) anchor the untraded ones.
     """
     if existing.empty:
+        # Nothing stored to trust yet: the rows that traded are the listing's
+        # own prices, so they judge the untraded ones (SGLN.L's USD prints).
         idle = untraded(new)
         return new.loc[~idle], new.loc[idle]
     added = ~new["Date"].dt.date.isin(set(existing["Date"].dt.date)).to_numpy()
@@ -478,7 +480,15 @@ def _without_mismatched_fills(existing: pd.DataFrame, new: pd.DataFrame, *, tick
     """``new`` minus filled rows quoted in another currency or unit than their neighbours (#10971).
 
     See ``backend.timeseries.fill_sanity``. FX rates come from the stored FX
-    cache only (no fetch), for the reference currencies.
+    cache only (no fetch; ``_cached_fx_frame`` keeps each file in process),
+    for the reference currencies.
+
+    ``_rolling_cache`` is the only code that merges fetched rows into a meta
+    parquet, so this one call covers every caller: ``load_meta_timeseries``,
+    ``load_meta_timeseries_range`` (via ``_memoized_range_cached``), the
+    refresh queue that ``admin_cache_warm``'s cache-only reads feed, and the
+    data-quality refetch fixes. Other meta writers (DQ dedupe/ticker fixes,
+    the timeseries editor) only rewrite rows already stored.
     """
     if new.empty:
         return new

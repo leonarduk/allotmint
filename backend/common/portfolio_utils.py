@@ -3154,6 +3154,10 @@ def _apply_rebuilt_snapshot(rebuilt: Dict[str, Dict]) -> None:
     if not rebuilt:
         logger.info("Skipping price snapshot write — no timeseries data found")
         return
+    if to_write == on_disk:
+        # Every rebuilt entry lost to a fresher one: nothing to persist.
+        logger.info("Price snapshot unchanged; skipping write")
+        return
     try:
         _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
         _PRICES_PATH.write_text(json.dumps(to_write, indent=2))

@@ -147,6 +147,22 @@ def test_empty_rebuild_keeps_memory_and_does_not_rewrite_file(tmp_path, monkeypa
     assert in_memory["3IN.L"] == _REFRESHED_3IN
 
 
+def test_rebuild_that_changes_nothing_does_not_rewrite_file(tmp_path, monkeypatch):
+    """When every rebuilt entry loses to a fresher one, latest_prices.json is left as it was."""
+    prices_path, _ = _stub_rebuild(
+        monkeypatch,
+        tmp_path,
+        {"3IN": _closes("2026-10-13", 3.945)},
+        existing={"3IN.L": _REFRESHED_3IN},
+    )
+    original = json.dumps({"3IN.L": _REFRESHED_3IN})  # compact, unlike the indented rewrite
+    prices_path.write_text(original)
+
+    pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+
+    assert prices_path.read_text() == original
+
+
 def test_corrupt_prices_file_keeps_in_memory_entries_on_write(tmp_path, monkeypatch):
     """An unreadable file must not lose priced in-memory entries; only empty placeholders are left out."""
     watched = {"last_price": 100.0, "price_currency": "GBP", "last_price_date": "2026-10-14", "is_stale": False}

@@ -3092,7 +3092,8 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                         # That holds for a factor of 1 too: for a GBX instrument
                         # the metadata fallback is always 0.01, so 1 only comes
                         # from an explicit scaling_overrides.json entry saying
-                        # the source already quotes pounds.
+                        # the source already quotes pounds. Overrides are
+                        # validated to 0.01, 1 or 100 (is_valid_override_factor).
                         close_currency = "GBP"
                     # Prefer the most recent row with a finite close over the
                     # literal last row: the current day's row can be an

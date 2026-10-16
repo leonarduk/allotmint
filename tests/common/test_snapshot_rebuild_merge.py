@@ -147,6 +147,25 @@ def test_empty_rebuild_keeps_memory_and_does_not_rewrite_file(tmp_path, monkeypa
     assert in_memory["3IN.L"] == _REFRESHED_3IN
 
 
+def test_corrupt_prices_file_keeps_in_memory_entries_on_write(tmp_path, monkeypatch):
+    """An unreadable file must not lose priced in-memory entries; only empty placeholders are left out."""
+    watched = {"last_price": 100.0, "price_currency": "GBP", "last_price_date": "2026-10-14", "is_stale": False}
+    prices_path, _ = _stub_rebuild(
+        monkeypatch,
+        tmp_path,
+        {"3IN": _closes("2026-10-13", 3.945)},
+        existing={"3IN.L": _REFRESHED_3IN, "WATCHED.L": watched, "PLACEHOLDER.L": {}},
+    )
+    prices_path.write_text("{not json")
+
+    pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+
+    written = json.loads(prices_path.read_text())
+    assert written["3IN.L"] == _REFRESHED_3IN
+    assert written["WATCHED.L"] == watched
+    assert "PLACEHOLDER.L" not in written
+
+
 def test_kept_refresh_entry_is_not_stale_for_its_reporting_date(tmp_path, monkeypatch):
     """The issue's outcome: after refresh + restart rebuild, the holding is not stale for 2026-10-14."""
     from datetime import date

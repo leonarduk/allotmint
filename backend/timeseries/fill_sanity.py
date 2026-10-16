@@ -39,7 +39,7 @@ cleaned up by this check (that is a data repair).
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Literal, Sequence
 
 import numpy as np
 import pandas as pd
@@ -66,8 +66,10 @@ ONE_SIDED_MIN_DEVIATION = 0.30
 
 _UNIT_FACTORS = (100.0, 0.01)
 
+_Direction = Literal["backward", "forward"]
 
-def _neighbour_closes(anchors: pd.DataFrame, dates: pd.Series, direction: str, window_days: int) -> np.ndarray:
+
+def _neighbour_closes(anchors: pd.DataFrame, dates: pd.Series, direction: _Direction, window_days: int) -> np.ndarray:
     """Close of the nearest anchor on ``direction`` of each of ``dates`` (NaN when none within ``window_days``)."""
     ref = pd.DataFrame(
         {
@@ -115,7 +117,9 @@ def _matches_factor(ratio: np.ndarray, factors: np.ndarray) -> np.ndarray:
     return close.any(axis=1) & (np.abs(ratio - 1.0) > MIN_MISMATCH_DEVIATION)
 
 
-def _side_matches(close: np.ndarray, anchors: pd.DataFrame, dates: pd.Series, direction: str, factors: np.ndarray):
+def _side_matches(
+    close: np.ndarray, anchors: pd.DataFrame, dates: pd.Series, direction: _Direction, factors: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """``(present, alone_ok, matched)`` for the anchor on one side of each fill.
 
     ``alone_ok``: the anchor is close and far enough off to judge the fill on

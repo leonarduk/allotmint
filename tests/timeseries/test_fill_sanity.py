@@ -115,6 +115,20 @@ def test_no_anchors_or_no_candidates_flags_nothing():
     assert mismatched_fills(rows, rows.iloc[:0], []).shape == (0,)
 
 
+def test_without_fx_rates_only_the_hundredfold_factor_applies():
+    candidates = _frame(_SGLN_USD_ROWS + [("2011-04-15", 17.98, 0)])
+
+    bad = mismatched_fills(_frame(_SGLN_TRADED), candidates, [])
+
+    assert bad.tolist() == [False] * len(_SGLN_USD_ROWS) + [True]
+
+
+def test_duplicate_anchor_dates_use_the_last_row():
+    anchors = pd.concat([_frame([("2011-04-12", 2940.0, 1)]), _frame(_SGLN_TRADED)], ignore_index=True)
+
+    assert mismatched_fills(anchors, _frame([("2011-04-11", 2935.91, 0)]), _usd(1)).all()
+
+
 # ── _rolling_cache integration ─────────────────────────────────
 
 
@@ -161,3 +175,23 @@ def test_backfill_against_cached_series_rejects_the_usd_rows(cache):
     stored = cache._load_parquet(path)
     assert sorted(stored["Date"].dt.strftime("%Y-%m-%d")) == [d for d, _, _ in _SGLN_TRADED]
     assert stored["Close"].max() < 2000
+
+
+def test_cold_fetch_with_no_traded_rows_is_stored_as_fetched(cache):
+    """No traded rows means no anchors: the check has nothing to judge against."""
+    path = cache._cache_path("meta", "SGLN_L.parquet")
+    untraded = _frame([(d, c, 0) for d, c, _ in _SGLN_TRADED + _SGLN_USD_ROWS])
+
+    cache._rolling_cache(lambda **_k: untraded, path, {}, 10000, ticker="SGLN", exchange="L")
+
+    assert len(cache._load_parquet(path)) == len(untraded)
+
+
+def test_refetch_over_a_clean_cache_keeps_every_row(cache):
+    path = cache._cache_path("meta", "SGLN_L.parquet")
+    traded = _frame(_SGLN_TRADED)
+    cache._save_parquet(traded.iloc[::2], path)
+
+    cache._rolling_cache(lambda **_k: traded, path, {}, 10000, ticker="SGLN", exchange="L")
+
+    assert len(cache._load_parquet(path)) == len(traded)

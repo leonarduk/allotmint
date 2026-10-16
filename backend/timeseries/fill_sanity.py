@@ -31,7 +31,10 @@ both as a cold fetch and with every 7th row held out as a fill, the check
 flags nothing.
 
 Only FX rates passed in by the caller are considered, so a currency with no
-stored FX history is caught only by the 100x factors.
+stored FX history is caught only by the 100x factors. A cold fetch with no
+traded rows has no anchors and is stored as fetched. Rows already in the
+cache are anchors, never candidates, so an already-polluted cache is not
+cleaned up by this check (that is a data repair).
 """
 
 from __future__ import annotations
@@ -72,7 +75,7 @@ def _neighbour_closes(anchors: pd.DataFrame, dates: pd.Series, direction: str, w
             "Anchor": pd.to_numeric(anchors["Close"], errors="coerce").to_numpy(dtype=float),
         }
     )
-    ref = ref[ref["Anchor"] > 0].sort_values("Date", kind="stable")
+    ref = ref[ref["Anchor"] > 0].sort_values("Date", kind="stable").drop_duplicates("Date", keep="last")
     keys = pd.to_datetime(dates).astype("datetime64[ns]").to_numpy()
     order = np.argsort(keys, kind="stable")
     merged = pd.merge_asof(

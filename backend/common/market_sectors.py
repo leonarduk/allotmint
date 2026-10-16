@@ -43,15 +43,16 @@ REGION_LABELS: Dict[Region, str] = {"global": "Global", "us": "US", "uk": "UK"}
 # Rows of trading-day history returned for the detail chart (~3 months).
 HISTORY_POINTS = 63
 
-# Look-back windows for the Market Overview period toggle. ``1D`` is the last
-# two closes; the rest compare the latest close with the last close on or
-# before that many calendar days earlier.
-Period = Literal["1D", "1W", "1M", "3M", "1Y"]
+# Look-back windows. ``1D`` is the last two closes; the rest compare the latest
+# close with the last close on or before that many calendar days earlier.
+# ``PERIODS`` is what the Market Overview period toggle accepts; ``3Y`` is
+# only used by the benchmark index rows beside the owner table.
+Period = Literal["1D", "1W", "1M", "3M", "1Y", "3Y"]
 PERIODS: Tuple[Period, ...] = ("1D", "1W", "1M", "3M", "1Y")
-PERIOD_DAYS: Dict[Period, int] = {"1W": 7, "1M": 30, "3M": 90, "1Y": 365}
+PERIOD_DAYS: Dict[Period, int] = {"1W": 7, "1M": 30, "3M": 90, "1Y": 365, "3Y": 1095}
 # yfinance download window per period: long enough that a close on or before
 # the cutoff exists even across holidays.
-PERIOD_DOWNLOAD: Dict[Period, str] = {"1D": "5d", "1W": "1mo", "1M": "3mo", "3M": "6mo", "1Y": "2y"}
+PERIOD_DOWNLOAD: Dict[Period, str] = {"1D": "5d", "1W": "1mo", "1M": "3mo", "3M": "6mo", "1Y": "2y", "3Y": "5y"}
 
 
 class SectorDefinition(TypedDict):

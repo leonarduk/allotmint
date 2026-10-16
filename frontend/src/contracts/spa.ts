@@ -98,6 +98,7 @@ export const holdingContractSchema = z
     change_1w_gbp: nullableNumber,
     change_1m_gbp: nullableNumber,
     change_1y_gbp: nullableNumber,
+    change_3y_gbp: nullableNumber,
     instrument_type: nullableString,
     sector: nullableString,
     region: nullableString,

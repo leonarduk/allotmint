@@ -1,4 +1,4 @@
-"""1W/1M/1Y price changes on a holding (#10746)."""
+"""1W/1M/1Y/3Y price changes on a holding (#10746)."""
 
 import datetime as dt
 
@@ -35,11 +35,12 @@ def test_changes_use_window_start_closes(closes):
     table[dt.date(2026, 10, 2)] = 9.0  # 7 days back
     table[dt.date(2026, 9, 9)] = 8.0  # 30 days back
     table[dt.date(2025, 10, 9)] = 5.0  # 365 days back (a Thursday)
+    table[dt.date(2023, 10, 10)] = 4.0  # 1095 days back (a Tuesday; 2024 is a leap year)
 
     out = holding_utils._period_changes("VOD", "L", 10, 10.0, PRICING_DATE, None, CALC)
 
-    assert out == {"change_1w_gbp": 10.0, "change_1m_gbp": 20.0, "change_1y_gbp": 50.0}
-    assert seen == [dt.date(2026, 10, 2), dt.date(2026, 9, 9), dt.date(2025, 10, 9)]
+    assert out == {"change_1w_gbp": 10.0, "change_1m_gbp": 20.0, "change_1y_gbp": 50.0, "change_3y_gbp": 60.0}
+    assert seen == [dt.date(2026, 10, 2), dt.date(2026, 9, 9), dt.date(2025, 10, 9), dt.date(2023, 10, 10)]
 
 
 def test_window_start_on_weekend_rolls_back_to_friday(closes):
@@ -60,6 +61,7 @@ def test_missing_history_is_none_not_zero(closes):
     assert out["change_1w_gbp"] == 10.0
     assert out["change_1m_gbp"] is None
     assert out["change_1y_gbp"] is None
+    assert out["change_3y_gbp"] is None
 
 
 def test_acquired_inside_window_measures_from_acquisition(closes):
@@ -73,7 +75,8 @@ def test_acquired_inside_window_measures_from_acquisition(closes):
     assert out["change_1w_gbp"] == 10.0  # bought before the 1W window
     assert out["change_1m_gbp"] == 30.0  # from the purchase, not 30 days back
     assert out["change_1y_gbp"] == 30.0
-    assert seen == [dt.date(2026, 10, 2), acq, acq]
+    assert out["change_3y_gbp"] == 30.0
+    assert seen == [dt.date(2026, 10, 2), acq, acq, acq]
 
 
 def test_bought_on_the_pricing_date_has_zero_change(closes):

@@ -525,16 +525,17 @@
       "cashValue": "Valor en efectivo",
       "dayChange": "Cambio diario",
       "dayChangePct": "Cambio diario %",
-      "totalGain": "Ganancia desde la compra",
-      "totalGainPct": "Ganancia desde la compra %",
-      "totalGainHelp": "Ganancia no realizada de las posiciones actuales: valor actual menos lo pagado. Abarca todo el tiempo que se ha mantenido cada posición, por lo que no es una rentabilidad de un periodo fijo, y excluye ingresos recibidos y ganancias ya realizadas.",
       "change_1w": "Cambio 1S",
       "change_1m": "Cambio 1M",
       "change_1y": "Cambio 1A",
-      "periodChangeHelp": "Cambio de precio en las participaciones actuales durante los últimos 7 / 30 / 365 días (desde la fecha de compra si se compró dentro del periodo). No es una rentabilidad ponderada en el tiempo: se ignoran aportaciones, operaciones e ingresos del periodo. — indica historial de precios insuficiente.",
-      "totalReturn1y": "Rentabilidad total 1A",
-      "totalReturn1yPct": "Rentabilidad total 1A %",
-      "totalReturnHelp": "Rentabilidad de los últimos 365 días incluidos dividendos e intereses, según el historial de transacciones: cambios de precio más ingresos, sin aportaciones ni retiradas. El % está ponderado en el tiempo (la cifra 1A de la página de rendimiento). Solo por titular; — indica que no hay historial de transacciones."
+      "change_3y": "Cambio 3A",
+      "periodChangeHelp": "Cambio de precio en las participaciones actuales durante los últimos 7 / 30 / 365 / 1095 días (desde la fecha de compra si se compró dentro del periodo). No es una rentabilidad ponderada en el tiempo: se ignoran aportaciones, operaciones e ingresos del periodo. — indica historial de precios insuficiente.",
+      "totalReturn_1y": "Rentabilidad total 1A",
+      "totalReturnPct_1y": "Rentabilidad total 1A %",
+      "totalReturn_3y": "Rentabilidad total 3A",
+      "totalReturnPct_3y": "Rentabilidad total 3A %",
+      "totalReturnHelp_1y": "Rentabilidad de los últimos 365 días incluidos dividendos e intereses, según el historial de transacciones: cambios de precio más ingresos, sin aportaciones ni retiradas. El % está ponderado en el tiempo (la cifra 1A de la página de rendimiento). Solo por titular; — indica que no hay historial de transacciones.",
+      "totalReturnHelp_3y": "Rentabilidad de los últimos 3 años (1095 días) incluidos dividendos e intereses, según el historial de transacciones: cambios de precio más ingresos, sin aportaciones ni retiradas. El % está ponderado en el tiempo y es acumulado, no anualizado; si el historial es inferior a 3 años, abarca todo el historial. Solo por titular; — indica que no hay historial de transacciones."
     }
   },
   "holdingsTable": {

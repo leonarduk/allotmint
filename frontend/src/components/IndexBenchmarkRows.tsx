@@ -11,8 +11,10 @@ import type {
   IndexWindowChange,
 } from '../types';
 
-// Matches the owner table's 1W/1M/1Y columns, in the same order.
-const PERIOD_WINDOWS = ['1W', '1M', '1Y'] as const;
+// Matches the owner table's 1W/1M/1Y/3Y columns, in the same order.
+const PERIOD_WINDOWS = ['1W', '1M', '1Y', '3Y'] as const;
+// Matches the owner table's 1Y/3Y total return columns, in the same order.
+const TOTAL_RETURN_FIELDS = ['total_return_1y', 'total_return_3y'] as const;
 // Index levels move slowly and the backend caches for 5 minutes too.
 const INDEX_SUMMARY_TTL_MS = 5 * 60_000;
 
@@ -38,7 +40,7 @@ const changeColor = (window: IndexWindowChange | null): string | undefined =>
       ? 'var(--gain-positive)'
       : 'var(--gain-negative)';
 
-/** Owner-table columns an index has no figure for: stock/cash split, total return £, gain since purchase. */
+/** Owner-table columns an index has no figure for: stock/cash split, total return £. */
 const BlankCells = ({ count }: { count: number }) => (
   <>
     {Array.from({ length: count }, (_, i) => (
@@ -119,11 +121,14 @@ function IndexRow({ row, relative }: RowProps) {
           </td>
         );
       })}
-      {/* 1Y Total Return £ has no meaning for an index; only the % is shown. */}
-      {!relative && <BlankCells count={1} />}
-      <TotalReturnCell totalReturn={row.total_return_1y} />
-      {/* Gain since purchase: an index has no purchase. */}
-      <BlankCells count={relative ? 1 : 2} />
+      {/* Total Return £ has no meaning for an index; only the % is shown. */}
+      {TOTAL_RETURN_FIELDS.map((field) => (
+        <Fragment key={field}>
+          {!relative && <BlankCells count={1} />}
+          {/* ``?? null``: a backend older than the 3Y figure omits the field. */}
+          <TotalReturnCell totalReturn={row[field] ?? null} />
+        </Fragment>
+      ))}
     </tr>
   );
 }
@@ -172,10 +177,10 @@ type Props = { relativeViewEnabled: boolean };
 /**
  * Benchmark index rows for the owner summary table: an "Indices" pseudo-owner
  * whose "accounts" are FTSE 100, FTSE 250, S&P 500 and NASDAQ-100. Levels and
- * changes are in index points with price-return %; 1Y Total Return % adds
- * reinvested dividends. The money-only columns (stock/cash split, 1Y total
- * return £, gain since purchase) stay blank and the group row itself has no
- * aggregate: summing index levels means nothing.
+ * changes are in index points with price-return %; 1Y/3Y Total Return % add
+ * reinvested dividends. The money-only columns (stock/cash split, total
+ * return £) stay blank and the group row itself has no aggregate: summing
+ * index levels means nothing.
  */
 export function IndexBenchmarkRows({ relativeViewEnabled }: Props) {
   const { t } = useTranslation();
@@ -184,7 +189,7 @@ export function IndexBenchmarkRows({ relativeViewEnabled }: Props) {
     cacheKey: 'market-index-summary',
     ttlMs: INDEX_SUMMARY_TTL_MS,
   });
-  const colCount = relativeViewEnabled ? 10 : 13;
+  const colCount = relativeViewEnabled ? 11 : 14;
   const rows = data?.indexes ?? [];
 
   let status: string | null = null;

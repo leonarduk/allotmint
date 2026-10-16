@@ -181,9 +181,11 @@ BENCHMARKS: tuple[Benchmark, ...] = (
 # Yahoo FX pairs quoting GBP per one unit of each non-sterling currency.
 GBP_PER_UNIT_SYMBOLS: Dict[str, str] = {"USD": "USDGBP=X"}
 # Windows reported per benchmark index; ``1D`` is the day change.
-BENCHMARK_PERIODS: tuple[market_sectors.Period, ...] = ("1D", "1W", "1M", "1Y")
-# Plausible gap, in percentage points, between a benchmark's 1Y total return
-# and its 1Y price return: dividends add up to ~10pp, while ETF fees and
+BENCHMARK_PERIODS: tuple[market_sectors.Period, ...] = ("1D", "1W", "1M", "1Y", "3Y")
+# Windows a total return is reported for, keyed by the response field.
+TOTAL_RETURN_PERIODS: Dict[str, market_sectors.Period] = {"total_return_1y": "1Y", "total_return_3y": "3Y"}
+# Plausible gap, in percentage points per year, between a benchmark's total
+# return and its price return: dividends add up to ~10pp, while ETF fees and
 # tracking can cost a little. Outside it the source is wrong (e.g. dividends
 # in other units than the closes, #10742), so no figure is better than a bad one.
 TOTAL_RETURN_GAP_PP = (-3.0, 10.0)
@@ -280,32 +282,38 @@ def _without_fee(series: pd.Series, fee_pct: float) -> pd.Series:
     return series * (1.0 + fee_pct / 100.0) ** years
 
 
-def _total_return_1y(
-    benchmark: Benchmark, history: market_sectors.PriceHistory, price_1y: Optional[IndexChange]
+def _total_return(
+    benchmark: Benchmark,
+    history: market_sectors.PriceHistory,
+    period: market_sectors.Period,
+    price_change: Optional[IndexChange],
 ) -> Optional[IndexTotalReturn]:
-    """1Y total return % of ``benchmark`` in GBP, or ``None`` when missing or implausible."""
+    """``period`` total return % of ``benchmark`` in GBP, or ``None`` when missing or implausible."""
 
     series = _without_fee(
         market_sectors.series_for(history.total_return, benchmark.total_return_symbol), benchmark.fee_pct
     )
-    local_pct = market_sectors.period_change(series, "1Y") if not series.empty else None
+    local_pct = market_sectors.period_change(series, period) if not series.empty else None
     if local_pct is None:
         return None
     # Judged in the source's own currency, against the price index's return in
     # that currency, so an FX move cannot trip the dividend-sized band.
-    if price_1y is not None:
-        gap = local_pct - price_1y["local_pct"]
-        low, high = TOTAL_RETURN_GAP_PP
+    # The band is per year, so it widens with the window.
+    if price_change is not None:
+        gap = local_pct - price_change["local_pct"]
+        years = market_sectors.PERIOD_DAYS[period] / 365
+        low, high = (bound * years for bound in TOTAL_RETURN_GAP_PP)
         if not low <= gap <= high:
             logger.warning(
-                "Dropping %s 1Y total return from %s: %spp from the price return",
+                "Dropping %s %s total return from %s: %spp from the price return",
                 sanitise_log_value(benchmark.name),
+                sanitise_log_value(period),
                 sanitise_log_value(benchmark.total_return_symbol),
                 sanitise_log_value(f"{gap:.1f}"),
             )
             return None
     in_gbp = _in_gbp(series, benchmark.currency, history)
-    pct = market_sectors.period_change(in_gbp, "1Y") if in_gbp is not None and not in_gbp.empty else None
+    pct = market_sectors.period_change(in_gbp, period) if in_gbp is not None and not in_gbp.empty else None
     if pct is None:
         logger.warning("No GBP rate to convert %s total return", sanitise_log_value(benchmark.name))
         return None
@@ -320,17 +328,18 @@ def _total_return_1y(
 
 
 def _fetch_index_summary() -> List[Dict[str, Any]]:
-    """Return each benchmark index's latest close with day/1W/1M/1Y changes.
+    """Return each benchmark index's latest close with day/1W/1M/1Y/3Y changes.
 
-    One 1Y download covers every window, every total-return source and the FX
+    One 3Y download covers every window, every total-return source and the FX
     rates. Levels and point changes are in index points; every % (price
-    changes and ``total_return_1y``, which adds reinvested dividends) is in
+    changes and ``total_return_1y``/``total_return_3y``, which add reinvested
+    dividends) is in
     GBP, with the index-currency figure alongside as ``local_pct``.
     """
 
     fx = sorted({GBP_PER_UNIT_SYMBOLS[b.currency] for b in BENCHMARKS if b.currency in GBP_PER_UNIT_SYMBOLS})
     symbols = [b.symbol for b in BENCHMARKS] + [b.total_return_symbol for b in BENCHMARKS] + fx
-    history = market_sectors.download_period_history(symbols, "1Y")
+    history = market_sectors.download_period_history(symbols, "3Y")
     out: List[Dict[str, Any]] = []
     for benchmark in BENCHMARKS:
         series = market_sectors.series_for(history.traded, benchmark.symbol)
@@ -339,20 +348,20 @@ def _fetch_index_summary() -> List[Dict[str, Any]]:
             continue
         in_gbp = _in_gbp(series, benchmark.currency, history)
         changes = _index_changes(series, in_gbp)
-        out.append(
-            {
-                "name": benchmark.name,
-                "symbol": benchmark.symbol,
-                "currency": benchmark.currency,
-                "value": float(series.iloc[-1]),
-                # The level at the latest GBP rate (the level itself for a GBP
-                # index); ``None`` without an FX rate.
-                "value_gbp": float(in_gbp.iloc[-1]) if in_gbp is not None and not in_gbp.empty else None,
-                "as_of": _index_label_to_iso(series.index[-1]),
-                "changes": changes,
-                "total_return_1y": _total_return_1y(benchmark, history, changes["1Y"]),
-            }
-        )
+        row: Dict[str, Any] = {
+            "name": benchmark.name,
+            "symbol": benchmark.symbol,
+            "currency": benchmark.currency,
+            "value": float(series.iloc[-1]),
+            # The level at the latest GBP rate (the level itself for a GBP
+            # index); ``None`` without an FX rate.
+            "value_gbp": float(in_gbp.iloc[-1]) if in_gbp is not None and not in_gbp.empty else None,
+            "as_of": _index_label_to_iso(series.index[-1]),
+            "changes": changes,
+        }
+        for field, period in TOTAL_RETURN_PERIODS.items():
+            row[field] = _total_return(benchmark, history, period, changes[period])
+        out.append(row)
     return out
 
 

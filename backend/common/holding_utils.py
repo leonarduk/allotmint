@@ -605,6 +605,7 @@ PERIOD_CHANGE_WINDOWS: Dict[str, int] = {
     "change_1w_gbp": 7,
     "change_1m_gbp": 30,
     "change_1y_gbp": 365,
+    "change_3y_gbp": 1095,
 }
 
 

@@ -3126,7 +3126,7 @@ def _read_prices_file() -> Dict[str, Any]:
     try:
         loaded = json.loads(_PRICES_PATH.read_text())
     except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Could not read %s: %s", _PRICES_PATH, sanitise_log_value(exc))
+        logger.warning("Could not read %s: %s", sanitise_log_value(_PRICES_PATH), sanitise_log_value(exc))
         return {}
     return loaded if isinstance(loaded, dict) else {}
 
@@ -3157,7 +3157,7 @@ def _apply_rebuilt_snapshot(rebuilt: Dict[str, Dict]) -> None:
     try:
         _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
         _PRICES_PATH.write_text(json.dumps(to_write, indent=2))
-        logger.info("Wrote %d prices to %s", len(to_write), _PRICES_PATH)
+        logger.info("Wrote %d prices to %s", len(to_write), sanitise_log_value(_PRICES_PATH))
     except OSError as e:
         logger.warning("Failed to write latest_prices.json: %s", sanitise_log_value(e))
 

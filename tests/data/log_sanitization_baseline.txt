@@ -63,6 +63,8 @@ backend/common/instruments.py::_resolve_instruments_dir::logger.warning('Configu
 backend/common/instruments.py::delete_instrument_meta::logger.warning('Permission denied deleting %s', path)
 backend/common/instruments.py::list_group_definitions::logger.warning('Failed to load group definition %s: %s', path, sanitise_log_value(exc))
 backend/common/instruments.py::list_group_definitions::logger.warning('Group definition %s is not a JSON object', path)
+# len(to_write) is an integer count; the path is sanitised (#10960).
+backend/common/portfolio_utils.py::_apply_rebuilt_snapshot::logger.info('Wrote %d prices to %s', len(to_write), sanitise_log_value(_PRICES_PATH))
 backend/common/portfolio_utils.py::_load_snapshot::logger.error('Empty S3 object body for price snapshot %s from bucket %s; falling back to local file', PRICES_S3_KEY, bucket)
 backend/common/portfolio_utils.py::_load_snapshot::logger.error('Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file', PRICES_S3_KEY, bucket, sanitise_log_value(exc))
 backend/common/portfolio_utils.py::_load_snapshot::logger.error('Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file', PRICES_S3_KEY, bucket, sanitise_log_value(exc))
@@ -79,7 +81,6 @@ backend/common/portfolio_utils.py::list_all_unique_tickers::logger.info('list_al
 backend/common/portfolio_utils.py::list_all_unique_tickers::logger.warning('Missing ticker in holding %d of %s -> %s', h_idx + 1, sanitise_log_value(account_type), sanitise_log_value(json_path))
 backend/common/portfolio_utils.py::refresh_snapshot_in_memory::logger.debug('In-memory price snapshot refreshed, %d tickers', len(_PRICE_SNAPSHOT))
 backend/common/portfolio_utils.py::refresh_snapshot_in_memory_from_timeseries::logger.info('Refreshed %d price entries', len(snapshot))
-backend/common/portfolio_utils.py::refresh_snapshot_in_memory_from_timeseries::logger.info('Wrote %d prices to %s', len(merged), _PRICES_PATH)
 backend/common/prices.py::_build_securities_from_portfolios::logger.debug('Loaded %d portfolios', len(portfolios))
 backend/common/prices.py::get_price_snapshot::logger.debug('Could not resolve exchange for %s; defaulting to L', full)
 backend/common/prices.py::load_latest_prices::logger.debug('Could not resolve exchange for %s; defaulting to L', full)

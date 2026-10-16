@@ -307,7 +307,7 @@ def _total_return(
             logger.warning(
                 "Dropping %s %s total return from %s: %spp from the price return",
                 sanitise_log_value(benchmark.name),
-                period,
+                sanitise_log_value(period),
                 sanitise_log_value(benchmark.total_return_symbol),
                 sanitise_log_value(f"{gap:.1f}"),
             )

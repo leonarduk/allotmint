@@ -36,13 +36,19 @@ def _create_handler():
 
     from backend.app import create_app
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    # Reuse the thread's event loop if one is set, as Mangum does; otherwise
+    # create and set one.
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
     app = create_app()
     lifespan = app.router.lifespan_context(app)
-    # Mangum serves every request on the current event loop, set above, so
-    # background tasks started by the lifespan keep running across invocations.
+    # Mangum serves every request on the thread's current event loop, this
+    # one, so background tasks started by the lifespan keep running across
+    # invocations.
     loop.run_until_complete(lifespan.__aenter__())
     _lifespan = lifespan
     return Mangum(app, lifespan="off")

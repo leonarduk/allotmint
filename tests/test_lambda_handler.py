@@ -77,6 +77,8 @@ def test_lambda_handler_creates_event_loop(monkeypatch):
         return orig_new_event_loop()
 
     monkeypatch.setattr(asyncio, "new_event_loop", fake_new_event_loop)
+    # No current loop, whatever earlier tests left behind.
+    asyncio.set_event_loop(None)
 
     module = _reload_handler()
     response = module.lambda_handler(_event(), {})
@@ -108,12 +110,12 @@ def test_lambda_handler_no_new_loop_when_loop_exists(monkeypatch):
         module = _reload_handler()
         response = module.lambda_handler(_event(), {})
         assert response["statusCode"] == 200
-        # new_event_loop should NOT have been called because get_running_loop()
-        # raises RuntimeError (no running loop), but the existing loop is reused.
-        # The exact branch taken depends on whether the loop is marked running;
-        # either way the handler must succeed.
         assert response["body"] == '{"hello":"world"}'
+        # The loop already set on the thread is reused, not replaced.
+        assert called is False
+        assert asyncio.get_event_loop() is existing_loop
     finally:
+        asyncio.set_event_loop(None)
         existing_loop.close()
 
 
@@ -143,7 +145,10 @@ def test_lambda_handler_runs_lifespan_once_per_environment(monkeypatch):
     monkeypatch.setattr("backend.app.create_app", lambda: app)
 
     module = _reload_handler()
-    for _ in range(3):
+    assert calls == {"startup": 0, "shutdown": 0}  # lazy: nothing at import
+    module.lambda_handler(_event(), {})
+    assert calls == {"startup": 1, "shutdown": 0}
+    for _ in range(2):
         response = module.lambda_handler(_event(), {})
         assert response["statusCode"] == 200
 

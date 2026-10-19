@@ -24,8 +24,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 _handler = None
-# The entered lifespan context.  Kept referenced and never exited: Lambda
-# freezes or discards the environment, so there is no shutdown to run.
+# The entered lifespan context, kept referenced so it is not collected.  Its
+# shutdown (cancel background tasks, delete temp dirs) is deliberately never
+# run: Lambda freezes the environment between requests and discards it whole.
 _lifespan = None
 
 
@@ -35,16 +36,14 @@ def _create_handler():
 
     from backend.app import create_app
 
-    try:  # pragma: no cover - the exception path is platform specific
-        asyncio.get_running_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
     app = create_app()
     lifespan = app.router.lifespan_context(app)
-    # Mangum serves every request on this same loop, so background tasks
-    # started by the lifespan keep running across invocations.
-    asyncio.get_event_loop().run_until_complete(lifespan.__aenter__())
+    # Mangum serves every request on the current event loop, set above, so
+    # background tasks started by the lifespan keep running across invocations.
+    loop.run_until_complete(lifespan.__aenter__())
     _lifespan = lifespan
     return Mangum(app, lifespan="off")
 

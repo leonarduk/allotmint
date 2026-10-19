@@ -184,8 +184,10 @@ def test_lambda_handler_background_task_survives_between_invocations(monkeypatch
 
     module = _reload_handler()
     module.lambda_handler(_event(), {})
+    after_first = len(ticks)
     module.lambda_handler(_event(), {})
 
+    # Still alive, and driven by the loop that served the second request.
     assert not app.state.task.done()
-    assert ticks
+    assert len(ticks) > after_first
     app.state.task.cancel()

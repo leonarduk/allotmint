@@ -36,11 +36,13 @@ def _create_handler():
 
     from backend.app import create_app
 
-    # Reuse the thread's event loop if one is set, as Mangum does; otherwise
-    # create and set one.
+    # Reuse the thread's event loop if one is set and open, as Mangum does;
+    # otherwise create and set one.
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
+        loop = None
+    if loop is None or loop.is_closed():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 

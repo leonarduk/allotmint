@@ -119,6 +119,23 @@ def test_lambda_handler_no_new_loop_when_loop_exists(monkeypatch):
         existing_loop.close()
 
 
+def test_lambda_handler_replaces_a_closed_loop(monkeypatch):
+    """A closed loop left set on the thread is replaced, not reused."""
+    _setup_app(monkeypatch)
+
+    closed_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(closed_loop)
+    closed_loop.close()
+
+    try:
+        module = _reload_handler()
+        response = module.lambda_handler(_event(), {})
+        assert response["statusCode"] == 200
+        assert asyncio.get_event_loop() is not closed_loop
+    finally:
+        asyncio.set_event_loop(None)
+
+
 def test_lambda_handler_runs_lifespan_once_per_environment(monkeypatch):
     """Startup runs on the first invocation only; shutdown never runs per request.
 

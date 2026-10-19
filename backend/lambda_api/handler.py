@@ -8,6 +8,14 @@ full application startup (FastAPI app creation, router registration, snapshot
 warmup) can exceed that limit on a cold start.  Deferring to the first
 invocation moves this work into normal invocation time, which has a
 configurable and far more generous timeout.
+
+The app's lifespan runs once per execution environment, here, not per
+request.  Mangum's default ``lifespan="auto"`` enters and exits the lifespan
+around *every* invocation, so each request re-ran the snapshot warmup (two
+calls bounded by SNAPSHOT_LOAD_TIMEOUT_SECONDS each) and the shutdown hook
+(cancelling background tasks, deleting temp dirs).  Once the warmup started
+timing out, every request took ~20s and the UI reported the backend as
+unavailable (#11005).
 """
 
 import asyncio
@@ -16,9 +24,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 _handler = None
+# The entered lifespan context.  Kept referenced and never exited: Lambda
+# freezes or discards the environment, so there is no shutdown to run.
+_lifespan = None
 
 
 def _create_handler():
+    global _lifespan
     from mangum import Mangum
 
     from backend.app import create_app
@@ -28,7 +40,13 @@ def _create_handler():
     except RuntimeError:
         asyncio.set_event_loop(asyncio.new_event_loop())
 
-    return Mangum(create_app())
+    app = create_app()
+    lifespan = app.router.lifespan_context(app)
+    # Mangum serves every request on this same loop, so background tasks
+    # started by the lifespan keep running across invocations.
+    asyncio.get_event_loop().run_until_complete(lifespan.__aenter__())
+    _lifespan = lifespan
+    return Mangum(app, lifespan="off")
 
 
 def lambda_handler(event, context):

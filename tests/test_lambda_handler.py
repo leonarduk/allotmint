@@ -115,3 +115,72 @@ def test_lambda_handler_no_new_loop_when_loop_exists(monkeypatch):
         assert response["body"] == '{"hello":"world"}'
     finally:
         existing_loop.close()
+
+
+def test_lambda_handler_runs_lifespan_once_per_environment(monkeypatch):
+    """Startup runs on the first invocation only; shutdown never runs per request.
+
+    Mangum's default lifespan="auto" wraps every invocation in a full
+    startup/shutdown cycle, which re-ran the snapshot warmup on each request
+    and made every call take ~20s once it began timing out.
+    """
+    from contextlib import asynccontextmanager
+
+    calls = {"startup": 0, "shutdown": 0}
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        calls["startup"] += 1
+        yield
+        calls["shutdown"] += 1
+
+    app = FastAPI(lifespan=lifespan)
+
+    @app.get("/")
+    def read_root():
+        return {"hello": "world"}
+
+    monkeypatch.setattr("backend.app.create_app", lambda: app)
+
+    module = _reload_handler()
+    for _ in range(3):
+        response = module.lambda_handler(_event(), {})
+        assert response["statusCode"] == 200
+
+    assert calls == {"startup": 1, "shutdown": 0}
+
+
+def test_lambda_handler_background_task_survives_between_invocations(monkeypatch):
+    """A task started at startup is not cancelled after the first request."""
+    from contextlib import asynccontextmanager
+
+    ticks = []
+
+    async def ticker():
+        while True:
+            ticks.append(1)
+            await asyncio.sleep(0)
+
+    @asynccontextmanager
+    async def lifespan(app_):
+        # Like AppLifecycleService.shutdown, which cancels background tasks.
+        app_.state.task = asyncio.create_task(ticker())
+        yield
+        app_.state.task.cancel()
+
+    app = FastAPI(lifespan=lifespan)
+
+    @app.get("/")
+    async def read_root():
+        await asyncio.sleep(0)
+        return {"hello": "world"}
+
+    monkeypatch.setattr("backend.app.create_app", lambda: app)
+
+    module = _reload_handler()
+    module.lambda_handler(_event(), {})
+    module.lambda_handler(_event(), {})
+
+    assert not app.state.task.done()
+    assert ticks
+    app.state.task.cancel()

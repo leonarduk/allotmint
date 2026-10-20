@@ -45,7 +45,7 @@ def _ensure_admin_access(identity: str | None = Depends(get_active_user)) -> Non
 
     if is_demo_request():
         raise HTTPException(status_code=403, detail=_FORBIDDEN_DETAIL)
-    if config.disable_auth and config.app_env != "aws":
+    if config.disable_auth and config.app_env == "local":
         return
 
     allowed = {

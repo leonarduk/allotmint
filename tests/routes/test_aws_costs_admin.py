@@ -172,3 +172,13 @@ def test_local_run_without_sign_in_still_allowed(client, monkeypatch):
     client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: None
     resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
     assert resp.status_code == 200
+
+
+def test_production_with_disable_auth_still_checks_emails(client, monkeypatch):
+    # Fail closed: only a local run stands down, not any non-"aws" deploy.
+    monkeypatch.setattr(aws_costs_admin.config, "disable_auth", True)
+    monkeypatch.setattr(aws_costs_admin.config, "app_env", "production")
+    monkeypatch.setattr(aws_costs_admin.config, "allowed_emails", ["owner@example.com"])
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: "viewer@example.com"
+    resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    assert resp.status_code == 403

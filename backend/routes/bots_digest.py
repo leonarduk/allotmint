@@ -36,7 +36,7 @@ router = APIRouter(prefix="/bots/digest", tags=["bots"])
 def is_admin(identity: Optional[str]) -> bool:
     if is_demo_request():
         return False
-    if config.disable_auth and config.app_env != "aws":
+    if config.disable_auth and config.app_env == "local":
         return True
     allowed = {e.strip().lower() for e in (config.allowed_emails or []) if isinstance(e, str) and e.strip()}
     return identity is not None and identity.strip().lower() in allowed

@@ -409,9 +409,11 @@ One-time setup, after a deploy that creates `DataSyncRole`:
      --name /allotmint/data-sync/github-token --value "github_pat_..."
    ```
 
-   The Lambda reads it on first use and caches it; after rotating the token
-   (`--overwrite`), the cache clears itself on the first request GitHub
-   refuses. For local runs set `DATA_SYNC_GITHUB_TOKEN` and `DATA_SYNC_REPO`
+   Keep the default `aws/ssm` KMS key: the Lambda is granted
+   `ssm:GetParameter` only, not `kms:Decrypt` on a customer-managed key. The
+   Lambda reads the token on first use and caches it. To rotate, `--overwrite`
+   the parameter and revoke the old token; the cache clears itself on the
+   first request GitHub refuses. For local runs set `DATA_SYNC_GITHUB_TOKEN` and `DATA_SYNC_REPO`
    instead.
 2. In allotmint-data, set the repository variables `DATA_SYNC_ROLE_ARN` (the
    `BackendLambdaStack` output `DataSyncRoleArn`), `DATA_BUCKET` (output

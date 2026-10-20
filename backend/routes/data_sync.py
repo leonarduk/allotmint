@@ -178,6 +178,9 @@ def start_data_sync(direction: Direction, identity: str | None = Depends(auth.ge
     """Dispatch the pull or push workflow, unless a sync is already running."""
 
     repo, token = _configured()
+    # Best-effort: two near-simultaneous requests can both pass this check.
+    # The workflows' shared "data-sync" concurrency group is what actually
+    # serialises them; this just gives the common case a clear 409.
     for workflow in WORKFLOWS.values():
         run = _latest_run(repo, token, workflow)
         if run and run["status"] in _ACTIVE_STATUSES:

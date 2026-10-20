@@ -86,3 +86,14 @@ def test_backend_lambda_is_wired_to_the_data_sync() -> None:
     assert env["DATA_SYNC_REPO"] == "leonarduk/allotmint-data"
     assert env["DATA_SYNC_TOKEN_PARAMETER"] == DATA_SYNC_TOKEN_PARAMETER
     assert "DataSyncRoleArn" in template["Outputs"]
+
+    ssm_statements = [
+        statement
+        for resource in template["Resources"].values()
+        if resource["Type"] == "AWS::IAM::Policy"
+        for statement in resource["Properties"]["PolicyDocument"]["Statement"]
+        if "ssm:GetParameter" in json.dumps(statement["Action"]) and DATA_SYNC_TOKEN_PARAMETER in json.dumps(statement)
+    ]
+    assert len(ssm_statements) == 1
+    (statement,) = ssm_statements
+    assert statement["Action"] == "ssm:GetParameter"

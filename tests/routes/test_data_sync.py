@@ -6,7 +6,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend import auth
 from backend.routes import data_sync
 from backend.routes.data_sync import router
 
@@ -30,7 +29,9 @@ def _env(monkeypatch):
 def _client(identity):
     app = FastAPI()
     app.include_router(router)
-    app.dependency_overrides[auth.get_active_user] = lambda: identity
+    # Key on the routes' own reference: other test modules reload
+    # backend.auth, replacing auth.get_active_user.
+    app.dependency_overrides[data_sync.active_user] = lambda: identity
     return TestClient(app)
 
 

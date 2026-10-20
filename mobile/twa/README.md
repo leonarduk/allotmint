@@ -19,6 +19,10 @@ these hand edits, because the generator overwrites them:
 - **`minSdkVersion` 24**: Bubblewrap 1.27 defaults to 21, but the
   `androidbrowserhelper` 2.7.4 it pins requires 24, so the default fails the
   manifest merge. This is set in `twa-manifest.json`, so regeneration keeps it.
+- **`app/src/main/res/raw/web_app_manifest.json`** is a copy of the PWA
+  manifest, taken at generation time and used by ChromeOS and Meta Quest. If
+  `frontend/public/manifest.webmanifest` changes (name, colours, icons),
+  regenerate this project, or update the copy, before the next store build.
 - **Gradle wrapper**: regenerated as the official 8.11.1 wrapper (Bubblewrap
   shipped a Gradle 5.x wrapper JAR), with `distributionSha256Sum` pinned in
   `gradle/wrapper/gradle-wrapper.properties`.

@@ -1086,14 +1086,17 @@ def test_malformed_fingerprint_fails_synth(monkeypatch, tmp_path, bad):
         _synth_with_fingerprints(monkeypatch, tmp_path, bad)
 
 
-def test_asset_deployment_never_prunes_asset_links(template):
-    """DeployAssets prunes; without this exclusion it would delete assetlinks.json
-    whenever it re-ran without the asset-links deployment also re-running."""
-    deployments = template.find_resources("Custom::CDKBucketDeployment").values()
-    (immutable,) = [
-        d["Properties"]
-        for d in deployments
-        if d["Properties"].get("SystemMetadata", {}).get("cache-control")
-        == "max-age=31536000, immutable"
-    ]
-    assert ".well-known/assetlinks.json" in immutable["Exclude"]
+def test_no_pruning_deployment_can_delete_asset_links(template):
+    """Any deployment with Prune enabled (the CDK default) deletes bucket keys it
+    does not own unless they are excluded, and the asset-links deployment does
+    not necessarily re-run afterwards. Checks every deployment, not just
+    DeployAssets, so a future pruning deployment cannot regress this."""
+    deployments = template.find_resources("Custom::CDKBucketDeployment")
+    pruning = {
+        logical_id: d["Properties"]
+        for logical_id, d in deployments.items()
+        if d["Properties"].get("Prune", True) is not False
+    }
+    assert pruning, "expected DeployAssets to prune"
+    for logical_id, props in pruning.items():
+        assert ".well-known/assetlinks.json" in props.get("Exclude", []), logical_id

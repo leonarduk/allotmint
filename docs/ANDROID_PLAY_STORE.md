@@ -128,6 +128,11 @@ with a browser URL bar. To fix that:
    persists, clear Chrome's data on the device and reopen. Android caches
    failed verifications.
 
+Unsetting the variable later stops publishing the file but doesn't delete an
+already-published `assetlinks.json` from the site bucket. That's deliberate,
+so a working app isn't broken by a config slip. To withdraw the link, delete
+`.well-known/assetlinks.json` from the bucket by hand.
+
 ## Releasing updates
 
 - **Web changes** (features, fixes, styles) need no store release: the

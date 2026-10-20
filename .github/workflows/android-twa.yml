@@ -75,8 +75,10 @@ jobs:
           VERSION_NAME: ${{ inputs.version_name }}
         run: |
           set -euo pipefail
-          # jarsigner exits 0 for an unsigned jar too, so check its verdict text.
-          if ! "$JAVA_HOME_21_X64/bin/jarsigner" -verify "$BUNDLE_PATH" | grep -q '^jar verified'; then
+          # jarsigner exits 0 for an unsigned jar too, so check its verdict text
+          # (exactly "jar verified."; warnings about a self-signed upload key
+          # follow on later lines and are expected).
+          if ! "$JAVA_HOME_21_X64/bin/jarsigner" -verify "$BUNDLE_PATH" | grep -qx 'jar verified\.'; then
             echo "::error::$BUNDLE_PATH is not signed"
             exit 1
           fi

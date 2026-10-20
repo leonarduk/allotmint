@@ -291,6 +291,28 @@ describe('service worker', () => {
     expect(sw.caches.paths(ASSET_CACHE)).toEqual(['/assets/index-abc123.js']);
   });
 
+  it('does not cache an HTML fallback served for a missing asset', async () => {
+    // CloudFront answers a pruned chunk with index.html and HTTP 200.
+    const url = `${ORIGIN}/assets/lazy-old.js`;
+    const sw = loadWorker({ '/assets/lazy-old.js': html(shellFor('b2')) });
+    await sw.dispatchFetch(new Request(url));
+    expect(sw.caches.paths(ASSET_CACHE)).toEqual([]);
+  });
+
+  it('treats an HTML fallback during precache as a failure', async () => {
+    const sw = loadWorker(buildRoutes('a1'));
+    await sw.runLifecycle('install');
+    sw.network.state.routes = {
+      ...buildRoutes('b2'),
+      '/assets/vendor-b2.js': html(shellFor('b2')),
+    };
+    await sw.dispatchFetch(navigation(`${ORIGIN}/`));
+
+    sw.network.state.offline = true;
+    const page = await sw.dispatchFetch(navigation(`${ORIGIN}/`));
+    expect(await page!.text()).toBe(shellFor('a1'));
+  });
+
   it('serves unhashed styles network-first so a deploy is picked up', async () => {
     const sw = loadWorker({ '/styles.css': css('v1') });
     await sw.dispatchFetch(withDestination(`${ORIGIN}/styles.css`, 'style'));

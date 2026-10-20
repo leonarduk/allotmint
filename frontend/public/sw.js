@@ -43,9 +43,19 @@ function shellReferences(html) {
   return [...new Set([...html.matchAll(SHELL_REFERENCE)].map((m) => m[1]))];
 }
 
+// CloudFront answers a missing object (e.g. a chunk pruned by a newer deploy)
+// with index.html and HTTP 200 (StaticSiteStack error responses), so `ok`
+// alone would let an HTML fallback be cached under a script/style URL.
+function isCacheableAsset(response) {
+  const type = response.headers.get('content-type') || '';
+  return response.ok && !type.includes('text/html');
+}
+
 async function cacheResource(cache, path) {
   const response = await fetch(path);
-  if (!response.ok) throw new Error(`${path} responded ${response.status}`);
+  if (!isCacheableAsset(response)) {
+    throw new Error(`${path} was not a cacheable asset (${response.status})`);
+  }
   await cache.put(path, response);
 }
 
@@ -138,7 +148,9 @@ async function cacheFirstAsset(request) {
   const cached = await cache.match(request, MATCH_OPTIONS);
   if (cached) return cached;
   const response = await fetch(request);
-  if (response.ok) await cache.put(request, response.clone());
+  if (isCacheableAsset(response)) {
+    await cache.put(request, response.clone());
+  }
   return response;
 }
 
@@ -146,7 +158,9 @@ async function networkFirstStatic(request) {
   const cache = await caches.open(ASSET_CACHE);
   try {
     const response = await fetch(request);
-    if (response.ok) await cache.put(request, response.clone());
+    if (isCacheableAsset(response)) {
+      await cache.put(request, response.clone());
+    }
     return response;
   } catch (err) {
     const cached = await cache.match(request, MATCH_OPTIONS);

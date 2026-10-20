@@ -32,14 +32,10 @@ logger = logging.getLogger(__name__)
 _SNAPSHOT_LOAD_TIMEOUT_SECONDS = float(os.getenv("SNAPSHOT_LOAD_TIMEOUT_SECONDS", "10.0"))
 
 
-def _newer_snapshot_in_memory(loaded_ts: datetime | None) -> bool:
-    """True when the in-memory price snapshot is newer than one just loaded."""
+def _in_memory_snapshot_ts() -> datetime | None:
     from backend.common import portfolio_utils
 
-    current_ts = portfolio_utils._PRICE_SNAPSHOT_TS
-    if not portfolio_utils._PRICE_SNAPSHOT or current_ts is None:
-        return False
-    return loaded_ts is None or current_ts > loaded_ts
+    return portfolio_utils._PRICE_SNAPSHOT_TS
 
 
 @contextmanager
@@ -160,6 +156,7 @@ class AppLifecycleService:
             refresh_snapshot_in_memory,
         )
 
+        ts_before_load = _in_memory_snapshot_ts()
         try:
             with _timed_phase("snapshot_load"):
                 result = await asyncio.wait_for(
@@ -181,10 +178,11 @@ class AppLifecycleService:
 
         from backend.common import instrument_api
 
-        if _newer_snapshot_in_memory(ts):
+        if _in_memory_snapshot_ts() != ts_before_load:
             # Requests are served while this runs (#11022); a price refresh
-            # that finished meanwhile must not be replaced by this older load.
-            logger.info("Keeping the newer in-memory price snapshot over the startup load")
+            # that installed a snapshot during the load is newer than what
+            # this load read, so keep it.
+            logger.info("Keeping the price snapshot installed during the startup load")
         else:
             refresh_snapshot_in_memory(snapshot, ts)
             try:

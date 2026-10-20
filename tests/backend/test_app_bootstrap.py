@@ -403,14 +403,18 @@ async def test_background_warmup_keeps_a_newer_in_memory_snapshot(monkeypatch: p
     import backend.common.portfolio_utils as portfolio_utils
 
     newer = datetime.now(UTC)
-    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"NEW": {"last_price": 2.0}})
-    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT_TS", newer)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT_TS", None)
     installed = []
     updated = []
-    monkeypatch.setattr(
-        "backend.common.portfolio_utils._load_snapshot",
-        lambda: ({"OLD": {"last_price": 1.0}}, newer - timedelta(hours=1)),
-    )
+
+    def _load_while_a_refresh_lands():
+        # A price refresh installs a snapshot while the S3 load is in flight.
+        portfolio_utils._PRICE_SNAPSHOT = {"NEW": {"last_price": 2.0}}
+        portfolio_utils._PRICE_SNAPSHOT_TS = newer
+        return ({"OLD": {"last_price": 1.0}}, newer - timedelta(hours=1))
+
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", _load_while_a_refresh_lands)
     monkeypatch.setattr(
         "backend.common.portfolio_utils.refresh_snapshot_in_memory", lambda snapshot, ts: installed.append(snapshot)
     )

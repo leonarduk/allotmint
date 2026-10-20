@@ -1097,6 +1097,6 @@ def test_no_pruning_deployment_can_delete_asset_links(template):
         for logical_id, d in deployments.items()
         if d["Properties"].get("Prune", True) is not False
     }
-    assert pruning, "expected DeployAssets to prune"
+    assert any(logical_id.startswith("DeployAssets") for logical_id in pruning), pruning
     for logical_id, props in pruning.items():
         assert ".well-known/assetlinks.json" in props.get("Exclude", []), logical_id

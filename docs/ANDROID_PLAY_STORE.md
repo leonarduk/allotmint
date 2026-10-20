@@ -65,8 +65,9 @@ gh secret set ANDROID_UPLOAD_KEY_PASSWORD --repo leonarduk/allotmint
 (e.g. `1.0.0`). The workflow:
 
 - fails straight away, naming any missing secret;
-- builds `app-release.aab` with `versionCode` set to the run number, which
-  only ever increases, as Play requires;
+- builds `app-release.aab` with `versionCode` set to *run number × 100 + run
+  attempt*, so it increases across runs and re-runs of a run, as Play
+  requires;
 - rejects the build if the bundle is not actually signed;
 - writes the **upload certificate SHA-256** to the run summary (you'll need it
   in step 5);

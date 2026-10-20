@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: 'User-visible version name (e.g. 1.2.0). The versionCode is this workflow run number.'
+        description: 'User-visible version name (e.g. 1.2.0). The versionCode is derived from the run number and attempt.'
         required: true
         default: '1.0.0'
 
@@ -59,12 +59,16 @@ jobs:
           TWA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
           TWA_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
           TWA_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS || 'upload' }}
-          # Play rejects any upload whose versionCode is not higher than the
-          # last one; the run number only ever increases.
-          TWA_VERSION_CODE: ${{ github.run_number }}
           TWA_VERSION_NAME: ${{ inputs.version_name }}
         run: |
           set -euo pipefail
+          # Play rejects any upload whose versionCode is not higher than the
+          # last one. A re-run keeps its run number, so fold in the attempt:
+          # run N attempt A -> N*100+A, which increases across runs and re-runs
+          # (assuming fewer than 100 attempts per run).
+          TWA_VERSION_CODE=$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))
+          export TWA_VERSION_CODE
+          echo "TWA_VERSION_CODE=$TWA_VERSION_CODE" >> "$GITHUB_ENV"
           export JAVA_HOME="$JAVA_HOME_21_X64"
           TWA_KEYSTORE_PATH="$KEYSTORE_PATH" ./gradlew --no-daemon bundleRelease
 
@@ -86,13 +90,13 @@ jobs:
             -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" | sed -n 's/^\s*SHA256: //p')
           {
             echo "### Android TWA bundle"
-            echo "- versionCode: \`${GITHUB_RUN_NUMBER}\`, versionName: \`${VERSION_NAME}\`"
+            echo "- versionCode: \`${TWA_VERSION_CODE}\`, versionName: \`${VERSION_NAME}\`"
             echo "- Upload certificate SHA-256 (public; add to the ANDROID_TWA_CERT_FINGERPRINTS variable): \`${fingerprint}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: allotmint-twa-${{ inputs.version_name }}-${{ github.run_number }}
+          name: allotmint-twa-${{ inputs.version_name }}-${{ github.run_number }}-${{ github.run_attempt }}
           path: ${{ env.BUNDLE_PATH }}
           if-no-files-found: error
           retention-days: 30

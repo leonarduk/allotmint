@@ -33,7 +33,8 @@ Local build (JDK 17+ and the Android SDK; `ANDROID_HOME` set or
 ```bash
 ./gradlew bundleRelease          # unsigned
 TWA_KEYSTORE_PATH=/path/to/allotmint-upload.jks TWA_KEYSTORE_PASSWORD=... \
-  TWA_KEY_PASSWORD=... TWA_VERSION_CODE=1 ./gradlew bundleRelease   # signed
+  TWA_KEY_PASSWORD=... TWA_VERSION_CODE=1 TWA_VERSION_NAME=1.0.0 \
+  ./gradlew bundleRelease   # signed
 ```
 
 The output is `app/build/outputs/bundle/release/app-release.aab`.

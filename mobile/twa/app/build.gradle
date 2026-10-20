@@ -58,8 +58,9 @@ android {
         minSdkVersion 24
         targetSdkVersion 36
         // Play requires a strictly increasing versionCode on every upload, so
-        // the android-twa workflow passes its run number (see
-        // .github/workflows/android-twa.yml). Local builds default to 1.
+        // the android-twa workflow passes one derived from its run number and
+        // attempt (see .github/workflows/android-twa.yml). Local builds
+        // default to 1.
         versionCode((System.getenv('TWA_VERSION_CODE') ?: '1').toInteger())
         versionName(System.getenv('TWA_VERSION_NAME') ?: '1.0.0')
 

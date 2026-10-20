@@ -337,7 +337,7 @@ Use these steps when you want phones/tablets/laptops on your WiFi network to hit
 - Python 3.11+ with dependencies installed:
   - `python -m pip install -r requirements.txt -r requirements-dev.txt`
   - (CI uses Python 3.12 as the primary backend version and runs a lightweight Python 3.11 compatibility smoke job)
-- Node.js 20+ for frontend tooling.
+- Node.js 22.12+ for frontend tooling (vitest 5 requires `^22.12 || ^24 || >=26`; CI uses Node 24).
 - Local environment defaults:
   - `cp .env.local.example .env.local`
 

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 
 from aws_cdk import Aws, CfnOutput, CfnParameter, Duration, Fn, RemovalPolicy, Stack, Token
@@ -37,6 +38,50 @@ def _ui_auth_removal_policy(scope: Construct) -> RemovalPolicy:
     if retain_user_pool or prod:
         return RemovalPolicy.RETAIN
     return RemovalPolicy.DESTROY
+
+
+# Android package of the Play Store Trusted Web Activity (mobile/twa, #11036).
+TWA_PACKAGE_NAME = "com.allotmint.app"
+ASSET_LINKS_KEY = ".well-known/assetlinks.json"
+_HEX_SHA256 = re.compile(r"^[0-9A-F]{64}$")
+
+
+def _twa_cert_fingerprints() -> list[str]:
+    """Return the TWA signing-cert SHA-256 fingerprints, normalised.
+
+    ``ANDROID_TWA_CERT_FINGERPRINTS`` is a comma-separated list (Play App
+    Signing key plus the upload key), accepted with or without colons and in
+    either case. Malformed values raise so a typo cannot silently publish an
+    assetlinks.json that fails verification and leaves the app showing a URL
+    bar. Fingerprints are public, so this is a repo variable, not a secret.
+    """
+    raw = os.getenv("ANDROID_TWA_CERT_FINGERPRINTS", "")
+    fingerprints = []
+    for entry in (part.strip() for part in raw.split(",")):
+        if not entry:
+            continue
+        digest = entry.replace(":", "").upper()
+        if not _HEX_SHA256.match(digest):
+            raise ValueError(
+                f"ANDROID_TWA_CERT_FINGERPRINTS entry {entry!r} is not a SHA-256 "
+                "certificate fingerprint (64 hex digits, colons optional)."
+            )
+        fingerprints.append(":".join(digest[i : i + 2] for i in range(0, 64, 2)))
+    return list(dict.fromkeys(fingerprints))
+
+
+def _asset_links_statements(fingerprints: list[str]) -> list[dict]:
+    """Digital Asset Links statement letting the TWA open this site full-screen."""
+    return [
+        {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+                "namespace": "android_app",
+                "package_name": TWA_PACKAGE_NAME,
+                "sha256_cert_fingerprints": fingerprints,
+            },
+        }
+    ]
 
 
 class StaticSiteStack(Stack):
@@ -383,8 +428,10 @@ class StaticSiteStack(Stack):
             "DeployAssets",
             sources=[s3_deployment.Source.asset(str(frontend_dir))],
             destination_bucket=site_bucket,
-            # no_cache_files and config.json are deployed separately to control caching
-            exclude=[*no_cache_files, "config.json"],
+            # no_cache_files, config.json and assetlinks.json are deployed
+            # separately to control caching; excluding them also stops prune=True
+            # from deleting them when only this deployment re-runs.
+            exclude=[*no_cache_files, "config.json", ASSET_LINKS_KEY],
             cache_control=[
                 s3_deployment.CacheControl.max_age(Duration.days(365)),
                 s3_deployment.CacheControl.immutable(),
@@ -434,6 +481,27 @@ class StaticSiteStack(Stack):
             prune=False,
         )
         config_deploy.node.add_dependency(asset_deploy)
+
+        # Only publish assetlinks.json once fingerprints exist: the Play App
+        # Signing fingerprint is known only after the first upload, and an
+        # empty or wrong file would fail verification anyway (the TWA then
+        # shows a URL bar). No-cache so key rotations take effect promptly.
+        twa_fingerprints = _twa_cert_fingerprints()
+        if twa_fingerprints:
+            asset_links_deploy = s3_deployment.BucketDeployment(
+                self,
+                "DeployAndroidAssetLinks",
+                sources=[
+                    s3_deployment.Source.json_data(
+                        ASSET_LINKS_KEY, _asset_links_statements(twa_fingerprints)
+                    )
+                ],
+                destination_bucket=site_bucket,
+                content_type="application/json",
+                cache_control=[s3_deployment.CacheControl.no_cache()],
+                prune=False,
+            )
+            asset_links_deploy.node.add_dependency(asset_deploy)
 
         # Grant the GitHub Actions deploy role changeset permissions so `cdk diff
         # --method=changeset` succeeds before BackendLambdaStack is deployed.

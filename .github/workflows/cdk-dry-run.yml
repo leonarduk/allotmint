@@ -71,6 +71,9 @@ jobs:
           JWT_SECRET: dry-run-placeholder
           GOOGLE_CLIENT_ID: dry-run-placeholder.apps.googleusercontent.com
           GITHUB_DEPLOY_ROLE_ARN: arn:aws:iam::123456789012:role/dry-run-placeholder
+          # Real value, not a placeholder: synth rejects malformed fingerprints,
+          # so a bad repo variable fails here rather than at release time.
+          ANDROID_TWA_CERT_FINGERPRINTS: ${{ vars.ANDROID_TWA_CERT_FINGERPRINTS }}
         run: npx cdk synth BackendLambdaStack StaticSiteStack -c prod=true --output /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         working-directory: cdk
 

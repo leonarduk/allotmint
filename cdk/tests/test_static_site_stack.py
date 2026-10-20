@@ -1012,3 +1012,91 @@ def test_non_prod_without_github_deploy_role_arn_synthesises(monkeypatch, tmp_pa
     stack = StaticSiteStack(app, "DevNoRoleStack", frontend_dist_path=str(tmp_path))
     app.synth()
     assert stack is not None
+
+
+# ---------------------------------------------------------------------------
+# Android TWA Digital Asset Links (#11036)
+# ---------------------------------------------------------------------------
+
+_FINGERPRINT = ":".join(["AB"] * 32)
+_OTHER_FINGERPRINT = ":".join(["0F"] * 32)
+
+
+def _asset_links_deployments(template: assertions.Template) -> dict:
+    return {
+        logical_id: resource
+        for logical_id, resource in template.find_resources("Custom::CDKBucketDeployment").items()
+        if logical_id.startswith("DeployAndroidAssetLinks")
+    }
+
+
+def _synth_with_fingerprints(monkeypatch, tmp_path: Path, value: str):
+    monkeypatch.setenv("ANDROID_TWA_CERT_FINGERPRINTS", value)
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html></html>")
+    outdir = tmp_path / "cdk.out"
+    app = App(outdir=str(outdir))
+    stack = StaticSiteStack(
+        app, "TwaStaticSiteStack", api_base_url=_DUMMY_API_URL, frontend_dist_path=str(dist)
+    )
+    template = assertions.Template.from_stack(stack)
+    app.synth()
+    return template, outdir
+
+
+def test_no_asset_links_deployment_without_fingerprints(template):
+    """An empty or wrong assetlinks.json fails verification anyway, so none ships."""
+    assert _asset_links_deployments(template) == {}
+
+
+def test_asset_links_deployed_no_cache_as_json(monkeypatch, tmp_path):
+    template, _ = _synth_with_fingerprints(monkeypatch, tmp_path, _FINGERPRINT)
+    (deployment,) = _asset_links_deployments(template).values()
+    props = deployment["Properties"]
+    assert props["SystemMetadata"]["cache-control"] == "no-cache"
+    assert props["SystemMetadata"]["content-type"] == "application/json"
+    assert props["Prune"] is False
+
+
+def test_asset_links_content_matches_fingerprints(monkeypatch, tmp_path):
+    """Reads the synthesized asset, so the deployed JSON itself is pinned."""
+    raw = f"{_FINGERPRINT.lower()}, {_OTHER_FINGERPRINT.replace(':', '')}, {_FINGERPRINT}"
+    template, outdir = _synth_with_fingerprints(monkeypatch, tmp_path, raw)
+    (deployment,) = _asset_links_deployments(template).values()
+    (object_key,) = deployment["Properties"]["SourceObjectKeys"]
+    asset_dir = outdir / f"asset.{object_key.removesuffix('.zip')}"
+    statements = json.loads((asset_dir / ".well-known" / "assetlinks.json").read_text())
+    assert statements == [
+        {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+                "namespace": "android_app",
+                "package_name": "com.allotmint.app",
+                # Normalised to upper-case colon form and de-duplicated.
+                "sha256_cert_fingerprints": [_FINGERPRINT, _OTHER_FINGERPRINT],
+            },
+        }
+    ]
+
+
+@pytest.mark.parametrize("bad", ["not-a-fingerprint", "AB:CD", ":".join(["ZZ"] * 32)])
+def test_malformed_fingerprint_fails_synth(monkeypatch, tmp_path, bad):
+    with pytest.raises(ValueError, match="ANDROID_TWA_CERT_FINGERPRINTS"):
+        _synth_with_fingerprints(monkeypatch, tmp_path, bad)
+
+
+def test_no_pruning_deployment_can_delete_asset_links(template):
+    """Any deployment with Prune enabled (the CDK default) deletes bucket keys it
+    does not own unless they are excluded, and the asset-links deployment does
+    not necessarily re-run afterwards. Checks every deployment, not just
+    DeployAssets, so a future pruning deployment cannot regress this."""
+    deployments = template.find_resources("Custom::CDKBucketDeployment")
+    pruning = {
+        logical_id: d["Properties"]
+        for logical_id, d in deployments.items()
+        if d["Properties"].get("Prune", True) is not False
+    }
+    assert any(logical_id.startswith("DeployAssets") for logical_id in pruning), pruning
+    for logical_id, props in pruning.items():
+        assert ".well-known/assetlinks.json" in props.get("Exclude", []), logical_id

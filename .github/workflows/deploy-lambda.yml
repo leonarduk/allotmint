@@ -450,6 +450,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          ANDROID_TWA_CERT_FINGERPRINTS: ${{ vars.ANDROID_TWA_CERT_FINGERPRINTS }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: npx cdk diff BackendLambdaStack StaticSiteStack --method=template -c prod=true
         working-directory: cdk
@@ -466,6 +467,9 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          # Public SHA-256 signing-cert fingerprints for the Play Store TWA;
+          # unset means no /.well-known/assetlinks.json (docs/ANDROID_PLAY_STORE.md).
+          ANDROID_TWA_CERT_FINGERPRINTS: ${{ vars.ANDROID_TWA_CERT_FINGERPRINTS }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: npx cdk deploy StaticSiteStack --require-approval never -c prod=true
         working-directory: cdk
@@ -754,12 +758,15 @@ jobs:
         # grants (SimulatePrincipalPolicy, changeset perms, cognito-idp Describe/
         # UpdateUserPoolClient), and CloudFormation deletes the policy resource
         # that the earlier step just created — right before the "Reconcile
-        # UiAuthClient OAuth configuration" step needs it.
+        # UiAuthClient OAuth configuration" step needs it. Likewise
+        # ANDROID_TWA_CERT_FINGERPRINTS: omitting it would delete the
+        # assetlinks.json deployment the earlier step created.
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          ANDROID_TWA_CERT_FINGERPRINTS: ${{ vars.ANDROID_TWA_CERT_FINGERPRINTS }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: >
           npx cdk deploy StaticSiteStack --require-approval never -c prod=true

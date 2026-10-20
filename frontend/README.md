@@ -135,6 +135,8 @@ use **Install app** (or **Add to Home screen**) on the deployed site (#11023).
   `CACHE_VERSION`.
 - Playwright specs run with `serviceWorkers: 'block'`, because requests a
   worker handles bypass `page.route()` mocks.
+- The same PWA is published on Google Play as a Trusted Web Activity
+  (`mobile/twa/`). See [docs/ANDROID_PLAY_STORE.md](../docs/ANDROID_PLAY_STORE.md).
 
 ## Tab plugins
 

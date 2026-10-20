@@ -1,0 +1,9 @@
+# Build outputs and local machine config.
+.gradle/
+build/
+app/build/
+local.properties
+# Signing material never belongs in git: CI decodes the upload key from
+# GitHub secrets (docs/ANDROID_PLAY_STORE.md).
+*.jks
+*.keystore

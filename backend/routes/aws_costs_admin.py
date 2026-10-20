@@ -19,9 +19,9 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from backend.auth import get_active_user, is_demo_request
 from backend.common.ttl_cache import TTLCache
 from backend.config import config
-from backend.routes import get_active_user
 
 _FORBIDDEN_DETAIL = "Not authorized for AWS cost data"
 
@@ -34,11 +34,18 @@ def _ensure_admin_access(identity: str | None = Depends(get_active_user)) -> Non
     to, so it is gated on ``config.allowed_emails`` -- the deployment's own
     bootstrap owner allowlist -- rather than the generic ``protected`` auth
     dependency alone (issue #8016's constraint that non-owner/non-admin users
-    must not see this data). No-ops when auth is disabled, matching every
-    other admin route's local/demo behaviour.
+    must not see this data).
+
+    Stands down only for a local run without sign-in. The Lambda always runs
+    with ``DISABLE_AUTH`` set because API Gateway does the sign-in, so it must
+    still be checked there (#11046); ``backend.auth.get_active_user`` returns
+    the gateway-verified email in that case, unlike
+    ``backend.routes.get_active_user``, which returns ``None``.
     """
 
-    if config.disable_auth:
+    if is_demo_request():
+        raise HTTPException(status_code=403, detail=_FORBIDDEN_DETAIL)
+    if config.disable_auth and config.app_env != "aws":
         return
 
     allowed = {

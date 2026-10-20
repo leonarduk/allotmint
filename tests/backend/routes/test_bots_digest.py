@@ -160,3 +160,23 @@ def test_preview_composes_from_registry_runs_without_writing(data_root):
     assert states["pension-report"] == "ok"
     assert states["price-refresh"] == "not_run_yet"
     assert not (data_root / "digests").exists()
+
+
+def test_is_admin_checks_emails_on_lambda_despite_disable_auth(monkeypatch):
+    # The deployed Lambda: DISABLE_AUTH is always set (API Gateway signs in).
+    monkeypatch.setattr(route.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(route.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(route.config, "allowed_emails", ["admin@example.com"], raising=False)
+    monkeypatch.setattr(route, "is_demo_request", lambda: False)
+    assert route.is_admin("Admin@Example.com") is True
+    assert route.is_admin("alex@example.com") is False
+    assert route.is_admin(None) is False
+
+
+def test_is_admin_local_without_sign_in_and_never_for_demo(monkeypatch):
+    monkeypatch.setattr(route.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(route.config, "app_env", "local", raising=False)
+    monkeypatch.setattr(route, "is_demo_request", lambda: False)
+    assert route.is_admin(None) is True
+    monkeypatch.setattr(route, "is_demo_request", lambda: True)
+    assert route.is_admin(None) is False

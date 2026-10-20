@@ -180,3 +180,20 @@ def test_is_admin_local_without_sign_in_and_never_for_demo(monkeypatch):
     assert route.is_admin(None) is True
     monkeypatch.setattr(route, "is_demo_request", lambda: True)
     assert route.is_admin(None) is False
+
+
+def test_system_items_hidden_from_non_admins_on_lambda(data_root, monkeypatch):
+    # The deployed Lambda: DISABLE_AUTH is always set (API Gateway signs in).
+    from backend.common import authz
+
+    monkeypatch.setattr(authz.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(route.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(route.config, "allowed_emails", ["admin@example.com"], raising=False)
+    monkeypatch.setattr(route, "is_demo_request", lambda: False)
+    _save(items=[_entry("alex:own"), _entry("steward:system", owner=None)])
+
+    body = _as(_client(data_root), "alex").get("/bots/digest/alex/latest").json()
+    assert [i["dedupe_key"] for i in body["items"]] == ["alex:own"]
+
+    body = _as(_client(data_root), "admin@example.com").get("/bots/digest/alex/latest").json()
+    assert [i["dedupe_key"] for i in body["items"]] == ["alex:own", "steward:system"]

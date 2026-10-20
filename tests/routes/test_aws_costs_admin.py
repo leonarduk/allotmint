@@ -159,3 +159,16 @@ def test_demo_session_forbidden(client, monkeypatch):
     monkeypatch.setattr(aws_costs_admin, "is_demo_request", lambda: True)
     resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
     assert resp.status_code == 403
+
+
+def test_local_run_without_sign_in_still_allowed(client, monkeypatch):
+    fake_client = MagicMock()
+    fake_client.get_cost_and_usage.return_value = _fake_response(("AWS Lambda", "1.00"))
+    monkeypatch.setattr(aws_costs_admin.boto3, "client", lambda *a, **k: fake_client)
+    monkeypatch.setattr(aws_costs_admin.config, "disable_auth", True)
+    monkeypatch.setattr(aws_costs_admin.config, "app_env", "local")
+    monkeypatch.setattr(aws_costs_admin.config, "allowed_emails", ["owner@example.com"])
+    monkeypatch.setattr(aws_costs_admin, "is_demo_request", lambda: False)
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: None
+    resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    assert resp.status_code == 200

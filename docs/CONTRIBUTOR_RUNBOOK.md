@@ -136,9 +136,11 @@ does not have access; ask a repository owner to grant it. Do not put a personal
 access token in `pyproject.toml`, a shell command, or a committed pip config.
 
 The public application and its normal test suite do not require this extra.
-Private-repository CI and deployments run from `allotmint-pro` itself and
-check out this public repository, so this local SSH credential is not copied
-into public-repository CI.
+This local SSH credential is not copied into public-repository CI. CI that
+needs allotmint-pro (`pro-gated-tests.yml`) and the deploy, which bakes the
+pinned release into the Lambda image (#11004, see
+[DEPLOY.md](DEPLOY.md#allotmint-pro-in-the-lambda-image)), use the
+`ALLOTMINT_PRO_DISPATCH_TOKEN` read-only token instead.
 
 ## 3. Environment variables you are most likely to need
 

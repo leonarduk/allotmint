@@ -1791,6 +1791,23 @@
       "reload": "Recargar página",
       "noResponse": "Sin respuesta del backend ({{error}}). Puede haberse reiniciado tras la actualización; usa Buscar actualizaciones para confirmarlo."
     },
+    "dataSync": {
+      "title": "Sincronización de datos con git",
+      "description": "Pull copia {{repo}} (main) en los datos del sitio; git prevalece. Push abre una pull request en {{repo}} con los datos del sitio.",
+      "pullWarning": "Pull descarta los cambios del sitio que no se hayan enviado y fusionado. Envía y fusiona primero si quieres conservarlos.",
+      "pullConfirm": "¿Reemplazar los datos del sitio por los de git? Se perderán los cambios del sitio no enviados ni fusionados.",
+      "notConfigured": "La sincronización de datos no está configurada en este despliegue. Consulta docs/DEPLOY.md.",
+      "lastPull": "Último pull",
+      "lastPush": "Último push",
+      "never": "nunca ejecutado",
+      "pull": "Traer de git",
+      "push": "Enviar a git (PR)",
+      "refresh": "Actualizar estado",
+      "starting": "Iniciando...",
+      "pullStarted": "Pull iniciado. Tarda unos minutos; recarga la app cuando termine con éxito.",
+      "pushStarted": "Push iniciado. Revisa y fusiona la pull request que abre.",
+      "openPulls": "Abrir pull requests"
+    },
     "mcpServer": {
       "title": "Servidor MCP",
       "running": "En ejecución en el puerto {{port}} (pid {{pid}}, iniciado {{started}}).",

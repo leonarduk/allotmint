@@ -1791,6 +1791,23 @@
       "reload": "Seite neu laden",
       "noResponse": "Keine Antwort vom Backend ({{error}}). Es wurde möglicherweise nach dem Update neu gestartet; prüfen Sie mit „Nach Updates suchen“."
     },
+    "dataSync": {
+      "title": "Datenabgleich mit Git",
+      "description": "Pull kopiert {{repo}} (main) in die Website-Daten; Git hat Vorrang. Push öffnet einen Pull Request in {{repo}} mit den Website-Daten.",
+      "pullWarning": "Pull verwirft Website-Änderungen, die noch nicht gepusht und gemergt wurden. Zuerst pushen und mergen, um sie zu behalten.",
+      "pullConfirm": "Website-Daten durch die Daten in Git ersetzen? Nicht gepushte und gemergte Website-Änderungen gehen verloren.",
+      "notConfigured": "Der Datenabgleich ist in dieser Bereitstellung nicht konfiguriert. Siehe docs/DEPLOY.md.",
+      "lastPull": "Letzter Pull",
+      "lastPush": "Letzter Push",
+      "never": "nie ausgeführt",
+      "pull": "Aus Git holen",
+      "push": "Nach Git pushen (PR)",
+      "refresh": "Status aktualisieren",
+      "starting": "Wird gestartet...",
+      "pullStarted": "Pull gestartet. Das dauert einige Minuten; lade die App neu, sobald er erfolgreich war.",
+      "pushStarted": "Push gestartet. Prüfe und merge den erstellten Pull Request.",
+      "openPulls": "Pull Requests öffnen"
+    },
     "mcpServer": {
       "title": "MCP-Server",
       "running": "Läuft auf Port {{port}} (PID {{pid}}, gestartet {{started}}).",

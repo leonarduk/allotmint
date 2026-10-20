@@ -380,10 +380,56 @@ against the same key already in the bucket. It exits non-zero and lists the
 offending slugs if any collide with a different owner; matching or new slugs
 are left alone.
 
+### Sync with allotmint-data from the Support page
+
+On AWS the signed-in owner (an address in `allowed_emails`) sees a **Data sync with git**
+panel on the Support page. Each button dispatches a workflow in allotmint-data,
+which assumes the CDK `DataSyncRole` over GitHub OIDC and does the copying:
+
+- **Pull from git** (`data-pull.yml`): copies allotmint-data `main` into the
+  bucket. Git wins: synced files are overwritten, and the
+  `writable-accounts/<owner>/<file>` copies of any `accounts/<owner>/<file>` in
+  git are deleted, because that overlay otherwise shadows git. Website edits
+  that have not been pushed and merged are lost. Nothing is deleted outside
+  those overlay copies (no `--delete`), so app-only prefixes such as chat
+  history are untouched; `DataSyncRole` can only delete under
+  `writable-accounts/`.
+- **Push to git** (`data-push.yml`): copies the bucket's synced paths back,
+  folds `writable-accounts/` into `accounts/`, and opens a pull request in
+  allotmint-data. Merge it, then Pull, to make git and the bucket agree.
+
+Only one sync runs at a time. The panel links each run's Actions log.
+
+One-time setup, after a deploy that creates `DataSyncRole`:
+
+1. Create a fine-grained GitHub token with access to **allotmint-data only**
+   and the single permission **Actions: Read and write**. Store it in SSM:
+
+   ```bash
+   aws ssm put-parameter --region eu-west-1 --type SecureString \
+     --name /allotmint/data-sync/github-token --value "github_pat_..."
+   ```
+
+   Keep the default `aws/ssm` KMS key: the Lambda is granted
+   `ssm:GetParameter` only, not `kms:Decrypt` on a customer-managed key. The
+   Lambda reads the token on first use and caches it. To rotate, `--overwrite`
+   the parameter and revoke the old token; the cache clears itself on the
+   first request GitHub refuses. With a customer-managed key the read fails
+   and the panel reports sync as not configured.
+2. In allotmint-data, set the repository variables `DATA_SYNC_ROLE_ARN` (the
+   `BackendLambdaStack` output `DataSyncRoleArn`), `DATA_BUCKET` (output
+   `DataBucketName`) and `AWS_REGION`.
+3. In allotmint-data, enable *Settings → Actions → General → Allow GitHub
+   Actions to create and approve pull requests*, which `data-push.yml` needs.
+
+The role trusts only `repo:leonarduk/allotmint-data:ref:refs/heads/main`
+(override the repo with the CDK context `data_sync_repo`), so no other repo,
+branch or pull request can use it.
+
 ### Investment-trust NAVs and instrument metadata
 
-Nothing copies allotmint-data to the bucket automatically. After changing these
-files in the data repo, upload them by hand from the allotmint-data checkout:
+Use **Pull from git** above, or upload these files by hand from the
+allotmint-data checkout:
 
 ```bash
 # NAVs for the premium/discount endpoint and the get_nav_discount chat tool

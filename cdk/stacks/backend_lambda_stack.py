@@ -27,6 +27,7 @@ from aws_cdk import aws_sns_subscriptions as sns_subscriptions
 from constructs import Construct
 
 from stacks._paths import resolve_app_root
+from stacks.data_sync import DEFAULT_DATA_SYNC_REPO, DataSync
 from stacks.exports import BACKEND_API_URL_EXPORT
 from stacks.moneyhub_token_store import MoneyhubTokenStore
 
@@ -713,6 +714,18 @@ class BackendLambdaStack(Stack):
             "MONEYHUB_TOKEN_PARAMETER_PREFIX",
             moneyhub_token_store.parameter_prefix,
         )
+
+        # Support page "Pull from git" / "Push to git" (#11037): the backend
+        # dispatches allotmint-data workflows, which assume data_sync.role.
+        data_sync = DataSync(
+            self,
+            "DataSync",
+            data_bucket=data_bucket,
+            repo=self.node.try_get_context("data_sync_repo") or DEFAULT_DATA_SYNC_REPO,
+        )
+        data_sync.grant_read_token(backend_fn)
+        backend_fn.add_environment("DATA_SYNC_REPO", data_sync.repo)
+        backend_fn.add_environment("DATA_SYNC_TOKEN_PARAMETER", data_sync.token_parameter_name)
 
         # BackendLambda: read + put + list for API data paths. Add an explicit
         # timeseries cache grant below so the synthesized IAM policy always covers
@@ -1759,6 +1772,7 @@ class BackendLambdaStack(Stack):
             export_name=BACKEND_API_URL_EXPORT,
         )
         CfnOutput(self, "DataBucketName", value=data_bucket.bucket_name)
+        CfnOutput(self, "DataSyncRoleArn", value=data_sync.role.role_arn)
         CfnOutput(self, "BackendLambdaLogGroupName", value=backend_log_group.log_group_name)
         CfnOutput(self, "PriceRefreshLambdaLogGroupName", value=refresh_log_group.log_group_name)
         CfnOutput(self, "TradingAgentLambdaLogGroupName", value=agent_log_group.log_group_name)

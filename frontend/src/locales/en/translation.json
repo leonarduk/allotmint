@@ -1785,6 +1785,23 @@
       "reload": "Reload page",
       "noResponse": "No response from the backend ({{error}}). It may have restarted after updating; use Check for updates to confirm."
     },
+    "dataSync": {
+      "title": "Data sync with git",
+      "description": "Pull copies {{repo}} (main) into the website data; git wins. Push opens a pull request in {{repo}} with the website data.",
+      "pullWarning": "Pull discards website edits that have not been pushed and merged. Push and merge first if you want to keep them.",
+      "pullConfirm": "Replace the website data with the data in git? Website edits that have not been pushed and merged will be lost.",
+      "notConfigured": "Data sync is not configured on this deployment. See docs/DEPLOY.md.",
+      "lastPull": "Last pull",
+      "lastPush": "Last push",
+      "never": "never run",
+      "pull": "Pull from git",
+      "push": "Push to git (PR)",
+      "refresh": "Refresh status",
+      "starting": "Starting...",
+      "pullStarted": "Pull started. It takes a few minutes; reload the app once it succeeds.",
+      "pushStarted": "Push started. Review and merge the pull request it opens.",
+      "openPulls": "Open pull requests"
+    },
     "mcpServer": {
       "title": "MCP server",
       "running": "Running on port {{port}} (pid {{pid}}, started {{started}}).",

@@ -23,6 +23,7 @@ import { useUser } from "../UserContext";
 import { OwnerSelector } from "../components/OwnerSelector";
 import SectionCard from "../components/SectionCard";
 import AppUpdateSection from "../components/AppUpdateSection";
+import DataSyncSection from "../components/DataSyncSection";
 import McpServerSection from "../components/McpServerSection";
 import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
@@ -584,6 +585,8 @@ export default function Support() {
       </div>
 
       <AppUpdateSection />
+
+      <DataSyncSection />
 
       <SectionCard title={t("support.dataExplorer.title", "Data Explorer")}>
         <p className="mb-2 text-sm text-gray-600">

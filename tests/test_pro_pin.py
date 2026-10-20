@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts.pro_pin import pinned_tag
+from scripts.pro_pin import pinned_requirement, pinned_tag
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy-lambda.yml"
@@ -13,6 +13,10 @@ WORKFLOW = ROOT / ".github" / "workflows" / "deploy-lambda.yml"
 
 def test_pinned_tag_reads_the_pro_extra() -> None:
     assert pinned_tag() == "v0.14.0"
+
+
+def test_pinned_requirement_is_the_whole_pro_extra() -> None:
+    assert pinned_requirement() == ("allotmint-pro @ git+ssh://git@github.com/leonarduk/allotmint-pro.git@v0.14.0")
 
 
 def test_pinned_tag_rejects_an_unpinned_extra(tmp_path: Path) -> None:

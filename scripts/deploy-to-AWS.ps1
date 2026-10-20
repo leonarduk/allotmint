@@ -315,6 +315,22 @@ if ($Backend) {
       Pop-Location
     }
   }
+  # The Lambda image refuses to build without the allotmint-pro wheel
+  # (backend/Dockerfile.lambda, #11004). Rebuild it from the `pro` extra pin
+  # every time, so a stale wheel from an older pin is never deployed. Needs
+  # the SSH access described in docs/CONTRIBUTOR_RUNBOOK.md
+  # ("Installing the private pro extra").
+  $proWheelDir = Join-Path $REPO_ROOT 'pro_wheels'
+  $proRequirement = & $PYTHON (Join-Path $REPO_ROOT 'scripts/pro_pin.py') --requirement
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  Get-ChildItem $proWheelDir -Filter 'allotmint_pro-*.whl' -ErrorAction SilentlyContinue | Remove-Item -Force
+  Write-Host "Building allotmint-pro wheel from $proRequirement ..." -ForegroundColor Yellow
+  & $PYTHON -m pip wheel --no-deps --wheel-dir $proWheelDir $proRequirement
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host 'Could not build the allotmint-pro wheel. Check SSH access to leonarduk/allotmint-pro (docs/CONTRIBUTOR_RUNBOOK.md).' -ForegroundColor Red
+    exit $LASTEXITCODE
+  }
+
   Push-Location $CDK_DIR
   try {
     Write-Host 'Deploying backend and frontend stacks to AWS...' -ForegroundColor Green

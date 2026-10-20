@@ -234,6 +234,12 @@ site instead of returning 402 (#11004):
    sets `REQUIRE_PRO=0` for local builds, which install a wheel if one is in
    `pro_wheels/` and skip it otherwise.
 
+Local deploys build the same wheel from the pinned requirement over SSH:
+`scripts/deploy-to-AWS.ps1 -Backend` does it automatically, and the manual
+`cdk deploy` steps under [Deploy with AWS CDK](#deploy-with-aws-cdk) start with
+it. Both need the SSH access described in
+[CONTRIBUTOR_RUNBOOK.md](CONTRIBUTOR_RUNBOOK.md#installing-the-private-pro-extra).
+
 To ship a new allotmint-pro release, bump the tag in the `pro` extra (and in
 `tests/test_pro_extra_configuration.py`), then tag an allotmint release as
 usual. If the token expires, the deploy fails at "Resolve pinned allotmint-pro
@@ -499,6 +505,10 @@ Cognito exists, pass its outputs into the backend stack, then redeploy the stati
 stack with the protected API URL in `/config.json`:
 
 ```bash
+# The Lambda image needs the allotmint-pro wheel (see "allotmint-pro in the
+# Lambda image"); build it at the pinned release over SSH first.
+rm -f pro_wheels/allotmint_pro-*.whl
+python -m pip wheel --no-deps --wheel-dir pro_wheels "$(python scripts/pro_pin.py --requirement)"
 cd cdk
 npx cdk bootstrap   # once per account/region
 npx cdk deploy StaticSiteStack --require-approval never -c prod=true

@@ -38,6 +38,8 @@ async def test_startup_warms_snapshot(monkeypatch):
         # rather than synchronously. Use the async lifespan directly and
         # await the task so the assertion below can observe the call.
         async with app.router.lifespan_context(app):
+            # The snapshot warmup itself runs in the background (#11022).
+            await app.state.snapshot_warm_task
             tasks = getattr(app.state, "background_tasks", [])
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
@@ -48,7 +50,8 @@ async def test_startup_warms_snapshot(monkeypatch):
     mock_prime.assert_called_once()
 
 
-def test_skip_snapshot_warm(monkeypatch):
+@pytest.mark.asyncio
+async def test_skip_snapshot_warm(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with (
@@ -58,8 +61,10 @@ def test_skip_snapshot_warm(monkeypatch):
         patch("backend.common.instrument_api.prime_latest_prices") as mock_prime,
     ):
         app = create_app()
-        with TestClient(app):
-            pass
+        # Await the background warm task (#11022) so shutdown can't cancel it
+        # before it calls refresh_snapshot_async.
+        async with app.router.lifespan_context(app):
+            await app.state.snapshot_warm_task
     mock_refresh.assert_called_once_with(days=30)
     mock_load.assert_not_called()
     mock_update.assert_not_called()

@@ -22,6 +22,10 @@ def test_deploy_workflow_warms_price_snapshot() -> None:
 
     assert "aws lambda invoke" in run_script
     assert "PriceRefreshLambda" in run_script
+    # The CLI's 60s read timeout + automatic retry re-invoked a still-running
+    # refresh, which then skipped on the run lock and failed the deploy.
+    assert "AWS_MAX_ATTEMPTS=1 aws lambda invoke" in run_script
+    assert "--cli-read-timeout 660" in run_script
     assert "aws s3api head-object" in run_script
     assert "prices/latest_prices.json" in run_script
 

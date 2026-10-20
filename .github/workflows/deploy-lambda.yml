@@ -574,7 +574,13 @@ jobs:
             exit 1
           fi
           response_file="$(mktemp)"
-          invoke_meta="$(aws lambda invoke \
+          # A refresh can outlast the CLI's default 60s read timeout; the CLI
+          # then retries the invoke, the retry finds the first run's lock and
+          # returns {"skipped": true, "reason": "Another run ... is in
+          # progress"}, failing this step (v0.60.1). Wait for the function's
+          # full 10-minute timeout and never retry: a retry starts a second run.
+          invoke_meta="$(AWS_MAX_ATTEMPTS=1 aws lambda invoke \
+            --cli-read-timeout 660 \
             --function-name "${refresh_fn}:live" \
             "$response_file")"
           python - "$invoke_meta" "$response_file" <<'PY'

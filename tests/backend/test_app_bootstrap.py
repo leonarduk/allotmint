@@ -84,6 +84,9 @@ async def test_lifecycle_service_warms_snapshot_and_registers_background_task(
     app = app_module.create_app()
 
     await service.startup(app)
+    # The warmup runs in the background so startup doesn't block the first
+    # request (#11022); wait for it before asserting its effects.
+    await app.state.snapshot_warm_task
 
     assert warmed == {"snapshot": {"ABC": 1}, "ts": "ts"}
     assert InstrumentApi.latest == {"ABC": 1}
@@ -149,6 +152,7 @@ async def test_lifecycle_service_warmup_logs_timed_phases(
 
     with caplog.at_level(logging.INFO, logger="backend.bootstrap.startup"):
         await service.startup(app)
+        await app.state.snapshot_warm_task
         prime_task = next(t for t in app.state.background_tasks if t is not snapshot_task)
         await prime_task
 
@@ -241,6 +245,7 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
     with caplog.at_level(logging.ERROR):
         # Must not raise — previously the re-raise turned this into a 500 for all requests.
         await service.startup(app)
+        await app.state.snapshot_warm_task
         # prime_latest_prices() now runs as a background task (issue #4930); await
         # it directly so its failure is logged before the assertion below.
         prime_task = next(t for t in app.state.background_tasks if t is not None)
@@ -288,6 +293,7 @@ async def test_lifecycle_service_snapshot_load_is_time_bounded(
 
     with caplog.at_level(logging.WARNING):
         await asyncio.wait_for(service.startup(app), timeout=2.0)
+        await asyncio.wait_for(app.state.snapshot_warm_task, timeout=2.0)
 
     assert warmed == {"snapshot": {}, "ts": None}
     assert any(
@@ -323,10 +329,107 @@ async def test_lifecycle_service_metadata_update_is_time_bounded(
 
     with caplog.at_level(logging.WARNING):
         await asyncio.wait_for(service.startup(app), timeout=2.0)
+        await asyncio.wait_for(app.state.snapshot_warm_task, timeout=2.0)
 
     assert any(
         "timed out" in r.message for r in caplog.records
     ), "Expected a metadata-update timeout warning but got: " + str([r.message for r in caplog.records])
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_service_startup_does_not_wait_for_snapshot_load(monkeypatch: pytest.MonkeyPatch):
+    """Startup returns while the snapshot load is still running (#11022).
+
+    On Lambda each new execution environment runs startup before its first
+    request; awaiting two timed-out loads there pushed that request past API
+    Gateway's 30s limit. The refresh task still starts only after the warmup.
+    """
+    import threading
+
+    release = threading.Event()
+    refreshed = []
+
+    def _slow_load():
+        release.wait(5)
+        return ({"ABC": 1}, "ts")
+
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", _slow_load)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_in_memory", lambda snapshot, ts: None)
+    monkeypatch.setattr("backend.common.instrument_api.update_latest_prices_from_snapshot", lambda snapshot: None)
+    monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", lambda: None)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: refreshed.append(days))
+    monkeypatch.setattr(config, "skip_snapshot_warm", False, raising=False)
+
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    try:
+        await asyncio.wait_for(service.startup(app), timeout=1.0)
+        assert not app.state.snapshot_warm_task.done()
+        assert refreshed == []
+    finally:
+        release.set()
+    await asyncio.wait_for(app.state.snapshot_warm_task, timeout=5.0)
+    assert refreshed == [config.snapshot_warm_days]
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_service_logs_background_warmup_failure(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    """A failure in the background warmup is logged, not left on an unawaited task (#11022)."""
+
+    def _boom(days):
+        raise RuntimeError("refresh exploded")
+
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", _boom)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True, raising=False)
+
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    with caplog.at_level(logging.ERROR, logger="backend.bootstrap.startup"):
+        await service.startup(app)
+        await app.state.snapshot_warm_task
+
+    assert any("Background snapshot warmup/refresh failed" in r.message for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_background_warmup_keeps_a_newer_in_memory_snapshot(monkeypatch: pytest.MonkeyPatch):
+    """A refresh that lands while the background warmup runs is not overwritten (#11022)."""
+    from datetime import UTC, datetime, timedelta
+
+    import backend.common.portfolio_utils as portfolio_utils
+
+    newer = datetime.now(UTC)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT_TS", None)
+    installed = []
+    updated = []
+
+    def _load_while_a_refresh_lands():
+        # A price refresh installs a snapshot while the S3 load is in flight.
+        portfolio_utils._PRICE_SNAPSHOT = {"NEW": {"last_price": 2.0}}
+        portfolio_utils._PRICE_SNAPSHOT_TS = newer
+        return ({"OLD": {"last_price": 1.0}}, newer - timedelta(hours=1))
+
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", _load_while_a_refresh_lands)
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.refresh_snapshot_in_memory", lambda snapshot, ts: installed.append(snapshot)
+    )
+    monkeypatch.setattr("backend.common.instrument_api.update_latest_prices_from_snapshot", updated.append)
+    monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", lambda: None)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr(config, "skip_snapshot_warm", False, raising=False)
+
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+    await service.startup(app)
+    await app.state.snapshot_warm_task
+
+    assert installed == []
+    assert updated == []
 
 
 @pytest.mark.asyncio
@@ -367,6 +470,7 @@ async def test_snapshot_load_timeout_value_is_respected(
     start = time.monotonic()
     with caplog.at_level(logging.WARNING):
         await asyncio.wait_for(service.startup(app), timeout=5.0)
+        await asyncio.wait_for(app.state.snapshot_warm_task, timeout=5.0)
     elapsed = time.monotonic() - start
 
     # Generous tolerance to avoid CI flakiness while still catching gross

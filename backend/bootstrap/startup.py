@@ -8,6 +8,7 @@ import os
 import shutil
 import time
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -29,6 +30,12 @@ logger = logging.getLogger(__name__)
 # below the 90s Lambda timeout (see backend_lambda_stack.py) since two
 # calls share this budget sequentially.
 _SNAPSHOT_LOAD_TIMEOUT_SECONDS = float(os.getenv("SNAPSHOT_LOAD_TIMEOUT_SECONDS", "10.0"))
+
+
+def _in_memory_snapshot_ts() -> datetime | None:
+    from backend.common import portfolio_utils
+
+    return portfolio_utils._PRICE_SNAPSHOT_TS
 
 
 @contextmanager
@@ -69,22 +76,15 @@ class AppLifecycleService:
 
             check_moneyhub_configured()
 
-        if not self.cfg.skip_snapshot_warm:
-            await self._warm_snapshot(app)
-
-        # Deferred import: portfolio_utils pulls in pandas; loading it here
-        # (inside the lifespan startup hook) rather than at module level keeps
-        # the Lambda INIT phase import chain lean.
-        #
-        # Pre-existing behaviour (not changed by this PR): refresh_snapshot_async
-        # fires unconditionally — it is the background cache-refresh task that
-        # keeps the snapshot up-to-date between warm-path invocations.  Only the
-        # *blocking* _warm_snapshot() call is guarded by skip_snapshot_warm.
-        from backend.common.portfolio_utils import refresh_snapshot_async
-
-        task = refresh_snapshot_async(days=self.cfg.snapshot_warm_days)
-        if isinstance(task, (asyncio.Task, asyncio.Future)):
-            app.state.background_tasks.append(task)
+        # The snapshot warmup runs in the background, not before the first
+        # request: on Lambda every new execution environment runs this startup,
+        # and two timed-out loads (2 x SNAPSHOT_LOAD_TIMEOUT_SECONDS) pushed its
+        # first request past API Gateway's 30s limit, so a page load that
+        # started fresh environments showed "Backend unavailable" (#11022).
+        # Requests already cope with an empty snapshot (the timeout path). The
+        # background refresh still starts only after the warmup, so a stale
+        # snapshot read from S3 cannot overwrite a refreshed one.
+        app.state.snapshot_warm_task = asyncio.create_task(self._warm_then_refresh(app))
 
         # Daily held-trust NAV refresh (#9232); a no-op unless nav_refresh_enabled.
         from backend.tasks.nav_refresh import start_nav_refresh_task
@@ -110,7 +110,8 @@ class AppLifecycleService:
             start_admin_cache_warm_thread()
 
     async def shutdown(self, app: FastAPI) -> None:
-        tasks = list(getattr(app.state, "background_tasks", []))
+        warm_task = getattr(app.state, "snapshot_warm_task", None)
+        tasks = ([warm_task] if warm_task is not None else []) + list(getattr(app.state, "background_tasks", []))
         for task in tasks:
             task.cancel()
         if tasks:
@@ -120,6 +121,34 @@ class AppLifecycleService:
         for temp_dir in self.temp_dirs:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+    async def _warm_then_refresh(self, app: FastAPI) -> None:
+        # Nothing awaits this task on Lambda, so log failures here rather
+        # than leave them on an unretrieved task.
+        try:
+            await self._start_snapshot_warm_and_refresh(app)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Background snapshot warmup/refresh failed")
+
+    async def _start_snapshot_warm_and_refresh(self, app: FastAPI) -> None:
+        if not self.cfg.skip_snapshot_warm:
+            await self._warm_snapshot(app)
+
+        # Deferred import: portfolio_utils pulls in pandas; loading it here
+        # (inside the lifespan startup hook) rather than at module level keeps
+        # the Lambda INIT phase import chain lean.
+        #
+        # refresh_snapshot_async fires unconditionally -- it is the background
+        # cache-refresh task that keeps the snapshot up-to-date between
+        # warm-path invocations. Only _warm_snapshot() is guarded by
+        # skip_snapshot_warm.
+        from backend.common.portfolio_utils import refresh_snapshot_async
+
+        task = refresh_snapshot_async(days=self.cfg.snapshot_warm_days)
+        if isinstance(task, (asyncio.Task, asyncio.Future)):
+            app.state.background_tasks.append(task)
+
     async def _warm_snapshot(self, app: FastAPI) -> None:
         # Deferred imports: both pull in pandas transitively.
         from backend.common.portfolio_utils import (
@@ -127,6 +156,7 @@ class AppLifecycleService:
             refresh_snapshot_in_memory,
         )
 
+        ts_before_load = _in_memory_snapshot_ts()
         try:
             with _timed_phase("snapshot_load"):
                 result = await asyncio.wait_for(
@@ -146,23 +176,28 @@ class AppLifecycleService:
             logger.error("Failed to load price snapshot: %s", sanitise_log_value(exc))
             snapshot, ts = {}, None
 
-        refresh_snapshot_in_memory(snapshot, ts)
-
         from backend.common import instrument_api
 
-        try:
-            with _timed_phase("metadata_update_from_snapshot"):
-                await asyncio.wait_for(
-                    asyncio.to_thread(instrument_api.update_latest_prices_from_snapshot, snapshot),
-                    timeout=_SNAPSHOT_LOAD_TIMEOUT_SECONDS,
+        if _in_memory_snapshot_ts() != ts_before_load:
+            # Requests are served while this runs (#11022); a price refresh
+            # that installed a snapshot during the load is newer than what
+            # this load read, so keep it.
+            logger.info("Keeping the price snapshot installed during the startup load")
+        else:
+            refresh_snapshot_in_memory(snapshot, ts)
+            try:
+                with _timed_phase("metadata_update_from_snapshot"):
+                    await asyncio.wait_for(
+                        asyncio.to_thread(instrument_api.update_latest_prices_from_snapshot, snapshot),
+                        timeout=_SNAPSHOT_LOAD_TIMEOUT_SECONDS,
+                    )
+            except TimeoutError:
+                logger.warning(
+                    "Updating latest prices from snapshot timed out after %ss",
+                    sanitise_log_value(_SNAPSHOT_LOAD_TIMEOUT_SECONDS),
                 )
-        except TimeoutError:
-            logger.warning(
-                "Updating latest prices from snapshot timed out after %ss",
-                sanitise_log_value(_SNAPSHOT_LOAD_TIMEOUT_SECONDS),
-            )
-        except Exception:
-            logger.exception("Failed to update latest prices from snapshot")
+            except Exception:
+                logger.exception("Failed to update latest prices from snapshot")
 
         # instrument_api.prime_latest_prices() can trigger a live Yahoo Finance
         # HTTP call per unknown/uncached ticker (price history and/or metadata

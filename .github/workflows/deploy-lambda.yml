@@ -158,6 +158,21 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
+      # Release tag (or dispatched ref) + short SHA, e.g. "v0.61.0 (fa1b646)".
+      # VITE_APP_VERSION is baked into the frontend build; APP_VERSION reaches
+      # BackendLambda via CDK and GET /health. The UI shows both (#11029).
+      # The ref is passed through env and stripped to a safe charset because
+      # inputs.ref is user-supplied and the value is written to $GITHUB_ENV.
+      - name: Resolve app version
+        env:
+          DEPLOY_REF: ${{ inputs.ref || github.ref_name }}
+        run: |
+          ref="$(printf '%s' "${DEPLOY_REF#refs/tags/}" | tr -cd 'A-Za-z0-9._/-')"
+          version="${ref:-unknown} ($(git rev-parse --short HEAD))"
+          echo "App version: $version"
+          echo "APP_VERSION=$version" >> "$GITHUB_ENV"
+          echo "VITE_APP_VERSION=$version" >> "$GITHUB_ENV"
+
       - name: Setup frontend dependencies
         uses: ./.github/actions/setup-frontend-deps
         with:

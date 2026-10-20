@@ -1571,3 +1571,11 @@ def test_plan_brief_email_is_a_context_switch(monkeypatch, context, expected) ->
         if resource.get("Type") == "AWS::Lambda::Function" and "PlanBriefLambda" in logical_id
     ]
     assert env["PLAN_BRIEF_SEND_EMAIL"] == expected
+
+
+def test_backend_lambda_gets_the_deploy_app_version(monkeypatch) -> None:
+    """GET /health reports the deployed release, shown in the UI (#11029)."""
+    monkeypatch.setenv("APP_VERSION", "v9.9.9 (abc1234)")
+    assert _lambda_env(_stack_template(), "BackendLambda")["APP_VERSION"] == "v9.9.9 (abc1234)"
+    monkeypatch.delenv("APP_VERSION")
+    assert _lambda_env(_stack_template(), "BackendLambda")["APP_VERSION"] == "dev"

@@ -21,6 +21,8 @@ vi.mock("@/api", () => ({
   getAlerts: vi.fn().mockResolvedValue([]),
   getNudges: vi.fn().mockResolvedValue([]),
   searchInstruments: vi.fn().mockResolvedValue([]),
+  // Menu's AppVersion reads the backend version from /health (#11029).
+  getApiBase: () => "http://localhost:6468",
 }));
 
 vi.mock("@/UserContext", () => ({

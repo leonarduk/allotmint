@@ -185,3 +185,18 @@ def test_deploy_workflow_cognito_retry_documents_why_it_remains() -> None:
     # platform behaviour, not something a code change here can eliminate.
     assert "still needed" in run_script
     assert "eventually-consistent" in run_script or "eventually consistent" in run_script
+
+
+def test_deploy_workflow_exports_the_app_version_before_building() -> None:
+    """The frontend build and CDK deploy both see APP_VERSION (#11029)."""
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["deploy"]["steps"]
+    names = [step.get("name", "") for step in steps]
+
+    version_step = steps[names.index("Resolve app version")]
+    assert 'echo "APP_VERSION=' in version_step["run"]
+    assert 'echo "VITE_APP_VERSION=' in version_step["run"]
+    # The user-supplied ref goes through env, never inline into the script.
+    assert "${{" not in version_step["run"]
+    assert names.index("Resolve app version") < names.index("Build frontend")
+    assert names.index("Resolve app version") < names.index("Deploy BackendLambdaStack")

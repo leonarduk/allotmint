@@ -278,7 +278,7 @@ def test_health_runtime_endpoint_and_coarse_health(monkeypatch):
         health = client.get("/health").json()
         runtime = client.get("/health/runtime")
 
-    assert set(health) == {"status", "env", "in_flight", "threadpool"}
+    assert set(health) == {"status", "env", "version", "in_flight", "threadpool"}
     assert health["status"] == "ok"
     assert health["in_flight"] >= 1
     assert set(health["threadpool"]) == {"busy", "total"}
@@ -288,6 +288,20 @@ def test_health_runtime_endpoint_and_coarse_health(monkeypatch):
     assert body["threadpool"]["total"] > 0
     assert body["requests"]["in_flight"] >= 1
     assert "abandoned" in body["requests"]
+
+
+def test_health_reports_the_deployed_version(monkeypatch):
+    """GET /health reports APP_VERSION (set by the deploy), or "dev" (#11029)."""
+    from backend.app import create_app
+    from backend.config import config
+
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setenv("APP_VERSION", "v0.61.0 (fa1b646)")
+    with TestClient(create_app()) as client:
+        assert client.get("/health").json()["version"] == "v0.61.0 (fa1b646)"
+        monkeypatch.delenv("APP_VERSION")
+        assert client.get("/health").json()["version"] == "dev"
 
 
 def test_health_reports_degraded_when_pool_is_exhausted(monkeypatch):

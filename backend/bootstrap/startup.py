@@ -69,22 +69,15 @@ class AppLifecycleService:
 
             check_moneyhub_configured()
 
-        if not self.cfg.skip_snapshot_warm:
-            await self._warm_snapshot(app)
-
-        # Deferred import: portfolio_utils pulls in pandas; loading it here
-        # (inside the lifespan startup hook) rather than at module level keeps
-        # the Lambda INIT phase import chain lean.
-        #
-        # Pre-existing behaviour (not changed by this PR): refresh_snapshot_async
-        # fires unconditionally — it is the background cache-refresh task that
-        # keeps the snapshot up-to-date between warm-path invocations.  Only the
-        # *blocking* _warm_snapshot() call is guarded by skip_snapshot_warm.
-        from backend.common.portfolio_utils import refresh_snapshot_async
-
-        task = refresh_snapshot_async(days=self.cfg.snapshot_warm_days)
-        if isinstance(task, (asyncio.Task, asyncio.Future)):
-            app.state.background_tasks.append(task)
+        # The snapshot warmup runs in the background, not before the first
+        # request: on Lambda every new execution environment runs this startup,
+        # and two timed-out loads (2 x SNAPSHOT_LOAD_TIMEOUT_SECONDS) pushed its
+        # first request past API Gateway's 30s limit, so a page load that
+        # started fresh environments showed "Backend unavailable" (#11022).
+        # Requests already cope with an empty snapshot (the timeout path). The
+        # background refresh still starts only after the warmup, so a stale
+        # snapshot read from S3 cannot overwrite a refreshed one.
+        app.state.snapshot_warm_task = asyncio.create_task(self._warm_then_refresh(app))
 
         # Daily held-trust NAV refresh (#9232); a no-op unless nav_refresh_enabled.
         from backend.tasks.nav_refresh import start_nav_refresh_task
@@ -110,7 +103,8 @@ class AppLifecycleService:
             start_admin_cache_warm_thread()
 
     async def shutdown(self, app: FastAPI) -> None:
-        tasks = list(getattr(app.state, "background_tasks", []))
+        warm_task = getattr(app.state, "snapshot_warm_task", None)
+        tasks = ([warm_task] if warm_task is not None else []) + list(getattr(app.state, "background_tasks", []))
         for task in tasks:
             task.cancel()
         if tasks:
@@ -119,6 +113,24 @@ class AppLifecycleService:
         self._flush_logging()
         for temp_dir in self.temp_dirs:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+    async def _warm_then_refresh(self, app: FastAPI) -> None:
+        if not self.cfg.skip_snapshot_warm:
+            await self._warm_snapshot(app)
+
+        # Deferred import: portfolio_utils pulls in pandas; loading it here
+        # (inside the lifespan startup hook) rather than at module level keeps
+        # the Lambda INIT phase import chain lean.
+        #
+        # refresh_snapshot_async fires unconditionally -- it is the background
+        # cache-refresh task that keeps the snapshot up-to-date between
+        # warm-path invocations. Only _warm_snapshot() is guarded by
+        # skip_snapshot_warm.
+        from backend.common.portfolio_utils import refresh_snapshot_async
+
+        task = refresh_snapshot_async(days=self.cfg.snapshot_warm_days)
+        if isinstance(task, (asyncio.Task, asyncio.Future)):
+            app.state.background_tasks.append(task)
 
     async def _warm_snapshot(self, app: FastAPI) -> None:
         # Deferred imports: both pull in pandas transitively.

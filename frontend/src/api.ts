@@ -3652,6 +3652,35 @@ export const applyAppUpdate = (stash = false) =>
     APP_UPDATE_TIMEOUT_MS,
   );
 
+// ───────────── Data sync with the allotmint-data repo ─────────────
+// Owner-only. Each action dispatches a GitHub Actions workflow in the data
+// repo; non-owners get 403 and the Support page hides the section.
+export interface DataSyncRun {
+  status: string | null;
+  conclusion: string | null;
+  html_url: string | null;
+  created_at: string | null;
+  actor: string | null;
+}
+
+export interface DataSyncStatus {
+  configured: boolean;
+  repo: string | null;
+  pulls_url?: string;
+  runs: { pull?: DataSyncRun | null; push?: DataSyncRun | null };
+}
+
+export type DataSyncDirection = "pull" | "push";
+
+export const getDataSyncStatus = () =>
+  fetchJson<DataSyncStatus>(`${API_BASE}/support/data-sync`);
+
+export const startDataSync = (direction: DataSyncDirection) =>
+  fetchJson<{ dispatched: DataSyncDirection; workflow: string; repo: string }>(
+    `${API_BASE}/support/data-sync/${direction}`,
+    { method: "POST" },
+  );
+
 // ───────────── Local MCP server status / restart ─────────────
 // Only registered by the backend when app_env == "local"; on AWS the MCP
 // server is a Lambda, the route 404s and the Support page hides the panel.

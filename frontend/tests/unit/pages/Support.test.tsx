@@ -15,6 +15,7 @@ const mockGetRefreshPricesProgress = vi.hoisted(() => vi.fn());
 const mockGetMcpTools = vi.hoisted(() => vi.fn());
 const mockGetAppUpdateStatus = vi.hoisted(() => vi.fn());
 const mockGetMcpServerStatus = vi.hoisted(() => vi.fn());
+const mockGetDataSyncStatus = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -32,6 +33,7 @@ vi.mock("@/api", async () => {
     getMcpTools: mockGetMcpTools,
     getAppUpdateStatus: mockGetAppUpdateStatus,
     getMcpServerStatus: mockGetMcpServerStatus,
+    getDataSyncStatus: mockGetDataSyncStatus,
   };
 });
 
@@ -77,6 +79,7 @@ beforeEach(() => {
   // section stays hidden (covered in AppUpdateSection.test.tsx).
   mockGetAppUpdateStatus.mockRejectedValue(Object.assign(new Error("Not Found"), { status: 404 }));
   mockGetMcpServerStatus.mockRejectedValue(Object.assign(new Error("Not Found"), { status: 404 }));
+  mockGetDataSyncStatus.mockRejectedValue(Object.assign(new Error("Forbidden"), { status: 403 }));
   mockGetMcpTools.mockResolvedValue({
     tools: [
       { name: "get_portfolio", description: "Portfolio", enabled: true },

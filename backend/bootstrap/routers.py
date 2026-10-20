@@ -26,6 +26,7 @@ from backend.routes.data_quality import router as data_quality_router
 from backend.routes.data_quality_admin import router as data_quality_admin_router
 from backend.routes.data_quality_admin import write_router as data_quality_admin_write_router
 from backend.routes.data_steward import router as data_steward_router
+from backend.routes.data_sync import router as data_sync_router
 from backend.routes.decision_journal import router as decision_journal_router
 from backend.routes.events import router as events_router
 from backend.routes.fund_upkeep import router as fund_upkeep_router
@@ -148,6 +149,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(user_config_router, dependencies=protected)
     app.include_router(approvals_router, dependencies=protected)
     app.include_router(aws_costs_admin_router, dependencies=protected)
+    app.include_router(data_sync_router, dependencies=protected)
     app.include_router(events_router)
     app.include_router(scenario_router)
     app.include_router(logs_router)

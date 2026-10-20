@@ -374,6 +374,28 @@ async def test_lifecycle_service_startup_does_not_wait_for_snapshot_load(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_lifecycle_service_logs_background_warmup_failure(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    """A failure in the background warmup is logged, not left on an unawaited task (#11022)."""
+
+    def _boom(days):
+        raise RuntimeError("refresh exploded")
+
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", _boom)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True, raising=False)
+
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    with caplog.at_level(logging.ERROR, logger="backend.bootstrap.startup"):
+        await service.startup(app)
+        await app.state.snapshot_warm_task
+
+    assert any("Background snapshot warmup/refresh failed" in r.message for r in caplog.records)
+
+
+@pytest.mark.asyncio
 async def test_snapshot_load_timeout_value_is_respected(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

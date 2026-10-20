@@ -115,6 +115,16 @@ class AppLifecycleService:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     async def _warm_then_refresh(self, app: FastAPI) -> None:
+        # Nothing awaits this task on Lambda, so log failures here rather
+        # than leave them on an unretrieved task.
+        try:
+            await self._start_snapshot_warm_and_refresh(app)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Background snapshot warmup/refresh failed")
+
+    async def _start_snapshot_warm_and_refresh(self, app: FastAPI) -> None:
         if not self.cfg.skip_snapshot_warm:
             await self._warm_snapshot(app)
 

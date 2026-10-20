@@ -10,8 +10,8 @@ const SW_SOURCE = readFileSync(
   'utf-8'
 );
 const ORIGIN = 'https://app.allotmint.io';
-const SHELL_CACHE = 'allotmint-shell-v1';
-const ASSET_CACHE = 'allotmint-assets-v1';
+const SHELL_CACHE = 'allotmint-shell-v2';
+const ASSET_CACHE = 'allotmint-assets-v2';
 
 type Listener = (event: unknown) => void;
 type Route = () => Response;
@@ -156,13 +156,14 @@ const css = (body = 'css') => typed('text/css', body);
 
 const shellFor = (build: string) =>
   `<html><script src="/assets/index-${build}.js"></script>` +
-  `<link href="/assets/vendor-${build}.js"><link href="/styles.css"></html>`;
+  `<link href="/assets/vendor-${build}.js">` +
+  `<link rel="stylesheet" href="/assets/index-${build}.css"></html>`;
 
 const buildRoutes = (build: string): Record<string, Route> => ({
   '/index.html': html(shellFor(build)),
   [`/assets/index-${build}.js`]: js(),
   [`/assets/vendor-${build}.js`]: js(),
-  '/styles.css': css(),
+  [`/assets/index-${build}.css`]: css(),
 });
 
 const navigation = (url: string) => {
@@ -209,9 +210,9 @@ describe('service worker', () => {
     await sw.runLifecycle('install');
     expect(sw.caches.paths(SHELL_CACHE)).toEqual(['/index.html']);
     expect(sw.caches.paths(ASSET_CACHE).sort()).toEqual([
+      '/assets/index-a1.css',
       '/assets/index-a1.js',
       '/assets/vendor-a1.js',
-      '/styles.css',
     ]);
   });
 
@@ -231,9 +232,9 @@ describe('service worker', () => {
     sw.network.state.routes = buildRoutes('b2');
     await sw.dispatchFetch(navigation(`${ORIGIN}/`));
     expect(sw.caches.paths(ASSET_CACHE).sort()).toEqual([
+      '/assets/index-b2.css',
       '/assets/index-b2.js',
       '/assets/vendor-b2.js',
-      '/styles.css',
     ]);
   });
 
@@ -273,7 +274,7 @@ describe('service worker', () => {
     );
     expect(script!.ok).toBe(true);
     const styles = await sw.dispatchFetch(
-      withDestination(`${ORIGIN}/styles.css`, 'style')
+      withDestination(`${ORIGIN}/assets/index-a1.css`, 'style')
     );
     expect(await styles!.text()).toBe('css');
   });
@@ -324,14 +325,17 @@ describe('service worker', () => {
     expect(await page!.text()).toBe(shellFor('a1'));
   });
 
-  it('serves unhashed styles network-first so a deploy is picked up', async () => {
-    const sw = loadWorker({ '/styles.css': css('v1') });
-    await sw.dispatchFetch(withDestination(`${ORIGIN}/styles.css`, 'style'));
-    sw.network.state.routes = { '/styles.css': css('v2') };
-    const res = await sw.dispatchFetch(
-      withDestination(`${ORIGIN}/styles.css`, 'style')
-    );
-    expect(await res!.text()).toBe('v2');
+  it('does not intercept same-origin scripts or styles outside /assets', async () => {
+    // Every build stylesheet/script is content-hashed under /assets/ (#11028);
+    // anything else (e.g. a pre-#11028 /styles.css) goes straight to network.
+    const sw = loadWorker({ '/styles.css': css() });
+    for (const destination of ['style', 'script']) {
+      const res = await sw.dispatchFetch(
+        withDestination(`${ORIGIN}/styles.css`, destination)
+      );
+      expect(res).toBeUndefined();
+    }
+    expect(sw.caches.paths(ASSET_CACHE)).toEqual([]);
   });
 
   it('deletes outdated allotmint caches on activate but keeps others', async () => {

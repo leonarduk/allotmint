@@ -63,18 +63,11 @@ export default defineConfig(({ command }) => {
       port: 2568
     },
     build: {
+      // One stylesheet, emitted with Vite's default content-hashed name under
+      // assets/ like every other asset: StaticSiteStack serves assets as
+      // immutable for a year, so a fixed name would pin stale CSS (#11028).
       cssCodeSplit: false,
-      cssMinify: 'esbuild' as const,
-      rollupOptions: {
-        output: {
-          assetFileNames: (assetInfo: { name?: string }) => {
-            if (assetInfo.name && assetInfo.name.endsWith('.css')) {
-              return 'styles.css'
-            }
-            return 'assets/[name]-[hash][extname]'
-          }
-        }
-      }
+      cssMinify: 'esbuild' as const
     },
     test: {
       environment: 'jsdom',

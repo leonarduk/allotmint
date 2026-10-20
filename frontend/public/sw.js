@@ -11,20 +11,19 @@
  *     are precached too (the first visit is not yet controlled by the worker,
  *     and sw.js itself does not change between releases, so install alone
  *     would never pick up a new build);
- *   - /assets/*: cache-first (Vite content-hashes these, so they never change);
- *   - other same-origin scripts/styles (styles.css is emitted unhashed, see
- *     assetFileNames in vite.config.ts): network-first with cache fallback;
+ *   - /assets/*: cache-first (Vite content-hashes every emitted script and
+ *     stylesheet, so a URL's content never changes);
  *   - everything else, including /config.json and all API traffic (which is
  *     cross-origin), is NOT intercepted. Financial data is never cached here.
  *
  * Bump CACHE_VERSION when this file's caching behaviour changes; activate
  * deletes every cache that does not match the current names.
  */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const SHELL_CACHE = `allotmint-shell-${CACHE_VERSION}`;
 const ASSET_CACHE = `allotmint-assets-${CACHE_VERSION}`;
 const SHELL_URL = '/index.html';
-const SHELL_REFERENCE = /(?:src|href)="(\/(?:assets\/[^"]+|styles\.css))"/g;
+const SHELL_REFERENCE = /(?:src|href)="(\/assets\/[^"]+)"/g;
 // Origins may send `Vary: Origin`; module scripts carry an Origin header but
 // the worker's own precache fetches do not, so a Vary-respecting lookup would
 // always miss. Entries are keyed by URL only (hashed or shell-scoped).
@@ -162,21 +161,6 @@ async function cacheFirstAsset(request) {
   return response;
 }
 
-async function networkFirstStatic(request) {
-  const cache = await caches.open(ASSET_CACHE);
-  try {
-    const response = await fetch(request);
-    if (isCacheableAsset(response)) {
-      await cache.put(request, response.clone());
-    }
-    return response;
-  } catch (err) {
-    const cached = await cache.match(request, MATCH_OPTIONS);
-    if (cached) return cached;
-    throw err;
-  }
-}
-
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -193,10 +177,5 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(networkFirstNavigation(request, settleBackground));
   } else if (url.pathname.startsWith('/assets/')) {
     event.respondWith(cacheFirstAsset(request));
-  } else if (
-    request.destination === 'script' ||
-    request.destination === 'style'
-  ) {
-    event.respondWith(networkFirstStatic(request));
   }
 });

@@ -77,6 +77,8 @@ def test_lambda_handler_creates_event_loop(monkeypatch):
         return orig_new_event_loop()
 
     monkeypatch.setattr(asyncio, "new_event_loop", fake_new_event_loop)
+    # No current loop, whatever earlier tests left behind.
+    asyncio.set_event_loop(None)
 
     module = _reload_handler()
     response = module.lambda_handler(_event(), {})
@@ -108,10 +110,101 @@ def test_lambda_handler_no_new_loop_when_loop_exists(monkeypatch):
         module = _reload_handler()
         response = module.lambda_handler(_event(), {})
         assert response["statusCode"] == 200
-        # new_event_loop should NOT have been called because get_running_loop()
-        # raises RuntimeError (no running loop), but the existing loop is reused.
-        # The exact branch taken depends on whether the loop is marked running;
-        # either way the handler must succeed.
         assert response["body"] == '{"hello":"world"}'
+        # The loop already set on the thread is reused, not replaced.
+        assert called is False
+        assert asyncio.get_event_loop() is existing_loop
     finally:
+        asyncio.set_event_loop(None)
         existing_loop.close()
+
+
+def test_lambda_handler_replaces_a_closed_loop(monkeypatch):
+    """A closed loop left set on the thread is replaced, not reused."""
+    _setup_app(monkeypatch)
+
+    closed_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(closed_loop)
+    closed_loop.close()
+
+    try:
+        module = _reload_handler()
+        response = module.lambda_handler(_event(), {})
+        assert response["statusCode"] == 200
+        assert asyncio.get_event_loop() is not closed_loop
+    finally:
+        asyncio.set_event_loop(None)
+
+
+def test_lambda_handler_runs_lifespan_once_per_environment(monkeypatch):
+    """Startup runs on the first invocation only; shutdown never runs per request.
+
+    Mangum's default lifespan="auto" wraps every invocation in a full
+    startup/shutdown cycle, which re-ran the snapshot warmup on each request
+    and made every call take ~20s once it began timing out.
+    """
+    from contextlib import asynccontextmanager
+
+    calls = {"startup": 0, "shutdown": 0}
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        calls["startup"] += 1
+        yield
+        calls["shutdown"] += 1
+
+    app = FastAPI(lifespan=lifespan)
+
+    @app.get("/")
+    def read_root():
+        return {"hello": "world"}
+
+    monkeypatch.setattr("backend.app.create_app", lambda: app)
+
+    module = _reload_handler()
+    assert calls == {"startup": 0, "shutdown": 0}  # lazy: nothing at import
+    module.lambda_handler(_event(), {})
+    assert calls == {"startup": 1, "shutdown": 0}
+    for _ in range(2):
+        response = module.lambda_handler(_event(), {})
+        assert response["statusCode"] == 200
+
+    assert calls == {"startup": 1, "shutdown": 0}
+
+
+def test_lambda_handler_background_task_survives_between_invocations(monkeypatch):
+    """A task started at startup is not cancelled after the first request."""
+    from contextlib import asynccontextmanager
+
+    ticks = []
+
+    async def ticker():
+        while True:
+            ticks.append(1)
+            await asyncio.sleep(0)
+
+    @asynccontextmanager
+    async def lifespan(app_):
+        # Like AppLifecycleService.shutdown, which cancels background tasks.
+        app_.state.task = asyncio.create_task(ticker())
+        yield
+        app_.state.task.cancel()
+
+    app = FastAPI(lifespan=lifespan)
+
+    @app.get("/")
+    async def read_root():
+        await asyncio.sleep(0)
+        return {"hello": "world"}
+
+    monkeypatch.setattr("backend.app.create_app", lambda: app)
+
+    module = _reload_handler()
+    module.lambda_handler(_event(), {})
+    after_first = len(ticks)
+    module.lambda_handler(_event(), {})
+
+    # Still alive, and driven by the loop that served the second request.
+    assert not app.state.task.done()
+    assert len(ticks) > after_first
+    app.state.task.cancel()

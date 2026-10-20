@@ -372,12 +372,19 @@ class StaticSiteStack(Stack):
             else resolve_app_root(self.node) / "frontend" / "dist"
         )
 
+        # Files whose URL never changes between releases but whose content does,
+        # so they must be revalidated rather than cached as immutable. The PWA
+        # service worker and manifest (#11023) belong here: an immutable sw.js
+        # would pin a bad worker in browser and edge caches for up to a year.
+        no_cache_files = ["*.html", "sw.js", "manifest.webmanifest"]
+
         asset_deploy = s3_deployment.BucketDeployment(
             self,
             "DeployAssets",
             sources=[s3_deployment.Source.asset(str(frontend_dir))],
             destination_bucket=site_bucket,
-            exclude=["*.html", "config.json"],  # deployed separately to control caching
+            # no_cache_files and config.json are deployed separately to control caching
+            exclude=[*no_cache_files, "config.json"],
             cache_control=[
                 s3_deployment.CacheControl.max_age(Duration.days(365)),
                 s3_deployment.CacheControl.immutable(),
@@ -385,16 +392,17 @@ class StaticSiteStack(Stack):
             prune=True,
         )
 
-        # Deploy HTML without triggering a CloudFront invalidation here.
-        # The HTML cache TTL is short (5 minutes), so changes propagate quickly
-        # without risking long invalidation waits that can fail the deployment.
+        # Deploy HTML (plus the PWA service worker and manifest) without
+        # triggering a CloudFront invalidation here. The HTML cache TTL is short
+        # (5 minutes), so changes propagate quickly without risking long
+        # invalidation waits that can fail the deployment.
         html_deploy = s3_deployment.BucketDeployment(
             self,
             "DeployHtml",
             sources=[s3_deployment.Source.asset(str(frontend_dir))],
             destination_bucket=site_bucket,
             exclude=["*"],
-            include=["*.html"],
+            include=no_cache_files,
             cache_control=[s3_deployment.CacheControl.no_cache()],
             prune=False,
         )

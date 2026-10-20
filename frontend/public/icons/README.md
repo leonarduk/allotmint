@@ -1,6 +1,12 @@
-To use Progressive Web App icons locally, download the images below and place them in this directory:
+Progressive Web App icons referenced by `public/manifest.webmanifest` and the
+`apple-touch-icon` link in `index.html` (#11023).
 
-- 192x192: https://raw.githubusercontent.com/facebook/create-react-app/main/packages/cra-template/template/public/logo192.png
-- 512x512: https://raw.githubusercontent.com/facebook/create-react-app/main/packages/cra-template/template/public/logo512.png
+- `icon.svg` is the source artwork. Its background is full-bleed and the sprout
+  sits inside the central 80% safe zone, so `icon-512.png` doubles as the
+  maskable icon.
+- `icon-192.png` and `icon-512.png` are generated from it. After editing the
+  SVG, regenerate them from `frontend/` with:
 
-These files are excluded from version control to keep the repository light.
+  ```bash
+  node scripts/generate-pwa-icons.mjs
+  ```

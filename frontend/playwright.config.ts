@@ -13,7 +13,10 @@ export default defineConfig({
   // Specs that navigate with relative paths (e.g. overflow.spec.ts's
   // `page.goto('/plot')`) need a baseURL; without it Chromium rejects them as
   // invalid URLs. Points at the preview server started below (#7357).
-  use: { baseURL: 'http://localhost:2568' },
+  // serviceWorkers: 'block' -- the preview server serves a production build,
+  // which registers public/sw.js (#11023). Requests a service worker handles
+  // bypass page.route(), which most specs rely on to mock the backend.
+  use: { baseURL: 'http://localhost:2568', serviceWorkers: 'block' },
   webServer: {
     command: 'npm run preview -- --host 0.0.0.0 --port 2568',
     url: 'http://localhost:2568',

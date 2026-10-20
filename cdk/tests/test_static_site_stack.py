@@ -124,6 +124,21 @@ def test_three_separate_bucket_deployments(template):
     )
 
 
+@pytest.mark.parametrize("filename", ["sw.js", "manifest.webmanifest"])
+def test_pwa_files_deploy_with_no_cache_not_immutable(template, filename):
+    """The PWA service worker and manifest keep a fixed URL across releases, so
+    they must ship with the no-cache HTML deployment, never the immutable asset
+    one -- an immutable sw.js would pin a bad worker for a year (#11023)."""
+    deployments = template.find_resources("Custom::CDKBucketDeployment").values()
+    by_cache_control = {
+        d["Properties"]["SystemMetadata"]["cache-control"]: d["Properties"] for d in deployments
+    }
+    immutable = by_cache_control["max-age=31536000, immutable"]
+    no_cache = by_cache_control["no-cache"]
+    assert filename in immutable["Exclude"]
+    assert filename in no_cache["Include"]
+
+
 def test_backend_api_url_parameter_exists(template):
     """StaticSiteStack must expose BackendApiUrl as a CloudFormation parameter.
 

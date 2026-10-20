@@ -116,6 +116,26 @@ Resolution order is:
 
 Runtime feature flags and tab visibility come from the backend's `config.yaml`. See the [backend setup instructions](../README.md#local-quick-start) for configuring and running the server.
 
+## Installable app (PWA)
+
+Production builds can be installed as a Progressive Web App, which is how
+AllotMint runs as an Android app without a native client: in Chrome on Android,
+use **Install app** (or **Add to Home screen**) on the deployed site (#11023).
+
+- `public/manifest.webmanifest` describes the app; its icons live in
+  `public/icons/` (see the README there to regenerate them).
+- `public/sw.js` is a dependency-free service worker, registered by
+  `src/registerServiceWorker.ts` in production builds only. It caches the app
+  shell (`index.html`, the scripts/styles it references, and hashed
+  `/assets/*`) so an installed app opens offline. It never intercepts API
+  calls or `/config.json`, so portfolio data is never served from cache.
+- `StaticSiteStack` deploys `sw.js` and the manifest with `Cache-Control:
+  no-cache` (alongside the HTML), not the year-long immutable caching used for
+  hashed assets. If you change `sw.js`'s caching rules, bump its
+  `CACHE_VERSION`.
+- Playwright specs run with `serviceWorkers: 'block'`, because requests a
+  worker handles bypass `page.route()` mocks.
+
 ## Tab plugins
 
 Tabs in the navigation bar are driven by a small plugin system. A plugin

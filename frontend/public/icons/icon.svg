@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Full-bleed background so the same artwork works as a maskable icon;
+       the sprout stays inside the central 80% safe zone. -->
+  <rect width="512" height="512" fill="#0f8a5f"/>
+  <path d="M256 400 V250" stroke="#ffffff" stroke-width="28" stroke-linecap="round" fill="none"/>
+  <path d="M256 262 C256 186 206 140 132 136 C132 212 182 262 256 262 Z" fill="#ffffff"/>
+  <path d="M256 232 C256 156 306 110 380 106 C380 182 330 232 256 232 Z" fill="#c8f2dc"/>
+  <rect x="166" y="388" width="180" height="26" rx="13" fill="#ffffff"/>
+</svg>

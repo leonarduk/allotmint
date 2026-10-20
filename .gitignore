@@ -9,8 +9,6 @@ build/
 !.env.lambda.example
 !.env.production
 
-# PWA icons (downloaded separately)
-frontend/public/icons/*.png
 mobile/android/
 mobile/ios/
 

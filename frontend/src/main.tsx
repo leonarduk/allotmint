@@ -56,6 +56,7 @@ import {
 } from './demoAuth';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
+import { registerServiceWorker } from './registerServiceWorker';
 import {
   clearCognitoSession,
   cognitoLogout,
@@ -742,6 +743,8 @@ const bootstrapRuntimeConfig = async () => {
   }
   return shouldRender;
 };
+
+registerServiceWorker();
 
 void bootstrapRuntimeConfig()
   .then((shouldRender) => {

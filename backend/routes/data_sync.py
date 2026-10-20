@@ -50,7 +50,11 @@ _token_cache: Dict[str, str] = {}
 
 # backend.auth.get_active_user, not backend.routes.get_active_user: the latter
 # returns None whenever DISABLE_AUTH is set, which it always is on Lambda.
-def _ensure_owner(identity: str | None = Depends(auth.get_active_user)) -> None:
+# Bound here so tests can override exactly the dependency these routes use.
+active_user = auth.get_active_user
+
+
+def _ensure_owner(identity: str | None = Depends(active_user)) -> None:
     if auth.is_demo_request():
         raise HTTPException(status_code=403, detail=_FORBIDDEN_DETAIL)
     allowed = {
@@ -175,7 +179,7 @@ def data_sync_status() -> Dict[str, Any]:
 
 
 @router.post("/{direction}", status_code=202)
-def start_data_sync(direction: Direction, identity: str | None = Depends(auth.get_active_user)) -> Dict[str, Any]:
+def start_data_sync(direction: Direction, identity: str | None = Depends(active_user)) -> Dict[str, Any]:
     """Dispatch the pull or push workflow, unless a sync is already running."""
 
     repo, token = _configured()

@@ -7,8 +7,9 @@
 
 Every route checks owner access (:func:`backend.common.authz.ensure_owner_access`).
 System-wide items (``owner`` is ``None``, e.g. a failed scheduled job) are only
-returned to admins: the deployment's configured owner emails, or anyone when
-auth is disabled, the same gate as ``backend/routes/mcp_server_admin.py``.
+returned to admins: the deployment's configured owner emails, or anyone on a
+local run without sign-in. The Lambda always runs with ``DISABLE_AUTH`` set
+(API Gateway does the sign-in), so the email check still applies there (#11046).
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from backend.auth import get_active_user
+from backend.auth import get_active_user, is_demo_request
 from backend.bots import digest_store
 from backend.bots.digest import compose_digest
 from backend.bots.digest_models import Digest
@@ -33,7 +34,9 @@ router = APIRouter(prefix="/bots/digest", tags=["bots"])
 
 
 def is_admin(identity: Optional[str]) -> bool:
-    if config.disable_auth:
+    if is_demo_request():
+        return False
+    if config.disable_auth and config.app_env == "local":
         return True
     allowed = {e.strip().lower() for e in (config.allowed_emails or []) if isinstance(e, str) and e.strip()}
     return identity is not None and identity.strip().lower() in allowed

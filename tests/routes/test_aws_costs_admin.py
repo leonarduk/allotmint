@@ -127,3 +127,67 @@ def test_no_identity_forbidden_when_auth_enabled(client, monkeypatch):
     finally:
         client.app.dependency_overrides.pop(aws_costs_admin.get_active_user, None)
     assert resp.status_code == 403
+
+
+@pytest.fixture()
+def on_lambda(monkeypatch):
+    # The deployed Lambda: DISABLE_AUTH is always set (API Gateway signs in).
+    monkeypatch.setattr(aws_costs_admin.config, "disable_auth", True)
+    monkeypatch.setattr(aws_costs_admin.config, "app_env", "aws")
+    monkeypatch.setattr(aws_costs_admin.config, "allowed_emails", ["owner@example.com"])
+
+
+@pytest.mark.parametrize("identity", [None, "viewer@example.com"])
+def test_non_owner_forbidden_on_lambda_despite_disable_auth(client, on_lambda, identity):
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: identity
+    resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    assert resp.status_code == 403
+
+
+def test_owner_allowed_on_lambda(client, on_lambda, monkeypatch):
+    fake_client = MagicMock()
+    fake_client.get_cost_and_usage.return_value = _fake_response(("AWS Lambda", "1.00"))
+    monkeypatch.setattr(aws_costs_admin.boto3, "client", lambda *a, **k: fake_client)
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: "Owner@Example.com"
+    resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    assert resp.status_code == 200
+
+
+def test_demo_session_forbidden(client, monkeypatch):
+    # Uses the real is_demo_request(): mark the request as demo the way
+    # backend.auth.get_active_user does, via the demo_readonly ContextVar.
+    from backend import auth
+
+    monkeypatch.setattr(aws_costs_admin.config, "disable_auth", True)
+    monkeypatch.setattr(aws_costs_admin.config, "app_env", "local")
+
+    async def demo_identity():  # async, like the real get_active_user
+        auth.demo_readonly.set(True)
+        return "demo"
+
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = demo_identity
+    resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    assert resp.status_code == 403
+
+
+def test_local_run_without_sign_in_still_allowed(client, monkeypatch):
+    fake_client = MagicMock()
+    fake_client.get_cost_and_usage.return_value = _fake_response(("AWS Lambda", "1.00"))
+    monkeypatch.setattr(aws_costs_admin.boto3, "client", lambda *a, **k: fake_client)
+    monkeypatch.setattr(aws_costs_admin.config, "disable_auth", True)
+    monkeypatch.setattr(aws_costs_admin.config, "app_env", "local")
+    monkeypatch.setattr(aws_costs_admin.config, "allowed_emails", ["owner@example.com"])
+    monkeypatch.setattr(aws_costs_admin, "is_demo_request", lambda: False)
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: None
+    resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    assert resp.status_code == 200
+
+
+def test_production_with_disable_auth_still_checks_emails(client, monkeypatch):
+    # Fail closed: only a local run stands down, not any non-"aws" deploy.
+    monkeypatch.setattr(aws_costs_admin.config, "disable_auth", True)
+    monkeypatch.setattr(aws_costs_admin.config, "app_env", "production")
+    monkeypatch.setattr(aws_costs_admin.config, "allowed_emails", ["owner@example.com"])
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: "viewer@example.com"
+    resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    assert resp.status_code == 403

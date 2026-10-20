@@ -657,6 +657,9 @@ class BackendLambdaStack(Stack):
             "CORS_ORIGINS": ",".join(cors_origins),
             "JWT_SECRET": jwt_secret,
             "GOOGLE_CLIENT_ID": google_client_id,
+            # Release tag + short SHA from deploy-lambda.yml, reported by
+            # GET /health and shown in the UI (#11029).
+            "APP_VERSION": os.getenv("APP_VERSION") or "dev",
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
             # Without this, backend.common.instruments._s3_location() returns
             # None and auto-created instrument metadata falls back to writing

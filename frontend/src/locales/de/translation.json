@@ -171,6 +171,8 @@
     },
     "operationsLink": "Verwaltung",
     "opensInSeparateTab": "(öffnet in einem separaten Tab)",
+    "versionUi": "UI",
+    "versionApi": "API",
     "refreshing": "Aktualisierung…",
     "refreshingProgress": "Aktualisierung… ({{completed}}/{{total}})",
     "refreshingTicker": "Lade {{ticker}}…",

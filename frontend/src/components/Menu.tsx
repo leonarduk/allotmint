@@ -19,6 +19,7 @@ import {
   MENU_CATEGORY_ORDER,
 } from '../pageManifest';
 import { APP_TAB_NAME, OPERATIONS_TAB_NAME } from '../tabNames';
+import AppVersion from './AppVersion';
 
 interface MenuProps {
   selectedOwner?: string;
@@ -413,6 +414,7 @@ export default function Menu({
           </li>
         )}
       </ul>
+      <AppVersion />
     </nav>
   );
 }

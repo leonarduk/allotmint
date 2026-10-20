@@ -257,7 +257,14 @@ def create_app() -> FastAPI:
         """
 
         summary = health_summary()
-        return {"status": summary.pop("status"), "env": cfg.app_env, **summary}
+        # APP_VERSION is set by the deploy (tag + short SHA, #11029); the UI
+        # shows it next to its own build version.
+        return {
+            "status": summary.pop("status"),
+            "env": cfg.app_env,
+            "version": os.getenv("APP_VERSION") or "dev",
+            **summary,
+        }
 
     @app.get("/health/runtime")
     async def health_runtime(_: str | None = Depends(require_admin)):

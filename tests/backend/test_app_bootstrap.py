@@ -396,6 +396,39 @@ async def test_lifecycle_service_logs_background_warmup_failure(
 
 
 @pytest.mark.asyncio
+async def test_background_warmup_keeps_a_newer_in_memory_snapshot(monkeypatch: pytest.MonkeyPatch):
+    """A refresh that lands while the background warmup runs is not overwritten (#11022)."""
+    from datetime import UTC, datetime, timedelta
+
+    import backend.common.portfolio_utils as portfolio_utils
+
+    newer = datetime.now(UTC)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"NEW": {"last_price": 2.0}})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT_TS", newer)
+    installed = []
+    updated = []
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils._load_snapshot",
+        lambda: ({"OLD": {"last_price": 1.0}}, newer - timedelta(hours=1)),
+    )
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.refresh_snapshot_in_memory", lambda snapshot, ts: installed.append(snapshot)
+    )
+    monkeypatch.setattr("backend.common.instrument_api.update_latest_prices_from_snapshot", updated.append)
+    monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", lambda: None)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr(config, "skip_snapshot_warm", False, raising=False)
+
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+    await service.startup(app)
+    await app.state.snapshot_warm_task
+
+    assert installed == []
+    assert updated == []
+
+
+@pytest.mark.asyncio
 async def test_snapshot_load_timeout_value_is_respected(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

@@ -8,6 +8,7 @@ import os
 import shutil
 import time
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -29,6 +30,16 @@ logger = logging.getLogger(__name__)
 # below the 90s Lambda timeout (see backend_lambda_stack.py) since two
 # calls share this budget sequentially.
 _SNAPSHOT_LOAD_TIMEOUT_SECONDS = float(os.getenv("SNAPSHOT_LOAD_TIMEOUT_SECONDS", "10.0"))
+
+
+def _newer_snapshot_in_memory(loaded_ts: datetime | None) -> bool:
+    """True when the in-memory price snapshot is newer than one just loaded."""
+    from backend.common import portfolio_utils
+
+    current_ts = portfolio_utils._PRICE_SNAPSHOT_TS
+    if not portfolio_utils._PRICE_SNAPSHOT or current_ts is None:
+        return False
+    return loaded_ts is None or current_ts > loaded_ts
 
 
 @contextmanager
@@ -168,23 +179,27 @@ class AppLifecycleService:
             logger.error("Failed to load price snapshot: %s", sanitise_log_value(exc))
             snapshot, ts = {}, None
 
-        refresh_snapshot_in_memory(snapshot, ts)
-
         from backend.common import instrument_api
 
-        try:
-            with _timed_phase("metadata_update_from_snapshot"):
-                await asyncio.wait_for(
-                    asyncio.to_thread(instrument_api.update_latest_prices_from_snapshot, snapshot),
-                    timeout=_SNAPSHOT_LOAD_TIMEOUT_SECONDS,
+        if _newer_snapshot_in_memory(ts):
+            # Requests are served while this runs (#11022); a price refresh
+            # that finished meanwhile must not be replaced by this older load.
+            logger.info("Keeping the newer in-memory price snapshot over the startup load")
+        else:
+            refresh_snapshot_in_memory(snapshot, ts)
+            try:
+                with _timed_phase("metadata_update_from_snapshot"):
+                    await asyncio.wait_for(
+                        asyncio.to_thread(instrument_api.update_latest_prices_from_snapshot, snapshot),
+                        timeout=_SNAPSHOT_LOAD_TIMEOUT_SECONDS,
+                    )
+            except TimeoutError:
+                logger.warning(
+                    "Updating latest prices from snapshot timed out after %ss",
+                    sanitise_log_value(_SNAPSHOT_LOAD_TIMEOUT_SECONDS),
                 )
-        except TimeoutError:
-            logger.warning(
-                "Updating latest prices from snapshot timed out after %ss",
-                sanitise_log_value(_SNAPSHOT_LOAD_TIMEOUT_SECONDS),
-            )
-        except Exception:
-            logger.exception("Failed to update latest prices from snapshot")
+            except Exception:
+                logger.exception("Failed to update latest prices from snapshot")
 
         # instrument_api.prime_latest_prices() can trigger a live Yahoo Finance
         # HTTP call per unknown/uncached ticker (price history and/or metadata

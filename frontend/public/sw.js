@@ -126,11 +126,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-async function networkFirstNavigation(event) {
+// `settleBackground` resolves the waitUntil() promise the fetch listener
+// registered synchronously; some engines reject waitUntil() calls made after
+// dispatch (e.g. after an await), so the shell refresh is handed over here.
+async function networkFirstNavigation(request, settleBackground) {
+  let background = Promise.resolve();
   try {
-    const response = await fetch(event.request);
+    const response = await fetch(request);
     if (isCacheableShell(response)) {
-      event.waitUntil(storeShell(response.clone()));
+      background = storeShell(response.clone());
     }
     return response;
   } catch (err) {
@@ -140,6 +144,10 @@ async function networkFirstNavigation(event) {
     });
     if (cached) return cached;
     throw err;
+  } finally {
+    settleBackground(
+      background.catch((err) => console.warn('Shell refresh failed:', err))
+    );
   }
 }
 
@@ -176,7 +184,13 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirstNavigation(event));
+    let settleBackground;
+    event.waitUntil(
+      new Promise((resolve) => {
+        settleBackground = resolve;
+      })
+    );
+    event.respondWith(networkFirstNavigation(request, settleBackground));
   } else if (url.pathname.startsWith('/assets/')) {
     event.respondWith(cacheFirstAsset(request));
   } else if (

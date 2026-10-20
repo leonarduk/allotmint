@@ -114,17 +114,28 @@ function loadWorker(routes: Record<string, Route>) {
   });
 
   // Resolves to the respondWith() response (undefined if not intercepted),
-  // after any waitUntil() background work has settled.
+  // after any waitUntil() background work has settled. Like the strictest
+  // engines, waitUntil() throws if called after the listener has returned.
   const dispatchFetch = async (request: Request) => {
     let responded: Promise<Response> | undefined;
     const background: Promise<unknown>[] = [];
+    let dispatching = true;
     listeners.fetch({
       request,
       respondWith: (p: Promise<Response>) => {
         responded = p;
       },
-      waitUntil: (p: Promise<unknown>) => background.push(p),
+      waitUntil: (p: Promise<unknown>) => {
+        if (!dispatching) {
+          throw new DOMException(
+            'waitUntil after dispatch',
+            'InvalidStateError'
+          );
+        }
+        background.push(p);
+      },
     });
+    dispatching = false;
     const response = await responded;
     await Promise.all(background);
     return response;

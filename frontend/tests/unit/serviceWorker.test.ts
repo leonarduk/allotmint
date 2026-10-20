@@ -226,6 +226,22 @@ describe('service worker', () => {
     ]);
   });
 
+  it('keeps the previous build intact when the new build fails to precache', async () => {
+    const sw = loadWorker(buildRoutes('a1'));
+    await sw.runLifecycle('install');
+    const partial = buildRoutes('b2');
+    delete partial['/assets/vendor-b2.js'];
+    sw.network.state.routes = partial;
+    await sw.dispatchFetch(navigation(`${ORIGIN}/`));
+
+    sw.network.state.offline = true;
+    const page = await sw.dispatchFetch(navigation(`${ORIGIN}/`));
+    expect(await page!.text()).toBe(shellFor('a1'));
+    expect(sw.caches.paths(ASSET_CACHE)).toEqual(
+      expect.arrayContaining(['/assets/index-a1.js', '/assets/vendor-a1.js'])
+    );
+  });
+
   it('skips re-precaching when the shell still references the same build', async () => {
     const sw = loadWorker(buildRoutes('a1'));
     await sw.runLifecycle('install');

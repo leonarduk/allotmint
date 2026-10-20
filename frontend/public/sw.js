@@ -51,27 +51,37 @@ async function cacheResource(cache, path) {
 
 // Stores a fresh index.html and, if it points at a different build than the
 // cached one, precaches that build's scripts/styles and drops the previous
-// build's assets so the cache stays bounded to one release.
+// build's assets so the cache stays bounded to one release. The new shell is
+// only committed once every asset it references is cached: on any precache
+// failure the previous shell and its assets stay intact (a coherent offline
+// fallback) and the next navigation retries, since the refs still differ.
 async function storeShell(response) {
   const shellCache = await caches.open(SHELL_CACHE);
   const previous = await shellCache.match(SHELL_URL, MATCH_OPTIONS);
   const previousRefs = previous ? shellReferences(await previous.text()) : [];
   const refs = shellReferences(await response.clone().text());
-  await shellCache.put(SHELL_URL, response);
 
   const unchanged =
     previous &&
     refs.length === previousRefs.length &&
     refs.every((ref) => previousRefs.includes(ref));
-  if (unchanged) return;
+  if (unchanged) {
+    await shellCache.put(SHELL_URL, response);
+    return;
+  }
 
   const assetCache = await caches.open(ASSET_CACHE);
-  const results = await Promise.allSettled(
-    refs.map((ref) => cacheResource(assetCache, ref))
-  );
-  results
-    .filter((r) => r.status === 'rejected')
-    .forEach((r) => console.warn('Shell asset precache failed:', r.reason));
+  const failures = (
+    await Promise.allSettled(refs.map((ref) => cacheResource(assetCache, ref)))
+  ).filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    failures.forEach((r) =>
+      console.warn('Shell asset precache failed:', r.reason)
+    );
+    return;
+  }
+
+  await shellCache.put(SHELL_URL, response);
   const stale = (await assetCache.keys()).filter(
     (req) => !refs.includes(new URL(req.url).pathname)
   );

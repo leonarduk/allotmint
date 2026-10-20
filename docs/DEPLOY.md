@@ -382,7 +382,7 @@ are left alone.
 
 ### Sync with allotmint-data from the Support page
 
-On AWS the owner (an address in `allowed_emails`) sees a **Data sync with git**
+On AWS the signed-in owner (an address in `allowed_emails`) sees a **Data sync with git**
 panel on the Support page. Each button dispatches a workflow in allotmint-data,
 which assumes the CDK `DataSyncRole` over GitHub OIDC and does the copying:
 
@@ -392,7 +392,8 @@ which assumes the CDK `DataSyncRole` over GitHub OIDC and does the copying:
   git are deleted, because that overlay otherwise shadows git. Website edits
   that have not been pushed and merged are lost. Nothing is deleted outside
   those overlay copies (no `--delete`), so app-only prefixes such as chat
-  history are untouched.
+  history are untouched; `DataSyncRole` can only delete under
+  `writable-accounts/`.
 - **Push to git** (`data-push.yml`): copies the bucket's synced paths back,
   folds `writable-accounts/` into `accounts/`, and opens a pull request in
   allotmint-data. Merge it, then Pull, to make git and the bucket agree.
@@ -413,8 +414,8 @@ One-time setup, after a deploy that creates `DataSyncRole`:
    `ssm:GetParameter` only, not `kms:Decrypt` on a customer-managed key. The
    Lambda reads the token on first use and caches it. To rotate, `--overwrite`
    the parameter and revoke the old token; the cache clears itself on the
-   first request GitHub refuses. For local runs set `DATA_SYNC_GITHUB_TOKEN` and `DATA_SYNC_REPO`
-   instead.
+   first request GitHub refuses. With a customer-managed key the read fails
+   and the panel reports sync as not configured.
 2. In allotmint-data, set the repository variables `DATA_SYNC_ROLE_ARN` (the
    `BackendLambdaStack` output `DataSyncRoleArn`), `DATA_BUCKET` (output
    `DataBucketName`) and `AWS_REGION`.

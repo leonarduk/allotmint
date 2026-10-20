@@ -10,12 +10,15 @@ too heavy for a request handler, and Actions keeps a log of every sync.
 
 The GitHub token (fine-grained, Actions: write on allotmint-data only) is read
 from the SSM SecureString named by ``DATA_SYNC_TOKEN_PARAMETER`` on AWS, or
-``DATA_SYNC_GITHUB_TOKEN`` locally.
+``DATA_SYNC_GITHUB_TOKEN`` (for tests and local debugging with sign-in).
 
-Access: these actions overwrite portfolio data, so on AWS only the owner
-emails in ``allowed_emails`` may use them, and never a demo session. Unlike
-the other admin routes this does not stand down when ``DISABLE_AUTH`` is set,
-because the Lambda always runs with it (API Gateway does the sign-in).
+Access: these actions overwrite portfolio data, so only a signed-in owner
+(an email in ``allowed_emails``) may use them, and never a demo session.
+Unlike the other admin routes this does not stand down when ``DISABLE_AUTH``
+is set: the Lambda always runs with it (API Gateway does the sign-in), and a
+local run without sign-in would let any page the browser opens POST here.
+Locally the app reads its own data checkout, not the bucket, so nothing is
+lost by refusing there.
 """
 
 from __future__ import annotations
@@ -50,8 +53,6 @@ _token_cache: Dict[str, str] = {}
 def _ensure_owner(identity: str | None = Depends(auth.get_active_user)) -> None:
     if auth.is_demo_request():
         raise HTTPException(status_code=403, detail=_FORBIDDEN_DETAIL)
-    if config.disable_auth and config.app_env != "aws":
-        return  # local development without sign-in
     allowed = {
         email.strip().lower() for email in (config.allowed_emails or []) if isinstance(email, str) and email.strip()
     }

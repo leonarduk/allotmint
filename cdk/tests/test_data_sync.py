@@ -45,18 +45,39 @@ def test_role_is_assumable_only_from_the_data_repo_main_branch() -> None:
     }
 
 
-def test_role_permissions_are_limited_to_the_data_bucket() -> None:
-    template = _construct_template()
-    role_policies = [
-        resource
+def _role_statements(template: dict) -> list[dict]:
+    return [
+        statement
         for logical_id, resource in template["Resources"].items()
         if resource["Type"] == "AWS::IAM::Policy" and logical_id.startswith("DataSyncRole")
+        for statement in resource["Properties"]["PolicyDocument"]["Statement"]
     ]
-    assert role_policies, "sync role should have an inline bucket policy"
-    for policy in role_policies:
-        for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
-            assert all(action.startswith("s3:") for action in statement["Action"])
-            assert "Bucket" in json.dumps(statement["Resource"])
+
+
+def _actions(statement: dict) -> list[str]:
+    action = statement["Action"]
+    return [action] if isinstance(action, str) else action
+
+
+def test_role_permissions_are_limited_to_the_data_bucket() -> None:
+    statements = _role_statements(_construct_template())
+    assert statements, "sync role should have an inline bucket policy"
+    for statement in statements:
+        assert all(action.startswith("s3:") for action in _actions(statement))
+        assert "Bucket" in json.dumps(statement["Resource"])
+        assert "s3:DeleteBucket" not in _actions(statement)
+
+
+def test_role_can_delete_only_the_writable_accounts_overlay() -> None:
+    deletes = [
+        statement
+        for statement in _role_statements(_construct_template())
+        if any(action.startswith("s3:DeleteObject") for action in _actions(statement))
+    ]
+    assert len(deletes) == 1
+    resource = json.dumps(deletes[0]["Resource"])
+    assert "/writable-accounts/*" in resource
+    assert '"/*"' not in resource
 
 
 def test_token_grant_reads_only_the_one_parameter() -> None:

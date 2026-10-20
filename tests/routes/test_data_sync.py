@@ -90,21 +90,14 @@ def test_demo_session_is_refused_even_locally(monkeypatch, github):
     assert _client(OWNER).post("/support/data-sync/push").status_code == 403
 
 
-def test_local_dev_without_sign_in_is_allowed(monkeypatch, github):
-    _, responses = github
+def test_local_run_without_sign_in_is_refused(monkeypatch, github):
+    # A cross-site form could otherwise POST to localhost and dispatch a pull.
+    calls, _ = github
     monkeypatch.setattr(data_sync.config, "app_env", "local")
-    responses[("GET", "/runs")] = _runs()
-    assert _client(None).get("/support/data-sync").status_code == 200
-
-
-def test_local_dev_without_sign_in_can_dispatch(monkeypatch, github):
-    # Deliberate: a local run without sign-in is the owner's own machine, and
-    # only the owner has DATA_SYNC_GITHUB_TOKEN. The pull still asks to confirm.
-    _, responses = github
-    monkeypatch.setattr(data_sync.config, "app_env", "local")
-    responses[("GET", "/runs")] = _runs()
-    responses[("POST", "/dispatches")] = _response(204)
-    assert _client(None).post("/support/data-sync/pull").status_code == 202
+    client = _client(None)
+    assert client.get("/support/data-sync").status_code == 403
+    assert client.post("/support/data-sync/pull").status_code == 403
+    assert calls == []
 
 
 def test_status_reports_the_latest_pull_and_push_runs(github):

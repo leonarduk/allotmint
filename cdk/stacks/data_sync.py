@@ -6,7 +6,8 @@ This construct provides the two AWS-side pieces they need:
 
 * ``role``: assumable only by allotmint-data's ``main`` branch through the
   account's existing GitHub OIDC provider (the one the deploy workflow
-  already uses), with read/write on the data bucket and nothing else.
+  already uses), with read/put on the data bucket and delete on its
+  writable-accounts/ overlay only.
 * ``token_parameter_name``: the SSM SecureString holding a fine-grained
   GitHub token (Actions: write on allotmint-data only) that the backend uses
   to dispatch those workflows. SecureStrings can't be created by
@@ -21,6 +22,9 @@ from constructs import Construct
 DEFAULT_DATA_SYNC_REPO = "leonarduk/allotmint-data"
 DATA_SYNC_TOKEN_PARAMETER = "/allotmint/data-sync/github-token"
 GITHUB_OIDC_HOST = "token.actions.githubusercontent.com"
+# Must match backend_lambda_stack.WRITABLE_ACCOUNTS_PREFIX (not imported: that
+# module imports this one).
+WRITABLE_ACCOUNTS_PREFIX = "writable-accounts"
 
 
 class DataSync(Construct):
@@ -51,9 +55,14 @@ class DataSync(Construct):
                 },
             ),
         )
-        # Pull overwrites objects and deletes the writable-accounts/ overlay
-        # copies git supersedes; push reads every synced prefix.
-        data_bucket.grant_read_write(self.role)
+        # Push reads the synced prefixes and the overlay; pull overwrites the
+        # synced prefixes. Writes stay bucket-wide so the synced path list
+        # lives in one place (allotmint-data's .github/data-sync-paths.txt).
+        # The only deletes are the writable-accounts/ overlay copies git
+        # supersedes, so delete is scoped to that prefix.
+        data_bucket.grant_read(self.role)
+        data_bucket.grant_put(self.role)
+        data_bucket.grant_delete(self.role, f"{WRITABLE_ACCOUNTS_PREFIX}/*")
 
         self.token_parameter_arn = stack.format_arn(
             service="ssm", resource="parameter", resource_name=self.token_parameter_name.lstrip("/")

@@ -2,8 +2,27 @@ FROM public.ecr.aws/lambda/python:3.12
 
 # Install application dependencies. Build-time data sync happens before the
 # image build, so the Lambda image does not need git or awscli.
+#
+# allotmint-pro (private) arrives as a pre-built wheel in pro_wheels/: the
+# deploy workflow builds it at the tag pinned in pyproject.toml, so no
+# credential reaches the image build (#11004). It is resolved in the same pip
+# call as requirements.txt. Without a wheel the build fails, so a production
+# image cannot silently ship without pro and 402 its routes; local builds
+# without access to allotmint-pro pass --build-arg REQUIRE_PRO=0.
+ARG REQUIRE_PRO=1
 COPY backend/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pro_wheels/ /tmp/pro_wheels/
+RUN set -eu; \
+    set -- /tmp/pro_wheels/allotmint_pro-*.whl; \
+    if [ ! -e "$1" ]; then \
+      if [ "$REQUIRE_PRO" = "1" ]; then \
+        echo "No allotmint_pro wheel in pro_wheels/. Build it first (see .github/workflows/deploy-lambda.yml) or pass --build-arg REQUIRE_PRO=0." >&2; \
+        exit 1; \
+      fi; \
+      set --; \
+    fi; \
+    pip install --no-cache-dir -r requirements.txt "$@"; \
+    rm -rf /tmp/pro_wheels
 
 # Copy the backend package preserving its directory name so that
 # "backend.lambda_api.handler.lambda_handler" is importable from /var/task.

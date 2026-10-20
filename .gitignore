@@ -97,3 +97,7 @@ coverage.xml
 /scripts/developer_tools/test-results/junit.xml
 /.issue-worm/
 .env
+
+# allotmint-pro wheel built by deploy-lambda.yml for the Lambda image (#11004)
+pro_wheels/*.whl
+.pro-src/

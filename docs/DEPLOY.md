@@ -51,6 +51,7 @@ New repository secret** before triggering a deploy.
 | `DATA_BUCKET` | Pre-existing | Name of the S3 bucket holding account data |
 | `JWT_SECRET` | **Required since #2838** | Random string used to sign JWTs -- generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `GOOGLE_CLIENT_ID` | **Required since #2838** | OAuth client ID from Google Cloud Console (ends in `.apps.googleusercontent.com`) |
+| `ALLOTMINT_PRO_DISPATCH_TOKEN` | **Required since #11004** | Fine-grained PAT scoped to `leonarduk/allotmint-pro` with Contents: Read-only (the same secret `pro-gated-tests.yml` uses). The deploy checks out allotmint-pro with it to build the wheel baked into the Lambda image; see [allotmint-pro in the Lambda image](#allotmint-pro-in-the-lambda-image). |
 
 The CDK stack (`cdk/stacks/backend_lambda_stack.py`) raises a `ValueError`
 at synth time if `JWT_SECRET` or `GOOGLE_CLIENT_ID` is absent, failing the
@@ -215,6 +216,31 @@ The advisory AI review workflows run on pull request `opened`, `reopened`, and `
 events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub
 repository secrets if you want review comments to be posted, but they remain advisory-only and
 use `continue-on-error` so review outages do not block merges.
+
+### allotmint-pro in the Lambda image
+
+The Lambda image installs the private `allotmint-pro` package, so the screener,
+risk/VaR, compliance, allowances and anomaly-repair routes work on the deployed
+site instead of returning 402 (#11004):
+
+1. `scripts/pro_pin.py` reads the release tag from the `pro` extra in
+   `pyproject.toml` (one source of truth for local installs and the image).
+2. The deploy checks out allotmint-pro at that tag with
+   `ALLOTMINT_PRO_DISPATCH_TOKEN` and runs `pip wheel --no-deps` into
+   `pro_wheels/`. No credential reaches the Docker build.
+3. `backend/Dockerfile.lambda` installs the wheel in the same `pip install` as
+   `backend/requirements.txt`, and **fails the build if no wheel is present**
+   unless built with `--build-arg REQUIRE_PRO=0`. `docker-compose.lambda.yml`
+   sets `REQUIRE_PRO=0` for local builds, which install a wheel if one is in
+   `pro_wheels/` and skip it otherwise.
+
+To ship a new allotmint-pro release, bump the tag in the `pro` extra (and in
+`tests/test_pro_extra_configuration.py`), then tag an allotmint release as
+usual. If the token expires, the deploy fails at "Resolve pinned allotmint-pro
+tag" or the checkout step, before anything is deployed.
+
+This is interim: once deploys move to allotmint-pro (#6806/#6807), the pro
+source is local there and the token is no longer needed.
 
 ## Required IAM permissions for the deploy role
 

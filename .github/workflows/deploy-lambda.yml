@@ -180,15 +180,51 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # The Lambda image installs allotmint-pro from a wheel in pro_wheels/
+      # (backend/Dockerfile.lambda, #11004), so the screener/risk/compliance/
+      # allowances routes don't 402 on the deployed site. The tag comes from
+      # the `pro` extra in pyproject.toml so local installs and the image use
+      # the same release. Interim: once deploys move to allotmint-pro
+      # (#6806/#6807) the source is local there and this token goes away.
+      - name: Resolve pinned allotmint-pro tag
+        id: pro_pin
+        env:
+          PRO_TOKEN: ${{ secrets.ALLOTMINT_PRO_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$PRO_TOKEN" ]; then
+            echo "::error::ALLOTMINT_PRO_DISPATCH_TOKEN is not set; cannot check out allotmint-pro for the Lambda image." >&2
+            exit 1
+          fi
+          tag="$(python scripts/pro_pin.py)"
+          echo "Pinned allotmint-pro tag: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout allotmint-pro at the pinned tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: leonarduk/allotmint-pro
+          ref: ${{ steps.pro_pin.outputs.tag }}
+          token: ${{ secrets.ALLOTMINT_PRO_DISPATCH_TOKEN }}
+          path: .pro-src
+          persist-credentials: false
+
+      - name: Build allotmint-pro wheel for the Lambda image
+        run: |
+          rm -f pro_wheels/*.whl
+          pip wheel --no-deps --wheel-dir pro_wheels ./.pro-src
+          ls -l pro_wheels/
+          ls pro_wheels/allotmint_pro-*.whl >/dev/null
+
       # Use a clean venv so runner pre-installs cannot mask genuine conflicts.
       # Upgrade pip first: --dry-run was added in pip 23.1 and is silently
       # ignored on older versions, which would let a broken file pass.
+      # Resolve the pro wheel in the same call, as the Docker build does.
       - name: Validate backend/requirements.txt is resolvable (pre-deploy)
         run: |
           python -m venv /tmp/validate-venv
           /tmp/validate-venv/bin/pip install --upgrade pip
           /tmp/validate-venv/bin/pip --version
-          if ! /tmp/validate-venv/bin/pip install --dry-run -r backend/requirements.txt; then
+          if ! /tmp/validate-venv/bin/pip install --dry-run -r backend/requirements.txt pro_wheels/allotmint_pro-*.whl; then
             echo "::error file=backend/requirements.txt::Dependency conflict detected — Docker build will fail. Check pip output above for the conflicting packages."
             exit 1
           fi

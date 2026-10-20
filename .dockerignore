@@ -13,3 +13,7 @@ infra/
 
 .git/
 __pycache__/
+
+# allotmint-pro source checked out by deploy-lambda.yml; only the wheel in
+# pro_wheels/ is used by the image (#11004)
+.pro-src/

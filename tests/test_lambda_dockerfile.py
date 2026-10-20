@@ -31,6 +31,18 @@ class LambdaDockerfileTests(unittest.TestCase):
             "image rather than fetching it during the build.",
         )
 
+    def test_lambda_dockerfile_requires_pro_wheel_by_default(self) -> None:
+        """The image installs allotmint-pro and refuses to build without it (#11004)."""
+        text = DOCKERFILE.read_text(encoding="utf-8")
+
+        self.assertIn("ARG REQUIRE_PRO=1", text)
+        self.assertIn("COPY pro_wheels/ /tmp/pro_wheels/", text)
+        self.assertIn('pip install --no-cache-dir -r requirements.txt "$@"', text)
+        self.assertTrue(
+            (DOCKERFILE.parents[1] / "pro_wheels" / ".gitkeep").exists(),
+            "pro_wheels/ must exist in a fresh checkout or the COPY fails.",
+        )
+
     def test_boto3_version_not_tightly_pinned(self) -> None:
         """boto3 must not be pinned to a minor-version ceiling in requirements.txt.
 

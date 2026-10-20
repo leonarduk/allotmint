@@ -67,6 +67,10 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile.lambda
+      args:
+        # Local builds usually lack the allotmint-pro wheel (pro_wheels/,
+        # built by deploy-lambda.yml); install it if present, skip it if not.
+        REQUIRE_PRO: ${REQUIRE_PRO:-0}
     image: allotmint-lambda:latest
     container_name: allotmint-lambda-api
     command: ["backend.lambda_api.handler.lambda_handler"]

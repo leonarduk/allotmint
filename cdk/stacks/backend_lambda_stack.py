@@ -6,6 +6,7 @@ from aws_cdk import (
     CfnOutput,
     CfnParameter,
     Duration,
+    Fn,
     RemovalPolicy,
     Stack,
     triggers,
@@ -29,6 +30,7 @@ from constructs import Construct
 from stacks._paths import resolve_app_root
 from stacks.data_sync import DEFAULT_DATA_SYNC_REPO, DataSync
 from stacks.exports import BACKEND_API_URL_EXPORT
+from stacks.mcp_server_secrets import McpServerSecrets
 from stacks.moneyhub_token_store import MoneyhubTokenStore
 
 # S3 prefix (relative to the data bucket) under which per-owner writable account
@@ -44,6 +46,66 @@ WRITABLE_ACCOUNTS_PREFIX = "writable-accounts"
 # ``backend.common.instruments._s3_location()`` via the ``METADATA_PREFIX``
 # Lambda environment variable below (issue #4930).
 METADATA_PREFIX = "instruments"
+
+# Entry point of the allotmint-pro MCP server inside the shared Lambda image:
+# backend/Dockerfile.lambda installs the pinned allotmint-pro wheel (with its
+# mcp and mangum dependencies), so the MCP Lambda reuses that image (#11052).
+MCP_SERVER_HANDLER = "allotmint_pro.mcp_server.lambda_handler.handler"
+
+# Bedrock model for the chat tool-calling loop (backend/chat/bedrock_agent.py)
+# and the agents that share it. In eu-west-1 Bedrock rejects Nova Lite
+# on-demand by bare model ID ("amazon.nova-lite-v1:0") and requires this EU
+# cross-region inference profile. Overridable via the ``bedrock_model_id``
+# CDK context or the BEDROCK_MODEL_ID env var.
+DEFAULT_BEDROCK_MODEL_ID = "eu.amazon.nova-lite-v1:0"
+
+# Regions the eu.amazon.nova-lite-v1:0 profile can route to, per
+# https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html.
+# Update if the default profile changes.
+EU_NOVA_LITE_DESTINATION_REGIONS = (
+    "eu-west-1",
+    "eu-west-3",
+    "eu-central-1",
+    "eu-north-1",
+    "eu-south-1",
+)
+
+
+def _bedrock_invoke_resources(
+    *,
+    region: str,
+    account: str,
+    model_id: str,
+    destination_regions: Sequence[str] | None = None,
+) -> tuple[list[str], list[str]]:
+    """Return (profile_resources, foundation_model_resources) for a Bedrock grant.
+
+    A cross-region inference-profile ID (``eu.``/``us.``/``apac.`` prefix) needs
+    permission on the profile and on the underlying foundation model in every
+    region the profile can route to; a bare model ID needs only its own
+    region's foundation-model ARN. ``destination_regions`` defaults to the EU
+    profile's regions and must be given for any other profile.
+    """
+    if model_id.startswith(("eu.", "us.", "apac.")):
+        if destination_regions is None:
+            if not model_id.startswith("eu."):
+                # Granting a us./apac. profile the EU regions would under-grant
+                # silently; fail the synth instead.
+                raise ValueError(
+                    f"No destination regions configured for Bedrock profile {model_id!r}; "
+                    "pass destination_regions for non-EU profiles"
+                )
+            destination_regions = EU_NOVA_LITE_DESTINATION_REGIONS
+        base_model_id = model_id.split(".", 1)[1]
+        return (
+            [f"arn:aws:bedrock:{region}:{account}:inference-profile/{model_id}"],
+            [
+                f"arn:aws:bedrock:{dest}::foundation-model/{base_model_id}"
+                for dest in destination_regions
+            ],
+        )
+    return [], [f"arn:aws:bedrock:{region}::foundation-model/{model_id}"]
+
 
 # S3 prefix (relative to the data bucket) holding each user's saved chat
 # conversation and the ones archived by "New chat" (backend/common/
@@ -322,6 +384,8 @@ class BackendLambdaStack(Stack):
         data_branch: str,
         data_repo: str | None,
         jwt_secret: str,
+        mcp_server: _lambda.IFunction | None = None,
+        mcp_server_url: str | None = None,
     ) -> _lambda.DockerImageFunction:
         """Nightly data steward run (#10471), after the 00:00 price refresh.
 
@@ -335,23 +399,24 @@ class BackendLambdaStack(Stack):
         service.run_and_save → store.save_report (S3JSONStorage.put_object to
         DATA_STEWARD_REPORTS_URI/<date>.json and latest.json).
 
-        The MCP server URL comes from the ``mcp_server_url`` context / env var
-        (unset: each run saves an error report saying so). Its Function URL uses
-        AWS_IAM auth, so ``mcp_server_function_arn`` grants
-        lambda:InvokeFunctionUrl on it. Bedrock access is scoped to the
-        configured BEDROCK_MODEL_ID.
+        ``mcp_server`` / ``mcp_server_url`` are this stack's McpServerLambda and
+        its Function URL (#11052); without them the ``mcp_server_url`` context /
+        env var is used, and if that is unset too each run saves an error report
+        saying so. The Function URL uses AWS_IAM auth, so the steward is granted
+        invoke on the MCP function. Bedrock access is scoped to the configured
+        BEDROCK_MODEL_ID.
         """
 
         bucket_name = data_bucket.bucket_name
-        mcp_server_url = self.node.try_get_context("mcp_server_url") or os.getenv("MCP_SERVER_URL", "")
+        mcp_server_url = (
+            mcp_server_url
+            or self.node.try_get_context("mcp_server_url")
+            or os.getenv("MCP_SERVER_URL", "")
+        )
         mcp_function_arn = self.node.try_get_context("mcp_server_function_arn") or os.getenv(
             "MCP_SERVER_FUNCTION_ARN", ""
         )
-        bedrock_model_id = (
-            self.node.try_get_context("bedrock_model_id")
-            or os.getenv("BEDROCK_MODEL_ID")
-            or "amazon.nova-lite-v1:0"
-        )
+        bedrock_model_id = self._bedrock_model_id()
         steward_env = {
             "APP_ENV": env,
             "DATA_BUCKET": bucket_name,
@@ -394,13 +459,10 @@ class BackendLambdaStack(Stack):
             allow_list=False,
             put_prefix=(DATA_STEWARD_REPORTS_PREFIX, BOTS_PREFIX),
         )
-        steward_fn.add_to_role_policy(
-            iam.PolicyStatement(
-                actions=["bedrock:InvokeModel"],
-                resources=[f"arn:aws:bedrock:{self.region}::foundation-model/{bedrock_model_id}"],
-            )
-        )
-        if mcp_function_arn:
+        self._grant_bedrock(steward_fn, bedrock_model_id)
+        if mcp_server is not None:
+            self._grant_mcp_invoke(mcp_server, steward_fn)
+        elif mcp_function_arn:
             steward_fn.add_to_role_policy(
                 iam.PolicyStatement(actions=["lambda:InvokeFunctionUrl"], resources=[mcp_function_arn])
             )
@@ -411,6 +473,115 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(steward_fn, retry_attempts=0)],
         )
         return steward_fn
+
+    def _bedrock_model_id(self) -> str:
+        return (
+            self.node.try_get_context("bedrock_model_id")
+            or os.getenv("BEDROCK_MODEL_ID")
+            or DEFAULT_BEDROCK_MODEL_ID
+        )
+
+    def _grant_bedrock(self, fn: _lambda.IFunction, model_id: str) -> None:
+        """Allow ``fn`` to invoke exactly ``model_id``, never "foundation-model/*".
+
+        Through an inference profile, the foundation-model statement is
+        conditioned on that profile, so the model can't be invoked directly.
+        """
+        profile_resources, model_resources = _bedrock_invoke_resources(
+            region=self.region, account=self.account, model_id=model_id
+        )
+        actions = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+        if profile_resources:
+            fn.add_to_role_policy(iam.PolicyStatement(actions=actions, resources=profile_resources))
+        fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=actions,
+                resources=model_resources,
+                conditions=(
+                    {"StringEquals": {"bedrock:InferenceProfileArn": profile_resources[0]}}
+                    if profile_resources
+                    else None
+                ),
+            )
+        )
+
+    @staticmethod
+    def _grant_mcp_invoke(mcp_server: _lambda.IFunction, caller: _lambda.IFunction) -> None:
+        """Let ``caller`` call the MCP server's AWS_IAM Function URL over SigV4."""
+
+        # InvokeFunctionUrl is what the Function URL checks; InvokeFunction is
+        # also required for URLs created after AWS's 2025 permission change.
+        mcp_server.grant_invoke_url(caller)
+        mcp_server.grant_invoke(caller)
+
+    def _add_mcp_server(
+        self,
+        *,
+        image_code: _lambda.DockerImageCode,
+        data_bucket: s3.Bucket,
+        env: str,
+        data_branch: str,
+        data_repo: str | None,
+        jwt_secret: str,
+        list_prefixes: Sequence[str],
+    ) -> tuple[_lambda.DockerImageFunction, str]:
+        """The allotmint-pro MCP server (#11052): read-only data tools for chat and the agents.
+
+        Ported from allotmint-pro's stack, but built from the shared image (which
+        already carries the pinned allotmint-pro wheel) with the MCP handler as
+        its command. Returns the function and the URL its MCP clients use.
+        """
+
+        bucket_name = data_bucket.bucket_name
+        mcp_env = {
+            "APP_ENV": env,
+            # The Function URL enforces AWS_IAM auth before the Lambda runs, so
+            # it must not do its own JWT decode; without this backend.auth's
+            # import-time SECRET_KEY check fails whenever APP_ENV is "aws".
+            "DISABLE_AUTH": "true",
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "APP_REGION": self.region,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            "METADATA_BUCKET": bucket_name,
+            "METADATA_PREFIX": METADATA_PREFIX,
+            # Every Lambda gets it: the import chain reaches backend.auth's
+            # module-level SECRET_KEY check (see test_all_lambda_functions_have_jwt_secret_env_var).
+            "JWT_SECRET": jwt_secret,
+        }
+        if data_repo:
+            mcp_env["DATA_REPO"] = data_repo
+        mcp_fn = _lambda.DockerImageFunction(
+            self,
+            "McpServerLambda",
+            code=image_code,
+            environment=mcp_env,
+            log_group=self._lambda_log_group(self, "McpServerLambdaLogGroup"),
+            timeout=Duration.seconds(30),
+            memory_size=512,
+        )
+        # search_web / create_github_issue credentials: SSM parameter names plus
+        # GetParameter on exactly those parameters; values never in the template.
+        McpServerSecrets(self, "McpServerSecrets").attach(mcp_fn)
+        # Read-only: no MCP tool writes to the bucket.
+        self._grant_bucket_access(
+            mcp_fn,
+            bucket=data_bucket,
+            allow_read=True,
+            allow_put=False,
+            allow_list=True,
+            list_prefix=list_prefixes,
+        )
+        self._grant_timeseries_cache_access(mcp_fn, bucket=data_bucket, allow_put=False)
+        # SigV4-signed endpoint for the server-side MCP clients only (the
+        # frontend can't sign); callers are granted explicitly via _grant_mcp_invoke.
+        function_url = mcp_fn.add_function_url(auth_type=_lambda.FunctionUrlAuthType.AWS_IAM)
+        CfnOutput(self, "McpServerFunctionUrl", value=function_url.url)
+        # FastMCP serves streamable HTTP at "/mcp", and the client uses the URL
+        # verbatim. Rebuilt from the host so it is ".../mcp" with or without the
+        # Function URL's trailing "/".
+        host = Fn.select(2, Fn.split("/", function_url.url))
+        return mcp_fn, Fn.join("", ["https://", host, "/mcp"])
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -577,6 +748,9 @@ class BackendLambdaStack(Stack):
             # ListBucket on accounts/ for the same reason as price_refresh above
             # (issue #2758).
             "pension_report": ("accounts",),
+            # MCP server tools read portfolios, instrument metadata, prices and
+            # timeseries metadata; same prefixes as allotmint-pro's stack (#11052).
+            "mcp_server": ("accounts", "instruments", "prices", "timeseries/meta"),
             # plan_brief discovers owners the same way (#10475).
             "plan_brief": ("accounts",),
         }
@@ -726,6 +900,25 @@ class BackendLambdaStack(Stack):
         data_sync.grant_read_token(backend_fn)
         backend_fn.add_environment("DATA_SYNC_REPO", data_sync.repo)
         backend_fn.add_environment("DATA_SYNC_TOKEN_PARAMETER", data_sync.token_parameter_name)
+
+        # Chat, trend-watch and reconciliation explanations run a Bedrock
+        # tool-calling loop against the MCP server (#11052).
+        mcp_fn, mcp_server_url = self._add_mcp_server(
+            image_code=_lambda.DockerImageCode.from_image_asset(
+                str(project_root), file="backend/Dockerfile.lambda", cmd=[MCP_SERVER_HANDLER]
+            ),
+            data_bucket=data_bucket,
+            env=env,
+            data_branch=data_branch,
+            data_repo=data_repo,
+            jwt_secret=jwt_secret,
+            list_prefixes=lambda_list_prefixes["mcp_server"],
+        )
+        self._grant_mcp_invoke(mcp_fn, backend_fn)
+        backend_fn.add_environment("MCP_SERVER_URL", mcp_server_url)
+        bedrock_model_id = self._bedrock_model_id()
+        backend_fn.add_environment("BEDROCK_MODEL_ID", bedrock_model_id)
+        self._grant_bedrock(backend_fn, bedrock_model_id)
 
         # BackendLambda: read + put + list for API data paths. Add an explicit
         # timeseries cache grant below so the synthesized IAM policy always covers
@@ -1454,6 +1647,8 @@ class BackendLambdaStack(Stack):
             data_branch=data_branch,
             data_repo=data_repo,
             jwt_secret=jwt_secret,
+            mcp_server=mcp_fn,
+            mcp_server_url=mcp_server_url,
         )
 
         # Scheduled function to email a pension performance report (issue #2758)

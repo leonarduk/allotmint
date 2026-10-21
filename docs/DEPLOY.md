@@ -248,6 +248,35 @@ tag" or the checkout step, before anything is deployed.
 This is interim: once deploys move to allotmint-pro (#6806/#6807), the pro
 source is local there and the token is no longer needed.
 
+### MCP server and chat on AWS
+
+`McpServerLambda` runs the allotmint-pro MCP server
+(`allotmint_pro.mcp_server.lambda_handler.handler`) from the same image, so it
+needs nothing beyond the pro wheel above (#11052). Its Function URL only
+accepts SigV4-signed calls, and only `BackendLambda` (chat, trend-watch,
+reconciliation explanations) and `DataStewardLambda` may invoke it; both get
+`MCP_SERVER_URL=https://<function-url-host>/mcp`. The MCP Lambda can read the
+data bucket but never write to it. The URL is the `McpServerFunctionUrl` stack
+output.
+
+Chat's LLM is Bedrock `eu.amazon.nova-lite-v1:0` (the EU cross-region
+inference profile: in eu-west-1 Nova Lite can't be called by its bare model
+ID). The grant covers that profile and its foundation model only. Override
+with the `bedrock_model_id` CDK context or `BEDROCK_MODEL_ID`; for another
+profile, update `EU_NOVA_LITE_DESTINATION_REGIONS` in
+`cdk/stacks/backend_lambda_stack.py`. The model must be enabled under
+Bedrock → Model access in the account.
+
+Two MCP tools need credentials, read from SSM SecureStrings at cold start. A
+missing parameter leaves only that tool "not configured":
+
+```bash
+aws ssm put-parameter --region eu-west-1 --type SecureString \
+  --name /allotmint/mcp/brave-api-key --value "..."   # search_web
+aws ssm put-parameter --region eu-west-1 --type SecureString \
+  --name /allotmint/mcp/github-token --value "..."    # create_github_issue
+```
+
 ## Required IAM permissions for the deploy role
 
 The IAM role assumed via `AWS_ROLE_TO_ASSUME` must have enough permissions to

@@ -76,24 +76,26 @@ def _bedrock_invoke_resources(
     region: str,
     account: str,
     model_id: str,
-    destination_regions: Sequence[str] = EU_NOVA_LITE_DESTINATION_REGIONS,
+    destination_regions: Sequence[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return (profile_resources, foundation_model_resources) for a Bedrock grant.
 
     A cross-region inference-profile ID (``eu.``/``us.``/``apac.`` prefix) needs
     permission on the profile and on the underlying foundation model in every
     region the profile can route to; a bare model ID needs only its own
-    region's foundation-model ARN.
+    region's foundation-model ARN. ``destination_regions`` defaults to the EU
+    profile's regions and must be given for any other profile.
     """
     if model_id.startswith(("eu.", "us.", "apac.")):
-        uses_eu_default = destination_regions is EU_NOVA_LITE_DESTINATION_REGIONS
-        if not model_id.startswith("eu.") and uses_eu_default:
-            # Granting a us./apac. profile the EU regions would under-grant
-            # silently; fail the synth instead.
-            raise ValueError(
-                f"No destination regions configured for Bedrock profile {model_id!r}; "
-                "pass destination_regions for non-EU profiles"
-            )
+        if destination_regions is None:
+            if not model_id.startswith("eu."):
+                # Granting a us./apac. profile the EU regions would under-grant
+                # silently; fail the synth instead.
+                raise ValueError(
+                    f"No destination regions configured for Bedrock profile {model_id!r}; "
+                    "pass destination_regions for non-EU profiles"
+                )
+            destination_regions = EU_NOVA_LITE_DESTINATION_REGIONS
         base_model_id = model_id.split(".", 1)[1]
         return (
             [f"arn:aws:bedrock:{region}:{account}:inference-profile/{model_id}"],

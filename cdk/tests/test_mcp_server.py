@@ -115,18 +115,15 @@ def test_mcp_server_cannot_write_or_delete_in_the_bucket(template) -> None:
             assert not action.startswith(("s3:Put", "s3:Delete")), action
 
 
-def test_bedrock_grant_is_scoped_to_the_configured_profile(template) -> None:
-    _, backend = _function(template, "BackendLambda")
-    assert (
-        backend["Properties"]["Environment"]["Variables"]["BEDROCK_MODEL_ID"]
-        == DEFAULT_BEDROCK_MODEL_ID
-    )
+@pytest.mark.parametrize("caller", ["BackendLambda", "DataStewardLambda"])
+def test_bedrock_grant_is_scoped_to_the_configured_profile(template, caller) -> None:
+    _, fn = _function(template, caller)
+    env = fn["Properties"]["Environment"]["Variables"]
+    assert env["BEDROCK_MODEL_ID"] == DEFAULT_BEDROCK_MODEL_ID
     bedrock = [
-        s
-        for s in _role_statements(template, "BackendLambda")
-        if "bedrock:InvokeModel" in _actions(s)
+        s for s in _role_statements(template, caller) if "bedrock:InvokeModel" in _actions(s)
     ]
-    assert bedrock, "BackendLambda needs Bedrock for chat"
+    assert bedrock, f"{caller} needs Bedrock for its tool-calling loop"
     for statement in bedrock:
         assert "foundation-model/*" not in json.dumps(statement["Resource"])
     (model_statement,) = [s for s in bedrock if "foundation-model/" in json.dumps(s["Resource"])]

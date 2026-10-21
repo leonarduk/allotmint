@@ -69,7 +69,7 @@ _DIFF_HEADER_RE = re.compile(r"^diff --git a/(.+) b/(.+)$")
 
 # Every CI area a change can affect. Adding an area here is not enough on its
 # own -- it also needs a rule in AREA_PATH_RULES and a job gated on it.
-AREAS: tuple[str, ...] = ("backend", "frontend", "cdk", "shell")
+AREAS: tuple[str, ...] = ("backend", "frontend", "cdk", "shell", "android")
 
 _ALL_AREAS = frozenset(AREAS)
 _NO_AREAS: frozenset[str] = frozenset()
@@ -125,6 +125,9 @@ AREA_PATH_RULES: tuple[tuple[str, frozenset[str]], ...] = (
     # whose own `paths:` filter still lists backend/** and frontend/**.
     ("cdk/**", frozenset({"cdk"})),
     ("infra/**", frozenset({"cdk"})),
+    # -- Android Trusted Web Activity (#11053). ----------------------------
+    # A self-contained Gradle project; nothing else in the repo builds it.
+    ("mobile/twa/**", frozenset({"android"})),
     # -- Backend. ----------------------------------------------------------
     # The SPA contract version is asserted on both sides of the wire by
     # scripts/check_contract_version_sync.py, so this one module is a

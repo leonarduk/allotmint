@@ -132,6 +132,32 @@ jobs:
       - name: Run bats tests for deploy shell scripts
         run: npx --yes bats@1.13.0 tests/bash/*.bats
 
+  # Unsigned build of the Play Store TWA (#11053). The signed release build
+  # stays manual in android-twa.yml; no signing secrets are used on PRs, so
+  # with no TWA_KEYSTORE_PATH set app/build.gradle produces an unsigned bundle.
+  android-twa:
+    name: Android TWA build (unsigned)
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.android != 'false'"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-twa-${{ runner.os }}-${{ hashFiles('mobile/twa/**/*.gradle', 'mobile/twa/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-twa-${{ runner.os }}-
+      - name: Build unsigned release bundle
+        working-directory: mobile/twa
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          ./gradlew --no-daemon bundleRelease
+          test -s app/build/outputs/bundle/release/app-release.aab
+
   # Not redundant with lambda-compat below. This job checks both dependency
   # entry points: backend/requirements.txt gets a fast resolution/duplicate
   # check, while root requirements.txt gets a real install in a separate clean

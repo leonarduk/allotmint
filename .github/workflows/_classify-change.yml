@@ -33,6 +33,9 @@ on:
       shell:
         description: Change can affect shell scripts, containers or deploy tooling.
         value: ${{ jobs.classify.outputs.shell }}
+      android:
+        description: Change can affect the Android TWA project in mobile/twa.
+        value: ${{ jobs.classify.outputs.android }}
       backend-dev-tools-only:
         description: >-
           Backend area is affected, but only via tests/scripts/** -- the backend
@@ -54,6 +57,7 @@ jobs:
       frontend: ${{ steps.classify.outputs.frontend }}
       cdk: ${{ steps.classify.outputs.cdk }}
       shell: ${{ steps.classify.outputs.shell }}
+      android: ${{ steps.classify.outputs.android }}
       backend-dev-tools-only: ${{ steps.classify.outputs.backend-dev-tools-only }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

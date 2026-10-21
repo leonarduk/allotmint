@@ -336,6 +336,9 @@ class TestAreasForPath:
             ("cdk/stacks/api_stack.py", {"cdk"}),
             ("cdk/tests/test_api_stack.py", {"cdk"}),
             ("infra/lambda/handler.py", {"cdk"}),
+            # Android TWA
+            ("mobile/twa/app/build.gradle", {"android"}),
+            ("mobile/twa/gradle/wrapper/gradle-wrapper.properties", {"android"}),
             # Shell / container / deploy
             ("scripts/bash/run-local-api.sh", {"shell"}),
             ("tests/bash/fetch-cloudwatch-logs.bats", {"shell"}),

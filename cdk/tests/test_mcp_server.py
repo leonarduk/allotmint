@@ -145,3 +145,37 @@ def test_bedrock_resources_for_a_profile_and_a_bare_model() -> None:
         [],
         ["arn:aws:bedrock:eu-west-1::foundation-model/amazon.nova-lite-v1:0"],
     )
+
+
+def test_non_eu_profile_without_regions_fails_the_synth() -> None:
+    with pytest.raises(ValueError, match="destination_regions"):
+        _bedrock_invoke_resources(
+            region="us-east-1", account="1", model_id="us.amazon.nova-lite-v1:0"
+        )
+
+
+def test_mcp_server_lists_only_the_prefixes_its_tools_read(template) -> None:
+    prefixes = {
+        prefix
+        for statement in _role_statements(template, "McpServerLambda")
+        if "s3:ListBucket" in _actions(statement)
+        for prefix in statement.get("Condition", {}).get("StringLike", {}).get("s3:prefix", [])
+    }
+    # "timeseries" is the parquet cache read (_grant_timeseries_cache_access).
+    assert {p.split("/*")[0].rstrip("/") for p in prefixes} == {
+        "timeseries",
+        "accounts",
+        "instruments",
+        "prices",
+        "timeseries/meta",
+    }
+
+
+def test_no_resource_policy_opens_the_mcp_server(template) -> None:
+    mcp_id, _ = _function(template, "McpServerLambda")
+    permissions = [
+        p
+        for p in _resources(template, "AWS::Lambda::Permission").values()
+        if mcp_id in json.dumps(p["Properties"]["FunctionName"])
+    ]
+    assert permissions == []

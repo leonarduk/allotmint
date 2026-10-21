@@ -86,6 +86,14 @@ def _bedrock_invoke_resources(
     region's foundation-model ARN.
     """
     if model_id.startswith(("eu.", "us.", "apac.")):
+        uses_eu_default = destination_regions is EU_NOVA_LITE_DESTINATION_REGIONS
+        if not model_id.startswith("eu.") and uses_eu_default:
+            # Granting a us./apac. profile the EU regions would under-grant
+            # silently; fail the synth instead.
+            raise ValueError(
+                f"No destination regions configured for Bedrock profile {model_id!r}; "
+                "pass destination_regions for non-EU profiles"
+            )
         base_model_id = model_id.split(".", 1)[1]
         return (
             [f"arn:aws:bedrock:{region}:{account}:inference-profile/{model_id}"],

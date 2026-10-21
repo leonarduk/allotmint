@@ -1475,7 +1475,12 @@ def test_data_steward_lambda_is_read_only_except_its_reports() -> None:
         )
 
     bedrock = _resources_for_s3_action(template, role, "bedrock:InvokeModel")
-    assert bedrock and all("foundation-model/amazon.nova-lite-v1:0" in r for r in bedrock)
+    # The EU inference profile and its foundation model, never a wildcard (#11052).
+    assert bedrock and all(
+        "inference-profile/eu.amazon.nova-lite-v1:0" in r
+        or "foundation-model/amazon.nova-lite-v1:0" in r
+        for r in bedrock
+    )
 
     env = next(
         resource["Properties"]["Environment"]["Variables"]

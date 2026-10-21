@@ -28,8 +28,8 @@
   (`CHAT_PROVIDER`/`CHAT_MODEL`, Ollama by default locally, so free) and needs
   `MCP_SERVER_URL`. It is the `data-steward` bot on the Bots page (#10477):
   *Run now* (there or on this tab) starts a recorded background run, and on
-  AWS `DataStewardLambda` runs nightly at 02:00 UTC (set the `mcp_server_url`
-  and `mcp_server_function_arn` CDK context). Reports are saved as
+  AWS `DataStewardLambda` runs nightly at 02:00 UTC against the stack's own
+  `McpServerLambda` (see [DEPLOY.md](DEPLOY.md#mcp-server-and-chat-on-aws)). Reports are saved as
   `{data_root}/data_steward/reports/<date>.json` plus `latest.json` (or under
   `DATA_STEWARD_REPORTS_URI`) and served by `GET /data-steward/latest`. Cost is
   capped per run by the bot's settings (`max_issues`, default 10;

@@ -1,4 +1,4 @@
-import { render, screen, within, act } from "@testing-library/react";
+import { render, screen, within, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -441,6 +441,47 @@ describe("Support page", () => {
 
     // No untouched resolved paths, no "[object Object]", no unchanged tabs.
     expect(mockUpdateConfig).toHaveBeenCalledWith({ count: 7 });
+  });
+
+  it("does not re-send local_login_email on Save after the override was changed (#7933)", async () => {
+    window.history.replaceState(null, "", "#local-login-override");
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", email: "alex@example.com", accounts: [] },
+      { owner: "steve", email: "steve@example.com", accounts: [] },
+    ]);
+    mockGetConfig.mockResolvedValue({
+      count: 5,
+      local_login_email: "alex@example.com",
+      theme: "system",
+      tabs: { group: true, owner: true },
+    });
+    mockUpdateConfig.mockResolvedValue(undefined);
+
+    render(<Support />, { wrapper: MemoryRouter });
+    const select = (await screen.findByLabelText(
+      en.support.localLogin.label,
+    )) as HTMLSelectElement;
+    await within(select).findByRole("option", { name: /steve@example\.com/ });
+    await act(async () => {
+      await userEvent.selectOptions(select, "steve@example.com");
+    });
+    await waitFor(() => expect(select).not.toBeDisabled());
+    expect(mockUpdateConfig).toHaveBeenCalledWith({
+      auth: { local_login_email: "steve@example.com" },
+    });
+
+    await expandSection(en.support.config.title);
+    const count = await screen.findByDisplayValue("5");
+    await act(async () => {
+      await userEvent.clear(count);
+      await userEvent.type(count, "7");
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.support.config.save }));
+    });
+
+    // The override saved itself already; Save must not send it again.
+    expect(mockUpdateConfig).toHaveBeenLastCalledWith({ count: 7 });
   });
 
   it("lists MCP tools, all on, and saves a switched-off tool under the mcp section", async () => {

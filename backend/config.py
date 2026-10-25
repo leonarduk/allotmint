@@ -432,6 +432,13 @@ def _parse_positive_int(value: Any, *, key: str, default: int) -> int:
     return value
 
 
+def _parse_optional_positive_int(value: Any, *, key: str) -> Optional[int]:
+    """Like :func:`_parse_positive_int`, but ``None`` when unset (no default)."""
+    if value is None or value == "":
+        return None
+    return _parse_positive_int(value, key=key, default=1)
+
+
 def _parse_str_list(val: Any) -> Optional[List[str]]:
     """Convert comma-separated strings or lists into list of strings."""
     if isinstance(val, list):
@@ -787,7 +794,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         default_sector_region=data.get("default_sector_region", "US"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
-        nav_max_age_days=data.get("nav_max_age_days"),
+        nav_max_age_days=_parse_optional_positive_int(data.get("nav_max_age_days"), key="nav_max_age_days"),
         nav_refresh_enabled=_coerce_bool_with_default(
             data.get("nav_refresh_enabled"),
             key="nav_refresh_enabled",

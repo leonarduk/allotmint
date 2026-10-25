@@ -135,6 +135,15 @@ def parse_boe_csv(text: str, codes: list[str]) -> dict[str, pd.DataFrame]:
     if not raw.empty and dates.isna().all():
         # A changed date format would otherwise drop every row and report "0 added" (#9348).
         raise BoeFetchError(f"Bank of England CSV dates are not 'DD Mon YYYY': {raw['DATE'].head(3).tolist()}")
+    bad_dates = dates.isna()
+    if bad_dates.any():
+        # Partial corruption: those rows are dropped below, so say so rather
+        # than report a smaller "added" count with no signal (#11069).
+        logger.warning(
+            "Dropping %s Bank of England CSV rows with unparseable dates, e.g. %s",
+            sanitise_log_value(int(bad_dates.sum())),
+            sanitise_log_value(raw.loc[bad_dates, "DATE"].head(3).tolist()),
+        )
     out: dict[str, pd.DataFrame] = {}
     for code in codes:
         values = pd.to_numeric(raw[code].str.strip(), errors="coerce")

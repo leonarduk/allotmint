@@ -60,6 +60,26 @@ def test_parse_rejects_rows_whose_dates_are_all_in_another_format():
         boe_rates.parse_boe_csv("DATE,IUDBEDR\n01/06/2007,5.5\n04/06/2007,5.5\n", ["IUDBEDR"])
 
 
+def test_parse_warns_about_rows_with_unparseable_dates_and_keeps_the_rest(caplog):
+    """Partial corruption must not shrink the result silently (#11069)."""
+    text = "DATE,IUDBEDR\n01 Jun 2007,5.5\n2007-06-04,5.6\n05 Jun 2007,5.7\n"
+
+    with caplog.at_level("WARNING", logger=boe_rates.__name__):
+        parsed = boe_rates.parse_boe_csv(text, ["IUDBEDR"])
+
+    assert parsed["IUDBEDR"]["Value"].tolist() == [5.5, 5.7]
+    (record,) = [r for r in caplog.records if "unparseable dates" in r.getMessage()]
+    assert "Dropping 1 " in record.getMessage()
+    assert "2007-06-04" in record.getMessage()
+
+
+def test_parse_of_a_well_formed_csv_logs_no_warning(caplog):
+    with caplog.at_level("WARNING", logger=boe_rates.__name__):
+        boe_rates.parse_boe_csv(CSV, ["IUDBEDR"])
+
+    assert not caplog.records
+
+
 def test_parse_of_a_header_only_csv_is_empty_not_an_error():
     parsed = boe_rates.parse_boe_csv("DATE,IUDBEDR\n", ["IUDBEDR"])
 

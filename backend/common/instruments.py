@@ -27,12 +27,14 @@ from backend.logging_setup import sanitise_log_value
 logger = logging.getLogger(__name__)
 
 
-_HTML_ENTITY_RE = re.compile(r"&[a-zA-Z]+;|&#\d+;")
+# Named (``&amp;``), decimal (``&#39;``) and hex (``&#x27;``) entities -- all
+# semicolon-terminated; see decode_html_entities below and #7400.
+_HTML_ENTITY_RE = re.compile(r"&[a-zA-Z]+;|&#\d+;|&#[xX][0-9a-fA-F]+;")
 _MAX_ENTITY_DECODE_PASSES = 5
 
 
 def decode_html_entities(value: Optional[str]) -> Optional[str]:
-    """Decode semicolon-terminated HTML entities such as ``&#39;`` or ``&amp;``.
+    """Decode semicolon-terminated HTML entities such as ``&#39;``, ``&#x27;`` or ``&amp;``.
 
     Instrument names ingested from an HTML source (see #7216) can carry
     entities like ``&#39;`` that were never decoded. Only entities matched by

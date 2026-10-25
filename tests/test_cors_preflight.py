@@ -1,7 +1,11 @@
+from pathlib import Path
+
+import yaml
 from fastapi.testclient import TestClient
 
+import backend.config as config_module
 from backend.app import create_app
-from backend.config import config
+from backend.config import config, reload_config
 
 
 def test_cors_preflight(monkeypatch):
@@ -130,3 +134,53 @@ def test_cors_exposes_the_admin_warming_header(monkeypatch):
         resp = client.get("/health", headers={"Origin": origin})
     exposed = [h.strip().lower() for h in resp.headers["access-control-expose-headers"].split(",")]
     assert WARMING_HEADER.lower() in exposed
+
+
+def _write_config_with_origin_regex(tmp_path: Path, pattern: str) -> Path:
+    """Copy the project config.yaml with ``server.cors.origin_regex`` set.
+
+    ``repo_root`` is pinned to the real project root so every other path still
+    resolves exactly as with the checked-in file; only the regex differs.
+    """
+    project_path = config_module._project_config_path()
+    data = yaml.safe_load(project_path.read_text(encoding="utf-8"))
+    data["paths"]["repo_root"] = str(project_path.parent)
+    data["server"].setdefault("cors", {})["origin_regex"] = pattern
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    return path
+
+
+def test_cors_preflight_regex_from_config_file(monkeypatch, tmp_path):
+    """A regex set in config.yaml (not the env) reaches the middleware via create_app (#7708)."""
+    config_path = _write_config_with_origin_regex(tmp_path, r"^http://localhost:(3000|5\d{3})$")
+    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
+    monkeypatch.setattr(config, "cors_origins", ["https://app.allotmint.io"])
+    # None is not carried over as a runtime override, so the reload inside
+    # create_app must take the regex from the file.
+    monkeypatch.setattr(config, "cors_origin_regex", None)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    try:
+        with monkeypatch.context() as m:
+            m.setattr(config_module, "_project_config_path", lambda: config_path)
+            app = create_app()
+        assert config.cors_origin_regex == r"^http://localhost:(3000|5\d{3})$"
+        with TestClient(app) as client:
+            allowed = {
+                origin: client.options(
+                    "/health",
+                    headers={"Origin": origin, "Access-Control-Request-Method": "GET"},
+                ).headers.get("access-control-allow-origin")
+                for origin in (
+                    "http://localhost:5173",
+                    "http://evil.localhost:5174",
+                    "https://app.allotmint.io",
+                )
+            }
+    finally:
+        reload_config()
+    assert allowed == {
+        "http://localhost:5173": "http://localhost:5173",
+        "http://evil.localhost:5174": None,
+        "https://app.allotmint.io": "https://app.allotmint.io",
+    }

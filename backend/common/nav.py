@@ -257,7 +257,8 @@ class CsvNavProvider:
 
         try:
             return self._cache.get_or_build(("s3", bucket, NAV_S3_KEY), lambda: load_nav_csv_s3(bucket))
-        except (BotoCoreError, ClientError, UnicodeDecodeError) as exc:
+        # csv.Error: a malformed body (e.g. an oversized field) is a failed read too.
+        except (BotoCoreError, ClientError, UnicodeDecodeError, csv.Error) as exc:
             logger.warning(
                 "Reading s3://%s/%s failed (%s); using the local NAV file",
                 sanitise_log_value(bucket),

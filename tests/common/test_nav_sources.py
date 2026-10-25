@@ -5,6 +5,7 @@ S3 is a stub client (no AWS calls), following tests/test_alerts_storage.py.
 
 from __future__ import annotations
 
+import csv
 import io
 from datetime import date
 
@@ -78,6 +79,16 @@ def test_missing_bucket_object_falls_back_to_the_local_file(monkeypatch, local_c
 @pytest.mark.parametrize("error", [_client_error("AccessDenied"), EndpointConnectionError(endpoint_url="https://s3")])
 def test_s3_failure_is_logged_and_falls_back(monkeypatch, local_csv, caplog, error):
     s3 = StubS3(error=error)
+    provider = _provider(monkeypatch, s3, (local_csv,))
+
+    assert provider.latest_nav("3IN.L").source == "local"
+    assert "using the local NAV file" in caplog.text
+
+
+def test_malformed_s3_body_is_logged_and_falls_back(monkeypatch, local_csv, caplog):
+    # A field over csv.field_size_limit() makes csv.DictReader raise csv.Error (#8935).
+    oversized = "x" * (csv.field_size_limit() + 1)
+    s3 = StubS3(body=HEADER + f"3IN.L,380.5,GBX,2026-09-30,{oversized}\n")
     provider = _provider(monkeypatch, s3, (local_csv,))
 
     assert provider.latest_nav("3IN.L").source == "local"

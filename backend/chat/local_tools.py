@@ -21,7 +21,7 @@ Word file; the files are collected in ``files`` for ``POST /chat`` to return.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from mcp.types import Tool
 
@@ -111,6 +111,29 @@ class LocalTools:
                 return "export_file: the files for this reply are too large in total", True
             self.files.append(exported)
         return text, is_error
+
+
+# Short descriptions for the admin on/off switches (GET /config/mcp-tools); the
+# model-facing descriptions are long. A local tool missing here is still
+# listed, with its model-facing description.
+_ADMIN_DESCRIPTIONS: Dict[str, str] = {
+    NAVIGATE_TOOL_NAME: "Open a page of the app for the user.",
+    nav_discount_tool.TOOL_NAME: "NAV premium/discount for a closed-end fund.",
+    export_file_tool.TOOL_NAME: "Save a table as a CSV, Excel or Word download.",
+}
+
+
+def local_tool_summaries() -> List[Dict[str, str]]:
+    """Every tool ``LocalTools`` can offer, as ``{name, description}`` for the admin switches (#8504).
+
+    Built from ``LocalTools.tools()`` with every option on, so a new local tool
+    is listed (and can be switched off) without editing the config route.
+    """
+
+    every = LocalTools(pages=(ChatPage(path="/", label="Home"),), data_tools=True, file_exports=True).tools()
+    return [
+        {"name": tool.name, "description": _ADMIN_DESCRIPTIONS.get(tool.name, tool.description or "")} for tool in every
+    ]
 
 
 def merge_tool_lists(

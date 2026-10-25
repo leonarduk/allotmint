@@ -202,16 +202,15 @@ async def _list_mcp_server_tools(mcp_server_url: str) -> List[Dict[str, Any]]:
 async def read_mcp_tools() -> Dict[str, Any]:
     """Every chat assistant tool with its admin on/off switch (``mcp.mcp_tools``).
 
-    Tools come from the MCP server's listing plus the chat backend's local
-    ``navigate_to_page``, ``get_nav_discount`` and ``export_file``. The MCP server hides tools that are switched off, so
-    names already in the config are added back; every tool is on unless the
-    config says false. ``not_configured`` is the MCP server's reason a listed
+    Tools come from the MCP server's listing plus every local tool the chat
+    backend can offer (``local_tool_summaries``, #8504). The MCP server hides
+    tools that are switched off, so names already in the config are added
+    back; every tool is on unless the config says false. ``not_configured`` is the MCP server's reason a listed
     tool cannot work yet (e.g. a missing API key), else ``None``. ``mcp_error``
     is set when the MCP server could not be listed, in which case only the
     configured and local tools are returned.
     """
-    from backend.chat import export_file_tool, nav_discount_tool
-    from backend.chat.local_tools import NAVIGATE_TOOL_NAME
+    from backend.chat.local_tools import local_tool_summaries
 
     cfg = config_module.config
     switches: Dict[str, bool] = dict(getattr(cfg, "mcp_tools", None) or {})
@@ -228,17 +227,8 @@ async def read_mcp_tools() -> Dict[str, Any]:
             mcp_error = "Could not list the MCP server's tools; see the backend log for details."
     else:
         mcp_error = "MCP_SERVER_URL is not set, so only configured and local tools are listed."
-    tools.setdefault(
-        NAVIGATE_TOOL_NAME, {"name": NAVIGATE_TOOL_NAME, "description": "Open a page of the app for the user."}
-    )
-    tools.setdefault(
-        nav_discount_tool.TOOL_NAME,
-        {"name": nav_discount_tool.TOOL_NAME, "description": "NAV premium/discount for a closed-end fund."},
-    )
-    tools.setdefault(
-        export_file_tool.TOOL_NAME,
-        {"name": export_file_tool.TOOL_NAME, "description": "Save a table as a CSV, Excel or Word download."},
-    )
+    for tool in local_tool_summaries():
+        tools.setdefault(tool["name"], tool)
     for name in switches:
         tools.setdefault(name, {"name": name, "description": ""})
     return {

@@ -102,7 +102,6 @@ def client(monkeypatch, accounts):
     monkeypatch.setattr(accounts_store, "portfolio_mod", SimpleNamespace(build_owner_portfolio=lambda *a, **k: None))
     monkeypatch.setattr(accounts_store, "_lock_file", lambda f: None)
     monkeypatch.setattr(accounts_store, "_unlock_file", lambda f: None)
-    transactions._POSTED_TRANSACTIONS.clear()
 
     async def fake_complete(text, cfg):
         return json.dumps(EXTRACTION)
@@ -145,7 +144,6 @@ def test_reconcile_does_not_write_to_the_store(client, accounts):
     assert _post_statement(client).status_code == 200
 
     assert _snapshot(accounts) == before
-    assert transactions._POSTED_TRANSACTIONS == []
 
 
 def test_accepting_suggestions_through_transactions_endpoints_reconciles(client):

@@ -33,13 +33,6 @@ def _make_request(state: dict | None = None) -> Request:
     return Request(scope)
 
 
-@pytest.fixture(autouse=True)
-def reset_transactions_state():
-    transactions_module._POSTED_TRANSACTIONS.clear()
-    yield
-    transactions_module._POSTED_TRANSACTIONS.clear()
-
-
 def _seed_transactions_file(accounts_root: Path, owner: str, account: str, transactions: list[dict]) -> Path:
     owner_dir = accounts_root / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
@@ -406,10 +399,9 @@ async def test_create_transaction_records_valid_payload(monkeypatch, tmp_path):
 
     response = transactions_module.create_transaction(request, tx)
 
-    assert transactions_module._POSTED_TRANSACTIONS == [
+    stored = json.loads((accounts_dir / "alice" / "primary_transactions.json").read_text())
+    assert stored["transactions"] == [
         {
-            "owner": "alice",
-            "account": "primary",
             "ticker": "AAA",
             "date": tx.date.isoformat(),
             "type": "BUY",

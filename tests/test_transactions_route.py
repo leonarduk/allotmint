@@ -768,23 +768,6 @@ def test_update_dividend_to_explicit_trade_type_applies_trade_fields(tmp_path, m
 
 def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
-    # Isolate from _POSTED_TRANSACTIONS state left behind by
-    # other tests in this module (they're process-global, not reset between
-    # tests) rather than snapshotting whatever pre-existing state happens to
-    # be there -- a before/after equality check against polluted state can
-    # spuriously pass or fail depending on test execution order.
-    #
-    # Seeding a *known non-empty* baseline (rather than resetting to empty)
-    # keeps the test's original intent: it must prove rollback removes only
-    # this import's rows and leaves unrelated pre-existing entries (e.g. from
-    # a prior legitimate import for another owner) untouched -- starting from
-    # empty would let a rollback bug that wipes *all* global state pass
-    # unnoticed, since "empty in, empty out" is indistinguishable from a
-    # correct partial rollback.
-    pre_existing_posted = [
-        {"owner": "bob", "account": "isa", "ticker": "AAA", "units": 1, "price_gbp": 1},
-    ]
-    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", list(pre_existing_posted))
     sample = [
         transactions.Transaction(
             owner="alice", account="isa", date="2024-05-01", type="BUY", ticker="PFE", price_gbp=2, units=3
@@ -814,7 +797,6 @@ def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeyp
 
     stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
     assert stored["transactions"] == []
-    assert transactions._POSTED_TRANSACTIONS == pre_existing_posted
 
 
 def test_import_transactions_empty_parse_does_not_require_writable_store(tmp_path, monkeypatch):

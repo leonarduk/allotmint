@@ -3234,9 +3234,9 @@
       "removeFavourite": "Retirer {{ticker}} des favoris",
       "addFavourite": "Ajouter {{ticker}} aux favoris",
       "today": "{{pct}} aujourd'hui",
-      "noDataToday": "aucune donnée aujourd'hui"
+      "noDataToday": "aucune donnée aujourd'hui",
+      "shareOfPlot": "{{pct}} du potager"
     },
-    "stars": "{{filled}} étoiles sur {{max}}",
     "data": {
       "ownersError": "Impossible de charger la liste des jardiniers.",
       "noOwners": "Aucun jardinier trouvé pour ce compte."
@@ -3316,7 +3316,7 @@
       "growthStages": "Stades de croissance",
       "growthStagesLabel": "Que signifient les stades de croissance ?",
       "growthStagesTip": "Le stade d'une culture correspond à son gain total depuis l'achat, pas à sa variation du jour — Semé/Germination signifie peu ou pas de profit pour l'instant, Fructification et Récolte record signifient un gain important.",
-      "stageNote": "Le stade provient du gain total de chaque position, la note en étoiles de sa part dans la valeur du potager.",
+      "stageNote": "Le stade provient du gain total de chaque position ; la barre montre sa part dans la valeur du potager.",
       "title": "Liste des cultures ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} planche",
       "bedCount_other": "{{count}} planches",

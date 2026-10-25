@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { formatGbp, formatPct, growthStageMeta, type Crop } from '../plotModel';
 import CropGlyph from './CropGlyph';
-import StarRating from './StarRating';
+import ShareBar from './ShareBar';
 
 interface CropCardProps {
   crop: Crop;
@@ -58,7 +58,7 @@ export default function CropCard({
             stage={crop.stage}
           />
         </span>
-        <StarRating value={crop.stars} />
+        <ShareBar share={crop.share} />
         <span className={styles.cropTicker}>{crop.ticker}</span>
         <span className={styles.cropName}>{crop.name}</span>
         {/* The same instrument can legitimately sit in more than one bed

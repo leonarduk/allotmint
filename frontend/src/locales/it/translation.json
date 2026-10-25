@@ -3234,9 +3234,9 @@
       "removeFavourite": "Rimuovi {{ticker}} dai preferiti",
       "addFavourite": "Aggiungi {{ticker}} ai preferiti",
       "today": "{{pct}} oggi",
-      "noDataToday": "nessun dato oggi"
+      "noDataToday": "nessun dato oggi",
+      "shareOfPlot": "{{pct}} dell'orto"
     },
-    "stars": "{{filled}} stelle su {{max}}",
     "data": {
       "ownersError": "Impossibile caricare l'elenco dei coltivatori.",
       "noOwners": "Nessun coltivatore trovato per questo account."
@@ -3316,7 +3316,7 @@
       "growthStages": "Fasi di crescita",
       "growthStagesLabel": "Cosa significano le fasi di crescita?",
       "growthStagesTip": "La fase di una coltura è il suo guadagno totale dall'acquisto, non la variazione giornaliera: Seminata/Germoglio significa poco o nessun profitto per ora, Fruttificazione e Raccolto record significano un grande guadagno.",
-      "stageNote": "La fase dipende dal guadagno totale di ogni posizione, le stelle dalla sua quota del valore dell'orto.",
+      "stageNote": "La fase dipende dal guadagno totale di ogni posizione; la barra mostra la sua quota del valore dell'orto.",
       "title": "Elenco delle colture ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} aiuola",
       "bedCount_other": "{{count}} aiuole",

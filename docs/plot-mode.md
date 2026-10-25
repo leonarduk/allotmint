@@ -39,8 +39,10 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
 - **Growth stage** — from `gain_pct`: wilting ≤ −20%, sown ≤ 0%,
   sprouting ≤ 5%, leafing ≤ 15%, budding ≤ 30%, flowering ≤ 60%,
   fruiting ≤ 120%, bumper crop above that.
-- **Stars (1–7)** — from share of total plot value: 7★ at ≥ 20%, then
-  12%, 7%, 4%, 2%, 1%, and 1★ below.
+- **Share of plot** — each crop's share of total plot value, shown as a
+  "N% of plot" chip over a proportional bar (and as the Root depth bar on
+  the crop detail screen). It is position size, not a quality rating, so it
+  is deliberately not drawn as stars; ★ only ever marks a favourite.
 - **Vigour (0–100)** — today's move (`day_change_gbp`) mapped from ±5% onto
   the bar, minus 30 when `is_stale` is set.
 - **Water meter** — `trades_remaining` out of `trades_this_month` plus

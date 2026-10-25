@@ -3234,9 +3234,9 @@
       "removeFavourite": "Remover {{ticker}} dos favoritos",
       "addFavourite": "Adicionar {{ticker}} aos favoritos",
       "today": "{{pct}} hoje",
-      "noDataToday": "sem dados hoje"
+      "noDataToday": "sem dados hoje",
+      "shareOfPlot": "{{pct}} da horta"
     },
-    "stars": "{{filled}} de {{max}} estrelas",
     "data": {
       "ownersError": "Não foi possível carregar a lista de cultivadores.",
       "noOwners": "Nenhum cultivador encontrado para esta conta."
@@ -3316,7 +3316,7 @@
       "growthStages": "Fases de crescimento",
       "growthStagesLabel": "O que significam as fases de crescimento?",
       "growthStagesTip": "A fase de uma cultura é o seu ganho total desde a compra, não a variação do dia — Semeada/A brotar significa pouco ou nenhum lucro por agora, Frutificação e Colheita recorde significam que ganhou muito.",
-      "stageNote": "A fase vem do ganho total de cada posição e as estrelas da sua quota no valor da horta.",
+      "stageNote": "A fase vem do ganho total de cada posição; a barra mostra a sua quota no valor da horta.",
       "title": "Lista de culturas ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} canteiro",
       "bedCount_other": "{{count}} canteiros",

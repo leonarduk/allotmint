@@ -12,6 +12,7 @@ import {
   compareGainPctDesc,
   formatGbp,
   formatPct,
+  formatShare,
   growerRank,
   growthStageFor,
   growthStageMeta,
@@ -22,7 +23,6 @@ import {
   neediestCrop,
   portfolioAttentionReason,
   resourcesFromPlot,
-  starsFor,
   vigourFor,
   xpThresholdForLevel,
   yieldLevelFor,
@@ -119,17 +119,15 @@ describe('growthStageMeta', () => {
   });
 });
 
-describe('starsFor', () => {
-  it('awards more stars as a crop takes over the plot', () => {
-    expect(starsFor(0.3)).toBe(7);
-    expect(starsFor(0.2)).toBe(7);
-    expect(starsFor(0.13)).toBe(6);
-    expect(starsFor(0.08)).toBe(5);
-    expect(starsFor(0.05)).toBe(4);
-    expect(starsFor(0.03)).toBe(3);
-    expect(starsFor(0.015)).toBe(2);
-    expect(starsFor(0.001)).toBe(1);
-    expect(starsFor(Number.NaN)).toBe(1);
+describe('formatShare (#7197)', () => {
+  it('prints share of plot as a percentage, not a star count', () => {
+    expect(formatShare(0.8)).toBe('80%');
+    expect(formatShare(0.2)).toBe('20%');
+    expect(formatShare(0.034)).toBe('3.4%');
+    expect(formatShare(0.0005)).toBe('<0.1%');
+    expect(formatShare(0)).toBe('0%');
+    expect(formatShare(Number.NaN)).toBe('0%');
+    expect(formatShare(-0.1)).toBe('0%');
   });
 });
 
@@ -254,12 +252,12 @@ describe('buildPlotSnapshot', () => {
     expect(snapshot.streak).toBe(4);
   });
 
-  it('derives stage, stars and bed membership per crop', () => {
+  it('derives stage, share and bed membership per crop', () => {
     const snapshot = buildPlotSnapshot({ portfolio });
     const [best, worst] = snapshot.crops;
 
     expect(best.stage).toBe('flowering');
-    expect(best.stars).toBe(7);
+    expect(best).not.toHaveProperty('stars');
     expect(best.bedName).toBe('Stocks Isa');
     expect(best.share).toBeCloseTo(0.8);
     expect(best.dayChangePct).toBeCloseTo(1);

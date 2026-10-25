@@ -518,6 +518,11 @@ describe('Plot mode crop roster', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('VUSA.L')).toBeInTheDocument();
     expect(screen.getByText('WILT.L')).toBeInTheDocument();
+    // Position size reads as a share of plot, not a star rating (#7197):
+    // ★ on the roster belongs to the favourite toggle alone.
+    expect(screen.getByText('70% of plot')).toBeInTheDocument();
+    expect(screen.getByText('30% of plot')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/of 7 stars/)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: /all beds/i }));
     expect(screen.getByRole('button', { name: /all beds/i })).toHaveAttribute(
@@ -553,10 +558,14 @@ describe('Plot mode crop detail', () => {
     expect(
       screen.getByText(/Held 500 days · ready to lift/)
     ).toBeInTheDocument();
-    // Root depth reuses the 7-star plot-share rating, so it must not be
-    // labelled against the 5-point scale the other traits use.
-    expect(screen.getByText('Lv 7/7')).toBeInTheDocument();
+    // Root depth is position size (#7197): a share-of-plot bar with its
+    // figure spelled out, not a "Lv 7/7" score that reads as quality.
+    expect(screen.getByText('70.0% of total plot value')).toBeInTheDocument();
+    expect(screen.queryByText('Lv 7/7')).toBeNull();
     expect(screen.getByText('Lv 4/5')).toBeInTheDocument();
+    // The portrait's size indicator is a "% of plot" chip, never stars.
+    expect(screen.getByText('70% of plot')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/of 7 stars/)).toBeNull();
   });
 
   it('falls back to the Growth trait when there is no yield on record (#7019)', async () => {

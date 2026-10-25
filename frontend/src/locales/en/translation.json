@@ -3227,9 +3227,9 @@
       "removeFavourite": "Remove {{ticker}} from favourites",
       "addFavourite": "Add {{ticker}} to favourites",
       "today": "{{pct}} today",
-      "noDataToday": "no data today"
+      "noDataToday": "no data today",
+      "shareOfPlot": "{{pct}} of plot"
     },
-    "stars": "{{filled}} of {{max}} stars",
     "data": {
       "ownersError": "Could not load the list of growers.",
       "noOwners": "No growers found for this account."
@@ -3309,7 +3309,7 @@
       "growthStages": "Growth stages",
       "growthStagesLabel": "What do growth stages mean?",
       "growthStagesTip": "A crop's stage is its total gain since purchase, not its day change — Sown/Sprouting means little or no profit yet, Fruiting and Bumper crop mean it has gained a lot.",
-      "stageNote": "Stage comes from each holding's total gain, star rating from its share of plot value.",
+      "stageNote": "Stage comes from each holding's total gain; the bar shows its share of plot value.",
       "title": "Crop roster ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} bed",
       "bedCount_other": "{{count}} beds",

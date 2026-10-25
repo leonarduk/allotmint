@@ -3234,9 +3234,9 @@
       "removeFavourite": "{{ticker}} aus Favoriten entfernen",
       "addFavourite": "{{ticker}} zu Favoriten hinzufügen",
       "today": "{{pct}} heute",
-      "noDataToday": "heute keine Daten"
+      "noDataToday": "heute keine Daten",
+      "shareOfPlot": "{{pct}} des Gartens"
     },
-    "stars": "{{filled}} von {{max}} Sternen",
     "data": {
       "ownersError": "Die Liste der Gärtner konnte nicht geladen werden.",
       "noOwners": "Für dieses Konto wurden keine Gärtner gefunden."
@@ -3316,7 +3316,7 @@
       "growthStages": "Wachstumsstadien",
       "growthStagesLabel": "Was bedeuten die Wachstumsstadien?",
       "growthStagesTip": "Das Stadium einer Pflanze ist ihr Gesamtgewinn seit dem Kauf, nicht die Tagesveränderung – Gesät/Keimend bedeutet kaum oder noch keinen Gewinn, Fruchtend und Rekordernte bedeuten einen hohen Gewinn.",
-      "stageNote": "Das Stadium ergibt sich aus dem Gesamtgewinn jeder Position, die Sternebewertung aus ihrem Anteil am Gartenwert.",
+      "stageNote": "Das Stadium ergibt sich aus dem Gesamtgewinn jeder Position; der Balken zeigt ihren Anteil am Gartenwert.",
       "title": "Pflanzenliste ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} Beet",
       "bedCount_other": "{{count}} Beete",

@@ -3234,9 +3234,9 @@
       "removeFavourite": "Quitar {{ticker}} de favoritos",
       "addFavourite": "Añadir {{ticker}} a favoritos",
       "today": "{{pct}} hoy",
-      "noDataToday": "sin datos hoy"
+      "noDataToday": "sin datos hoy",
+      "shareOfPlot": "{{pct}} del huerto"
     },
-    "stars": "{{filled}} de {{max}} estrellas",
     "data": {
       "ownersError": "No se pudo cargar la lista de cultivadores.",
       "noOwners": "No se encontraron cultivadores para esta cuenta."
@@ -3316,7 +3316,7 @@
       "growthStages": "Etapas de crecimiento",
       "growthStagesLabel": "¿Qué significan las etapas de crecimiento?",
       "growthStagesTip": "La etapa de un cultivo es su ganancia total desde la compra, no su variación diaria: Sembrado/Brotando significa poca o ninguna ganancia aún, Fructificando y Cosecha récord significan que ha ganado mucho.",
-      "stageNote": "La etapa depende de la ganancia total de cada posición y las estrellas de su peso en el valor del huerto.",
+      "stageNote": "La etapa depende de la ganancia total de cada posición; la barra muestra su peso en el valor del huerto.",
       "title": "Lista de cultivos ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} bancal",
       "bedCount_other": "{{count}} bancales",

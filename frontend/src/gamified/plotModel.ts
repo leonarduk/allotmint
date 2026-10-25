@@ -129,18 +129,15 @@ export function growthStageFor(
 }
 
 /**
- * Star rating (1–7, like the arcade games this skin borrows from) from the
- * crop's share of total plot value: how much of the allotment it occupies.
+ * A crop's share of plot value as a compact percentage ("20%", "3.4%",
+ * "<0.1%"). Position size used to be a 1–7 star rating, which every
+ * amateur reads as a quality score (#7197); it is now shown as what it is.
  */
-export function starsFor(shareOfPlot: number): number {
-  const share = Number.isFinite(shareOfPlot) ? shareOfPlot : 0;
-  if (share >= 0.2) return 7;
-  if (share >= 0.12) return 6;
-  if (share >= 0.07) return 5;
-  if (share >= 0.04) return 4;
-  if (share >= 0.02) return 3;
-  if (share >= 0.01) return 2;
-  return 1;
+export function formatShare(shareOfPlot: number): string {
+  const pct = Number.isFinite(shareOfPlot) ? Math.max(0, shareOfPlot) * 100 : 0;
+  if (pct === 0) return '0%';
+  if (pct < 0.1) return '<0.1%';
+  return `${pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)}%`;
 }
 
 /**
@@ -287,7 +284,6 @@ export interface Crop {
   yieldPct: number | null;
   dayChangePct: number;
   stage: GrowthStage;
-  stars: number;
   vigour: number;
   /** Share of total plot value, 0–1. */
   share: number;
@@ -463,7 +459,6 @@ function cropFromHolding(
       : null,
     dayChangePct: valueGbp > 0 ? (dayChangeGbp / valueGbp) * 100 : 0,
     stage: growthStageFor(gainPct),
-    stars: starsFor(share),
     vigour: vigourFor(holding),
     share,
     sector: holding.sector || 'Unclassified',

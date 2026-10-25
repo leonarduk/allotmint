@@ -260,6 +260,30 @@ def test_all_lambda_functions_have_jwt_secret_env_var(template):
         )
 
 
+def test_all_lambda_functions_have_app_env_env_var(template):
+    """Every Lambda function must receive a non-empty APP_ENV (#7539).
+
+    Completes the required-env-var set alongside the DATA_BUCKET and
+    JWT_SECRET tests above. Without APP_ENV a function silently runs in local
+    mode: data_loader only takes its S3 paths when ``config.app_env == "aws"``,
+    so it would read the bundled filesystem instead of the data bucket, and
+    backend/auth.py's import-time JWT_SECRET guard would be skipped -- the
+    misconfiguration would surface as wrong data at runtime, not a failure.
+    """
+    lambda_functions = template.find_resources("AWS::Lambda::Function")
+    for logical_id, resource in lambda_functions.items():
+        properties = resource.get("Properties", {})
+        if properties.get("PackageType") != "Image":
+            # Skip CDK-generated helper Lambdas (e.g. log retention provider).
+            continue
+        env_vars = properties.get("Environment", {}).get("Variables", {})
+        assert env_vars.get("APP_ENV"), (
+            f"Lambda function {logical_id} is missing a non-empty APP_ENV "
+            "environment variable -- it would silently read local files "
+            "instead of the S3 data bucket"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Observability, secrets, and cost guardrails
 # ---------------------------------------------------------------------------

@@ -1915,7 +1915,15 @@
         "chat_provider": "Backend do assistente de chat: bedrock, ollama ou deepseek. Em branco usa bedrock, ou ollama quando app_env é \"local\".",
         "chat_model": "Nome do modelo para o fornecedor de chat ollama ou deepseek. Em branco usa o predefinido do fornecedor.",
         "chat_base_url": "URL base para o fornecedor de chat ollama ou deepseek. Em branco usa o predefinido do fornecedor.",
-        "chat_rate_limit": "Limite de frequência dos pedidos de chat, p. ex. \"20/minute\"."
+        "chat_rate_limit": "Limite de frequência dos pedidos de chat, p. ex. \"20/minute\".",
+        "error_summary": "Definições de scripts/run_with_error_summary.py, como o default_command que executa.",
+        "nav_refresh_enabled": "Atualizar diariamente o NAV dos investment trusts detidos a partir dos sites dos gestores.",
+        "nav_refresh_time": "Hora da atualização diária do NAV (HH:MM, hora do Reino Unido).",
+        "nav_refresh_request_interval_seconds": "Intervalo mínimo, em segundos, entre pedidos de NAV ao site de um gestor.",
+        "nav_refresh_cache_ttl_seconds": "Durante quanto tempo, em segundos, uma página de NAV obtida é reutilizada numa mesma execução.",
+        "local_bot_schedule": "Bots que a aplicação executa de forma agendada no modo local. Em branco executa apenas a atualização de preços e dividendos; uma lista vazia não executa nenhum.",
+        "trading_agent": "Limiares de sinal do agente de trading (RSI, médias móveis e filtros fundamentais).",
+        "trend_watch": "Limiares do detetor de tendências das posições."
       },
       "themeOptions": {
         "dark": "Escuro",

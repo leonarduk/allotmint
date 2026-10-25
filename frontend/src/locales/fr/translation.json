@@ -1915,7 +1915,15 @@
         "chat_provider": "Backend de l'assistant de chat : bedrock, ollama ou deepseek. Vide : bedrock, ou ollama lorsque app_env vaut \"local\".",
         "chat_model": "Nom du modèle pour le fournisseur de chat ollama ou deepseek. Vide : valeur par défaut du fournisseur.",
         "chat_base_url": "URL de base pour le fournisseur de chat ollama ou deepseek. Vide : valeur par défaut du fournisseur.",
-        "chat_rate_limit": "Limite de débit des requêtes de chat, p. ex. \"20/minute\"."
+        "chat_rate_limit": "Limite de débit des requêtes de chat, p. ex. \"20/minute\".",
+        "error_summary": "Paramètres de scripts/run_with_error_summary.py, comme la default_command qu'il exécute.",
+        "nav_refresh_enabled": "Actualiser chaque jour la VL des investment trusts détenus depuis les sites de leurs gérants.",
+        "nav_refresh_time": "Heure de l'actualisation quotidienne de la VL (HH:MM, heure du Royaume-Uni).",
+        "nav_refresh_request_interval_seconds": "Délai minimal, en secondes, entre deux requêtes de VL vers le site d'un même gérant.",
+        "nav_refresh_cache_ttl_seconds": "Durée, en secondes, pendant laquelle une page de VL téléchargée est réutilisée au cours d'une exécution.",
+        "local_bot_schedule": "Bots que l'application exécute selon un planning en mode local. Vide : seule l'actualisation des cours et dividendes ; une liste vide n'en exécute aucun.",
+        "trading_agent": "Seuils de signal de l'agent de trading (RSI, moyennes mobiles et filtres fondamentaux).",
+        "trend_watch": "Seuils du détecteur de tendances des positions."
       },
       "themeOptions": {
         "dark": "Sombre",

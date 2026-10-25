@@ -548,3 +548,94 @@ def test_enrich_holding_ignores_usd_tagged_snapshot_price(monkeypatch):
 
     assert result["latest_source"] == "Yahoo"
     assert result["current_price_gbp"] == pytest.approx(118.5)
+
+
+# ── price_status: why a holding has no GBP price (#10318) ──
+
+
+def _unpriced_usd_holding(monkeypatch, frame):
+    """Enrich a USD holding with no usable GBP price, the status window reading ``frame``."""
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: "USD")
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(holding_utils, "_holding_fx_rate_source", lambda *_: "live")
+    monkeypatch.setattr(holding_utils, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+    monkeypatch.setattr(holding_utils, "_get_dated_price_for_date_scaled", lambda *a, **k: (None, None, None))
+    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (None, None))
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: frame)
+    holding = {"ticker": "AAPL.N", "units": 10, "cost_basis_gbp": 0.0, "acquired_date": "2025-01-01"}
+    return holding_utils.enrich_holding(holding, dt.date(2026, 9, 26), price_cache={})
+
+
+def test_enrich_holding_flags_close_never_converted_to_gbp(monkeypatch):
+    frame = pd.DataFrame({"Date": [dt.date(2026, 9, 25)], "Close": [150.0]})
+    result = _unpriced_usd_holding(monkeypatch, frame)
+    assert result["current_price_gbp"] is None
+    assert result["price_status"] == "unconverted"
+
+
+@pytest.mark.parametrize(
+    "frame",
+    [
+        pd.DataFrame(),
+        pd.DataFrame({"Date": [dt.date(2026, 9, 25)], "Close": [float("nan")]}),
+    ],
+    ids=["empty", "nan-close"],
+)
+def test_enrich_holding_without_any_close_is_no_data_not_unconverted(monkeypatch, frame):
+    """A USD holding with no close at all must not be reported as unconverted."""
+    result = _unpriced_usd_holding(monkeypatch, frame)
+    assert result["price_status"] == "no_data"
+
+
+def test_price_status_converted_close_is_no_data_when_unpriced(monkeypatch):
+    """A usable Close_gbp means the conversion happened; the gap lies elsewhere."""
+    frame = pd.DataFrame({"Date": [dt.date(2026, 9, 25)], "Close": [150.0], "Close_gbp": [118.5]})
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: "USD")
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: frame)
+    assert holding_utils._price_status(None, False, "AAPL", "N", dt.date(2026, 9, 25)) == "no_data"
+
+
+def test_price_status_sterling_without_price_is_no_data(monkeypatch):
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: "GBX")
+
+    def _unexpected(*_a, **_k):
+        raise AssertionError("a sterling native close is already GBP; no window read needed")
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", _unexpected)
+    assert holding_utils._price_status(None, False, "VOD", "L", dt.date(2026, 9, 25)) == "no_data"
+
+
+def test_price_status_priced_and_fx_missing(monkeypatch):
+    assert holding_utils._price_status(118.5, False, "AAPL", "N", dt.date(2026, 9, 25)) == "priced"
+    assert holding_utils._price_status(None, True, "AAPL", "N", dt.date(2026, 9, 25)) == "unconverted"
+
+
+def test_enrich_holding_unpriced_by_missing_fx_rate_is_unconverted(monkeypatch):
+    """A price found but dropped for want of an FX rate (#9664) is unconverted."""
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "JPY"})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(holding_utils, "_holding_fx_rate_source", lambda *_: holding_utils.FX_RATE_SOURCE_MISSING)
+    monkeypatch.setattr(holding_utils, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+    monkeypatch.setattr(
+        holding_utils, "_get_dated_price_for_date_scaled", lambda *a, **k: (900.0, "Yahoo", dt.date(2026, 9, 25))
+    )
+    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (890.0, "Yahoo"))
+    holding = {"ticker": "7203.T", "units": 10, "cost_basis_gbp": 0.0, "acquired_date": "2025-01-01"}
+    result = holding_utils.enrich_holding(holding, dt.date(2026, 9, 26), price_cache={})
+    assert result["current_price_gbp"] is None
+    assert result["price_status"] == "unconverted"
+
+
+def test_enrich_holding_cash_price_status(monkeypatch):
+    monkeypatch.setattr(
+        holding_utils,
+        "_cash_gbp_rate",
+        lambda ccy: (1.0, None) if ccy == "GBP" else (None, holding_utils.FX_RATE_SOURCE_MISSING),
+    )
+    unvalued = holding_utils.enrich_holding({"ticker": "CASH.JPY", "units": 1000}, dt.date(2026, 9, 26), {})
+    assert unvalued["price_status"] == "unconverted"
+    gbp = holding_utils.enrich_holding({"ticker": "CASH.GBP", "units": 1000}, dt.date(2026, 9, 26), {})
+    assert gbp["price_status"] == "priced"

@@ -360,6 +360,45 @@ def _close_column(df: pd.DataFrame, ticker: Optional[str] = None, exchange: Opti
     return native
 
 
+# Why a holding has or lacks a GBP price (#10318). "unconverted" means a close
+# exists but was never converted to GBP (no FX rate, #7722/#9664), which a
+# user can't tell apart from "no data at all" by the missing price alone.
+PRICE_STATUS_PRICED = "priced"
+PRICE_STATUS_UNCONVERTED = "unconverted"
+PRICE_STATUS_NO_DATA = "no_data"
+
+
+def _has_usable_values(df: pd.DataFrame, col: Optional[str]) -> bool:
+    if not col:
+        return False
+    values = pd.to_numeric(df[col], errors="coerce")
+    return bool((values.notna() & (values > 0)).any())
+
+
+def _has_unconverted_close(ticker: str, exchange: str, d: dt.date) -> bool:
+    """Whether the window a day-``d`` price lookup reads holds a native close
+    but no GBP-converted one -- the #7722 case ``_close_column`` refuses."""
+    start = d - dt.timedelta(days=_PRICE_WALK_BACK_DAYS)
+    df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=start, end_date=d)
+    if df is None or df.empty:
+        return False
+    nm = _lower_name_map(df)
+    if _has_usable_values(df, nm.get("close_gbp")):
+        return False
+    native = nm.get("close") or nm.get("adj close") or nm.get("adj_close")
+    return _has_usable_values(df, native)
+
+
+def _price_status(px: Optional[float], unconverted_fx: bool, ticker: str, exchange: str, d: dt.date) -> str:
+    if px is not None:
+        return PRICE_STATUS_PRICED
+    if unconverted_fx:
+        return PRICE_STATUS_UNCONVERTED
+    if not _native_close_is_gbp(ticker, exchange) and _has_unconverted_close(ticker, exchange, d):
+        return PRICE_STATUS_UNCONVERTED
+    return PRICE_STATUS_NO_DATA
+
+
 # ─────── cost basis (single source of truth) ───────
 def _derived_cost_basis_close_px(
     ticker: str,
@@ -995,6 +1034,7 @@ def enrich_holding(
         out["next_eligible_sell_date"] = None
         out["cost_basis_source"] = "cash"
         out["fx_rate_source"] = fx_rate_source
+        out["price_status"] = "priced" if gbp_rate is not None else PRICE_STATUS_UNCONVERTED
 
         return out
 
@@ -1065,6 +1105,7 @@ def enrich_holding(
         out["current_price_gbp"] = None
         out["cost_basis_source"] = "none"
         out["fx_rate_source"] = None
+        out["price_status"] = None
         return out
 
     # No transaction/lot date on record: leave it genuinely null instead of
@@ -1196,7 +1237,8 @@ def enrich_holding(
                         out["forward_30d_change_pct"] = round(change * 100, 4)
 
     out["fx_rate_source"] = _holding_fx_rate_source(out.get("currency"), ticker, exchange)
-    if out["fx_rate_source"] == FX_RATE_SOURCE_MISSING and px is not None:
+    unconverted_fx = out["fx_rate_source"] == FX_RATE_SOURCE_MISSING and px is not None
+    if unconverted_fx:
         # The GBP price can only have come from an unconverted native close
         # (#7722): treat the holding as unpriced rather than value it at an
         # FX rate nobody has (#9664).
@@ -1214,6 +1256,7 @@ def enrich_holding(
     out["last_price_date"] = last_price_date.isoformat() if last_price_date else None
     out["last_price_time"] = last_price_time
     out["is_stale"] = is_stale
+    out["price_status"] = _price_status(px, unconverted_fx, ticker, exchange, calc.reporting_date)
 
     helper = get_effective_cost_basis_gbp
     pass_price_hint = False

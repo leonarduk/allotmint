@@ -61,6 +61,12 @@ export interface Holding {
    * holding with no metadata currency and an unparseable symbol (treated as GBP).
    */
   fx_rate_source?: string | null;
+  /**
+   * Why the holding has or lacks a GBP price (#10318): "priced", "unconverted"
+   * (a close exists but was never converted to GBP) or "no_data"; null for a
+   * holding with no units.
+   */
+  price_status?: string | null;
   day_change_gbp?: number | null;
   day_change_currency?: string | null;
   /** Price change on current units over trailing 7/30/365 days (#10746). */

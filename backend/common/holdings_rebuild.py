@@ -245,7 +245,14 @@ class Disposal:
 
 @dataclass
 class Replay:
-    """Result of replaying a transactions list."""
+    """Result of replaying a transactions list.
+
+    ``cash`` is in major units (pounds), like ``CASH.GBP`` holdings' ``units``.
+    ``cash_seen`` is true once any cash-moving row was replayed -- a
+    ``CASH.GBP`` trade, a ticker-less ``amount_minor`` cash flow, or (under
+    ``trade_cash_effects``) a settled trade or charge -- even when they net to
+    zero; the rebuild and the reconciler then own ``CASH.GBP``.
+    """
 
     positions: dict[str, Position]
     cash: float = 0.0

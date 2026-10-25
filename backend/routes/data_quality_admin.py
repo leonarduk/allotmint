@@ -9,7 +9,10 @@ plus preview/fix/batch/dedupe/audit/undo write actions.  Every fix:
     holding changes (never direct JSON file mutation).
 
 Read endpoints (``GET /issues``, ``GET /issues/{id}/preview``, ``GET /audit``)
-never fetch live data and never mutate state.
+never fetch live data and never mutate state.  They only return holding-level
+issues and audit entries whose ``entity.owner`` the caller may access (same
+``ensure_owner_access`` rule as the write paths); series-only entries carry no
+owner and stay visible to everyone (#10557).
 """
 
 from __future__ import annotations
@@ -21,7 +24,7 @@ import os
 import re
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -31,7 +34,7 @@ import backend.data_quality.issues as dq_issues
 from backend.common.accounts_store import LocalAccountsStore
 from backend.common.admin_cache_state import DATA_QUALITY_SERIES, WARMING_HEADER, is_step_warming
 from backend.common.authz import ensure_owner_access
-from backend.common.errors import AppError
+from backend.common.errors import AppError, PermissionDeniedError
 from backend.common.instruments import resolve_instrument_ticker
 from backend.config import config
 from backend.data_quality.audit import append_audit, find_audit_entry, read_audit
@@ -94,8 +97,35 @@ class BatchFixRequest(BaseModel):
     issue_ids: list[str] = Field(min_length=1)
 
 
-def _issue_list(request: Request, *, cached_only: bool = False, **filters: Any) -> list[dict[str, Any]]:
-    """Return the aggregated issue list as plain dicts.
+def _owner_visibility(user: str | None, accounts_root: Path) -> Callable[[Any], bool]:
+    """Return a predicate saying whether ``user`` may see an entity's owner.
+
+    Reuses ``ensure_owner_access`` -- the same check the fix/undo write paths
+    apply -- so a demo request sees only ``config.demo_link_owner`` and an
+    authenticated user sees only owners they own or view (#10557).  Entities
+    with no owner (series-only issues, cache audit entries) are visible to
+    everyone.  Decisions are memoised per owner for the request so a long
+    list does one person-meta lookup per owner, not per issue.
+    """
+    decisions: dict[str, bool] = {}
+
+    def can_see(entity: Any) -> bool:
+        owner = str(entity.get("owner") or "") if isinstance(entity, dict) else ""
+        if not owner:
+            return True
+        if owner not in decisions:
+            try:
+                ensure_owner_access(user, owner, accounts_root)
+                decisions[owner] = True
+            except PermissionDeniedError:
+                decisions[owner] = False
+        return decisions[owner]
+
+    return can_see
+
+
+def _visible_issues(request: Request, user: str | None, *, cached_only: bool = False) -> list[DataQualityIssue]:
+    """Aggregate issues and drop those whose owner ``user`` may not access.
 
     Scans the request-scoped accounts root (``resolve_accounts_root``) rather
     than the process-wide ``config.accounts_root``, so a multi-tenant/
@@ -103,9 +133,17 @@ def _issue_list(request: Request, *, cached_only: bool = False, **filters: Any) 
     in this file already use (#6763). ``cached_only`` limits the series checks
     to cached results (see :func:`aggregate_series_issues`).
     """
-    issues = aggregate_issues(resolve_accounts_root(request), cached_only=cached_only)
+    accounts_root = resolve_accounts_root(request)
+    can_see = _owner_visibility(user, accounts_root)
+    return [issue for issue in aggregate_issues(accounts_root, cached_only=cached_only) if can_see(issue.entity)]
+
+
+def _issue_list(
+    request: Request, user: str | None, *, cached_only: bool = False, **filters: Any
+) -> list[dict[str, Any]]:
+    """Return the caller-visible aggregated issue list as plain dicts."""
     result = []
-    for issue in issues:
+    for issue in _visible_issues(request, user, cached_only=cached_only):
         item = issue.to_dict()
         if _matches_filters(item, filters):
             result.append(item)
@@ -1021,20 +1059,33 @@ def list_issues(
     account: str | None = Query(None, description="Filter by holding account"),
     ticker: str | None = Query(None, description="Filter by ticker (series) or holding ticker"),
     partial: bool = Query(False, description="While the startup warm-up runs, include only cached series checks"),
+    user: str | None = Depends(get_active_user),
 ) -> dict[str, Any]:
     cached_only = partial and is_step_warming(DATA_QUALITY_SERIES)
     if cached_only:
         response.headers[WARMING_HEADER] = "true"
     issues = _issue_list(
-        request, cached_only=cached_only, type=type, severity=severity, owner=owner, account=account, ticker=ticker
+        request,
+        user,
+        cached_only=cached_only,
+        type=type,
+        severity=severity,
+        owner=owner,
+        account=account,
+        ticker=ticker,
     )
     return {"count": len(issues), "issues": issues}
 
 
 @router.get("/issues/{issue_id}/preview")
-def preview_issue(issue_id: str, request: Request) -> dict[str, Any]:
-    issues = aggregate_issues(resolve_accounts_root(request))
-    issue = find_issue(issues, issue_id)
+def preview_issue(
+    issue_id: str,
+    request: Request,
+    user: str | None = Depends(get_active_user),
+) -> dict[str, Any]:
+    # Another owner's issue 404s like an unknown id rather than 403ing, so
+    # the response does not confirm which owners/holdings exist (#10557).
+    issue = find_issue(_visible_issues(request, user), issue_id)
     if issue is None:
         raise HTTPException(status_code=404, detail=f"Unknown issue id: {issue_id}")
     return {
@@ -1128,8 +1179,16 @@ def dedupe_series(
 
 
 @router.get("/audit")
-def list_audit(limit: int | None = Query(None, ge=1, le=1000)) -> dict[str, Any]:
-    entries = read_audit(limit=limit)
+def list_audit(
+    request: Request,
+    limit: int | None = Query(None, ge=1, le=1000),
+    user: str | None = Depends(get_active_user),
+) -> dict[str, Any]:
+    # Filter before applying ``limit`` so hidden entries don't eat into it.
+    can_see = _owner_visibility(user, resolve_accounts_root(request))
+    entries = [entry for entry in read_audit() if can_see(entry.get("entity"))]
+    if limit is not None:
+        entries = entries[:limit]
     return {"count": len(entries), "entries": entries}
 
 

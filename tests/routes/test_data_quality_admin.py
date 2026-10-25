@@ -745,8 +745,10 @@ def test_fix_wrong_exchange_rejects_cross_owner(monkeypatch, tmp_path):
     client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
 
     issues = client.get("/data-quality/issues").json()["issues"]
-    other_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "other")
     demo_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "demo")
+    # The other owner's issue is hidden from the listing (#10557); address it
+    # by its deterministic id to exercise the write-path gate directly.
+    other_issue = {"id": "WRONG_EXCHANGE:other:isa:MICC.L"}
 
     resp = client.post(f"/data-quality/issues/{other_issue['id']}/fix")
     assert resp.status_code == 403
@@ -783,8 +785,10 @@ def test_batch_fix_rejects_cross_owner(monkeypatch, tmp_path):
     client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
 
     issues = client.get("/data-quality/issues").json()["issues"]
-    other_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "other")
     demo_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "demo")
+    # The other owner's issue is hidden from the listing (#10557); address it
+    # by its deterministic id to exercise the write-path gate directly.
+    other_issue = {"id": "WRONG_EXCHANGE:other:isa:MICC.L"}
 
     resp = client.post("/data-quality/fixes", json={"issue_ids": [other_issue["id"], demo_issue["id"]]})
     assert resp.status_code == 200
@@ -795,6 +799,95 @@ def test_batch_fix_rejects_cross_owner(monkeypatch, tmp_path):
     assert other_result["status"] == "error"
     other_doc = json.loads((tmp_path / "accounts" / "other" / "isa.json").read_text(encoding="utf-8"))
     assert other_doc["holdings"] == [{"ticker": "MICC.L"}]  # untouched
+
+
+def test_issue_listing_hides_other_owners_holdings(monkeypatch, tmp_path):
+    """User A must not see user B's holding issues, list or preview (#10557)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    owners = {i["entity"].get("owner") for i in issues}
+    assert "demo" in owners
+    assert "other" not in owners
+    assert client.get("/data-quality/issues", params={"owner": "other"}).json()["count"] == 0
+
+    assert client.get("/data-quality/issues/WRONG_EXCHANGE:demo:isa:MICC.L/preview").status_code == 200
+    assert client.get("/data-quality/issues/WRONG_EXCHANGE:other:isa:MICC.L/preview").status_code == 404
+
+
+def test_issue_listing_keeps_series_issues_without_owner(monkeypatch, tmp_path):
+    """Series-only issues carry no owner and stay visible to everyone (#10557)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="nobody")
+
+    import backend.routes.data_quality_admin as admin_module
+    from backend.data_quality.issues import DataQualityIssue, IssueType
+
+    series_issue = DataQualityIssue(
+        id="GAPS:ABC.L",
+        type=IssueType.GAPS,
+        severity="low",
+        entity={"ticker": "ABC", "exchange": "L"},
+        description="gaps",
+        suggested_fix="refetch",
+        preview={},
+    )
+    real_aggregate = admin_module.aggregate_issues
+    monkeypatch.setattr(
+        admin_module,
+        "aggregate_issues",
+        lambda root, cached_only=False: [*real_aggregate(root, cached_only=cached_only), series_issue],
+    )
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    assert [i["id"] for i in issues] == ["GAPS:ABC.L"]
+
+
+def test_audit_listing_hides_other_owners_entries(monkeypatch, tmp_path):
+    """``GET /audit`` filters by entity owner; ownerless entries stay (#10557)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    import backend.data_quality.audit as audit_module
+
+    for owner in ("demo", "other"):
+        audit_module.append_audit(
+            action="wrong_exchange",
+            issue_id=f"WRONG_EXCHANGE:{owner}:isa:MICC.L",
+            entity={"owner": owner, "account": "isa"},
+            before={},
+            after={},
+            extra={"kind": "wrong_exchange"},
+        )
+    audit_module.append_audit(
+        action="dedupe",
+        issue_id="DUPLICATES:ABC.L",
+        entity={"ticker": "ABC", "exchange": "L"},
+        before={},
+        after={},
+        extra={"kind": "dedupe"},
+    )
+
+    entries = client.get("/data-quality/audit").json()["entries"]
+    assert sorted(e["issue_id"] for e in entries) == ["DUPLICATES:ABC.L", "WRONG_EXCHANGE:demo:isa:MICC.L"]
+    assert client.get("/data-quality/audit", params={"limit": 2}).json()["count"] == 2
+
+
+def test_demo_token_sees_only_demo_owner_issues(monkeypatch, tmp_path):
+    """A demo-link token sees only ``demo_link_owner``'s issues, even with
+    ``disable_auth`` on, as on the deployed Lambda (#10557)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="nobody")
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "demo_link_enabled", True)
+    monkeypatch.setattr(config, "demo_link_owner", "demo")
+
+    from backend import auth
+
+    token = auth.create_demo_access_token("demo")
+    client.headers.update({"Authorization": f"Bearer {token}"})
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    owners = {i["entity"].get("owner") for i in issues}
+    assert owners == {"demo"}
+    assert client.get("/data-quality/issues/WRONG_EXCHANGE:other:isa:MICC.L/preview").status_code == 404
 
 
 def test_dedupe_series_not_owner_scoped_by_design(monkeypatch, tmp_path):

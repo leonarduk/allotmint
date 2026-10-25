@@ -638,6 +638,20 @@ def test_rolling_cache_ignores_float_noise_and_source_only_changes(cache_store):
     assert result["Source"].tolist() == ["SRC"]
 
 
+def test_rolling_cache_correction_with_new_source_updates_provenance(cache_store):
+    """A value correction replaces the whole cached row, so the stored Source flips too (#8005)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    _run(cache, cache_path, _day_frame(cache, day, 10.01, source="Stooq"))
+
+    assert len(saves) == 1
+    stored = cache._load_parquet(cache_path)
+    assert list(stored["Date"].dt.date) == [day]
+    assert stored["Close"].tolist() == [10.01]
+    assert stored["Source"].tolist() == ["Stooq"]
+
+
 def test_rolling_cache_fetched_row_without_close_does_not_overwrite(cache_store):
     cache, cache_path, saves = cache_store
     day = _seed_close_10(cache, cache_path, saves)

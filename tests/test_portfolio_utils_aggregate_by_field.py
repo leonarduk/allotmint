@@ -131,6 +131,31 @@ def test_weight_pct_is_none_when_portfolio_has_no_market_value():
     assert [row["weight_pct"] for row in rows] == [None]
 
 
+def test_weight_pct_is_zero_for_zero_value_group_in_mixed_portfolio():
+    """A zero-value group in a portfolio with positive total market value gets
+    weight 0.0 (not None); only an all-zero portfolio yields None (#7661)."""
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "AAA", "sector": "Tech", "market_value_gbp": 300, "cost_gbp": 200, "gain_gbp": 100},
+                    {"ticker": "BBB", "sector": "Finance", "market_value_gbp": 100, "cost_gbp": 80, "gain_gbp": 20},
+                    {"ticker": "CCC", "sector": "Energy", "market_value_gbp": 0, "cost_gbp": 50, "gain_gbp": -50},
+                ]
+            }
+        ]
+    }
+
+    sectors = {row["sector"]: row for row in portfolio_utils.aggregate_by_sector(portfolio)}
+
+    assert sum(row["market_value_gbp"] for row in sectors.values()) == pytest.approx(400)
+    assert sectors["Tech"]["weight_pct"] == pytest.approx(75.0)
+    assert sectors["Finance"]["weight_pct"] == pytest.approx(25.0)
+    assert sectors["Energy"]["weight_pct"] is not None
+    assert sectors["Energy"]["weight_pct"] == pytest.approx(0.0)
+    assert sum(row["weight_pct"] for row in sectors.values()) == pytest.approx(100.0)
+
+
 def test_aggregate_by_region_merges_uk_aliases():
     portfolio = {
         "accounts": [

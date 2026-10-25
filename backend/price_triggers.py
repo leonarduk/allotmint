@@ -104,6 +104,9 @@ def _clean_mode(value: Any) -> str:
 
 
 def _clean_price(value: Any) -> float:
+    # float(True) is 1.0: a boolean is never a price (#8426).
+    if isinstance(value, bool):
+        raise TriggerError("price must be a number")
     try:
         price = float(value)
     except (TypeError, ValueError) as exc:

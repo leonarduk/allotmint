@@ -45,6 +45,7 @@ def test_create_list_update_delete():
         {"ticker": "X", "condition": "above", "price": 0},
         {"ticker": "X", "condition": "above", "price": "nan"},
         {"ticker": "X", "condition": "above", "price": "abc"},
+        {"ticker": "X", "condition": "above", "price": True},
         {"ticker": "X", "condition": "above", "price": 1, "mode": "sometimes"},
     ],
 )
@@ -205,3 +206,14 @@ def test_routes_validation_and_ownership(client):
     )
     assert client.get("/price-triggers/bob").status_code == 403
     assert client.patch("/price-triggers/alice/nope", json={"price": 1}).status_code == 404
+
+
+def test_routes_reject_a_boolean_price(client):
+    """A JSON ``true`` must not become a trigger at £1.00 (#8426)."""
+    r = client.post("/price-triggers/alice", json={"ticker": "X", "condition": "above", "price": True})
+    assert r.status_code == 422
+    r = client.post("/price-triggers/alice", json={"ticker": "X", "condition": "above", "price": 1})
+    assert (r.status_code, r.json()["price"]) == (201, 1.0)
+    tid = r.json()["id"]
+    assert client.patch(f"/price-triggers/alice/{tid}", json={"price": False}).status_code == 422
+    assert client.patch(f"/price-triggers/alice/{tid}", json={"price": 1.5}).json()["price"] == 1.5

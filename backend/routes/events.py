@@ -113,8 +113,8 @@ def _without_malformed_entries(raw: Any) -> Any:
             kept.append(entry)
         else:
             logger.warning(
-                "Skipping malformed scenario event #%d (needs %s)",
-                index,
+                "Skipping malformed scenario event #%s (needs %s)",
+                sanitise_log_value(index),
                 sanitise_log_value(" and ".join(required)),
             )
     return {**raw, "events": kept} if market_layout else kept

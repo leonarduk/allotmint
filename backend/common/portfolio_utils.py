@@ -25,6 +25,13 @@ import pandas as pd
 from backend.common import group_portfolio, ledger_performance, portfolio_cache
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
+from backend.common.cash_tickers import (
+    CASH_SYMBOL,
+    cash_price_key,
+    cash_ticker_currency,
+    is_cash_listing,
+    is_cash_ticker,
+)
 from backend.common.constants import PRICE_CHANGE_WINDOWS
 from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
@@ -1298,11 +1305,7 @@ UNKNOWN_CURRENCY_LABEL = "Unknown"
 
 def _cash_currency(ticker: str) -> str | None:
     """``USD`` for ``CASH.USD`` or legacy ``USD.CASH`` tickers, else None."""
-    parts = ticker.strip().upper().split(".")
-    if len(parts) != 2:
-        return None
-    code = parts[1] if parts[0] == "CASH" else parts[0] if parts[1] == "CASH" else None
-    return code if code and len(code) == 3 and code.isalpha() else None
+    return cash_ticker_currency(ticker)
 
 
 def _quote_currency_key(row: dict) -> str:
@@ -1479,7 +1482,7 @@ def compute_owner_performance(
             tkr = (h.get("ticker") or "").upper()
             if not tkr:
                 continue
-            if not include_cash and tkr.split(".")[0] == "CASH":
+            if not include_cash and is_cash_ticker(tkr):
                 continue
             units = _safe_num(h.get("units"))
             if not units:
@@ -1493,6 +1496,7 @@ def compute_owner_performance(
                 if not h.get("exchange"):
                     logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
             exch = (h.get("exchange") or inferred or "L").upper()
+            sym, exch = cash_price_key(tkr, sym, exch)
             full = f"{sym}.{exch}".upper()
             if not include_flagged and full in flagged:
                 logger.debug("Skipping flagged instrument %s", sanitise_log_value(full))
@@ -1642,6 +1646,7 @@ def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:
                 if not h.get("exchange"):
                     logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
             exch = (h.get("exchange") or inferred or "L").upper()
+            sym, exch = cash_price_key(tkr, sym, exch)
             key = f"{sym}.{exch}"
             row = holdings.setdefault(
                 key,
@@ -1687,6 +1692,7 @@ def _series_holdings(name: str, *, group: bool, reporting_date: date) -> List[tu
                 if not h.get("exchange"):
                     logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
             exch = (h.get("exchange") or inferred or "L").upper()
+            sym, exch = cash_price_key(tkr, sym, exch)
             full = f"{sym}.{exch}".upper()
             if full in flagged:
                 logger.debug("Skipping flagged instrument %s", sanitise_log_value(full))
@@ -1758,10 +1764,8 @@ def _holding_currency(ticker: str, exchange: str) -> CurrencyNormaliser:
     missing from ``EXCHANGE_TO_CCY``) counts as GBP there, and so here, so this
     series and ``ledger_performance.load_gbp_closes`` value it the same way.
     """
-    if ticker.upper() == "CASH":
-        return CurrencyNormaliser.from_raw(exchange)
-    if exchange.upper() == "CASH":
-        return CurrencyNormaliser.from_raw(ticker)
+    if is_cash_listing(ticker, exchange):
+        return CurrencyNormaliser.from_raw(exchange if ticker.upper() == CASH_SYMBOL else ticker)
     return CurrencyNormaliser.from_raw(instrument_currency(ticker, exchange))
 
 
@@ -2050,7 +2054,7 @@ def _portfolio_value_series(
 
 def _is_cash_holding(ticker: str, exchange: str) -> bool:
     """True for a ``CASH.<ccy>`` (or legacy ``<ccy>.CASH``) holding."""
-    return ticker.upper() == "CASH" or exchange.upper() == "CASH"
+    return is_cash_listing(ticker, exchange)
 
 
 def _portfolio_return_basis(
@@ -2952,7 +2956,7 @@ def _cash_value_series(owner: str, days: int = 365) -> pd.Series:
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
             tkr = (h.get("ticker") or "").upper()
-            if not tkr.startswith("CASH"):
+            if not is_cash_ticker(tkr):
                 continue
             units = _safe_num(h.get("units"))
             if not units:
@@ -2963,6 +2967,7 @@ def _cash_value_series(owner: str, days: int = 365) -> pd.Series:
             else:
                 sym, inferred = (tkr.split(".", 1) + [None])[:2]
             exch = (h.get("exchange") or inferred or "GBP").upper()
+            sym, exch = cash_price_key(tkr, sym, exch)
             holdings.append((sym, exch, units))
 
     total = pd.Series(dtype=float)

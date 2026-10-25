@@ -158,8 +158,8 @@ def test_cash_value_series_sums_cash_holdings(monkeypatch):
         instrument_api,
         "_resolve_full_ticker",
         lambda ticker, snapshot: {
-            "CASH.GBP": ("CASH_GBP", None),
-            "CASH.USD": ("CASH_USD", None),
+            "CASH.GBP": ("CASH", None),
+            "CASH.USD": ("CASH", None),
         }.get(ticker),
     )
 
@@ -167,8 +167,8 @@ def test_cash_value_series_sums_cash_holdings(monkeypatch):
 
     def fake_load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         data_map = {
-            ("CASH_GBP", "GBP"): _make_df([("2024-03-01", 1.0), ("2024-03-02", 1.01)]),
-            ("CASH_USD", "USD"): _make_df([("2024-03-01", 1.2), ("2024-03-02", 1.25)]),
+            ("CASH", "GBP"): _make_df([("2024-03-01", 1.0), ("2024-03-02", 1.01)]),
+            ("CASH", "USD"): _make_df([("2024-03-01", 1.2), ("2024-03-02", 1.25)]),
         }
         return data_map.get((ticker, exchange), pd.DataFrame())
 

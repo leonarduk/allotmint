@@ -12,6 +12,7 @@ import pandas as pd
 
 from backend.common import refresh_progress
 from backend.common.approvals import is_approval_valid, needs_sell_approval
+from backend.common.cash_tickers import cash_price_key, cash_ticker_currency, is_cash_listing
 from backend.common.constants import (
     ACQUIRED_DATE,
     COST_BASIS_GBP,
@@ -472,7 +473,7 @@ def _load_unscaled_price_for_date_impl(
     ``CASH`` ticker has no backing parquet to hit ``load_meta_timeseries_range``
     for (#8232 review round 4).
     """
-    if "CASH" in ticker.upper().split("."):
+    if is_cash_listing(ticker, exchange):
         return 1.0, None, False, d
 
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
@@ -620,8 +621,7 @@ def _get_dated_price_for_date_scaled(
 ) -> tuple[Optional[float], Optional[str], Optional[dt.date]]:
     """Like :func:`_get_price_for_date_scaled`, plus the date of the row used
     (which may be earlier than ``d`` -- see ``_load_unscaled_price_for_date_impl``)."""
-    parts = ticker.upper().split(".")
-    if "CASH" in parts:
+    if is_cash_listing(ticker, exchange):
         # Also duplicated in _load_unscaled_price_for_date_impl for direct
         # callers -- load-bearing here too: removing it would route CASH
         # through _load_unscaled_price_for_date_cache_only and memoize it
@@ -784,6 +784,7 @@ def get_effective_cost_basis_gbp(
     else:
         exchange = "L"
         logger.debug("Could not resolve exchange for %s; defaulting to L", full)
+    ticker, exchange = cash_price_key(full, ticker, exchange)
 
     scale = get_scaling_override(ticker, exchange, None)
     booked_raw = h.get(COST_BASIS_GBP)
@@ -1370,12 +1371,11 @@ def _is_cash(full: str, account_ccy: str = "GBP") -> bool:
 
 
 def _cash_ticker_ccy(full: str) -> Optional[str]:
-    """Currency encoded in a ``CASH.<CCY>``/``<CCY>.CASH`` ticker, else ``None``."""
-    parts = (full or "").upper().split(".")
-    if len(parts) != 2 or "CASH" not in parts:
-        return None
-    ccy = parts[1] if parts[0] == "CASH" else parts[0]
-    return ccy if ccy and ccy != "CASH" else None
+    """Currency encoded in a ``CASH.<CCY>``/``<CCY>.CASH`` ticker, else ``None``.
+
+    ``CASH.N`` (Pathward Financial) yields ``None``, not ``"N"`` (#10538).
+    """
+    return cash_ticker_currency(full)
 
 
 def _cash_name(full: str, account_ccy: str = "GBP") -> str:

@@ -28,6 +28,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 import pandas as pd
 
+from backend.common.cash_tickers import is_cash_ticker
 from backend.common.holdings_rebuild import _QUANTITY_FIELDS
 from backend.common.ticker_utils import canonical_ticker, split_ticker
 from backend.logging_setup import sanitise_log_value
@@ -110,7 +111,7 @@ def restate_for_splits(
     for tx in transactions:
         ticker = canonical_ticker(str(tx.get("ticker") or ""))
         day = pd.to_datetime(str(tx.get("date") or "")[:10], errors="coerce")
-        if not ticker or ticker.startswith("CASH") or pd.isna(day):
+        if not ticker or is_cash_ticker(ticker) or pd.isna(day):
             out.append(tx)
             continue
         factor = split_factor_after(lookup(ticker), pd.Timestamp(day))

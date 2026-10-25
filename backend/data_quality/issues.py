@@ -24,6 +24,7 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 
 import pandas as pd
 
+from backend.common.cash_tickers import is_cash_ticker
 from backend.common.file_signature import FileSignature, file_signature
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, enrich_holding
 from backend.common.instrument_classification import ASSET_CLASSES, normalise_asset_class
@@ -187,10 +188,10 @@ def _validate_symbol(value: str, *, kind: str) -> str:
 
 def _parse_holding_ticker(ticker: str) -> tuple[str, str] | None:
     """Split ``SYM.EX`` into (symbol, exchange); None for CASH or malformed."""
+    if is_cash_ticker(ticker):
+        return None
     symbol, sep, exchange = ticker.upper().partition(".")
     if not sep or not symbol or not exchange:
-        return None
-    if symbol == "CASH":
         return None
     try:
         return _validate_symbol(symbol, kind="ticker"), _validate_symbol(exchange, kind="exchange")

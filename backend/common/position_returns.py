@@ -35,6 +35,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
+from backend.common.cash_tickers import is_cash_ticker
 from backend.common.estimated_income import DividendLoader, UnitChanges, estimated_income_gbp, unit_changes
 from backend.common.holdings_rebuild import (
     CASH_TICKER,
@@ -230,7 +231,7 @@ def attach_total_returns(
         if not isinstance(h, dict):
             continue
         ticker = str(h.get("ticker") or "").strip().upper()
-        if ticker.split(".", 1)[0] == "CASH":
+        if is_cash_ticker(ticker):
             continue
         # A position with no ticker can't be matched to a pool: unknown, not cash.
         if not ticker or returns is None:

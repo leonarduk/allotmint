@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 from backend.common.approvals import load_approvals
 from backend.common.authz import identity_can_access_owner
+from backend.common.cash_tickers import is_cash_ticker
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     PLOTS_PREFIX,
@@ -146,7 +147,7 @@ def _cost_pool_matches(
     matches: List[tuple[Dict[str, Any], str, Optional[str]]] = []
     for h in needy:
         ticker = str(h.get("ticker") or "").strip().upper()
-        if not ticker or _strip_suffix(ticker) == "CASH":  # cash has no transaction pool
+        if not ticker or is_cash_ticker(ticker):  # cash has no transaction pool
             continue
         key = _match_hint_key(ticker, hint_keys, held_bases)
         if key in booked_keys and key not in (ticker, canonical_ticker(ticker)):

@@ -366,6 +366,55 @@ describe('Plot mode hub', () => {
     expect(stage).toHaveTextContent('down 9.5%');
   });
 
+  it('flags a crop whose price the backend marks stale, even when it is up (#8314)', async () => {
+    const staleUp: Portfolio = {
+      owner: 'steve',
+      as_of: '2026-08-24',
+      trades_this_month: 2,
+      trades_remaining: 8,
+      total_value_estimate_gbp: 10_000,
+      accounts: [
+        {
+          account_type: 'stocks-isa',
+          currency: 'GBP',
+          owner: 'steve',
+          value_estimate_gbp: 10_000,
+          holdings: [
+            {
+              ticker: 'GOOD.L',
+              name: 'Good Plc',
+              units: 10,
+              market_value_gbp: 5_000,
+              gain_pct: 30,
+              sell_eligible: true,
+              is_stale: false,
+            },
+            {
+              // Up and sellable: only the stale flag from the payload can
+              // put it on the stage, so this pins is_stale -> Crop.freshness.
+              ticker: 'OLD.L',
+              name: 'Old Price Plc',
+              units: 10,
+              market_value_gbp: 5_000,
+              gain_pct: 3,
+              sell_eligible: true,
+              is_stale: true,
+            },
+          ],
+        },
+      ],
+    };
+    mocks.getPortfolio.mockResolvedValue(staleUp);
+
+    renderPlot();
+
+    const stage = await screen.findByRole('region', { name: 'Featured crops' });
+    expect(stage).toHaveTextContent('OLD.L');
+    expect(stage).toHaveTextContent('Needs attention');
+    expect(stage).toHaveTextContent('price is stale');
+    expect(stage).not.toHaveTextContent('Nothing needs attention');
+  });
+
   it('shows resource meters backed by trades, allowances and price freshness', async () => {
     renderPlot();
 

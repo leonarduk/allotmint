@@ -303,6 +303,7 @@ describe("ChatPanel", () => {
   });
 
   it.each([
+    [400, /couldn't process that conversation/i],
     [503, /isn't available/i],
     [502, /couldn't reach its AI service/i],
     [429, /too quickly/i],

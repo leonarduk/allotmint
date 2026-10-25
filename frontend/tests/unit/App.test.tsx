@@ -1448,7 +1448,7 @@ describe("App", () => {
     expect(mockGetPortfolio).not.toHaveBeenCalled();
   });
 
-  it("redirects /performance to the first owner when multiple owners are available", async () => {
+  it("redirects /performance to the first owner when there are no groups (#7214)", async () => {
     window.history.pushState({}, "", "/performance");
 
     const mockGetOwners = vi.fn().mockResolvedValue([
@@ -1690,7 +1690,7 @@ describe("App", () => {
     expect(mockGetPortfolio).not.toHaveBeenCalled();
   });
 
-  it("redirects once owners load asynchronously on /performance root", async () => {
+  it("redirects once owners load asynchronously on /performance root when there are no groups", async () => {
     window.history.pushState({}, "", "/performance");
     const locationUpdates: string[] = [];
 
@@ -1949,6 +1949,161 @@ describe("App", () => {
       true,
     );
     expect(locationUpdates).toContain("/performance?group=all");
+  });
+
+  it("redirects a bare /performance to the household group view when groups exist (#7214)", async () => {
+    window.history.pushState({}, "", "/performance");
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(`${location.pathname}${location.search}`);
+      }, [location.pathname, location.search]);
+      return null;
+    }
+
+    vi.doMock("@/components/PerformanceDashboard", () => ({
+      __esModule: true,
+      default: ({ owner, group }: { owner: string | null; group: string | null }) => (
+        <div data-testid="performance-dashboard">{`owner:${owner ?? ""}|group:${group ?? ""}`}</div>
+      ),
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([
+          { owner: "alice", accounts: [] },
+          { owner: "bob", accounts: [] },
+        ]),
+        getGroups: vi.fn().mockResolvedValue([
+          { slug: "all", name: "At a glance", members: ["alice", "bob"] },
+          { slug: "adults", name: "Adults", members: ["bob"] },
+        ]),
+        getPortfolio: vi.fn(),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
+
+    render(
+      <MemoryRouter initialEntries={["/performance"]}>
+        <LocationListener />
+        <configContext.Provider value={makeConfigValue()}>
+          <App />
+        </configContext.Provider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(locationUpdates).toContain("/performance?group=all"));
+    await waitFor(() =>
+      expect(screen.getByTestId("performance-dashboard")).toHaveTextContent(
+        "owner:|group:all",
+      ),
+    );
+    expect(locationUpdates.at(-1)).toBe("/performance?group=all");
+    expect(locationUpdates.every((path) => !path.startsWith("/performance/"))).toBe(
+      true,
+    );
+  });
+
+  it("does not land a bare /performance on an owner when owners load before groups (#7214)", async () => {
+    window.history.pushState({}, "", "/performance");
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(`${location.pathname}${location.search}`);
+      }, [location.pathname, location.search]);
+      return null;
+    }
+
+    let resolveGroups:
+      | ((groups: Array<{ slug: string; name: string; members: string[] }>) => void)
+      | null = null;
+    const mockGetGroups = vi.fn().mockImplementation(
+      () =>
+        new Promise<Array<{ slug: string; name: string; members: string[] }>>((resolve) => {
+          resolveGroups = resolve;
+        }),
+    );
+    const mockPerformanceDashboard = vi.fn(
+      ({ owner, group }: { owner: string | null; group: string | null }) => (
+        <div data-testid="performance-dashboard">{`owner:${owner ?? ""}|group:${group ?? ""}`}</div>
+      ),
+    );
+
+    vi.doMock("@/components/PerformanceDashboard", () => ({
+      __esModule: true,
+      default: mockPerformanceDashboard,
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([{ owner: "alice", accounts: [] }]),
+        getGroups: mockGetGroups,
+        getPortfolio: vi.fn(),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
+
+    render(
+      <configContext.Provider value={makeConfigValue()}>
+        <MemoryRouter initialEntries={["/performance"]}>
+          <LocationListener />
+          <App />
+        </MemoryRouter>
+      </configContext.Provider>,
+    );
+
+    await waitFor(() => expect(mockGetGroups).toHaveBeenCalled());
+    // Owners have loaded but /groups has not: stay put, and never hand the
+    // dashboard the auto-selected owner.
+    await waitFor(() => expect(locationUpdates.at(-1)).toBe("/performance"));
+    expect(
+      mockPerformanceDashboard.mock.calls.every(([props]) => !props.owner),
+    ).toBe(true);
+
+    await act(async () => {
+      resolveGroups?.([{ slug: "all", name: "At a glance", members: ["alice"] }]);
+    });
+
+    await waitFor(() => expect(locationUpdates.at(-1)).toBe("/performance?group=all"));
+    expect(locationUpdates.every((path) => !path.startsWith("/performance/"))).toBe(
+      true,
+    );
   });
 
   it("allows navigation to enabled tabs", async () => {

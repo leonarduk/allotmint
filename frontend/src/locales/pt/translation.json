@@ -437,6 +437,7 @@
     "cumulativeReturnPortfolio": "A sua carteira",
     "cumulativeReturnBenchmark": "{{ticker}} (referência)",
     "cumulativeReturnBasis": "Ambas as linhas usam dividendos reinvestidos, as posições atuais e as mesmas datas ({{from}} a {{to}}) que o alfa vs {{ticker}}.",
+    "twrVsCumulative": "A rentabilidade ponderada no tempo acompanha as posições que realmente detinha em cada dia e elimina o efeito do momento dos depósitos e levantamentos, enquanto este gráfico mostra como as suas posições atuais teriam evoluído durante todo o período, pelo que os dois valores podem diferir bastante.",
     "benchmarkSeriesFailed": "Não foi possível carregar {{ticker}} para comparação, por isso só é mostrado o retorno acumulado da sua carteira baseado no valor.",
     "benchmarkSeriesEmpty": "Não há preços de {{ticker}} que coincidam com este período, por isso só é mostrado o retorno acumulado da sua carteira baseado no valor.",
     "trackingErrorInfoLabel": "O que significa o erro de acompanhamento?",

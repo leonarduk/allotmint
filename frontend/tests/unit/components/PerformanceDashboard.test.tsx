@@ -126,6 +126,36 @@ describe("PerformanceDashboard", () => {
     expect(diagLinks[0]).toBeInTheDocument();
   });
 
+  it("renders Open diagnostics as a secondary text link, not a primary button (#7214)", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <PerformanceDashboard owner="jane" />
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Explain this drop/i }));
+    const diagLinks = screen.getAllByRole("link", { name: /Open diagnostics/i });
+    expect(diagLinks).toHaveLength(2);
+    for (const link of diagLinks) {
+      expect(link).toHaveAttribute("href", "/performance/jane/diagnostics");
+      expect(link.style.backgroundColor).toBe("");
+      expect(link.style.padding).toBe("");
+    }
+  });
+
+  it("explains why time-weighted return and the cumulative chart differ (#7214)", async () => {
+    render(
+      <MemoryRouter>
+        <PerformanceDashboard owner="jane" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("twr-vs-cumulative")).toHaveTextContent(
+      /strips out the timing of deposits and withdrawals/,
+    );
+  });
+
   it("names the benchmark used for alpha and tracking error (#7230)", async () => {
     render(
       <MemoryRouter>

@@ -20,7 +20,8 @@ const applyAuth = (page: Page) => applyAuthToken(page, authToken);
 // Several non-Family-MVP redirects can change the URL in the preview build:
 // - getOwnerRootRedirectPath redirects bare /portfolio→/portfolio/:owner,
 //   which is then canonicalized to /?owner=:owner (→'group'), and redirects
-//   /performance→/performance/:owner when owners are available (→'performance')
+//   /performance→/performance?group=<slug> when groups are available, else
+//   /performance/:owner when owners are (→'performance' either way, #7214)
 // - FAMILY_MVP_ROUTE_GATES redirect disabled-tab paths (e.g. /trail) to /
 //   (→'group')
 // - deriveRouteFromPathname falls back to 'movers' for unrecognised segments

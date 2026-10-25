@@ -437,6 +437,7 @@
     "cumulativeReturnPortfolio": "Ihr Portfolio",
     "cumulativeReturnBenchmark": "{{ticker}} (Benchmark)",
     "cumulativeReturnBasis": "Beide Linien verwenden reinvestierte Dividenden, die aktuellen Positionen und dieselben Daten ({{from}} bis {{to}}) wie Alpha vs. {{ticker}}.",
+    "twrVsCumulative": "Die zeitgewichtete Rendite folgt den Positionen, die Sie an jedem Tag tatsächlich gehalten haben, und klammert den Zeitpunkt von Einzahlungen und Abhebungen aus, während dieses Diagramm zeigt, wie sich Ihre aktuellen Positionen über den gesamten Zeitraum entwickelt hätten. Daher können die beiden Werte stark voneinander abweichen.",
     "benchmarkSeriesFailed": "{{ticker}} konnte zum Vergleich nicht geladen werden, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
     "benchmarkSeriesEmpty": "Für diesen Zeitraum gibt es keine überlappenden {{ticker}}-Kurse, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
     "trackingErrorInfoLabel": "Was bedeutet Tracking Error?",

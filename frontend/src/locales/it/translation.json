@@ -437,6 +437,7 @@
     "cumulativeReturnPortfolio": "Il tuo portafoglio",
     "cumulativeReturnBenchmark": "{{ticker}} (benchmark)",
     "cumulativeReturnBasis": "Entrambe le linee usano dividendi reinvestiti, le posizioni attuali e le stesse date ({{from}} - {{to}}) dell'alpha vs {{ticker}}.",
+    "twrVsCumulative": "Il rendimento ponderato nel tempo segue le posizioni effettivamente detenute ogni giorno ed esclude l'effetto della tempistica di versamenti e prelievi, mentre questo grafico mostra come si sarebbero comportate le posizioni attuali nell'intero periodo, quindi i due valori possono differire molto.",
     "benchmarkSeriesFailed": "Impossibile caricare {{ticker}} per il confronto, quindi viene mostrato solo il rendimento cumulato del tuo portafoglio basato sul valore.",
     "benchmarkSeriesEmpty": "Nessun prezzo di {{ticker}} copre questo periodo, quindi viene mostrato solo il rendimento cumulato del tuo portafoglio basato sul valore.",
     "trackingErrorInfoLabel": "Cosa significa l'errore di tracciamento?",

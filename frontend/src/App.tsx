@@ -70,7 +70,10 @@ import {
 import { getFamilyMvpEntryPath } from './familyMvp';
 import { completeTrackedChore } from './choreCompletion';
 import { ensureWatchlistsLoaded } from './lib/watchlistSync';
-import { getOwnerRootRedirectPath } from './routes/ownerRootRedirect';
+import {
+  getOwnerRootRedirectPath,
+  getPerformanceRootRedirectPath,
+} from './routes/ownerRootRedirect';
 
 // Re-exported for existing importers; the helper lives in its own module.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -448,7 +451,9 @@ export default function App({ onLogout }: AppProps) {
       selectedOwner,
       owners,
       user,
-      location.search
+      location.search,
+      groupsReq.data,
+      selectedGroup
     );
     if (nextPath) {
       navigate(nextPath, { replace: true });
@@ -478,6 +483,7 @@ export default function App({ onLogout }: AppProps) {
     selectedGroup,
     owners,
     groups,
+    groupsReq.data,
     navigate,
     location.pathname,
     location.search,
@@ -593,11 +599,17 @@ export default function App({ onLogout }: AppProps) {
     // selectedOwner to '', so relying on state alone flashes "Select a
     // member" for one paint before the location-sync effect repopulates it
     // (#7228 review).
+    //
+    // A bare /performance waits for /groups instead: it is about to redirect
+    // to the group view (#7214), so loading the auto-selected owner first
+    // would only fetch metrics that are thrown away.
     const performanceOwner =
       redirectMode === 'performance' && !performanceGroupSlug
         ? redirectSegs[1]
           ? decodePathSegment(redirectSegs[1])
-          : selectedOwner
+          : groupsReq.data
+            ? selectedOwner
+            : null
         : null;
     if (
       configLoaded &&
@@ -618,21 +630,26 @@ export default function App({ onLogout }: AppProps) {
     ) {
       return <Navigate to="/" replace />;
     }
-    if (
+    const rootRedirectAllowed =
       configLoaded &&
       !getFamilyMvpRedirectPath(location.pathname, location.search, familyMvpEnabled, familyMvpEntryPath) &&
-      (redirectMode === 'owner' || redirectMode === 'performance') &&
-      !redirectSegs[1] &&
-      owners.length > 0 &&
-      // A bare /performance?group=<slug> is a deliberate group-scope landing
-      // (#7228) -- don't force it onto an owner.
-      !(redirectMode === 'performance' && redirectScope.group)
-    ) {
+      !redirectSegs[1];
+    if (rootRedirectAllowed && redirectMode === 'owner' && owners.length > 0) {
       const owner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
-      const destPath = redirectMode === 'performance'
-        ? `/performance/${encodePathSegment(owner)}`
-        : `/portfolio/${encodePathSegment(owner)}`;
-      return <Navigate to={destPath} replace />;
+      return <Navigate to={`/portfolio/${encodePathSegment(owner)}`} replace />;
+    }
+    // A bare /performance?group=<slug> is a deliberate group-scope landing
+    // (#7228) -- leave it alone. A bare /performance opens the household
+    // group view, like the Dashboard, and only falls back to an owner when
+    // there are no groups (#7214).
+    if (rootRedirectAllowed && redirectMode === 'performance' && !redirectScope.group) {
+      const destPath = getPerformanceRootRedirectPath(
+        owners,
+        groupsReq.data,
+        user,
+        selectedGroup
+      );
+      if (destPath) return <Navigate to={destPath} replace />;
     }
 
     return (

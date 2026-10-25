@@ -43,6 +43,12 @@ def _meta(name, instrument_type=None, sector=None, **extra):
         (_meta("BioPharma Credit plc ORD USD0.01", "Investment Trust", "Financials"), "bond", "Fixed Income"),
         (_meta("TwentyFour Income Fund Ltd", "Investment Trust", "Fixed Income"), "bond", None),
         (_meta("Vanguard UK Gilt UCITS ETF", None, "Government Bond", asset_class="Bond"), "bond", None),
+        # Bond-fund sector labels are kept rather than flattened to "Fixed Income" (#9265).
+        (_meta("Some Corporate Bond Fund", "MUTUALFUND", "Investment Grade"), "bond", None),
+        (_meta("Some Bond Fund", "MUTUALFUND", "High Yield"), "bond", None),
+        (_meta("Some Bond Fund", "MUTUALFUND", "Municipal"), "bond", None),
+        # "High Dividend Yield" names an equity income fund, not high-yield bonds.
+        (_meta("Vanguard FTSE All-World High Dividend Yield UCITS ETF", "ETF", "Financials"), "equity", "Multi-sector"),
         (_meta("WisdomTree Physical Gold (GBP)", "Equity", "Materials"), "commodity", "Commodities"),
         (_meta("WisdomTree Energy", "ETF", "Commodities - Energy"), "commodity", None),
         (

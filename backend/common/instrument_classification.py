@@ -125,7 +125,9 @@ _KEYWORD_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         BOND,
         re.compile(
             r"\bbonds?\b|\bgilts?\b|\btreasur(y|ies)\b|\bfixed income\b|\binflation[- ]linked\b|\bcredit\b"
-            r"|\bgovt\b|\bgovernment\b|\bcorporate\b",
+            r"|\bgovt\b|\bgovernment\b|\bcorporate\b"
+            # Bond-fund sector labels (#9265); "High Dividend Yield" equity funds do not match.
+            r"|\binvestment[- ]grade\b|\bhigh[- ]yield\b|\bmunicipals?\b",
             re.IGNORECASE,
         ),
     ),

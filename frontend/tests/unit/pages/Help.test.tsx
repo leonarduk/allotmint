@@ -134,4 +134,40 @@ describe("Help page", () => {
       screen.getByRole("link", { name: i18n.t("app.modes.market") }),
     ).toBeInTheDocument();
   });
+
+  it("hides the glossary link when /metrics-explained is not mounted (#7476)", () => {
+    // The glossary route is mounted with the advanced-analytics routes,
+    // which follow the `scenario` tab (main.tsx). Linking it here when that
+    // tab is off would send users to a dead route.
+    const config: ConfigContextValue = {
+      relativeViewEnabled: false,
+      disabledTabs: ["scenario"],
+      tabs: { scenario: false },
+      theme: "system",
+      reportingCurrency: "GBP",
+      refreshConfig: async () => {},
+      setRelativeViewEnabled: () => {},
+    };
+    render(
+      <configContext.Provider value={config}>
+        <Help />
+      </configContext.Provider>,
+      { wrapper: MemoryRouter },
+    );
+
+    expect(
+      screen.queryByRole("link", {
+        name: i18n.t("help.glossaryLink", "Open the metrics glossary"),
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(i18n.t("help.glossaryTitle", "Metrics glossary")),
+    ).not.toBeInTheDocument();
+    // The rest of the page is unaffected.
+    expect(
+      screen.getByRole("link", {
+        name: i18n.t("help.reportLink", "Open a GitHub issue"),
+      }),
+    ).toBeInTheDocument();
+  });
 });

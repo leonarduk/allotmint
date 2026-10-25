@@ -182,9 +182,10 @@ def ticker_from_path(path: Path) -> tuple[str, str]:
 
 def fetch_raw(symbol: str, exchange: str, start: pd.Timestamp, end: pd.Timestamp) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Yahoo traded prices and actions for the stored range (no request-path side effects)."""
-    from backend.timeseries.fetch_yahoo_timeseries import _build_full_ticker, fetch_yahoo_history
+    from backend.common.yahoo_symbols import yahoo_symbol_for
+    from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_history
 
-    return fetch_yahoo_history(_build_full_ticker(symbol, exchange), start.date(), end.date())
+    return fetch_yahoo_history(yahoo_symbol_for(symbol, exchange), start.date(), end.date())
 
 
 def rebase_file(path: Path, fetcher: Fetcher | None = None) -> Rebase:

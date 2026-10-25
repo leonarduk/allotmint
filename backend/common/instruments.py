@@ -451,7 +451,7 @@ def _clean_str(value: Any, *, upper: bool = False) -> Optional[str]:
 
 
 # App exchange code -> Yahoo Finance ticker suffix. Mirrors
-# ``backend.timeseries.fetch_yahoo_timeseries.get_yahoo_suffix`` so metadata
+# ``backend.common.yahoo_symbols.get_yahoo_suffix`` so metadata
 # and historical fetches stay consistent. Every code here except currency
 # pairs (``FX``) also needs an ``_EXCHANGE_REGIONS`` entry.
 _YAHOO_SUFFIXES: Dict[str, str] = {

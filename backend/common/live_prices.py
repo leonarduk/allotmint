@@ -31,10 +31,10 @@ import pandas as pd
 from backend.common import holding_utils
 from backend.common.currency import CurrencyNormaliser
 from backend.common.yahoo_chart import chart_quote
+from backend.common.yahoo_symbols import yahoo_symbol_for
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import cache_only, convert_to_base_currency, instrument_currency
-from backend.timeseries.fetch_yahoo_timeseries import _build_full_ticker
 from backend.utils.lazy_import import lazy_import
 from backend.utils.timeseries_helpers import get_scaling_override
 
@@ -199,7 +199,7 @@ def load_live_quotes(full_tickers: list[str]) -> Dict[str, LiveQuote]:
             continue
         ticker, exchange = resolved
         try:
-            targets[full] = (ticker, exchange, _build_full_ticker(ticker, exchange))
+            targets[full] = (ticker, exchange, yahoo_symbol_for(ticker, exchange))
         except ValueError:
             logger.debug("No Yahoo symbol for %s; skipping live quote", sanitise_log_value(full))
     if not targets:

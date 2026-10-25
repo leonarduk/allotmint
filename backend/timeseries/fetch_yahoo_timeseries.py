@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import yfinance as yf
 
-from backend.common.yahoo_symbols import yahoo_share_class_symbol
+from backend.common.yahoo_symbols import get_yahoo_suffix, with_yahoo_suffix, yahoo_symbol_for
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.corporate_actions import (
     CONFIRMED_FROM,
@@ -44,49 +44,12 @@ def _app_full_ticker(ticker: str, exchange: str) -> str:
         _app_full_ticker("XDEV", "L")  -> "XDEV.L"
         _app_full_ticker("BRK.B", "N") -> "BRK.B"
     """
-    suffix = get_yahoo_suffix(exchange)
-    ticker = ticker.upper()
-
-    if ticker.endswith(suffix):  # already has ".L", ".DE", ...
-        return ticker
-    return ticker + suffix
+    return with_yahoo_suffix(ticker, exchange)
 
 
 def _build_full_ticker(ticker: str, exchange: str) -> str:
-    """
-    Return the Yahoo symbol for ``ticker``, *without* duplicating the suffix.
-    US share classes take Yahoo's dash (#11081).
-    Examples:
-        _build_full_ticker("XDEV", "L")   -> "XDEV.L"
-        _build_full_ticker("XDEV.L", "L") -> "XDEV.L"
-        _build_full_ticker("BRK.B", "US") -> "BRK-B"
-    """
-    return yahoo_share_class_symbol(_app_full_ticker(ticker, exchange), exchange)
-
-
-def get_yahoo_suffix(exchange: str) -> str:
-    exchange_map = {
-        "LSE": ".L",
-        "L": ".L",
-        "UK": ".L",
-        "NASDAQ": "",
-        "NYSE": "",
-        "N": "",
-        "US": "",
-        "PARIS": ".PA",
-        "XETRA": ".DE",
-        "DE": ".DE",
-        "TSX": ".TO",
-        "TO": ".TO",
-        "ASX": ".AX",
-        "F": ".F",
-        "MI": ".MI",
-        "FX": "=X",
-    }
-    suffix = exchange_map.get(exchange.upper())
-    if suffix is None:
-        raise ValueError(f"Unsupported exchange: '{exchange}'")
-    return suffix
+    """The Yahoo symbol for ``ticker``: an alias of :func:`yahoo_symbol_for` (#11084)."""
+    return yahoo_symbol_for(ticker, exchange)
 
 
 def normalize_history(df: pd.DataFrame, ticker: str, source: str) -> pd.DataFrame:

@@ -758,6 +758,14 @@ export default function MetricsExplanation() {
               {t("metricsExplanation.sections.plot.sunlight.detail", "The share of crops priced from fresh (not stale) market data today.")}
             </p>
           </div>
+          <div id="grower-level">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.plot.growerLevel.title", "Grower level and XP")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t("metricsExplanation.sections.plot.growerLevel.detail", "Earned by completing daily chores. Reaching level L takes 25 × L × (L − 1) XP in total, so early levels come quickly and later ones stretch out.")}
+            </p>
+          </div>
         </div>
       </section>
 

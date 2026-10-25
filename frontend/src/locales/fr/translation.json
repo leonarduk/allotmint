@@ -1322,6 +1322,10 @@
         "sunlight": {
           "title": "Ensoleillement",
           "detail": "La part des cultures valorisées aujourd'hui avec des données de marché fraîches (non périmées)."
+        },
+        "growerLevel": {
+          "title": "Niveau de jardinier et XP",
+          "detail": "Gagné en accomplissant les tâches quotidiennes. Atteindre le niveau L demande 25 × L × (L − 1) XP au total : les premiers niveaux arrivent vite, les suivants s'allongent. Il suit votre propre progression, pas un chiffre du portefeuille, et reste donc identique sur le potager de chaque jardinier."
         }
       },
       "technicals": {
@@ -3143,7 +3147,9 @@
       "meterLabel": "Niveau de jardinier {{level}}, {{xp}} sur {{xpForLevel}} XP pour le niveau suivant",
       "classicView": "Vue classique",
       "progressLabel": "Votre progression",
-      "progressTitle": "Le niveau, le rang, les XP et la série proviennent de vos propres corvées — ils sont identiques sur la parcelle de chaque jardinier."
+      "progressTitle": "Le niveau, le rang, les XP et la série proviennent de vos propres corvées — ils sont identiques sur la parcelle de chaque jardinier.",
+      "xpTerm": "Niveau de jardinier",
+      "explainXp": "Les XP s'obtiennent en accomplissant vos tâches quotidiennes. Chaque niveau demande un peu plus d'XP que le précédent, et la barre indique à quel point vous êtes proche du suivant."
     },
     "rail": {
       "ariaLabel": "Sections du potager",

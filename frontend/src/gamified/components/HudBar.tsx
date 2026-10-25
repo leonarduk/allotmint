@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { formatGbp, type PlotSnapshot } from '../plotModel';
 import Meter from './Meter';
+import InfoTip from '../../components/InfoTip';
 
 interface HudBarProps {
   snapshot: PlotSnapshot;
@@ -117,6 +118,16 @@ export default function HudBar({
               })}
             />
           </div>
+          {/* The XP meter gets the same "what is this?" tip as the
+              water/feed/sunlight meters on the hub (#7006, #7068). It sits
+              beside the label, not inside it, so the label stays one text
+              node. */}
+          <InfoTip
+            label={t('plot.hub.whatDoesMean', { term: t('plot.hud.xpTerm') })}
+            to="/metrics-explained#grower-level"
+          >
+            {t('plot.hud.explainXp')}
+          </InfoTip>
         </div>
       </div>
 

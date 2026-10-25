@@ -1322,6 +1322,10 @@
         "sunlight": {
           "title": "Luz solar",
           "detail": "A proporção de culturas avaliadas hoje com dados de mercado recentes (não desatualizados)."
+        },
+        "growerLevel": {
+          "title": "Nível de jardineiro e XP",
+          "detail": "Ganho ao concluir tarefas diárias. Chegar ao nível L exige 25 × L × (L − 1) XP no total, por isso os primeiros níveis chegam depressa e os seguintes demoram mais. Acompanha o seu próprio progresso, não um valor da carteira, por isso é igual na horta de cada jardineiro."
         }
       },
       "technicals": {
@@ -3143,7 +3147,9 @@
       "meterLabel": "Nível de cultivador {{level}}, {{xp}} de {{xpForLevel}} XP para o próximo nível",
       "classicView": "Vista clássica",
       "progressLabel": "O seu progresso",
-      "progressTitle": "O nível, a patente, os XP e a sequência vêm das suas próprias tarefas — são iguais no terreno de qualquer cultivador."
+      "progressTitle": "O nível, a patente, os XP e a sequência vêm das suas próprias tarefas — são iguais no terreno de qualquer cultivador.",
+      "xpTerm": "Nível de jardineiro",
+      "explainXp": "Os XP são obtidos ao concluir as suas tarefas diárias. Cada nível precisa de um pouco mais de XP do que o anterior, e a barra mostra quão perto está do próximo."
     },
     "rail": {
       "ariaLabel": "Secções da horta",

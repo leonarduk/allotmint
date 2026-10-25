@@ -1322,6 +1322,10 @@
         "sunlight": {
           "title": "Sonnenlicht",
           "detail": "Der Anteil der Pflanzen, die heute mit aktuellen (nicht veralteten) Marktdaten bewertet werden."
+        },
+        "growerLevel": {
+          "title": "Gärtnerstufe und XP",
+          "detail": "Wird durch erledigte tägliche Aufgaben verdient. Für Stufe L sind insgesamt 25 × L × (L − 1) XP nötig, frühe Stufen kommen also schnell, spätere dauern länger. Sie misst deinen eigenen Fortschritt, keine Portfoliozahl, und ist daher auf jedem Beet gleich."
         }
       },
       "technicals": {
@@ -3143,7 +3147,9 @@
       "meterLabel": "Gärtner-Level {{level}}, {{xp}} von {{xpForLevel}} XP bis zum nächsten Level",
       "classicView": "Klassische Ansicht",
       "progressLabel": "Dein Fortschritt",
-      "progressTitle": "Stufe, Rang, XP und Serie verdienst du mit deinen eigenen Aufgaben – sie sind auf jedem Beet gleich."
+      "progressTitle": "Stufe, Rang, XP und Serie verdienst du mit deinen eigenen Aufgaben – sie sind auf jedem Beet gleich.",
+      "xpTerm": "Gärtnerstufe",
+      "explainXp": "XP erhältst du für erledigte tägliche Aufgaben. Jede Stufe braucht etwas mehr XP als die vorherige, und der Balken zeigt, wie nah du der nächsten bist."
     },
     "rail": {
       "ariaLabel": "Bereiche des Gartens",

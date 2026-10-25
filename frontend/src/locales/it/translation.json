@@ -1322,6 +1322,10 @@
         "sunlight": {
           "title": "Luce solare",
           "detail": "La quota di colture valutate oggi con dati di mercato aggiornati (non obsoleti)."
+        },
+        "growerLevel": {
+          "title": "Livello del coltivatore e XP",
+          "detail": "Si guadagna completando le attività quotidiane. Raggiungere il livello L richiede in totale 25 × L × (L − 1) XP, quindi i primi livelli arrivano in fretta e i successivi si allungano. Misura i tuoi progressi, non un dato del portafoglio, quindi è uguale nell'orto di ogni coltivatore."
         }
       },
       "technicals": {
@@ -3143,7 +3147,9 @@
       "meterLabel": "Livello coltivatore {{level}}, {{xp}} di {{xpForLevel}} XP per il livello successivo",
       "classicView": "Vista classica",
       "progressLabel": "I tuoi progressi",
-      "progressTitle": "Livello, grado, XP e serie si guadagnano con le tue faccende: sono uguali sull'orto di ogni coltivatore."
+      "progressTitle": "Livello, grado, XP e serie si guadagnano con le tue faccende: sono uguali sull'orto di ogni coltivatore.",
+      "xpTerm": "Livello del coltivatore",
+      "explainXp": "Gli XP si ottengono completando le attività quotidiane. Ogni livello richiede un po' più XP del precedente e la barra mostra quanto sei vicino al successivo."
     },
     "rail": {
       "ariaLabel": "Sezioni dell'orto",

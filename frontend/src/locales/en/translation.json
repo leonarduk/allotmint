@@ -1316,6 +1316,10 @@
         "sunlight": {
           "title": "Sunlight",
           "detail": "The share of crops priced from fresh (not stale) market data today."
+        },
+        "growerLevel": {
+          "title": "Grower level and XP",
+          "detail": "Earned by completing daily chores. Reaching level L takes 25 × L × (L − 1) XP in total, so early levels come quickly and later ones stretch out. It tracks your own progress, not a portfolio figure, so it is the same on every grower's plot."
         }
       },
       "technicals": {
@@ -3136,7 +3140,9 @@
       "meterLabel": "Grower level {{level}}, {{xp}} of {{xpForLevel}} XP to the next level",
       "classicView": "Classic view",
       "progressLabel": "Your progress",
-      "progressTitle": "Level, rank, XP and streak are earned from your own chores — they are the same on every grower's plot."
+      "progressTitle": "Level, rank, XP and streak are earned from your own chores — they are the same on every grower's plot.",
+      "xpTerm": "Grower level",
+      "explainXp": "XP comes from completing your daily chores. Each level needs a little more XP than the last, and the bar shows how close you are to the next one."
     },
     "rail": {
       "ariaLabel": "Plot sections",

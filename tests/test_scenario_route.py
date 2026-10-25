@@ -93,11 +93,15 @@ def test_historical_scenario_route(monkeypatch):
                     "baseline_total_value_gbp": 100.0,
                     "shocked_total_value_gbp": 99.0,
                     "coverage_pct": None,
+                    "return_basis": None,
+                    "price_return_tickers": [],
                 },
                 "5": {
                     "baseline_total_value_gbp": 100.0,
                     "shocked_total_value_gbp": 95.0,
                     "coverage_pct": None,
+                    "return_basis": None,
+                    "price_return_tickers": [],
                 },
             },
         }
@@ -173,7 +177,46 @@ def test_historical_scenario_missing_prices_are_null_not_zero(monkeypatch):
         "baseline_total_value_gbp": 500.0,
         "shocked_total_value_gbp": None,
         "coverage_pct": 0.0,
+        "return_basis": None,
+        "price_return_tickers": [],
     }
+
+
+def test_historical_scenario_reports_return_basis_per_horizon(monkeypatch):
+    """Each horizon reports its return basis and the price-only tickers (#9510)."""
+    from backend.utils import scenario_tester as sc_tester
+
+    def fake_forward_returns(ticker, exchange, event_date, horizons=sc_tester._HORIZONS):
+        # PRC has no stored dividends, so its returns are price-only; and it
+        # has no history a year on, so the 1y horizon rests on TOT alone.
+        if ticker == "PRC":
+            return {label: (None if label == "1y" else -0.1) for label in horizons}, "price"
+        return {label: -0.1 for label in horizons}, "total"
+
+    monkeypatch.setattr(sc_tester, "_forward_returns", fake_forward_returns)
+    _patch_single_owner(
+        monkeypatch,
+        {
+            "total_value_estimate_gbp": 1000.0,
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "TOT.L", "market_value_gbp": 900.0},
+                        {"ticker": "PRC.L", "market_value_gbp": 100.0},
+                    ]
+                }
+            ],
+        },
+    )
+
+    client = _auth_client()
+    resp = client.get("/scenario/historical?event_id=gfc-2008&horizons=1d,1y")
+    assert resp.status_code == 200
+    horizons = resp.json()[0]["horizons"]
+    assert horizons["1d"]["return_basis"] == "price"
+    assert horizons["1d"]["price_return_tickers"] == ["PRC.L"]
+    assert horizons["1y"]["return_basis"] == "total"
+    assert horizons["1y"]["price_return_tickers"] == []
 
 
 def test_events_route():
@@ -224,5 +267,7 @@ def test_market_event_date_id_runs_through_historical_route(monkeypatch):
         "baseline_total_value_gbp": 100.0,
         "shocked_total_value_gbp": 105.0,
         "coverage_pct": 100.0,
+        "return_basis": "total",
+        "price_return_tickers": [],
     }
     assert ("SPY", "N", dt.date(2020, 3, 16)) in seen

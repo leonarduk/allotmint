@@ -988,6 +988,10 @@ export interface ScenarioHorizonResult {
   shocked_total_value_gbp: number | null;
   /** Share of invested value with real price history for the event (0-100). */
   coverage_pct?: number | null;
+  /** "total" unless some return used was price-only; null when there is no value (#9510). */
+  return_basis?: "total" | "price" | null;
+  /** Tickers whose returns were price-only for this horizon. */
+  price_return_tickers?: string[];
 }
 
 export interface ScenarioResult {

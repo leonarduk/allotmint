@@ -461,6 +461,21 @@ describe("opening a saved chat", () => {
     expect(contents()).toEqual(["q", "a"]);
   });
 
+  it("does not adopt a conflicting chat after the identity changed (#9022)", async () => {
+    const conflict = Object.assign(new Error("conflict"), {
+      status: 409,
+      body: { current: { revision: 9, conversation: tree("someone else") } },
+    });
+    (api.openSavedChat as Mock).mockImplementation(async () => {
+      markChatIdentityChanged();
+      throw conflict;
+    });
+
+    await expect(openSavedChat("r00000001")).rejects.toBe(conflict);
+
+    expect(contents()).not.toContain("someone else");
+  });
+
   it("keeps the conversation when opening fails", async () => {
     (api.openSavedChat as Mock).mockRejectedValue(new Error("down"));
 

@@ -181,6 +181,9 @@ def _numeric_override_entries(section: dict, path: Path, ex_key: object) -> dict
     kept: dict = {}
     for symbol, factor in section.items():
         try:
+            # ``float(True)`` is 1.0, but a boolean is never a valid factor.
+            if isinstance(factor, bool):
+                raise TypeError("boolean factor")
             float(factor)
         except (TypeError, ValueError):
             logger.warning(

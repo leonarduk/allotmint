@@ -116,7 +116,8 @@ function isConflict(e: unknown): e is { body: { current: { revision: number; con
   return (
     err?.status === 409 &&
     typeof err.body?.current?.revision === "number" &&
-    typeof (err.body.current as { conversation?: unknown }).conversation === "object"
+    typeof (err.body.current as { conversation?: unknown }).conversation === "object" &&
+    (err.body.current as { conversation?: unknown }).conversation !== null
   );
 }
 

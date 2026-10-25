@@ -104,7 +104,7 @@ def test_non_dict_data_root_section_keeps_repo_section(monkeypatch, tmp_path, ba
     assert merged == {"L": {"BP": 0.01}}
 
 
-@pytest.mark.parametrize("bad_factor", [None, "pence", [0.01]], ids=["null", "string", "list"])
+@pytest.mark.parametrize("bad_factor", [None, "pence", [0.01], True], ids=["null", "string", "list", "bool"])
 def test_non_numeric_data_root_factor_does_not_shadow_repo_entry(
     monkeypatch, tmp_path, caplog, gbp_metadata, bad_factor
 ):

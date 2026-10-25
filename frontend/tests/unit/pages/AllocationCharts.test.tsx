@@ -154,7 +154,7 @@ describe("AllocationCharts page", () => {
     await waitFor(() => expect(mockGetGroupPortfolio).toHaveBeenCalledWith("family"));
     expect(screen.getByRole("button", { name: "Industries" })).toBeDisabled();
     expect(screen.getByRole("tab", { name: "alice" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "taxable" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Taxable" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("link", { name: "View gain contribution" })).toHaveAttribute(
       "href",
       "/?group=family&owner=alice&account=taxable",
@@ -207,7 +207,7 @@ describe("AllocationCharts page", () => {
       fireEvent.click(await screen.findByRole("tab", { name: "alice" }));
       await waitFor(() => expect(sliceNames()).toEqual(["Equity: 100", "Bond: 40"]));
 
-      fireEvent.click(screen.getByRole("tab", { name: "isa" }));
+      fireEvent.click(screen.getByRole("tab", { name: "ISA" }));
       await waitFor(() => expect(sliceNames()).toEqual(["Bond: 40"]));
 
       fireEvent.click(screen.getByRole("tab", { name: "All positions" }));

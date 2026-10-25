@@ -1232,6 +1232,8 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # PLAN_BRIEFS_PREFIX reaches the backend only via PLAN_BRIEFS_URI (#10475); its
 # name matches backend.plan_brief.store.PLAN_BRIEFS_DIRNAME, checked by
 # test_plan_brief_prefix_matches_backend_and_env.
+# RETIREMENT_READINESS_PREFIX matches backend.retirement.history.STORE_DIRNAME,
+# checked by test_retirement_readiness_store_points_at_its_prefix (#10509).
 # BOTS_PREFIX is not duplicated either: the backend's only fallback is a local
 # file:// path and it learns the S3 location from BOTS_STORAGE_URI (#10477),
 # which test_bot_lambdas_share_the_bots_storage_prefix checks.
@@ -1244,6 +1246,7 @@ _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
         "METADATA_PREFIX",
         "CHAT_HISTORY_PREFIX",
         "PLAN_BRIEFS_PREFIX",
+        "RETIREMENT_READINESS_PREFIX",
         "BOTS_PREFIX",
         "DATA_STEWARD_REPORTS_PREFIX",
     }
@@ -1541,6 +1544,18 @@ def test_plan_brief_prefix_matches_backend_and_env() -> None:
     assert len(uris) == 2 and all(uris), uris
     for uri in uris:
         assert f"/{PLAN_BRIEFS_PREFIX}" in str(uri)
+
+
+def test_retirement_readiness_store_points_at_its_prefix() -> None:
+    """The backend Lambda stores readiness runs in S3, not the read-only image (#10509)."""
+    from stacks.backend_lambda_stack import RETIREMENT_READINESS_PREFIX
+
+    # Parsed, not imported: the CDK test env has no backend runtime deps.
+    history_path = _backend_common_dir().parent / "retirement" / "history.py"
+    assert RETIREMENT_READINESS_PREFIX == _fallback_string_literal(history_path, "STORE_DIRNAME")
+    uri = _lambda_env(_stack_template(), "BackendLambda")["RETIREMENT_READINESS_URI"]
+    parts = uri["Fn::Join"][1]
+    assert parts[0] == "s3://" and parts[-1] == f"/{RETIREMENT_READINESS_PREFIX}"
 
 
 def test_plan_brief_lambda_can_read_only_its_recipient_parameter() -> None:

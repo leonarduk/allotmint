@@ -120,6 +120,11 @@ def _bedrock_invoke_resources(
 CHAT_HISTORY_PREFIX = "chat"
 # Saved plan-drift briefs (#10475): the plan brief Lambda's only write prefix.
 PLAN_BRIEFS_PREFIX = "plan_briefs"
+# Stored retirement readiness runs (#10484, backend/retirement/history.py),
+# one JSON document per owner. Covered by the backend Lambda's bucket-wide
+# Get/PutObject grant; without RETIREMENT_READINESS_URI the store falls back
+# to the read-only image and nothing is ever kept (#10509).
+RETIREMENT_READINESS_PREFIX = "retirement_readiness"
 CHAT_HISTORY_RETENTION_DAYS = 90
 CHAT_HISTORY_NONCURRENT_DAYS = 1
 
@@ -847,6 +852,7 @@ class BackendLambdaStack(Stack):
             # GET/POST /plan-brief/* read and save briefs where the monthly
             # PlanBriefLambda writes them (#10475).
             "PLAN_BRIEFS_URI": f"s3://{bucket_name}/{PLAN_BRIEFS_PREFIX}",
+            "RETIREMENT_READINESS_URI": f"s3://{bucket_name}/{RETIREMENT_READINESS_PREFIX}",
             "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
             # GET /bots shows the pension report's schedule (#10477).
             "PENSION_REPORT_CADENCE": pension_report_cadence,

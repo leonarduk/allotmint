@@ -632,3 +632,73 @@ def test_list_plots_uses_local_when_not_aws(monkeypatch):
 
     result = dl.list_plots(data_root="root", current_user="bob")
     assert result == [dl.OwnerSummaryRecord(owner="local-owner", accounts=["sipp"])]
+
+
+def _demo_bucket_client(person_meta_body=None):
+    """Fake S3 client listing a real owner plus the configured demo owner.
+
+    ``alice`` lists the demo owner as a viewer so that a buggy demo branch
+    falling through to the viewers-based checks would expose her too.
+    """
+
+    def list_objects_v2(**kwargs):
+        assert kwargs["Bucket"] == "bucket"
+        return {
+            "Contents": [
+                {"Key": "accounts/alice/ISA.json"},
+                {"Key": "accounts/alice/person.json"},
+                {"Key": "accounts/buffett/GIA.json"},
+                {"Key": "accounts/buffett/person.json"},
+            ]
+        }
+
+    def get_object(Bucket, Key):
+        assert Bucket == "bucket"
+        if Key == "accounts/alice/person.json":
+            return {"Body": io.BytesIO(b'{"viewers": ["buffett"]}')}
+        if Key == "accounts/buffett/person.json" and person_meta_body is not None:
+            return {"Body": io.BytesIO(person_meta_body)}
+        raise ClientError({"Error": {"Code": "NoSuchKey"}}, "get_object")
+
+    return lambda name: SimpleNamespace(list_objects_v2=list_objects_v2, get_object=get_object)
+
+
+@pytest.fixture
+def demo_aws_request(monkeypatch, cleanup_boto3_module):
+    """Configure the deployed-Lambda shape: AWS, disable_auth, a demo-scoped request."""
+    from backend import auth
+
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(dl.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(dl.config, "demo_link_owner", "buffett", raising=False)
+    monkeypatch.setattr(auth, "is_demo_request", lambda: True)
+
+
+def test_list_aws_plots_demo_request_sees_only_demo_owner(monkeypatch, demo_aws_request):
+    """The deployed Lambda's own /owners path: a demo-scoped request lists only
+    config.demo_link_owner, even with disable_auth=True and another owner
+    naming the demo owner as a viewer (#7408, #7510)."""
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=_demo_bucket_client(b'{"dob": "1930"}')))
+
+    owners = dl._list_aws_plots(current_user=None)
+
+    assert [entry["owner"] for entry in owners] == ["buffett"]
+    assert owners[0]["accounts"] == ["GIA"]
+
+
+def test_list_aws_plots_demo_request_tolerates_missing_person_json(monkeypatch, demo_aws_request):
+    """A missing person.json for the demo owner degrades to empty metadata
+    (load_person_meta returns {}), not a 500 (#7510, #7512)."""
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=_demo_bucket_client(None)))
+
+    assert dl._list_aws_plots(current_user=None) == [{"owner": "buffett", "accounts": ["GIA"]}]
+
+
+def test_list_aws_plots_demo_request_with_absent_demo_owner_lists_nothing(monkeypatch, demo_aws_request):
+    """If the configured demo owner has no data in the bucket, a demo request
+    sees no owners at all rather than falling back to every owner."""
+    monkeypatch.setattr(dl.config, "demo_link_owner", "nobody", raising=False)
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=_demo_bucket_client(None)))
+
+    assert dl._list_aws_plots(current_user=None) == []

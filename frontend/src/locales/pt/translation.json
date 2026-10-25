@@ -3031,6 +3031,7 @@
     "realisedGainLoss": "Ganho/perda realizado:",
     "excludesUnknownSales_one": "(exclui {{count}} venda com custo desconhecido)",
     "excludesUnknownSales_other": "(exclui {{count}} vendas com custo desconhecido)",
+    "realisedGainCaveat": "O ganho realizado usa o pool de custo médio da Section 104. As regras de correspondência da HMRC do mesmo dia e de 30 dias (bed-and-breakfast) não são aplicadas, por isso é uma estimativa, não um cálculo fiscal.",
     "income": "Rendimento:",
     "fees": "Comissões:",
     "loadManualFailed": "Falha ao carregar as posições manuais.",

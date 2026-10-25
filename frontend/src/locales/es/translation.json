@@ -3031,6 +3031,7 @@
     "realisedGainLoss": "Ganancia/pérdida realizada:",
     "excludesUnknownSales_one": "(excluye {{count}} venta con coste desconocido)",
     "excludesUnknownSales_other": "(excluye {{count}} ventas con coste desconocido)",
+    "realisedGainCaveat": "La ganancia realizada usa el pool de coste medio de la Section 104. No se aplican las reglas de emparejamiento de HMRC del mismo día y de 30 días (bed-and-breakfast), así que es una estimación, no un cálculo fiscal.",
     "income": "Ingresos:",
     "fees": "Comisiones:",
     "loadManualFailed": "No se pudieron cargar las posiciones manuales.",

@@ -3031,6 +3031,7 @@
     "realisedGainLoss": "Plus-/moins-value réalisée :",
     "excludesUnknownSales_one": "(exclut {{count}} vente au coût inconnu)",
     "excludesUnknownSales_other": "(exclut {{count}} ventes au coût inconnu)",
+    "realisedGainCaveat": "La plus-value réalisée utilise le pool au coût moyen de la Section 104. Les règles d'appariement HMRC du jour même et des 30 jours (bed-and-breakfast) ne sont pas appliquées : c'est une estimation, pas un calcul fiscal.",
     "income": "Revenus :",
     "fees": "Frais :",
     "loadManualFailed": "Échec du chargement des positions manuelles.",

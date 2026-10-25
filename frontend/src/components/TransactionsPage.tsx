@@ -741,6 +741,16 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
               {t('transactionsPage.fees')} {reporting.format(summary.fees)}
             </p>
           )}
+          {!loading && (transactions?.length ?? 0) > 0 && (
+            // The figure is an approximation, not a tax computation (#7921).
+            <p
+              role="note"
+              data-testid="realised-gain-caveat"
+              className={`text-sm ${surface.surfaceMuted}`}
+            >
+              {t('transactionsPage.realisedGainCaveat')}
+            </p>
+          )}
 
           {loading ? (
             <p>{t('common.loading')}</p>

@@ -3024,6 +3024,7 @@
     "realisedGainLoss": "Realised gain/loss:",
     "excludesUnknownSales_one": "(excludes {{count}} sale with unknown cost)",
     "excludesUnknownSales_other": "(excludes {{count}} sales with unknown cost)",
+    "realisedGainCaveat": "Realised gain uses Section 104 average-cost pooling. HMRC's same-day and 30-day (bed-and-breakfast) matching rules are not applied, so treat it as an estimate, not a tax computation.",
     "income": "Income:",
     "fees": "Fees:",
     "loadManualFailed": "Failed to load manual holdings.",

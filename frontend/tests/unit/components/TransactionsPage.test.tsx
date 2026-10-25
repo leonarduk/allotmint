@@ -145,6 +145,20 @@ describe('TransactionsPage', () => {
     ).toBeTruthy();
   });
 
+  it('caveats the realised gain as Section 104 without same-day/30-day matching (#7921)', async () => {
+    render(
+      <TransactionsPage
+        owners={[{ owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] }]}
+      />
+    );
+    const caveat = await screen.findByTestId('realised-gain-caveat');
+    expect(caveat).toHaveTextContent(/Section 104 average-cost pooling/);
+    expect(caveat).toHaveTextContent(/30-day \(bed-and-breakfast\)/);
+    expect(
+      screen.getByRole('columnheader', { name: /^gain\/loss$/i })
+    ).toHaveAttribute('title', caveat.textContent);
+  });
+
   it('filters the list to sells with the Type filter', async () => {
     getTransactionsMock.mockResolvedValueOnce([
       {

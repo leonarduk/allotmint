@@ -3398,7 +3398,9 @@
       "nothingToShow": "Aún no hay nada que mostrar.",
       "fullRoster": "Ver la lista completa de cultivos →",
       "seedStore": "Reserva de semillas",
-      "readyToSow": "{{amount}} en efectivo listo para sembrar"
+      "readyToSow": "{{amount}} en efectivo listo para sembrar",
+      "inBeds_one": "en {{count}} bancal",
+      "inBeds_other": "en {{count}} bancales"
     },
     "model": {
       "unnamedBed": "Bancal sin nombre",

@@ -3398,7 +3398,9 @@
       "nothingToShow": "Ainda nada para mostrar.",
       "fullRoster": "Ver a lista completa de culturas →",
       "seedStore": "Reserva de sementes",
-      "readyToSow": "{{amount}} em dinheiro pronto para semear"
+      "readyToSow": "{{amount}} em dinheiro pronto para semear",
+      "inBeds_one": "em {{count}} canteiro",
+      "inBeds_other": "em {{count}} canteiros"
     },
     "model": {
       "unnamedBed": "Canteiro sem nome",

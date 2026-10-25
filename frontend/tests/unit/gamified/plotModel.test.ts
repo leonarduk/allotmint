@@ -10,6 +10,7 @@ import {
   bedNameFor,
   clamp,
   compareGainPctDesc,
+  distinctInstruments,
   formatGbp,
   formatPct,
   formatShare,
@@ -897,6 +898,119 @@ describe('crop identity', () => {
     // A bare ticker still lands somewhere sensible for older/bookmarked links.
     expect(findCropByRouteId(crops, 'VWRL.L')?.ticker).toBe('VWRL.L');
     expect(findCropByRouteId(crops, 'NOPE.L')).toBeUndefined();
+  });
+});
+
+describe('distinctInstruments (#7212)', () => {
+  const crop = (over: Partial<Crop>): Crop =>
+    ({
+      id: 'x',
+      ticker: 'X.L',
+      bedId: 'steve:isa',
+      bedName: 'Isa',
+      units: 1,
+      valueGbp: 100,
+      costGbp: 100,
+      gainGbp: 0,
+      gainPct: 0,
+      share: 0.1,
+      dayChangePct: 0,
+      hasMove: false,
+      stage: 'seed',
+      ...over,
+    }) as Crop;
+
+  const erns = [
+    crop({
+      id: '1-0-ERNS.L',
+      ticker: 'ERNS.L',
+      bedId: 'alex:sipp',
+      bedName: 'Sipp',
+      units: 10,
+      valueGbp: 1_000,
+      costGbp: 800,
+      gainGbp: 200,
+      gainPct: 25,
+      share: 0.1,
+      dayChangePct: 1,
+      hasMove: true,
+    }),
+    crop({
+      id: '0-0-ERNS.L',
+      ticker: 'ERNS.L',
+      bedId: 'alex:isa',
+      bedName: 'Isa',
+      units: 30,
+      valueGbp: 3_000,
+      costGbp: 3_200,
+      gainGbp: -200,
+      gainPct: -6.25,
+      share: 0.3,
+      dayChangePct: 0,
+    }),
+  ];
+  const ievf = crop({
+    id: '0-1-IEFV.L',
+    ticker: 'IEFV.L',
+    valueGbp: 2_000,
+    share: 0.2,
+  });
+
+  it('folds one ticker across beds into a single group, summing value', () => {
+    const groups = distinctInstruments([...erns, ievf]);
+    expect(groups.map((group) => group.ticker)).toEqual(['ERNS.L', 'IEFV.L']);
+
+    const [ernsGroup] = groups;
+    expect(ernsGroup.bedNames).toEqual(['Isa', 'Sipp']);
+    expect(ernsGroup.crops.map((entry) => entry.id)).toEqual([
+      '0-0-ERNS.L',
+      '1-0-ERNS.L',
+    ]);
+    expect(ernsGroup.combined).toMatchObject({
+      // Largest holding's id, so the card still routes to a real holding.
+      id: '0-0-ERNS.L',
+      units: 40,
+      valueGbp: 4_000,
+      costGbp: 4_000,
+      gainGbp: 0,
+      gainPct: 0,
+      stage: 'seed',
+      hasMove: true,
+    });
+    expect(ernsGroup.combined.share).toBeCloseTo(0.4);
+    expect(ernsGroup.combined.dayChangePct).toBeCloseTo(0.25);
+  });
+
+  it('never changes total value under aggregation', () => {
+    const crops = [...erns, ievf];
+    const total = (values: number[]) => values.reduce((a, b) => a + b, 0);
+    expect(
+      total(distinctInstruments(crops).map((group) => group.combined.valueGbp))
+    ).toBe(total(crops.map((entry) => entry.valueGbp)));
+  });
+
+  it('passes a single holding through untouched', () => {
+    const [group] = distinctInstruments([ievf]);
+    expect(group.combined).toBe(ievf);
+    expect(group.bedNames).toEqual(['Isa']);
+  });
+
+  it('counts a ticker held twice in one bed as one bed', () => {
+    const [group] = distinctInstruments([
+      crop({ id: 'a', valueGbp: 50 }),
+      crop({ id: 'b', valueGbp: 70 }),
+    ]);
+    expect(group.bedNames).toEqual(['Isa']);
+    expect(group.combined.valueGbp).toBe(120);
+  });
+
+  it('keeps the combined gain unknown when any holding has no cost basis (#8471)', () => {
+    const [group] = distinctInstruments([
+      erns[0],
+      { ...erns[1], gainGbp: null, gainPct: null },
+    ]);
+    expect(group.combined.gainGbp).toBeNull();
+    expect(group.combined.gainPct).toBeNull();
   });
 });
 

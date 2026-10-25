@@ -3391,7 +3391,9 @@
       "nothingToShow": "Nothing to show yet.",
       "fullRoster": "See the full roster →",
       "seedStore": "Seed store",
-      "readyToSow": "{{amount}} cash ready to sow"
+      "readyToSow": "{{amount}} cash ready to sow",
+      "inBeds_one": "in {{count}} bed",
+      "inBeds_other": "in {{count}} beds"
     },
     "model": {
       "unnamedBed": "Unnamed bed",

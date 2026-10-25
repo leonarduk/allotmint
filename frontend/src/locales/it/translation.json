@@ -3398,7 +3398,9 @@
       "nothingToShow": "Ancora nulla da mostrare.",
       "fullRoster": "Vedi l'elenco completo delle colture →",
       "seedStore": "Scorta di semi",
-      "readyToSow": "{{amount}} in contanti pronti da seminare"
+      "readyToSow": "{{amount}} in contanti pronti da seminare",
+      "inBeds_one": "in {{count}} aiuola",
+      "inBeds_other": "in {{count}} aiuole"
     },
     "model": {
       "unnamedBed": "Aiuola senza nome",

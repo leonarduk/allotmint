@@ -11,7 +11,9 @@ is a _crop_, an account is a _bed_, and the daily Trail tasks are _chores_.
 ## Screens
 
 - **`/plot` — The Plot (hub).** Best and worst crop on the stage, the three
-  resource meters, open chores, beds and biggest crops.
+  resource meters, open chores, beds and biggest crops. "Biggest crops"
+  shows one card per instrument: a ticker held in several beds is summed
+  and labelled "in N beds".
 - **`/plot/crops` — Crop roster.** Every holding as a card, sortable by plot
   share / growth / vigour / name and filterable by bed.
 - **`/plot/crops/:ticker` — Crop detail.** One holding's traits, portrait and
@@ -69,7 +71,7 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
   reconstructed.
 - **Season** — the UK tax year from the allowances API's `tax_year`
   (`"YYYY-YYYY"`, ending 5 April of the second year). Milestone tiers are
-  driven by crop count, plot value, allowance usage, streak and grower level;
+  driven by crop count (distinct instruments, not holding rows), plot value, allowance usage, streak and grower level;
   a cleared tier shows the real current figure, not the target it beat.
 - **Favourite stars** — this browser's own marks, kept in `localStorage`
   under `allotmint:plot:favourites:<owner>`. They never reach the backend.

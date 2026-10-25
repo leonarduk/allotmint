@@ -956,6 +956,80 @@ export function germinatingCrops(crops: readonly Crop[]): GerminatingCrop[] {
 }
 
 /**
+ * Every holding of one instrument across the plot (#7212). Crops stay keyed
+ * per holding row for routing and React keys; this is the display-side
+ * reconciliation, so ERNS.L in an ISA and a SIPP reads as one crop in two
+ * beds rather than two unrelated crops.
+ */
+export interface InstrumentGroup {
+  ticker: string;
+  /** Every holding of this ticker, largest first. */
+  crops: Crop[];
+  /** Distinct beds holding it, in the order of `crops`. */
+  bedNames: string[];
+  /**
+   * The holdings folded into one crop for display: values, cost and share
+   * summed, gain recomputed from the sums. Keeps the largest holding's `id`,
+   * so a link from it still routes to a real per-holding detail screen.
+   */
+  combined: Crop;
+}
+
+function combineCrops(crops: readonly Crop[]): Crop {
+  const [lead] = crops;
+  if (crops.length === 1) return lead;
+  const sum = (pick: (crop: Crop) => number) =>
+    crops.reduce((total, crop) => total + pick(crop), 0);
+  const valueGbp = sum((crop) => crop.valueGbp);
+  const costGbp = sum((crop) => crop.costGbp);
+  // One unknown cost basis makes the combined gain unknown too (#8471).
+  const gainGbp = crops.some((crop) => crop.gainGbp === null)
+    ? null
+    : sum((crop) => crop.gainGbp ?? 0);
+  const gainPct =
+    gainGbp !== null && costGbp > 0 ? (gainGbp / costGbp) * 100 : null;
+  return {
+    ...lead,
+    units: sum((crop) => crop.units),
+    valueGbp,
+    costGbp,
+    gainGbp,
+    gainPct,
+    stage: growthStageFor(gainPct),
+    share: sum((crop) => crop.share),
+    dayChangePct:
+      valueGbp > 0
+        ? sum((crop) => crop.valueGbp * crop.dayChangePct) / valueGbp
+        : 0,
+    hasMove: crops.some((crop) => crop.hasMove),
+  };
+}
+
+/** Crops grouped by ticker, biggest combined value first (#7212). */
+export function distinctInstruments(crops: readonly Crop[]): InstrumentGroup[] {
+  const byTicker = new Map<string, Crop[]>();
+  for (const crop of crops) {
+    const group = byTicker.get(crop.ticker);
+    if (group) group.push(crop);
+    else byTicker.set(crop.ticker, [crop]);
+  }
+  return [...byTicker.entries()]
+    .map(([ticker, holdings]) => {
+      const sorted = [...holdings].sort(
+        (left, right) => right.valueGbp - left.valueGbp
+      );
+      const beds = new Map(sorted.map((crop) => [crop.bedId, crop.bedName]));
+      return {
+        ticker,
+        crops: sorted,
+        bedNames: [...beds.values()],
+        combined: combineCrops(sorted),
+      };
+    })
+    .sort((left, right) => right.combined.valueGbp - left.combined.valueGbp);
+}
+
+/**
  * Resolve a `/plot/crops/:cropId` segment to a crop.
  *
  * Matches the unique id first, then falls back to the first crop with that

@@ -473,6 +473,35 @@ describe('Plot mode hub', () => {
     expect(screen.queryByText('CASH.GBP')).toBeNull();
   });
 
+  it('shows each instrument once in "Biggest crops", with its bed count (#7212)', async () => {
+    const [isa] = portfolio.accounts;
+    const [vusa] = isa.holdings;
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      total_value_estimate_gbp: 12_000,
+      accounts: [
+        isa,
+        {
+          ...isa,
+          account_type: 'sipp',
+          value_estimate_gbp: 2_000,
+          holdings: [{ ...vusa, units: 10, market_value_gbp: 2_000 }],
+        },
+      ],
+    });
+    renderPlot();
+
+    const heading = await screen.findByRole('heading', {
+      name: 'Biggest crops',
+    });
+    const panel = heading.closest('section') as HTMLElement;
+    // VUSA.L sits in both beds but gets one card, valued at the sum.
+    expect(within(panel).getAllByText('VUSA.L')).toHaveLength(1);
+    expect(within(panel).getByText('in 2 beds')).toBeInTheDocument();
+    expect(within(panel).getByText('£9.0k')).toBeInTheDocument();
+    expect(within(panel).getByText('WILT.L')).toBeInTheDocument();
+  });
+
   it('omits the FEED meter rather than showing an empty one when the allowances fetch fails (#7195)', async () => {
     mocks.getAllowances.mockRejectedValue(
       Object.assign(new Error('HTTP 402 - Payment Required'), { status: 402 })

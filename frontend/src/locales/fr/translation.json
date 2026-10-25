@@ -3398,7 +3398,9 @@
       "nothingToShow": "Rien à afficher pour l'instant.",
       "fullRoster": "Voir la liste complète des cultures →",
       "seedStore": "Réserve de semences",
-      "readyToSow": "{{amount}} en espèces prêts à semer"
+      "readyToSow": "{{amount}} en espèces prêts à semer",
+      "inBeds_one": "dans {{count}} planche",
+      "inBeds_other": "dans {{count}} planches"
     },
     "model": {
       "unnamedBed": "Planche sans nom",

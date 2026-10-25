@@ -3398,7 +3398,9 @@
       "nothingToShow": "Noch nichts anzuzeigen.",
       "fullRoster": "Vollständige Pflanzenliste ansehen →",
       "seedStore": "Saatgutvorrat",
-      "readyToSow": "{{amount}} Bargeld bereit zur Aussaat"
+      "readyToSow": "{{amount}} Bargeld bereit zur Aussaat",
+      "inBeds_one": "in {{count}} Beet",
+      "inBeds_other": "in {{count}} Beeten"
     },
     "model": {
       "unnamedBed": "Unbenanntes Beet",

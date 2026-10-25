@@ -6,6 +6,7 @@ import { usePlotData } from '../PlotDataContext';
 import {
   attentionReasonFor,
   compareGainPctDesc,
+  distinctInstruments,
   formatGbp,
   formatPct,
   awaitingApprovalCrops,
@@ -143,7 +144,9 @@ export default function PlotHub({ basePath }: { basePath: string }) {
     today || localDateISO()
   );
   const openChores = chores.filter((chore) => !chore.completed).length;
-  const featured = crops.slice(0, 6);
+  // One card per instrument, not per holding row (#7212): six cards should
+  // cover six things, with the bed split summarised on the card.
+  const featured = distinctInstruments(crops).slice(0, 6);
   const germinating = germinatingCrops(crops);
   const awaitingApproval = awaitingApprovalCrops(crops);
   const streakDays = today ? buildStreakPath(dailyTotals, today) : [];
@@ -392,8 +395,21 @@ export default function PlotHub({ basePath }: { basePath: string }) {
         ) : (
           <>
             <div className={styles.cropGrid}>
-              {featured.map((crop) => (
-                <CropCard key={crop.id} crop={crop} basePath={basePath} />
+              {featured.map(({ combined, bedNames }) => (
+                <CropCard
+                  key={combined.id}
+                  crop={
+                    bedNames.length > 1
+                      ? {
+                          ...combined,
+                          bedName: t('plot.hub.inBeds', {
+                            count: bedNames.length,
+                          }),
+                        }
+                      : combined
+                  }
+                  basePath={basePath}
+                />
               ))}
             </div>
             <p className={styles.sectionNote}>

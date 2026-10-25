@@ -409,7 +409,7 @@
     "drawdownUnreliable": "Le calcul du drawdown maximal a renvoyé une valeur impossible (un drawdown doit se situer entre -100 % et 0 %) ; il n'est donc pas affiché. Cela indique généralement des prix manquants ou incorrects.",
     "drawdownChartDescription": "Le drawdown est calculé à partir de la courbe quotidienne du portefeuille. La zone ombrée montre la période pic-creux du drawdown maximal.",
     "drawdownSeriesUnavailable": "Nous n'avons pas pu charger l'historique du drawdown pour cette période.",
-    "performancePartialMembers": "Le rendement pondéré par le temps et le XIRR sont incomplets : aucun historique de transactions n'a été trouvé pour {{members}}, ces chiffres sont donc probablement supérieurs au rendement réel du foyer.",
+    "performancePartialMembers": "Le rendement pondéré par le temps et le XIRR sont incomplets : aucun historique de transactions n'a été trouvé pour {{members}}, ces chiffres ne couvrent donc pas l'ensemble du foyer.",
     "performanceMetricsUnavailable": "Certaines métriques n'ont pas pu être chargées et sont affichées comme indisponibles : {{metrics}}.",
     "performanceUnavailable": "Impossible de charger le graphique de valeur du portefeuille pour cette période. Les autres métriques de cette page peuvent rester disponibles.",
     "performanceEmpty": "Il n'y a pas encore d'historique de valeur du portefeuille pour cette période.",

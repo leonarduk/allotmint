@@ -612,9 +612,12 @@ describe("PerformanceDashboard", () => {
         </MemoryRouter>,
       );
 
-      expect(
-        await screen.findByTestId("performance-partial-warning"),
-      ).toHaveTextContent("joe");
+      const warning = await screen.findByTestId("performance-partial-warning");
+      expect(warning).toHaveTextContent("joe");
+      // Members without a ledger are left out of the pooled figure, so the
+      // copy must not claim it reads high (#10233).
+      expect(warning).toHaveTextContent(/don't fully cover the household/);
+      expect(warning).not.toHaveTextContent(/higher/i);
     });
 
     it("shows no partial warning when group data is complete", async () => {

@@ -409,7 +409,7 @@
     "drawdownUnreliable": "El cálculo de la caída máxima devolvió un valor imposible (una caída debe estar entre -100 % y 0 %), por lo que no se muestra. Esto suele indicar precios ausentes o incorrectos.",
     "drawdownChartDescription": "El drawdown se calcula a partir de la curva diaria del valor del portafolio. La zona sombreada muestra el tramo entre el pico y el valle del drawdown máximo.",
     "drawdownSeriesUnavailable": "No pudimos cargar el historial de drawdown para este periodo.",
-    "performancePartialMembers": "La rentabilidad ponderada por tiempo y la XIRR están incompletas: no se encontró historial de transacciones de {{members}}, por lo que estas cifras probablemente son superiores a la rentabilidad real del hogar.",
+    "performancePartialMembers": "La rentabilidad ponderada por tiempo y la XIRR están incompletas: no se encontró historial de transacciones de {{members}}, por lo que estas cifras no cubren todo el hogar.",
     "performanceMetricsUnavailable": "Algunas métricas no se pudieron cargar y se muestran como no disponibles: {{metrics}}.",
     "performanceUnavailable": "No pudimos cargar el gráfico de valor de la cartera de este periodo. Es posible que otras métricas de esta página sigan disponibles.",
     "performanceEmpty": "Todavía no hay historial del valor de la cartera para este periodo.",

@@ -409,7 +409,7 @@
     "drawdownUnreliable": "Die Berechnung des maximalen Drawdowns lieferte einen unmöglichen Wert (ein Drawdown muss zwischen -100 % und 0 % liegen) und wird daher nicht angezeigt. Das deutet meist auf fehlende oder falsche Kurse hin.",
     "drawdownChartDescription": "Der Drawdown wird aus der täglichen Portfoliokurve berechnet. Der markierte Bereich zeigt den Peak-to-Trough-Verlauf des maximalen Drawdowns.",
     "drawdownSeriesUnavailable": "Wir konnten für diesen Zeitraum keine Drawdown-Historie laden.",
-    "performancePartialMembers": "Zeitgewichtete Rendite und XIRR sind unvollständig: Für {{members}} wurde keine Transaktionshistorie gefunden, daher liegen diese Werte wahrscheinlich über der tatsächlichen Rendite des Haushalts.",
+    "performancePartialMembers": "Zeitgewichtete Rendite und XIRR sind unvollständig: Für {{members}} wurde keine Transaktionshistorie gefunden, daher bilden diese Werte den Haushalt nicht vollständig ab.",
     "performanceMetricsUnavailable": "Einige Kennzahlen konnten nicht geladen werden und werden als nicht verfügbar angezeigt: {{metrics}}.",
     "performanceUnavailable": "Das Diagramm des Portfoliowerts für diesen Zeitraum konnte nicht geladen werden. Andere Kennzahlen auf dieser Seite sind möglicherweise weiterhin verfügbar.",
     "performanceEmpty": "Für diesen Zeitraum gibt es noch keinen Verlauf des Portfoliowerts.",

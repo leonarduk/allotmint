@@ -1011,6 +1011,13 @@ describe('neediestCrop', () => {
     ]);
     expect(picked?.ticker).toBe('DEEP');
   });
+
+  it('nominates the same crop for an equal-gain tie whatever the input order (#8316)', () => {
+    const alpha = crop({ ticker: 'ALPHA.L', gainPct: -10 });
+    const beta = crop({ ticker: 'BETA.L', gainPct: -10 });
+    expect(neediestCrop([alpha, beta])?.ticker).toBe('ALPHA.L');
+    expect(neediestCrop([beta, alpha])?.ticker).toBe('ALPHA.L');
+  });
 });
 
 describe('portfolioAttentionReason (#8313)', () => {

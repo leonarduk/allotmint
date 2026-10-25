@@ -113,7 +113,11 @@ export function ensureChatLoaded(): Promise<void> {
 
 function isConflict(e: unknown): e is { body: { current: { revision: number; conversation: SavedChatTree } } } {
   const err = e as { status?: unknown; body?: { current?: { revision?: unknown } } } | null;
-  return err?.status === 409 && typeof err.body?.current?.revision === "number";
+  return (
+    err?.status === 409 &&
+    typeof err.body?.current?.revision === "number" &&
+    typeof (err.body.current as { conversation?: unknown }).conversation === "object"
+  );
 }
 
 async function saveOnce(epoch: number): Promise<void> {

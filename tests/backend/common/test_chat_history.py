@@ -549,10 +549,14 @@ def test_open_that_keeps_losing_the_race_conflicts_and_keeps_the_archived_chat(s
         raise ch.ChatConversationConflict(ch.load_conversation(email, store))
 
     monkeypatch.setattr(ch, "save_conversation", always_conflicts)
+    deleted: list[str] = []
+    real_delete = store.delete
+    monkeypatch.setattr(store, "delete", lambda key: (deleted.append(key), real_delete(key))[1])
 
     with pytest.raises(ch.ChatConversationConflict):
         ch.open_conversation(ALICE, "r00000001", store)
     assert "r00000001" in _archived_ids(store)
+    assert not any(key.endswith("r00000001.json") for key in deleted)
 
 
 def test_clean_title() -> None:

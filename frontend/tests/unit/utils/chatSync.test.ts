@@ -452,6 +452,15 @@ describe("opening a saved chat", () => {
     expect(putMock()).not.toHaveBeenCalled();
   });
 
+  it("keeps the conversation on a 409 that carries no current document", async () => {
+    const conflict = Object.assign(new Error("conflict"), { status: 409, body: { detail: "x" } });
+    (api.openSavedChat as Mock).mockRejectedValue(conflict);
+
+    await expect(openSavedChat("r00000001")).rejects.toBe(conflict);
+
+    expect(contents()).toEqual(["q", "a"]);
+  });
+
   it("keeps the conversation when opening fails", async () => {
     (api.openSavedChat as Mock).mockRejectedValue(new Error("down"));
 

@@ -260,6 +260,24 @@ def test_history_lists_rename_open_and_delete(app) -> None:
     assert [c["id"] for c in client.get(HISTORY).json()["chats"]] == ["current"]
 
 
+def test_open_that_loses_the_race_is_409_with_the_current_document(app, monkeypatch) -> None:
+    # The frontend adopts ``current`` from this body (#9022), so pin its shape.
+    client = _client_as(app, ALICE)
+    client.put(URL, json={"revision": 0, "conversation": _conversation("other tab")})
+
+    def conflicts(email, chat_id, store=None):
+        raise routes.chat_history.ChatConversationConflict(routes.chat_history.load_conversation(email))
+
+    monkeypatch.setattr(routes.chat_history, "open_conversation", conflicts)
+    resp = client.post(f"{HISTORY}/r00000001/open")
+
+    assert resp.status_code == 409
+    body = resp.json()
+    assert body["code"] == "chat_conversation_conflict"
+    assert body["current"]["revision"] == 1
+    assert body["current"]["conversation"]["nodes"][0]["content"] == "other tab"
+
+
 def test_history_unknown_or_invalid_ids_are_404(app) -> None:
     client = _client_as(app, ALICE)
     _archive(client, "q", 0)

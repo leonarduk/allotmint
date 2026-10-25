@@ -447,6 +447,7 @@
     "timeWeightedReturnInfo": "Le rendement pondéré dans le temps mesure le taux de croissance composé du portefeuille, indépendamment du moment et du montant des dépôts et retraits.",
     "xirrInfoLabel": "Que signifie XIRR ?",
     "xirrInfo": "Le XIRR est le taux de rendement interne annualisé, calculé à partir des flux de trésorerie datés réels du portefeuille.",
+    "xirrMissing": "Le XIRR ne peut pas être calculé pour cette période : il nécessite des flux de trésorerie datés issus de votre historique de transactions, et certains schémas de flux n'ont pas de solution.",
     "fxAttribution": {
       "title": "D'où vient le résultat",
       "description": "Le gain ou la perte en GBP du portefeuille sur la période choisie, réparti entre variations de prix locales, variations de change, revenus, et opérations et autres effets.",

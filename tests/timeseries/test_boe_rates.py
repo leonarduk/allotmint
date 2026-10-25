@@ -54,6 +54,18 @@ def test_parse_rejects_responses_that_are_not_the_requested_csv(text):
         boe_rates.parse_boe_csv(text, ["IUDBEDR"])
 
 
+def test_parse_rejects_rows_whose_dates_are_all_in_another_format():
+    """A date-format change must fail loudly, not store nothing (#9348)."""
+    with pytest.raises(boe_rates.BoeFetchError, match="01/06/2007"):
+        boe_rates.parse_boe_csv("DATE,IUDBEDR\n01/06/2007,5.5\n04/06/2007,5.5\n", ["IUDBEDR"])
+
+
+def test_parse_of_a_header_only_csv_is_empty_not_an_error():
+    parsed = boe_rates.parse_boe_csv("DATE,IUDBEDR\n", ["IUDBEDR"])
+
+    assert parsed["IUDBEDR"].empty
+
+
 def test_first_refresh_fetches_from_the_history_start_and_stores_one_file_per_series(store, fake_fetch):
     calls, responses = fake_fetch
     responses.append(CSV)

@@ -330,6 +330,28 @@ describe("PerformanceDashboard", () => {
       expect(xirrEl).toHaveTextContent("N/A");
       expect(xirrEl).not.toHaveAttribute("data-unreliable");
     });
+
+    // #9170: a missing XIRR says why it is missing instead of a bare N/A.
+    it("explains a missing XIRR in its N/A tooltip", async () => {
+      vi.mocked(getPerformance).mockResolvedValue({
+        history: [{ date: "2024-03-01", value: 1000 }],
+        time_weighted_return: 0.05,
+        xirr: null,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+      });
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("reporting-date-summary");
+      expect(screen.getByTestId(testIds.xirr)).toHaveAttribute(
+        "title",
+        expect.stringMatching(/needs dated cash flows/),
+      );
+      expect(screen.getByTestId(testIds.twr)).not.toHaveAttribute("title");
+    });
   });
 
   describe("drawdown and non-finite edge cases (#8570 review)", () => {

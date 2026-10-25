@@ -441,6 +441,7 @@
     "timeWeightedReturnInfo": "Time-weighted return measures the portfolio's compounded growth rate, independent of the timing and size of deposits and withdrawals.",
     "xirrInfoLabel": "What does XIRR mean?",
     "xirrInfo": "XIRR is the annualised internal rate of return calculated from the portfolio's actual dated cash flows.",
+    "xirrMissing": "XIRR can't be calculated for this period: it needs dated cash flows from your transaction history, and some patterns of flows have no solution.",
     "fxAttribution": {
       "title": "Where the P&L came from",
       "description": "The portfolio's GBP profit or loss over the selected range, split into local price moves, currency moves, income, and trading and other effects.",

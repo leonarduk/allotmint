@@ -305,9 +305,12 @@ def _missing_asset_class_issue(ticker: str, meta: dict[str, Any]) -> DataQuality
 
     Keyed on the instrument, not the holding, so one gap held in several
     accounts is reported once. Values such as "Fund" name a wrapper, not an
-    exposure, so they count as missing too (#9196).
+    exposure, so they count as missing too (#9196). The legacy ``assetClass``
+    key is read first, as ``enrich_holding`` does, so a class stored under it
+    is not reported missing (#9268).
     """
-    if normalise_asset_class(meta.get("asset_class")) is not None:
+    stored = meta.get("assetClass") or meta.get("asset_class")
+    if normalise_asset_class(stored) is not None:
         return None
     symbol, _, exchange = ticker.partition(".")
     return DataQualityIssue(
@@ -315,15 +318,12 @@ def _missing_asset_class_issue(ticker: str, meta: dict[str, Any]) -> DataQuality
         type=IssueType.MISSING_ASSET_CLASS,
         severity=SEVERITY[IssueType.MISSING_ASSET_CLASS],
         entity={"ticker": symbol, "exchange": exchange},
-        description=(
-            f"Held instrument {ticker} has asset class {meta.get('asset_class')!r}; "
-            f"expected one of {', '.join(ASSET_CLASSES)}."
-        ),
+        description=f"Held instrument {ticker} has asset class {stored!r}; expected one of {', '.join(ASSET_CLASSES)}.",
         suggested_fix=(
             "Run scripts/classify_instruments.py --write, or add the instrument to "
             "instrument_classification_overrides.json."
         ),
-        preview={"before": {"asset_class": meta.get("asset_class")}, "after": {"asset_class": "classified"}},
+        preview={"before": {"asset_class": stored}, "after": {"asset_class": "classified"}},
         fixable=False,
     )
 

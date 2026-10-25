@@ -80,3 +80,19 @@ def test_override_table_has_no_exchange_wide_wildcard():
 
     assert "*" not in overrides.get("L", {})
     assert "*" not in overrides
+
+
+def test_every_committed_override_is_a_valid_factor():
+    """get_scaling_override silently skips a factor other than 0.01/1/100 and
+    falls back to currency metadata, so an invalid entry (ADM.L's 0.1, #8597)
+    would leave the price 100x wrong with no test failing (#8813)."""
+    overrides = json.loads(OVERRIDES_PATH.read_text())
+
+    invalid = [
+        f"{exchange}/{ticker}={factor!r}"
+        for exchange, table in overrides.items()
+        for ticker, factor in table.items()
+        if isinstance(factor, bool) or not isinstance(factor, (int, float)) or not th.is_valid_override_factor(factor)
+    ]
+
+    assert not invalid, f"Invalid scaling factors in {OVERRIDES_PATH}: {invalid}"

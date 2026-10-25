@@ -37,6 +37,18 @@ def test_nav_max_age_days_is_read_from_market_data():
     assert build_config({}, check_google_auth=False).nav_max_age_days is None
 
 
+@pytest.mark.parametrize("value", [0, -1, "0", 1.5, True, "abc"])
+def test_nav_max_age_days_rejects_non_positive_or_non_integer(value):
+    """0 or a negative limit would mark every trust NAV stale (#9226)."""
+    with pytest.raises(ConfigValidationError, match="nav_max_age_days"):
+        build_config({"nav_max_age_days": value}, check_google_auth=False)
+
+
+@pytest.mark.parametrize(("value", "expected"), [(1, 1), ("31", 31), ("", None), (None, None)])
+def test_nav_max_age_days_accepts_positive_integers_or_unset(value, expected):
+    assert build_config({"nav_max_age_days": value}, check_google_auth=False).nav_max_age_days == expected
+
+
 def test_nav_refresh_settings_are_read_from_market_data():
     data: dict = {}
     _flatten_dict(

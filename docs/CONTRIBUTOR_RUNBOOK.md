@@ -511,6 +511,10 @@ grants `ssm:GetParameter` on exactly those two parameters (allotmint-pro's
   `aws ssm put-parameter --type SecureString --overwrite --name <parameter> --value <secret>`.
   No redeploy is needed, but only new cold starts read the value: warm
   instances keep the old one until Lambda recycles them.
+- **Rotating a leaked credential does not revoke it on its own**: warm
+  instances keep using the old value. Revoke it at the provider (Brave,
+  GitHub) and force fresh instances by changing the function's configuration,
+  e.g. `aws lambda update-function-configuration --function-name <McpServerLambda name> --description "rotated <date>"`.
 - Encrypt with the default `aws/ssm` key: its key policy already lets roles in
   the account decrypt through SSM, so no `kms:Decrypt` grant is needed. A
   parameter encrypted with your own KMS key also needs `kms:Decrypt` on that

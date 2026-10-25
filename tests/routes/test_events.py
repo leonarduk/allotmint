@@ -134,9 +134,56 @@ def test_list_events_returns_known_risk_factors(monkeypatch, tmp_path):
     reload_events_module()
 
 
+def test_list_events_skips_malformed_entries_and_keeps_the_rest(monkeypatch, tmp_path, caplog):
+    events = tmp_path / "events.json"
+    events.write_text(
+        json.dumps(
+            {
+                "events": [
+                    {"date": "2020-03-16"},  # no description
+                    "not-an-object",
+                    {"date": "2016-06-24", "description": "Brexit"},
+                ]
+            }
+        )
+    )
+
+    with monkeypatch.context() as patcher, caplog.at_level(logging.WARNING):
+        patcher.setattr(events_module, "_events_path", events, raising=False)
+        reload_events_module()
+        client = create_client()
+
+        response = client.get("/events")
+        detail = events_module.get_event("2016-06-24")
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": "2016-06-24", "name": "2016-06-24: Brexit", "risk_factors": []}]
+    assert detail is not None and detail["date"] == "2016-06-24"
+    assert "Skipping malformed scenario event #0" in caplog.text
+    assert "Skipping malformed scenario event #1" in caplog.text
+
+    reload_events_module()
+
+
+def test_list_events_skips_flat_layout_entry_without_name(monkeypatch, tmp_path):
+    events = tmp_path / "events.json"
+    events.write_text(json.dumps([{"id": "broken"}, {"id": "ok", "name": "OK"}]))
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(events_module, "_events_path", events, raising=False)
+        reload_events_module()
+        client = create_client()
+
+        response = client.get("/events")
+
+    assert response.json() == [{"id": "ok", "name": "OK", "risk_factors": []}]
+
+    reload_events_module()
+
+
 def test_list_events_malformed_file_degrades_to_empty(monkeypatch, tmp_path, caplog):
     bad = tmp_path / "events.json"
-    bad.write_text(json.dumps({"events": [{"date": "2020-03-16"}]}))  # no description
+    bad.write_text(json.dumps("not a catalogue"))
 
     with monkeypatch.context() as patcher, caplog.at_level(logging.ERROR):
         patcher.setattr(events_module, "_events_path", bad, raising=False)

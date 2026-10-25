@@ -132,6 +132,9 @@ def parse_boe_csv(text: str, codes: list[str]) -> dict[str, pd.DataFrame]:
     if missing:
         raise BoeFetchError(f"Bank of England CSV is missing columns {missing}; got {list(raw.columns)[:6]}")
     dates = pd.to_datetime(raw["DATE"], format="%d %b %Y", errors="coerce").astype("datetime64[ms]")
+    if not raw.empty and dates.isna().all():
+        # A changed date format would otherwise drop every row and report "0 added" (#9348).
+        raise BoeFetchError(f"Bank of England CSV dates are not 'DD Mon YYYY': {raw['DATE'].head(3).tolist()}")
     out: dict[str, pd.DataFrame] = {}
     for code in codes:
         values = pd.to_numeric(raw[code].str.strip(), errors="coerce")

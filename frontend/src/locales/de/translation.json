@@ -447,6 +447,7 @@
     "timeWeightedReturnInfo": "Die zeitgewichtete Rendite misst die aufgezinste Wachstumsrate des Portfolios, unabhängig von Zeitpunkt und Höhe von Ein- und Auszahlungen.",
     "xirrInfoLabel": "Was bedeutet XIRR?",
     "xirrInfo": "XIRR ist der annualisierte interne Zinsfuß, berechnet aus den tatsächlichen, datierten Zahlungsströmen des Portfolios.",
+    "xirrMissing": "Der XIRR lässt sich für diesen Zeitraum nicht berechnen: Er benötigt datierte Zahlungsströme aus Ihrer Transaktionshistorie, und manche Zahlungsmuster haben keine Lösung.",
     "fxAttribution": {
       "title": "Woher der Gewinn/Verlust kam",
       "description": "Der Gewinn oder Verlust des Portfolios in GBP im gewählten Zeitraum, aufgeteilt in lokale Kursbewegungen, Währungsbewegungen, Erträge sowie Handel und Sonstiges.",

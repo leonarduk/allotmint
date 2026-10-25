@@ -722,6 +722,9 @@ describe("ChatPanel", () => {
 
       const versions = within(items()[0]).getByRole("group", { name: /message versions/i });
       expect(versions).toHaveTextContent("2 / 2");
+      // The live region announces a sentence; the "2 / 2" counter is hidden from it (#8866).
+      expect(within(versions).getByText("Version 2 of 2").closest("[aria-live]")).not.toBeNull();
+      expect(within(versions).getByText("2 / 2")).toHaveAttribute("aria-hidden", "true");
       expect(within(versions).getByRole("button", { name: /next version/i })).toBeDisabled();
 
       await user.click(within(versions).getByRole("button", { name: /previous version/i }));

@@ -94,11 +94,37 @@ def _normalise_events(raw: Any) -> list[dict[str, Any]]:
     return [{"id": e["id"], "name": e["name"], "risk_factors": _risk_factors(e)} for e in raw]
 
 
+def _without_malformed_entries(raw: Any) -> Any:
+    """``raw`` minus entries lacking their layout's required fields, each skip logged.
+
+    One bad hand-edited row must not blank the whole catalogue; a file whose
+    top level is neither layout still raises and degrades to no events.
+    """
+    market_layout = isinstance(raw, dict)
+    if not market_layout and not isinstance(raw, list):
+        raise TypeError("events file must be a list or an object with an 'events' list")
+    entries = raw.get("events", []) if market_layout else raw
+    if not isinstance(entries, list):
+        raise TypeError("'events' must be a list")
+    required = ("date", "description") if market_layout else ("id", "name")
+    kept = []
+    for index, entry in enumerate(entries):
+        if isinstance(entry, dict) and all(entry.get(key) for key in required):
+            kept.append(entry)
+        else:
+            logger.warning(
+                "Skipping malformed scenario event #%s (needs %s)",
+                sanitise_log_value(index),
+                sanitise_log_value(" and ".join(required)),
+            )
+    return {**raw, "events": kept} if market_layout else kept
+
+
 _events_path = globals().get("_events_path") or _resolve_events_path()
 
 try:
     with _events_path.open() as fh:
-        _raw_events = json.load(fh)
+        _raw_events = _without_malformed_entries(json.load(fh))
     _EVENTS = _normalise_events(_raw_events)
     _EVENT_DETAILS = _event_details(_raw_events)
 except FileNotFoundError:

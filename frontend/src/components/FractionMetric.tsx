@@ -7,6 +7,11 @@ type FractionMetricProps = {
   value: number | null | undefined;
   range: PlausibleRange;
   testId?: string;
+  /**
+   * Why a missing (null) value is missing, shown as the N/A tooltip. Without
+   * it a bare "N/A" gives no hint whether to wait, add data or ignore it.
+   */
+  missingReason?: string;
 };
 
 /**
@@ -14,12 +19,16 @@ type FractionMetricProps = {
  * Implausible values get an "unreliable" tooltip and are never rescaled
  * (#8570).
  */
-export function FractionMetric({ value, range, testId }: FractionMetricProps) {
+export function FractionMetric({ value, range, testId, missingReason }: FractionMetricProps) {
   const { t, i18n } = useTranslation();
   const na = t("dashboard.metricNotAvailable", "N/A");
   const state = classifyMetric(value, range);
   if (state === "missing") {
-    return <span data-testid={testId}>{na}</span>;
+    return (
+      <span data-testid={testId} title={missingReason}>
+        {na}
+      </span>
+    );
   }
   if (state === "unreliable") {
     return (

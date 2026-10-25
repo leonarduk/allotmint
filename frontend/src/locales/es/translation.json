@@ -447,6 +447,7 @@
     "timeWeightedReturnInfo": "La rentabilidad ponderada en el tiempo mide la tasa de crecimiento compuesto de la cartera, independientemente del momento y el importe de los depósitos y retiradas.",
     "xirrInfoLabel": "¿Qué significa XIRR?",
     "xirrInfo": "XIRR es la tasa interna de retorno anualizada, calculada a partir de los flujos de caja fechados reales de la cartera.",
+    "xirrMissing": "No se puede calcular la XIRR para este periodo: necesita flujos de caja fechados de tu historial de transacciones, y algunos patrones de flujos no tienen solución.",
     "fxAttribution": {
       "title": "De dónde vino la ganancia o pérdida",
       "description": "La ganancia o pérdida en GBP de la cartera en el periodo seleccionado, dividida en movimientos de precio local, movimientos de divisa, rentas y operaciones y otros efectos.",

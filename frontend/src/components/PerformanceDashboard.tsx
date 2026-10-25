@@ -558,7 +558,15 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             </InfoTip>
           </div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            <FractionMetric value={xirr} range={RETURN_RANGE} testId="metric-xirr" />
+            <FractionMetric
+              value={xirr}
+              range={RETURN_RANGE}
+              testId="metric-xirr"
+              missingReason={t(
+                "dashboard.xirrMissing",
+                "XIRR can't be calculated for this period: it needs dated cash flows from your transaction history, and some patterns of flows have no solution.",
+              )}
+            />
           </div>
         </div>
       </div>

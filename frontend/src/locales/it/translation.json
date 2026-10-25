@@ -447,6 +447,7 @@
     "timeWeightedReturnInfo": "Il rendimento ponderato nel tempo misura il tasso di crescita composto del portafoglio, indipendentemente dal momento e dall'importo di versamenti e prelievi.",
     "xirrInfoLabel": "Cosa significa XIRR?",
     "xirrInfo": "XIRR è il tasso interno di rendimento annualizzato, calcolato sui flussi di cassa datati effettivi del portafoglio.",
+    "xirrMissing": "Non è possibile calcolare l'XIRR per questo periodo: servono flussi di cassa datati dal tuo storico delle transazioni, e alcune sequenze di flussi non hanno soluzione.",
     "fxAttribution": {
       "title": "Da dove è venuto il risultato",
       "description": "L'utile o la perdita in GBP del portafoglio nel periodo selezionato, suddiviso tra movimenti di prezzo locali, movimenti di cambio, proventi, e operazioni e altri effetti.",

@@ -222,6 +222,24 @@ describe("ChatPanel", () => {
     expect(container.querySelector("b")).toBeNull();
   });
 
+  it("opens markdown links in a new tab without exposing window.opener", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({
+      reply: "See [example](https://example.com) for details.",
+    });
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "hi");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    const link = await screen.findByRole("link", { name: "example" });
+    expect(link).toHaveAttribute("href", "https://example.com");
+    expect(link).toHaveAttribute("target", "_blank");
+    const rel = (link.getAttribute("rel") ?? "").split(/\s+/);
+    expect(rel).toEqual(expect.arrayContaining(["noopener", "noreferrer"]));
+  });
+
   it("shows an error message when the request fails", async () => {
     (api.postChat as Mock).mockRejectedValueOnce(new Error("network error"));
     const user = userEvent.setup();

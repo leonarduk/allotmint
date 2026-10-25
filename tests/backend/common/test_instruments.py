@@ -486,6 +486,8 @@ def test_fetch_metadata_from_yahoo_fetches_category_only_for_funds(monkeypatch) 
     # The category is what lets classification see a money-market fund as cash.
     assert result["asset_class"] == "cash"
     assert result["name"] == "Royal London Short Term Money Mkt Y Acc"
+    # Yahoo's MUTUALFUND quoteType is stored as the canonical "Fund" (#10244).
+    assert result["instrument_type"] == "Fund"
 
 
 def test_fetch_metadata_from_yahoo_survives_fund_category_401(monkeypatch) -> None:

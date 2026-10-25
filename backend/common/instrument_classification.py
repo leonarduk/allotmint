@@ -204,6 +204,9 @@ _CANONICAL_INSTRUMENT_TYPES = {
     "ETC": "ETC",
     "ETP": "ETP",
     "FUND": "Fund",
+    # Yahoo's quoteType for an open-ended fund; the same wrapper a CSV or
+    # hand-edited record calls "Fund", so both emit one value (#10244).
+    "MUTUALFUND": "Fund",
     "INVESTMENT TRUST": "Investment Trust",
     "OEIC": "OEIC",
     "UNIT TRUST": "Unit Trust",

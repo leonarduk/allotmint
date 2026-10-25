@@ -26,7 +26,7 @@ class TriggerCreate(BaseModel):
     condition: Literal["above", "below"]
     price: float = Field(gt=0)
     mode: Literal["once", "continuous"] = "once"
-    note: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=triggers.MAX_NOTE_LENGTH)
     enabled: bool = True
 
     _price_not_bool = field_validator("price", mode="before")(_reject_bool_price)
@@ -37,7 +37,7 @@ class TriggerUpdate(BaseModel):
     condition: Optional[Literal["above", "below"]] = None
     price: Optional[float] = Field(default=None, gt=0)
     mode: Optional[Literal["once", "continuous"]] = None
-    note: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=triggers.MAX_NOTE_LENGTH)
     enabled: Optional[bool] = None
 
     _price_not_bool = field_validator("price", mode="before")(_reject_bool_price)

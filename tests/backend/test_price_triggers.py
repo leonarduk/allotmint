@@ -217,3 +217,16 @@ def test_routes_reject_a_boolean_price(client):
     tid = r.json()["id"]
     assert client.patch(f"/price-triggers/alice/{tid}", json={"price": False}).status_code == 422
     assert client.patch(f"/price-triggers/alice/{tid}", json={"price": 1.5}).json()["price"] == 1.5
+
+
+def test_note_over_the_limit_is_rejected_not_truncated(client):
+    """An over-long note is a 422, never a silently shortened one (#8424)."""
+    body = {"ticker": "X", "condition": "above", "price": 1}
+    assert client.post("/price-triggers/alice", json={**body, "note": "n" * 201}).status_code == 422
+    r = client.post("/price-triggers/alice", json={**body, "note": "n" * 200})
+    assert (r.status_code, r.json()["note"]) == (201, "n" * 200)
+    tid = r.json()["id"]
+    assert client.patch(f"/price-triggers/alice/{tid}", json={"note": "m" * 201}).status_code == 422
+    assert client.patch(f"/price-triggers/alice/{tid}", json={"note": None}).json()["note"] is None
+    with pytest.raises(pt.TriggerError):
+        pt.create_trigger("alice", ticker="X", condition="above", price=1, note="n" * 201)

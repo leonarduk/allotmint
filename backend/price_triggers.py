@@ -39,6 +39,8 @@ logger = logging.getLogger(__name__)
 CONDITIONS = ("above", "below")
 MODES = ("once", "continuous")
 MAX_TRIGGERS_PER_USER = 100
+# Matches the note input's maxLength in PriceTriggersPanel.tsx.
+MAX_NOTE_LENGTH = 200
 
 _S3_KEY = "alerts/price_triggers.json"
 _UPDATABLE = ("ticker", "condition", "price", "mode", "enabled", "note")
@@ -118,7 +120,10 @@ def _clean_price(value: Any) -> float:
 
 def _clean_note(value: Any) -> Optional[str]:
     note = str(value).strip() if value is not None else ""
-    return note[:200] or None
+    # Reject rather than truncate, so an API caller never loses text silently (#8424).
+    if len(note) > MAX_NOTE_LENGTH:
+        raise TriggerError(f"note must be at most {MAX_NOTE_LENGTH} characters")
+    return note or None
 
 
 def _clean_user(user: str) -> str:

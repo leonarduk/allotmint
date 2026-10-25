@@ -839,16 +839,22 @@ def _undo_scaling_override(entry: dict[str, Any], user: str | None) -> dict[str,
         del section[ticker]
     else:
         section[ticker] = previous
-    _write_overrides_table(path, table)
-    append_audit(
-        action="undo",
-        issue_id=str(entry.get("issue_id") or ""),
-        entity={"ticker": ticker, "exchange": exchange},
-        before={"action": entry.get("action"), "undo_of": entry.get("id")},
-        after={"restored": True},
-        actor=user,
-        extra={"kind": "undo", "undo_of": entry.get("id")},
-    )
+    before_bytes = path.read_bytes()
+    after_bytes = _write_overrides_table(path, table)
+    try:
+        append_audit(
+            action="undo",
+            issue_id=str(entry.get("issue_id") or ""),
+            entity={"ticker": ticker, "exchange": exchange},
+            before={"action": entry.get("action"), "undo_of": entry.get("id")},
+            after={"restored": True},
+            actor=user,
+            extra={"kind": "undo", "undo_of": entry.get("id")},
+        )
+    except Exception:
+        # Same as the fix: an unaudited table change is put back.
+        _restore_after_audit_failure(path, before_bytes=before_bytes, after_bytes=after_bytes)
+        raise
     return {"status": "undone", "entry_id": entry.get("id")}
 
 

@@ -678,10 +678,12 @@ def _price_scale_issue(
     if not reasons:
         return None
     factor = before.get("suggested_factor")
-    fixable = factor is not None and is_valid_override_factor(factor) and not closes.empty
+    # On AWS the table is baked into the image and the fix refuses to write it,
+    # so don't offer an Apply there that can only fail.
+    fixable = factor is not None and is_valid_override_factor(factor) and not closes.empty and config.app_env != "aws"
     after: dict[str, Any] = {"price": "rescaled"}
     fix_payload: dict[str, Any] = {}
-    if fixable:
+    if fixable and factor is not None:
         after = {"price_gbp": round(float(closes.iloc[-1]) * factor, 4), "factor": factor}
         fix_payload = {"kind": "scaling_override", "ticker": ticker, "exchange": exchange, "factor": factor}
     return DataQualityIssue(

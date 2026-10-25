@@ -1215,13 +1215,19 @@ def test_price_scale_fix_rejects_invalid_factor(monkeypatch, tmp_path):
 
 
 def test_price_scale_fix_refused_on_aws(monkeypatch, tmp_path):
+    import backend.routes.data_quality_admin as admin_module
+
     dq_client, live_table = _price_scale_client(monkeypatch, tmp_path, data_table={"L": {}})
-    issue = _scale_issue(dq_client)
     monkeypatch.setattr(config, "app_env", "aws")
 
-    resp = dq_client.post(f"/data-quality/issues/{issue['id']}/fix")
-
-    assert resp.status_code == 400
+    # Not offered as fixable on AWS, where applying it can only fail.
+    issue = _scale_issue(dq_client)
+    assert issue["fixable"] is False
+    assert dq_client.post(f"/data-quality/issues/{issue['id']}/fix").status_code == 409
+    # And the writer refuses even if reached directly.
+    with pytest.raises(admin_module.HTTPException) as exc:
+        admin_module._fix_scaling_override({"ticker": "AV", "exchange": "L", "factor": 0.01}, None)
+    assert exc.value.status_code == 400
     assert json.loads(live_table.read_text(encoding="utf-8")) == {"L": {}}
 
 
@@ -1266,3 +1272,22 @@ def test_price_scale_fix_undo_refuses_when_factor_changed_since(monkeypatch, tmp
 
     assert resp.status_code == 409
     assert json.loads(live_table.read_text(encoding="utf-8")) == {"L": {"AV": 1.0}}
+
+
+def test_price_scale_fix_undo_restores_table_when_audit_fails(monkeypatch, tmp_path):
+    import backend.data_quality.audit as audit_module
+
+    dq_client, live_table = _price_scale_client(monkeypatch, tmp_path, data_table={"L": {"BP": 0.01}})
+    issue = _scale_issue(dq_client)
+    dq_client.post(f"/data-quality/issues/{issue['id']}/fix")
+    entry_id = dq_client.get("/data-quality/audit").json()["entries"][0]["id"]
+    fixed = live_table.read_bytes()
+
+    def failing_append(path, line):
+        raise OSError("simulated audit disk failure")
+
+    monkeypatch.setattr(audit_module, "_atomic_append_text", failing_append)
+    with pytest.raises(OSError):
+        dq_client.post(f"/data-quality/audit/{entry_id}/undo")
+
+    assert live_table.read_bytes() == fixed

@@ -7,7 +7,7 @@ import logging
 import random
 import time
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
 from botocore.config import Config
@@ -131,6 +131,31 @@ def _tool_result_to_bedrock_content(result: CallToolResult) -> List[Dict[str, An
     return [{"text": "\n".join(parts) or "(no output)"}]
 
 
+async def _call_tool(
+    session: Any, local_tools: Optional[LocalTools], name: str, arguments: Dict[str, Any]
+) -> Tuple[List[Dict[str, Any]], str]:
+    """Run one tool call, local or MCP; return ``(toolResult content, status)``.
+
+    Local and MCP calls share one error boundary, as in the OpenAI path
+    (``openai_compat_agent``): an exception from either is surfaced to the
+    model as a failed tool call instead of aborting the turn (#8201).
+    """
+
+    try:
+        if local_tools is not None and local_tools.handles(name):
+            text, is_error = local_tools.call(name, arguments)
+            return [{"text": text}], "error" if is_error else "success"
+        result = await session.call_tool(name, arguments)
+        return _tool_result_to_bedrock_content(result), "error" if result.is_error else "success"
+    except Exception as exc:  # noqa: BLE001 - surfaced to the model, not swallowed
+        logger.warning(
+            "Tool call %s failed: %s",
+            sanitise_log_value(name),
+            sanitise_log_value(exc),
+        )
+        return [{"text": f"Tool call failed: {exc}"}], "error"
+
+
 def _validate_message_alternation(messages: List[Dict[str, Any]]) -> None:
     """Raise ``ValueError`` unless the messages start with ``user`` and alternate roles.
 
@@ -232,35 +257,7 @@ async def run_chat_turn(
                         }
                     )
                     continue
-                if local_tools is not None and local_tools.handles(tool_use["name"]):
-                    text, is_error = local_tools.call(tool_use["name"], tool_use.get("input") or {})
-                    log_tool_call(tool_use["name"], "error" if is_error else "ok", started)
-                    if tool_policy is not None:
-                        tool_policy.record(tool_use["name"], tool_use.get("input") or {}, text, is_error)
-                    if limits is not None:
-                        limits.record_call(tool_use["name"], tool_use.get("input") or {}, text, is_error)
-                    tool_result_content.append(
-                        {
-                            "toolResult": {
-                                "toolUseId": tool_use["toolUseId"],
-                                "content": [{"text": text}],
-                                "status": "error" if is_error else "success",
-                            }
-                        }
-                    )
-                    continue
-                try:
-                    result = await session.call_tool(tool_use["name"], tool_use.get("input") or {})
-                    content = _tool_result_to_bedrock_content(result)
-                    status = "error" if result.is_error else "success"
-                except Exception as exc:  # noqa: BLE001 - surfaced to the model, not swallowed
-                    logger.warning(
-                        "MCP tool call %s failed: %s",
-                        sanitise_log_value(tool_use["name"]),
-                        sanitise_log_value(exc),
-                    )
-                    content = [{"text": f"Tool call failed: {exc}"}]
-                    status = "error"
+                content, status = await _call_tool(session, local_tools, tool_use["name"], tool_use.get("input") or {})
                 log_tool_call(tool_use["name"], "ok" if status == "success" else "error", started)
                 if tool_policy is not None:
                     tool_policy.record(

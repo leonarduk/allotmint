@@ -148,7 +148,12 @@ def project_pension_allowance(
 
 
 def isa_subscribed_minor(transactions: Iterable[Any], today: date) -> int:
-    """Pence paid into ISA accounts this tax year up to ``today`` (transfers between ISAs excluded)."""
+    """Pence paid into ISA accounts this tax year up to ``today`` (transfers between ISAs excluded).
+
+    A negative DEPOSIT is a reversed subscription, so the year's deposits are
+    summed signed and the total clamped at zero (#10794). Withdrawals never
+    restore allowance: flexible ISAs are not modelled.
+    """
     start, _ = tax_year_bounds(today)
     total = 0
     for tx in transactions:
@@ -157,8 +162,8 @@ def isa_subscribed_minor(transactions: Iterable[Any], today: date) -> int:
         if not is_isa_account(tx.account) or "transfer" in (tx.comments or "").lower():
             continue
         if (tx.currency or "GBP").strip().upper() == "GBP" and start <= date.fromisoformat(str(tx.date)[:10]) <= today:
-            total += abs(int(round(tx.amount_minor)))
-    return total
+            total += int(round(tx.amount_minor))
+    return max(total, 0)
 
 
 def project_isa_allowance(

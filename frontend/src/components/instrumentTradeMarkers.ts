@@ -42,13 +42,45 @@ export function tradeSide(tx: Pick<Transaction, "type" | "kind">): TradeSide | n
 }
 
 /**
- * Strip an exchange suffix so `AAPL.N` and `AAPL` compare equal.  Transaction
- * rows are not guaranteed to carry the same suffix as the instrument being
- * charted.
+ * Exchange codes that may follow a ticker's final `.`: the app's own codes
+ * plus their Yahoo suffix forms (see `_YAHOO_SUFFIXES` / `_EXCHANGE_REGIONS`
+ * in `backend/common/instruments.py`).  Share-class letters such as the `A`
+ * and `B` of `BRK.A`/`BRK.B` are deliberately absent, so those stay distinct.
+ */
+const KNOWN_EXCHANGE_SUFFIXES: ReadonlySet<string> = new Set([
+  "L",
+  "LSE",
+  "UK",
+  "N",
+  "O",
+  "NYSE",
+  "NASDAQ",
+  "US",
+  "PA",
+  "PARIS",
+  "DE",
+  "XETRA",
+  "F",
+  "TO",
+  "TSX",
+  "AX",
+  "ASX",
+  "MI",
+]);
+
+/**
+ * Strip a known exchange suffix so `AAPL.N` and `AAPL` compare equal.
+ * Transaction rows are not guaranteed to carry the same suffix as the
+ * instrument being charted.  An unrecognised suffix is kept, so `BRK.A` and
+ * `BRK.B` (or `FOO.XYZ` and `FOO`) never match each other (#7798).
  */
 function normaliseTicker(value: string | null | undefined): string {
   if (typeof value !== "string") return "";
-  return value.trim().toUpperCase().split(".")[0];
+  const ticker = value.trim().toUpperCase();
+  const dot = ticker.lastIndexOf(".");
+  if (dot <= 0) return ticker;
+  const suffix = ticker.slice(dot + 1);
+  return KNOWN_EXCHANGE_SUFFIXES.has(suffix) ? ticker.slice(0, dot) : ticker;
 }
 
 export function matchesTicker(

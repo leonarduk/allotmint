@@ -69,7 +69,7 @@ function makeRun(
     overdue: false,
   };
   return {
-    bot: 'cash_deployment',
+    bot: 'cash-deployment',
     owner: 'alex',
     as_of: '2026-01-15',
     status: 'ok',

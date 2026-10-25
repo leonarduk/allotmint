@@ -1,7 +1,8 @@
 """Cash deployment tracker bot entry point (#10480).
 
-:func:`run` is the standalone ``run(owner, as_of) -> dict`` the #10477 bot
-registry can wrap once it exists. It is read-only: for each of the owner's
+:func:`run` is the standalone ``run(owner, as_of) -> dict``;
+:class:`CashDeploymentBot` wraps it for the bot registry (#10505), registered
+from :mod:`backend.bots.adapters`. It is read-only: for each of the owner's
 schedules it checks progress against the account's transactions and, for an
 active schedule with a tranche due now, drafts that tranche's order list from
 the owner's plan. It never writes, never proposes a schedule and never trades.
@@ -19,6 +20,7 @@ from typing import Any, Optional
 
 from pydantic import ValidationError
 
+from backend.bots.registry import BotKind, BotRunContext, BotScope, BotSettings, RunResult, RunStatus, Schedule
 from backend.cash_deployment.progress import build_progress
 from backend.cash_deployment.schedule import DeploymentSchedule, list_schedules
 from backend.cash_deployment.tranche import PriceLookup, build_tranche, default_prices, target_policy
@@ -31,7 +33,8 @@ from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
-BOT_ID = "cash_deployment"
+# Dashes, not underscores: the bot registry only accepts [a-z0-9-] ids (#10505).
+BOT_ID = "cash-deployment"
 BOT_NAME = "Cash deployment tracker"
 BOT_DESCRIPTION = "Tracks your own cash phasing schedule: tranches due, order list per your plan, and progress."
 TRANSACTIONS_SUFFIX = "_transactions.json"
@@ -140,3 +143,82 @@ def run(
         "schedules": results,
         "warnings": ctx.warnings,
     }
+
+
+def _owners(context: BotRunContext) -> list[str]:
+    if context.owner:
+        return [context.owner]
+    from backend.common.data_loader import list_plots
+
+    return [plot.owner for plot in list_plots() if plot.owner]
+
+
+def _owner_row(result: dict[str, Any]) -> dict[str, Any]:
+    """Counts only: the run report is stored and shown on the Bots page, so no amounts."""
+    schedules = result["schedules"]
+    return {
+        "owner": result["owner"],
+        "status": result["status"],
+        "summary": result["summary"],
+        "schedules": len(schedules),
+        "tranches_due": sum(1 for r in schedules if r["tranche"] is not None),
+        "overdue": sum(r["progress"]["overdue_count"] for r in schedules if r["progress"]),
+    }
+
+
+def _overall_status(rows: list[dict[str, Any]], failed: list[dict[str, str]]) -> RunStatus:
+    if failed:
+        return "partial" if rows else "failed"
+    if all(row["status"] == "skipped" for row in rows):
+        return "skipped"
+    return "partial" if any(row["status"] == "partial" for row in rows) else "ok"
+
+
+def _summarise(rows: list[dict[str, Any]], failed: list[dict[str, str]], raw: list[dict[str, Any]]) -> RunResult:
+    status = _overall_status(rows, failed)
+    report = {"owners": rows, "failed": failed}
+    if not rows and not failed:
+        return RunResult(status=status, summary="No owners found", report=report, raw=raw)
+    due = sum(row["tranches_due"] for row in rows)
+    overdue = sum(row["overdue"] for row in rows)
+    count = len(rows)
+    summary = f"{due} tranche(s) due now, {overdue} overdue across {count} owner{'s' if count != 1 else ''}"
+    if not failed:
+        return RunResult(status=status, summary=summary, report=report, raw=raw)
+    error = "\n".join(f"{f['owner']}: {f['error']}" for f in failed)
+    return RunResult(status=status, summary=f"{summary}; {len(failed)} failed", report=report, error=error, raw=raw)
+
+
+class CashDeploymentBot:
+    """Daily read-only :func:`run` for every owner (or the one owner a run names)."""
+
+    id = BOT_ID
+    name = BOT_NAME
+    description = BOT_DESCRIPTION
+    kind: BotKind = "rules"
+    scope: BotScope = "owner"
+    settings_model: type[BotSettings] = BotSettings
+    # No EventBridge rule: on AWS owners' settings.json (the schedules) and plans
+    # live only under the API Lambda's local data_root, so a separate scheduled
+    # Lambda would find nothing. It runs from Run now (and the owner's own card).
+    default_schedule: Optional[Schedule] = None
+    timeout_minutes = 10
+
+    def default_settings(self) -> dict[str, Any]:
+        return {"enabled": True, "cadence": "daily"}
+
+    def run(self, context: BotRunContext, settings: BotSettings) -> RunResult:
+        as_of = context.started_at.date()
+        rows: list[dict[str, Any]] = []
+        failed: list[dict[str, str]] = []
+        raw: list[dict[str, Any]] = []
+        for owner in _owners(context):
+            try:
+                result = run(owner, as_of)
+            except Exception as exc:  # noqa: BLE001 - one owner's failure is recorded; the others still run
+                logger.exception("Cash deployment run failed for %s", sanitise_log_value(owner))
+                failed.append({"owner": owner, "error": f"{type(exc).__name__}: {exc}"})
+                continue
+            raw.append(result)
+            rows.append(_owner_row(result))
+        return _summarise(rows, failed, raw)

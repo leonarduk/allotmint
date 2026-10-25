@@ -26,7 +26,8 @@ describe('theme token fallbacks', () => {
   const all = sources.map((s) => s.text).join('\n');
 
   const isDefined = (token: string) => {
-    const escaped = token.replace(/[-]/g, '\\-');
+    // Escape every regex metacharacter (tokens are [\w-]+ today, but don't rely on it).
+    const escaped = token.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
     return new RegExp(`(^|[\\s{;'"])${escaped}['"]?\\s*:`, 'm').test(all);
   };
 

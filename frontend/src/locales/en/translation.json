@@ -2526,6 +2526,15 @@
     "showAll": "Show all {{count}}",
     "showTop": "Show top {{count}} only"
   },
+  "portfolioSentence": {
+    "valueOnly": "Your portfolio is worth {{value}}.",
+    "withDay": "Your portfolio is worth {{value}} — {{day}} today.",
+    "withYear": "Your portfolio is worth {{value}} — {{year}} over the past year.",
+    "withDayAndYear": "Your portfolio is worth {{value}} — {{day}} today, and {{year}} over the past year.",
+    "up": "up {{amount}}",
+    "down": "down {{amount}}",
+    "unchanged": "unchanged"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} with no FX rate)",
     "reasonNoCostBasis": "no reliable cost basis",

@@ -2533,6 +2533,15 @@
     "showAll": "Mostrar todas ({{count}})",
     "showTop": "Mostrar só as {{count}} primeiras"
   },
+  "portfolioSentence": {
+    "valueOnly": "A sua carteira vale {{value}}.",
+    "withDay": "A sua carteira vale {{value}} — {{day}} hoje.",
+    "withYear": "A sua carteira vale {{value}} — {{year}} no último ano.",
+    "withDayAndYear": "A sua carteira vale {{value}} — {{day}} hoje e {{year}} no último ano.",
+    "up": "a subir {{amount}}",
+    "down": "a descer {{amount}}",
+    "unchanged": "sem alteração"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} sem taxa de câmbio)",
     "reasonNoCostBasis": "sem base de custo fiável",

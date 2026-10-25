@@ -2533,6 +2533,15 @@
     "showAll": "Alle {{count}} anzeigen",
     "showTop": "Nur die größten {{count}} anzeigen"
   },
+  "portfolioSentence": {
+    "valueOnly": "Ihr Portfolio ist {{value}} wert.",
+    "withDay": "Ihr Portfolio ist {{value}} wert — heute {{day}}.",
+    "withYear": "Ihr Portfolio ist {{value}} wert — im vergangenen Jahr {{year}}.",
+    "withDayAndYear": "Ihr Portfolio ist {{value}} wert — heute {{day}} und im vergangenen Jahr {{year}}.",
+    "up": "{{amount}} im Plus",
+    "down": "{{amount}} im Minus",
+    "unchanged": "unverändert"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} ohne Wechselkurs)",
     "reasonNoCostBasis": "keine verlässliche Anschaffungsbasis",

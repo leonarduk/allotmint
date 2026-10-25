@@ -1332,6 +1332,27 @@ export const getGroupMaxDrawdown = (slug: string, days = 365) =>
     `${API_BASE}/performance-group/${slug}/max-drawdown?days=${days}`,
   );
 
+/**
+ * A group's time-weighted return (a fraction) over ``days``, on its own --
+ * without the history and XIRR that {@link getGroupPerformance} also fetches.
+ * ``partial`` means a member's ledger was missing, so the figure is incomplete.
+ */
+export const getGroupTwr = (
+  slug: string,
+  days = 365,
+  opts: { asOf?: string | null } = {},
+) =>
+  fetchGroupPerformanceJson<{
+    group: string;
+    time_weighted_return: number | null;
+    partial?: boolean;
+    missing_members?: string[];
+  }>(
+    `${API_BASE}/performance-group/${slug}/twr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
+  );
+
 /** Fetch combined performance metrics for a group (mirrors getPerformance). */
 export const getGroupPerformance = (
   slug: string,
@@ -1357,16 +1378,7 @@ export const getGroupPerformance = (
   }>(
     `${API_BASE}/performance-group/${slug}?${params.toString()}`,
   );
-  const twr = fetchGroupPerformanceJson<{
-    group: string;
-    time_weighted_return: number | null;
-    partial?: boolean;
-    missing_members?: string[];
-  }>(
-    `${API_BASE}/performance-group/${slug}/twr?days=${days}${
-      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
-    }`,
-  );
+  const twr = getGroupTwr(slug, days, opts);
   const xirr = fetchGroupPerformanceJson<{
     group: string;
     xirr: number | null;

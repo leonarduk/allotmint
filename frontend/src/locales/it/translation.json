@@ -2533,6 +2533,15 @@
     "showAll": "Mostra tutte ({{count}})",
     "showTop": "Mostra solo le prime {{count}}"
   },
+  "portfolioSentence": {
+    "valueOnly": "Il tuo portafoglio vale {{value}}.",
+    "withDay": "Il tuo portafoglio vale {{value}} — {{day}} oggi.",
+    "withYear": "Il tuo portafoglio vale {{value}} — {{year}} nell'ultimo anno.",
+    "withDayAndYear": "Il tuo portafoglio vale {{value}} — {{day}} oggi e {{year}} nell'ultimo anno.",
+    "up": "in rialzo di {{amount}}",
+    "down": "in calo di {{amount}}",
+    "unchanged": "invariato"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} senza tasso di cambio)",
     "reasonNoCostBasis": "nessuna base di costo affidabile",

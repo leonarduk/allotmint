@@ -2080,6 +2080,8 @@ export const getTransactions = async (params: {
   end?: string;
   type?: string;
   ticker?: string;
+  /** "base" ignores exchange suffixes, so `VOD.L` also matches `VOD`; default exact. */
+  ticker_match?: "exact" | "base";
 }) => {
   const query = new URLSearchParams();
   if (params.owner) query.set("owner", params.owner);
@@ -2088,6 +2090,7 @@ export const getTransactions = async (params: {
   if (params.end) query.set("end", params.end);
   if (params.type) query.set("type", params.type);
   if (params.ticker) query.set("ticker", params.ticker);
+  if (params.ticker_match) query.set("ticker_match", params.ticker_match);
   const qs = query.toString();
   return transactionsContractSchema.parse(
     await fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`),

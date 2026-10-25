@@ -113,6 +113,44 @@ describe("InstrumentDetail trade marker rendering", () => {
     expect(screen.queryByTestId("trade-markers-hidden")).not.toBeInTheDocument();
   });
 
+  it("asks the server for this instrument's trades only, suffix-insensitively", async () => {
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(await screen.findByLabelText("Trade markers"));
+
+    await vi.waitFor(() => {
+      expect(mockGetTransactions).toHaveBeenCalledTimes(1);
+    });
+    expect(mockGetTransactions).toHaveBeenCalledWith({
+      ticker: "ABC.L",
+      ticker_match: "base",
+    });
+  });
+
+  it("does not refetch trades when the chart range changes", async () => {
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(await screen.findByLabelText("Trade markers"));
+    await vi.waitFor(() => {
+      expect(mockGetTransactions).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText(/Range/), "30");
+    await vi.waitFor(() => {
+      expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockGetTransactions).toHaveBeenCalledTimes(1);
+  });
+
   it("draws nothing while the overlay is switched off", async () => {
     mockGetTransactions.mockResolvedValue([
       {

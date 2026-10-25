@@ -650,14 +650,13 @@ export function InstrumentDetail({
   // this panel never pay for the request.  No owner/account filter is applied —
   // the instrument may be held by several of them, and a fully exited position
   // has trades worth showing but no rows in `positions` to discover them from.
+  // The server filters to this instrument (suffix-insensitively, matching
+  // `matchesTicker`) but not by date: `snapToChartDate` already drops trades
+  // outside the charted range, so changing the range needs no refetch (#7791).
   useEffect(() => {
     if (!showTrades) return;
     let active = true;
-    const start =
-      days > 0
-        ? formatDateISO(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
-        : undefined;
-    getTransactions({ start })
+    getTransactions({ ticker, ticker_match: "base" })
       .then((rows) => {
         if (active) setTrades(rows);
       })
@@ -669,7 +668,7 @@ export function InstrumentDetail({
     return () => {
       active = false;
     };
-  }, [showTrades, ticker, days]);
+  }, [showTrades, ticker]);
 
   useEffect(() => {
     setShowTrades(false);

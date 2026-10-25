@@ -30,7 +30,7 @@ from backend.common.holdings_rebuild import drop_future_dated, name_aliases, rep
 from backend.common.instruments import get_instrument_meta
 from backend.common.prices import get_price_gbp
 from backend.common.realised_gains import compute_disposal_gains
-from backend.common.ticker_utils import normalise_filter_ticker
+from backend.common.ticker_utils import normalise_filter_ticker, split_ticker
 from backend.config import config
 from backend.integrations.moneyhub_api import MoneyhubClient, MoneyhubNotConfiguredError
 from backend.logging_setup import sanitise_log_value
@@ -1601,11 +1601,20 @@ def list_transactions(
     end: Optional[str] = None,
     tx_type: Optional[str] = Query(None, alias="type"),
     ticker: Optional[str] = None,
+    ticker_match: Literal["exact", "base"] = "exact",
 ):
-    """Return transactions with optional filtering."""
+    """Return transactions with optional filtering.
+
+    ``ticker`` matches the whole symbol case-insensitively by default.  With
+    ``ticker_match=base`` the exchange suffix is ignored on both sides, so
+    ``VOD.L`` also returns rows stored as ``VOD`` (but never ``VODX``); the
+    instrument chart's trade overlay relies on this because transaction rows
+    are not guaranteed to carry the charted instrument's suffix (#7791).
+    """
 
     start_d = _parse_date(start)
     end_d = _parse_date(end)
+    base_symbol = split_ticker(ticker)[0] if ticker and ticker_match == "base" else None
 
     store, _ = resolve_writable_store(request)
     txs: List[Transaction] = []
@@ -1616,7 +1625,10 @@ def list_transactions(
             continue
         if tx_type and (t.type or "").upper() != tx_type.upper():
             continue
-        if ticker and (t.ticker or "").upper() != ticker.upper():
+        if base_symbol is not None:
+            if split_ticker(t.ticker)[0] != base_symbol:
+                continue
+        elif ticker and (t.ticker or "").upper() != ticker.upper():
             continue
         tx_date = _parse_date(t.date)
         if start_d and (not tx_date or tx_date < start_d):

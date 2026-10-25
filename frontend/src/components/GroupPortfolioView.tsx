@@ -67,6 +67,7 @@ import { WorkspaceTabsInlineToggle } from "./WorkspaceTabsInlineToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { isCashInstrument } from "../lib/instruments";
 import { formatDateISO } from "../lib/date";
+import { accountTypeLabel } from "../utils/accountTypes";
 import { createOwnerDisplayLookup, getOwnerDisplayName } from "../utils/owners";
 import { OwnerAccountTabs } from "./OwnerAccountTabs";
 import { buildOwnerTabs } from "../lib/ownerTabs";
@@ -886,10 +887,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           accounts: [],
         });
 
-      const accountLabel = acct.account_type
+      const accountTypeText = acct.account_type
+        ? accountTypeLabel(acct.account_type)
+        : "";
+      const accountLabel = accountTypeText
         ? acct.currency
-          ? `${acct.account_type} (${acct.currency})`
-          : acct.account_type
+          ? `${accountTypeText} (${acct.currency})`
+          : accountTypeText
         : acct.currency ?? "—";
 
       const accountEntry = {

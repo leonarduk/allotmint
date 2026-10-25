@@ -8,6 +8,7 @@ import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { useInstrumentSelection } from "../hooks/useInstrumentSelection";
 import { formatDateISO } from "../lib/date";
+import { accountTypeLabel } from "../utils/accountTypes";
 import {
   useReportingCurrency,
   type ReportingCurrency,
@@ -64,11 +65,11 @@ export function AccountBlock({
             type="checkbox"
             checked={selected}
             onChange={onToggle}
-            aria-label={account.account_type}
+            aria-label={accountTypeLabel(account.account_type)}
             className="mr-2"
           />
         )}
-        {account.account_type} ({account.currency})
+        {accountTypeLabel(account.account_type)} ({account.currency})
       </h2>
 
       {selected && (

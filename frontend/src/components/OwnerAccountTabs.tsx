@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { OwnerTab } from "../lib/ownerTabs";
+import { accountTypeLabel } from "../utils/accountTypes";
 
 const tabStyle = (active: boolean): CSSProperties => ({
   padding: "0.5rem 0.75rem",
@@ -81,7 +82,7 @@ export function OwnerAccountTabs({
               onClick={() => onAccountTypeChange(type)}
               style={tabStyle(activeAccountType === type)}
             >
-              {type}
+              {accountTypeLabel(type)}
             </button>
           ))}
         </div>

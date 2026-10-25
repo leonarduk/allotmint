@@ -816,9 +816,10 @@ describe("GroupPortfolioView", () => {
     );
     const allAccountsTab = screen.getByRole("tab", { name: "All accounts" });
     expect(allAccountsTab).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "isa" })).toBeInTheDocument();
+    // Account tabs show the human label, not the raw "isa" slug (#7343).
+    expect(screen.getByRole("tab", { name: "ISA" })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("tab", { name: "isa" }));
+    await userEvent.click(screen.getByRole("tab", { name: "ISA" }));
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([input]) =>
@@ -827,7 +828,7 @@ describe("GroupPortfolioView", () => {
         ),
       ).toBe(true),
     );
-    expect(screen.getByRole("tab", { name: "isa" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "ISA" })).toHaveAttribute("aria-selected", "true");
 
     await userEvent.click(
       await screen.findByRole("tab", { name: "Bob Example" }),
@@ -2269,7 +2270,7 @@ describe("GroupPortfolioView", () => {
       "/?period=1y&owner=alice",
     );
 
-    await user.click(screen.getByRole("tab", { name: "isa" }));
+    await user.click(screen.getByRole("tab", { name: "ISA" }));
     expect(screen.getByTestId("scope-route")).toHaveTextContent(
       "/?period=1y&owner=alice&account=isa",
     );

@@ -477,3 +477,36 @@ def test_ticker_mismatch_flags_mixed_forms(monkeypatch):
 
 def test_ticker_mismatch_flags_other_exchange_suffix(monkeypatch):
     assert len(_ticker_mismatches(monkeypatch, ["ERNS.N", "ERNS.N"])) == 1
+
+
+def test_unknown_cost_issue_lists_zero_cost_holdings_without_transaction_history(tmp_path):
+    """#8479: a zero-cost holding no transaction pool matches is reported, once per holding."""
+    owner = tmp_path / "demo"
+    owner.mkdir()
+    holdings = [
+        {"ticker": "ADM.L", "units": 5, "cost_basis_gbp": 0},  # matched by the transfer-in
+        {"ticker": "LOST.L", "units": 5, "cost_basis_gbp": 0},  # no pool: unknown cost
+        {"ticker": "BOOKED.L", "units": 5, "cost_basis_gbp": 100},  # booked cost: never a miss
+        {"ticker": "CASH.GBP", "units": 10},
+    ]
+    (owner / "isa.json").write_text(json.dumps({"owner": "demo", "account_type": "isa", "holdings": holdings}))
+    transactions = [{"date": "2021-09-26", "ticker": "ADM.L", "type": "TRANSFER_IN", "units": 5.0}]
+    (owner / "isa_transactions.json").write_text(json.dumps({"transactions": transactions}))
+    before = (owner / "isa.json").read_text()
+
+    issues = issues_module._unknown_cost_issues(tmp_path)
+
+    assert [i.id for i in issues] == ["UNKNOWN_COST:demo:isa:LOST.L"]
+    assert issues[0].entity == {"owner": "demo", "account": "isa", "holding": "LOST.L"}
+    assert issues[0].severity == "low"
+    assert issues[0].fixable is False
+    assert (owner / "isa.json").read_text() == before
+
+
+def test_unknown_cost_issue_needs_a_transactions_file(tmp_path):
+    owner = tmp_path / "demo"
+    owner.mkdir()
+    holding = {"ticker": "LOST.L", "units": 5, "cost_basis_gbp": 0}
+    (owner / "isa.json").write_text(json.dumps({"owner": "demo", "account_type": "isa", "holdings": [holding]}))
+
+    assert issues_module._unknown_cost_issues(tmp_path) == []

@@ -8,7 +8,7 @@ from backend.common import portfolio as owner_portfolio
 from backend.common.account_models import OwnerSummaryRecord
 from backend.common.constants import ACCOUNTS, HOLDINGS
 from backend.common.holdings_rebuild import transaction_cost_hints
-from backend.common.portfolio import fill_missing_costs
+from backend.common.portfolio import fill_missing_costs, unmatched_cost_tickers
 from backend.config import config
 
 TXS = [
@@ -115,6 +115,25 @@ def test_ambiguous_base_symbol_is_not_matched(tmp_path, caplog):
     unmatched = [r for r in caplog.records if "No transaction history matches" in r.getMessage()]
     # One warning per unmatched ticker, not one per request.
     assert len(unmatched) == 3
+
+
+def test_unmatched_cost_tickers_match_the_fill_misses_without_mutating(tmp_path, caplog):
+    """#8479: the tickers reported to data quality are exactly the ones the fill leaves uncosted."""
+    _write_transactions(tmp_path, "steve", "SIPP", TXS)
+    holdings = [
+        {"ticker": "ADM.L", "units": 78.0, "cost_basis_gbp": 0.0},
+        {"ticker": "GONE.L", "units": 4.0, "cost_basis_gbp": 0.0},
+        {"ticker": "NEW.L", "units": 1.0},
+        {"ticker": "CASH", "units": 10.0},
+    ]
+    before = copy.deepcopy(holdings)
+    owner_portfolio._UNMATCHED_COST_WARNED.clear()
+
+    with caplog.at_level(logging.WARNING, logger="backend.common.portfolio"):
+        assert unmatched_cost_tickers("steve", "sipp", holdings, tmp_path) == ["GONE.L", "NEW.L"]
+
+    assert holdings == before
+    assert not [r for r in caplog.records if "No transaction history matches" in r.getMessage()]
 
 
 def test_booked_sibling_does_not_block_zero_cost_suffix_match(tmp_path):

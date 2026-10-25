@@ -33,6 +33,7 @@ from backend.common.instruments import (
     instrument_meta_path,
     resolve_instrument_ticker,
 )
+from backend.common.portfolio import unmatched_cost_tickers
 from backend.config import config
 from backend.data_quality import price_scale
 from backend.logging_setup import sanitise_log_value
@@ -92,6 +93,9 @@ class IssueType:
     LARGE_DAILY_MOVE = "LARGE_DAILY_MOVE"
     # Single-day move suspect surfaced at refresh time (#7789, PR #8598).
     SINGLE_DAY_MOVE_SUSPECT = "SINGLE_DAY_MOVE_SUSPECT"
+    # Zero-cost holding that no transaction history matches, so its cost
+    # stays unknown (#8479).
+    UNKNOWN_COST = "UNKNOWN_COST"
 
 
 SEVERITY = {
@@ -110,6 +114,7 @@ SEVERITY = {
     IssueType.PRICE_SCALE_SUSPECT: "high",
     IssueType.LARGE_DAILY_MOVE: "low",
     IssueType.SINGLE_DAY_MOVE_SUSPECT: "low",
+    IssueType.UNKNOWN_COST: "low",
 }
 
 # Issue types whose fix is a fetch/refetch of the cached series.
@@ -323,14 +328,45 @@ def _missing_asset_class_issue(ticker: str, meta: dict[str, Any]) -> DataQuality
     )
 
 
+def _unknown_cost_issues(accounts_root: Path | None) -> list[DataQualityIssue]:
+    """Zero-cost holdings whose account transactions have no matching pool (#8479).
+
+    ``fill_missing_costs`` leaves these at an unknown cost and only logs it;
+    listing them here tells the user which costs to supply.  Not fixable: the
+    missing figure has to come from the user.
+    """
+    by_account: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for owner, account, holding in iter_holdings(accounts_root):
+        by_account.setdefault((owner, account), []).append(holding)
+    issues: list[DataQualityIssue] = []
+    for (owner, account), holdings in by_account.items():
+        for ticker in unmatched_cost_tickers(owner, account, holdings, accounts_root):
+            issues.append(
+                DataQualityIssue(
+                    id=_issue_id(IssueType.UNKNOWN_COST, owner, account, ticker),
+                    type=IssueType.UNKNOWN_COST,
+                    severity=SEVERITY[IssueType.UNKNOWN_COST],
+                    entity={"owner": owner, "account": account, "holding": ticker},
+                    description=(
+                        f"Holding {ticker} has no booked cost and no transaction history "
+                        f"matches it, so its cost basis is unknown."
+                    ),
+                    suggested_fix="Enter the holding's cost basis or import its purchase transactions.",
+                    preview={"before": {"cost_basis_gbp": "unknown"}, "after": {"cost_basis_gbp": "supplied by you"}},
+                    fixable=False,
+                )
+            )
+    return issues
+
+
 def aggregate_holding_issues(
     accounts_root: Path | None = None,
     *,
     instruments_root: Path | None = None,
 ) -> list[DataQualityIssue]:
     """Detect holdings-side issues: wrong exchange, unresolved ticker, missing
-    series, missing asset class, and implausible booked cost."""
-    issues: list[DataQualityIssue] = []
+    series, missing asset class, implausible booked cost and unknown cost."""
+    issues: list[DataQualityIssue] = _unknown_cost_issues(accounts_root)
     price_cache: dict[str, float] = {}
     for owner, account, holding in iter_holdings(accounts_root):
         ticker = str(holding.get("ticker") or "").strip().upper()

@@ -50,6 +50,7 @@ const ISSUE_TYPES = [
   "MISSING_ASSET_CLASS",
   "PRICE_SCALE_SUSPECT",
   "LARGE_DAILY_MOVE",
+  "UNKNOWN_COST",
 ] as const;
 
 /** Holdings-related issue types surfaced by the Holdings tab (#6724). */
@@ -59,6 +60,7 @@ const HOLDING_ISSUE_TYPES = [
   "MISSING_SERIES",
   "IMPLAUSIBLE_BOOK_COST",
   "MISSING_ASSET_CLASS",
+  "UNKNOWN_COST",
 ] as const;
 
 interface IssueFilters {

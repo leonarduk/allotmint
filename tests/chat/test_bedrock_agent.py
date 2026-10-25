@@ -573,3 +573,55 @@ async def test_run_chat_turn_logs_a_rejected_local_tool_call_as_error(monkeypatc
     records = [record for record in caplog.records if getattr(record, "event", None) == "chat.tool_call"]
     assert [(record.tool, record.status) for record in records] == [(NAVIGATE_TOOL_NAME, "error")]
     assert "/admin" not in caplog.text
+
+
+async def test_plan_guard_reprompts_once_when_a_drift_answer_skips_the_plan(monkeypatch):
+    # #10653: one reminder, then the plan tool is called and the answer uses it.
+    session = FakeSession(
+        tools=[FakeTool("get_investment_plan")],
+        tool_results={"get_investment_plan": FakeCallToolResult('{"plan_recorded": true}')},
+    )
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    responses = [
+        _assistant_text("You have no plan."),
+        _assistant_tool_use("tool-1", "get_investment_plan", {"owner": "steve"}),
+        _assistant_text("Drift against your plan is small."),
+    ]
+    seen = []
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            seen.append(copy.deepcopy(kwargs))
+            return responses[len(seen) - 1]
+
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+
+    reply = await bedrock_agent.run_chat_turn(
+        "has my portfolio drifted?", [], mcp_server_url="https://example.com/mcp", bedrock_model_id="m"
+    )
+
+    assert reply == "Drift against your plan is small."
+    assert session.calls == [("get_investment_plan", {"owner": "steve"})]
+    reminder = seen[1]["messages"][-1]
+    assert reminder["role"] == "user" and "get_investment_plan" in reminder["content"][0]["text"]
+    bedrock_agent._validate_message_alternation(seen[2]["messages"])
+
+
+async def test_plan_guard_does_not_fire_when_the_plan_tool_is_not_offered(monkeypatch):
+    session = FakeSession(tools=[FakeTool("get_allocation")])
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    seen = []
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            seen.append(kwargs)
+            return _assistant_text("I could not read the plan.")
+
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+
+    reply = await bedrock_agent.run_chat_turn(
+        "drift?", [], mcp_server_url="https://example.com/mcp", bedrock_model_id="m"
+    )
+
+    assert reply == "I could not read the plan."
+    assert len(seen) == 1

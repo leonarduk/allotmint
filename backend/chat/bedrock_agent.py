@@ -17,6 +17,7 @@ from mcp.types import CallToolResult, Tool
 
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import log_tool_call, mcp_session
+from backend.chat.plan_guard import PlanGuard
 from backend.chat.tool_switches import ToolPolicy, call_refusal
 from backend.chat.turn_limits import TurnLimits, not_allowed_message
 from backend.logging_setup import sanitise_log_value
@@ -216,8 +217,9 @@ async def run_chat_turn(
         extra: Dict[str, Any] = {"system": [{"text": system_prompt}]} if system_prompt else {}
         if limits is not None and limits.max_tokens:
             extra["inferenceConfig"] = {"maxTokens": limits.max_tokens}
+        plan_guard = PlanGuard(message, (tool.name for tool in tools))
 
-        for _ in range(max_iterations):
+        for iteration in range(max_iterations):
             response = await _converse_with_retry(
                 bedrock,
                 modelId=bedrock_model_id,
@@ -233,11 +235,16 @@ async def run_chat_turn(
 
             tool_uses = [block["toolUse"] for block in output_message["content"] if "toolUse" in block]
             if not tool_uses:
-                text_blocks = [block["text"] for block in output_message["content"] if "text" in block]
-                return "\n".join(text_blocks)
+                reminder = plan_guard.reminder(max_iterations - iteration - 1)
+                if reminder is None:
+                    text_blocks = [block["text"] for block in output_message["content"] if "text" in block]
+                    return "\n".join(text_blocks)
+                messages.append({"role": "user", "content": [{"text": reminder}]})
+                continue
 
             tool_result_content = []
             for tool_use in tool_uses:
+                plan_guard.saw_call(tool_use["name"])
                 started = time.perf_counter()
                 refusal = call_refusal(tool_use["name"], tool_policy)
                 if refusal is None and limits is not None and not limits.allows(tool_use["name"]):

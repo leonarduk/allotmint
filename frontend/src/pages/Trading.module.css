@@ -15,7 +15,7 @@
   margin: 0;
 }
 .eyebrow {
-  color: var(--color-primary, #2563eb);
+  color: #2563eb;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -25,7 +25,7 @@
 .intro,
 .sectionHeading p,
 .emptyState p {
-  color: var(--color-text-muted, #596579);
+  color: var(--surface-muted-color);
   line-height: 1.55;
   margin: 0.5rem 0 0;
   max-width: 48rem;
@@ -41,8 +41,9 @@
   white-space: nowrap;
 }
 .settings {
-  background: var(--color-surface, #fff);
-  border: 1px solid var(--color-border, #d8dee9);
+  background: var(--surface-card-bg);
+  border: 1px solid var(--surface-card-border);
+  color: var(--surface-card-color);
   border-radius: 0.75rem;
   padding: 1.25rem;
 }
@@ -59,22 +60,24 @@
   margin: 1.25rem 0 0;
 }
 .threshold {
-  background: var(--color-background, #f6f8fb);
+  background: var(--summary-card-bg);
+  border: 1px solid var(--summary-card-border);
   border-radius: 0.5rem;
   padding: 0.8rem;
 }
 .threshold dt {
-  color: var(--color-text-muted, #596579);
+  color: var(--summary-card-label);
   font-size: 0.78rem;
 }
 .threshold dd {
+  color: var(--summary-card-value);
   font-size: 1rem;
   font-weight: 700;
   margin: 0.3rem 0 0;
 }
 .emptyState {
-  background: var(--color-background, #f6f8fb);
-  border: 1px dashed var(--color-border, #b8c2d1);
+  background: var(--summary-card-bg);
+  border: 1px dashed var(--summary-card-border);
   border-radius: 0.75rem;
   padding: 2rem;
   text-align: center;

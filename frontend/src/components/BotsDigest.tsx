@@ -17,10 +17,10 @@ type Load =
   | { kind: 'ready'; digest: Digest; preview: boolean };
 
 const SEVERITY_COLOURS: Record<string, string> = {
-  high: 'var(--color-danger, #b00020)',
-  medium: 'var(--color-warning, #b26a00)',
-  low: 'var(--color-muted, #666)',
-  info: 'var(--color-muted, #666)',
+  high: 'var(--gain-negative)',
+  medium: '#b26a00',
+  low: 'var(--surface-muted-color)',
+  info: 'var(--surface-muted-color)',
 };
 
 function isNotFound(err: unknown): boolean {

@@ -96,7 +96,7 @@ export default function Goals() {
         <button type="submit">{t("goals.add")}</button>
       </form>
       {error && (
-        <p id="goal-form-error" role="alert" style={{ color: "var(--color-danger, #b91c1c)" }}>
+        <p id="goal-form-error" role="alert" style={{ color: "var(--gain-negative)" }}>
           {error}
         </p>
       )}

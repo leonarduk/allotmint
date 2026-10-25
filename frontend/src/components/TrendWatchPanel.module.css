@@ -35,7 +35,7 @@
   margin: 0.4rem 0 0;
 }
 .error {
-  color: var(--color-danger, #b42318);
+  color: var(--gain-negative);
   margin: 0;
 }
 .list {

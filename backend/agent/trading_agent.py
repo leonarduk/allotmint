@@ -446,11 +446,13 @@ def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
             send_trade_alert(f"{owner} portfolio drawdown {max_dd*100:.2f}% exceeds {threshold*100:.2f}%")
 
 
-def _compliance_baseline(owner: str, baselines: Dict[str, Counter]) -> Counter:
+def _compliance_baseline(owner: str, baselines: Dict[str, Counter], failed: Optional[Set[str]] = None) -> Counter:
     """Return (and cache in ``baselines``) ``owner``'s existing-history warnings.
 
     An empty baseline is cached when ``check_owner`` raises, so every warning
-    then counts as new and the check fails closed.
+    then counts as new and the check fails closed. The owner is also added to
+    ``failed`` (when given) so a block can be reported as a baseline failure
+    rather than a new warning (#10259).
     """
 
     if owner not in baselines:
@@ -459,6 +461,8 @@ def _compliance_baseline(owner: str, baselines: Dict[str, Counter]) -> Counter:
         except Exception:
             logger.exception("Compliance baseline failed for %s", sanitise_log_value(owner))
             baselines[owner] = Counter()
+            if failed is not None:
+                failed.add(owner)
     return baselines[owner]
 
 
@@ -486,15 +490,21 @@ def _new_compliance_warnings(owner: str, warnings: List[str], baselines: Dict[st
 
 
 def _check_signal_compliance(
-    sig: Dict, owners: Iterable[str], require_pro_checks: bool, baselines: Dict[str, Counter]
-) -> tuple[List[str], bool]:
+    sig: Dict,
+    owners: Iterable[str],
+    require_pro_checks: bool,
+    baselines: Dict[str, Counter],
+    failed_baselines: Set[str],
+) -> tuple[List[str], bool, bool]:
     """Run the compliance check for ``sig`` against every owner.
 
-    Returns ``(block_reasons, errored)``; the signal is blocked when
-    ``block_reasons`` is non-empty. Only warnings the proposed trade itself
-    introduces block it -- see :func:`_new_compliance_warnings`. Every owner
-    is checked, so the reasons name each owner that blocks the trade rather
-    than only the first (#10258).
+    Returns ``(block_reasons, errored, baseline_failed)``; the signal is
+    blocked when ``block_reasons`` is non-empty. Only warnings the proposed
+    trade itself introduces block it -- see :func:`_new_compliance_warnings`.
+    Every owner is checked, so the reasons name each owner that blocks the
+    trade rather than only the first (#10258). ``baseline_failed`` is ``True``
+    when a blocking owner's baseline could not be computed, so all its
+    warnings were treated as new (fail closed, #10259).
 
     An owner whose check raises (e.g. bad imported transaction data) is
     logged and skipped rather than failing the whole run, so one owner's
@@ -505,6 +515,7 @@ def _check_signal_compliance(
 
     errored = False
     reasons: List[str] = []
+    baseline_failed = False
     for owner in owners:
         trade = {
             "owner": owner,
@@ -514,7 +525,7 @@ def _check_signal_compliance(
         }
         # Snapshot the baseline before check_trade so it can never include the
         # proposed trade, whatever check_trade does with it.
-        _compliance_baseline(owner, baselines)
+        _compliance_baseline(owner, baselines, failed_baselines)
         try:
             result = compliance.check_trade(trade)
         except Exception:
@@ -535,7 +546,8 @@ def _check_signal_compliance(
                 sanitise_log_value(new_warnings),
             )
             reasons.extend(f"{owner}: {warning}" for warning in new_warnings)
-    return reasons, errored
+            baseline_failed = baseline_failed or owner in failed_baselines
+    return reasons, errored, baseline_failed
 
 
 def run(
@@ -554,8 +566,9 @@ def run(
             drawdown sweep. Page requests pass ``False`` and get the signals
             with no side effects.
         blocked: Optional list that collects signals compliance blocked, as
-            ``{"ticker", "action", "reasons"}`` dicts, so callers can tell
-            "blocked by compliance" apart from "no threshold crossed".
+            ``{"ticker", "action", "reasons", "baseline_failed"}`` dicts, so
+            callers can tell "blocked by compliance" apart from "no threshold
+            crossed", and a failed compliance baseline apart from a new warning.
 
     Returns:
         A list of generated signals.
@@ -690,15 +703,23 @@ def run(
         signals = [s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed]
     allowed_signals: List[Dict] = []
     compliance_baselines: Dict[str, Counter] = {}
+    failed_baselines: Set[str] = set()
     for sig in signals:
         compliance_errored = False
         if not compliance_unavailable:
-            block_reasons, compliance_errored = _check_signal_compliance(
-                sig, owners, cfg.require_pro_checks, compliance_baselines
+            block_reasons, compliance_errored, baseline_failed = _check_signal_compliance(
+                sig, owners, cfg.require_pro_checks, compliance_baselines, failed_baselines
             )
             if block_reasons:
                 if blocked is not None:
-                    blocked.append({"ticker": sig["ticker"], "action": sig["action"], "reasons": block_reasons})
+                    blocked.append(
+                        {
+                            "ticker": sig["ticker"],
+                            "action": sig["action"],
+                            "reasons": block_reasons,
+                            "baseline_failed": baseline_failed,
+                        }
+                    )
                 continue
         ticker = sig["ticker"]
         price = snapshot[ticker]["last_price"]

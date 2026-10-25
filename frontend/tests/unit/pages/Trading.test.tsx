@@ -162,10 +162,44 @@ describe('Trading page', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('BBB Sell')).toBeInTheDocument();
     expect(screen.getByTestId('blocked-count')).toHaveTextContent('(1)');
+    expect(
+      screen.queryByText(/Compliance baseline unavailable/)
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
     expect(
       screen.queryByText(/No tracked instrument currently crosses/)
     ).not.toBeInTheDocument();
+  });
+
+  it('says when a block is due to a failed compliance baseline', async () => {
+    mockFetchState({
+      data: [],
+      blocked: [
+        {
+          ticker: 'BBB',
+          action: 'SELL',
+          reasons: ['alex: Sold BBB without approval'],
+          baseline_failed: true,
+        },
+        {
+          ticker: 'CCC',
+          action: 'BUY',
+          reasons: ['alex: 21 trades in 2026-10 (max 20)'],
+          baseline_failed: false,
+        },
+      ],
+    });
+
+    render(<Trading />);
+
+    const items = await screen.findAllByRole('listitem');
+    const failed = items.find((li) => li.textContent?.includes('BBB'));
+    const genuine = items.find((li) => li.textContent?.includes('CCC'));
+    expect(failed).toHaveTextContent(/alex: Sold BBB without approval/);
+    expect(failed).toHaveTextContent(
+      'Compliance baseline unavailable — signals blocked until it can be checked'
+    );
+    expect(genuine).not.toHaveTextContent(/Compliance baseline unavailable/);
   });
 
   it('renders "Not enabled" for null (disabled) thresholds', async () => {

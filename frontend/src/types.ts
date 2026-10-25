@@ -1446,6 +1446,8 @@ export interface BlockedTradingSignal {
   action: 'BUY' | 'SELL';
   /** Warnings the proposed trade would introduce, each prefixed with its owner. */
   reasons: string[];
+  /** True when the owner's compliance baseline failed, so the block is fail-closed. */
+  baseline_failed?: boolean;
 }
 
 export interface TradingSignalsReport {

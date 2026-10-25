@@ -66,6 +66,31 @@ def test_stale_revision_conflicts_with_the_current_copy(store) -> None:
     assert excinfo.value.current["state"]["lists"][0]["name"] == "Phone"
 
 
+def test_a_save_landing_between_read_and_write_conflicts_and_keeps_the_winner(
+    store, tmp_path: Path, monkeypatch
+) -> None:
+    """The revision check passes, but the file changed before the write: the tag check must refuse (#10723)."""
+    wl.save_watchlists(ALICE, _state(("default", "Base", ["BP.L"])), 0, store)
+    real_read = store.read
+    raced: list[str] = []
+
+    def read_then_lose_the_race(key: str):
+        stored = real_read(key)
+        if not raced:
+            raced.append(key)
+            rival = wl.FileWatchlistsStore(root=tmp_path)
+            wl.save_watchlists(ALICE, _state(("default", "Phone", ["AZN.L"])), 1, rival)
+        return stored
+
+    monkeypatch.setattr(store, "read", read_then_lose_the_race)
+
+    with pytest.raises(wl.WatchlistsConflict) as excinfo:
+        wl.save_watchlists(ALICE, _state(("default", "Laptop", ["SHEL.L"])), 1, store)
+    assert excinfo.value.current["revision"] == 2
+    assert excinfo.value.current["state"]["lists"][0]["name"] == "Phone"
+    assert wl.load_watchlists(ALICE, store)["state"]["lists"][0]["name"] == "Phone"
+
+
 @pytest.mark.parametrize(
     "raw",
     [b"not json", b"[]", b'{"revision": 0}', b'{"revision": 1, "activeId": "x", "lists": []}'],

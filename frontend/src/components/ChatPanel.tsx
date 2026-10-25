@@ -155,7 +155,11 @@ export function ChatPanel({
     setError(null);
     try {
       const { reply, navigate_to, files: replyFiles } = await api.postChat(text, history, pages, context);
-      const replyId = appendChatMessage({ role: "assistant", content: reply });
+      // A turn whose model produced no text comes back as "" (#7618): show
+      // why instead of a blank bubble. Saved as the reply, so the turn can
+      // still be regenerated and the history never holds an empty message.
+      const content = reply.trim() ? reply : t("chatPanel.emptyReply");
+      const replyId = appendChatMessage({ role: "assistant", content });
       if (replyFiles?.length) setFiles((prev) => ({ ...prev, [replyId]: replyFiles }));
       // Only follow a path that was offered: the backend enforces this too.
       if (navigate_to && onNavigate && pages.some((page) => page.path === navigate_to)) {

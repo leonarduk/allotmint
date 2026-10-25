@@ -898,3 +898,54 @@ def test_get_then_save_round_trip_does_not_ratchet_double_encoded_name(monkeypat
     instruments.save_instrument_meta("ATT", "N", second_read)
     instruments.get_instrument_meta.cache_clear()
     assert instruments.get_instrument_meta("ATT.N")["name"] == "AT&T"
+
+
+# --- #7400: hex numeric entities and the S3 read path ---
+
+
+@pytest.mark.parametrize(
+    "encoded,expected",
+    [
+        ("Class &#x27;B&#x27; Shares", "Class 'B' Shares"),
+        ("Class &#X27;B&#X27; Shares", "Class 'B' Shares"),
+        ("Income &#x2F; Growth", "Income / Growth"),
+        ("AT&#x26;amp;T", "AT&T"),
+    ],
+)
+def test_decode_html_entities_decodes_hex_entities(encoded: str, expected: str) -> None:
+    assert instruments.decode_html_entities(encoded) == expected
+    assert not instruments.has_undecoded_html_entities(expected)
+
+
+@pytest.mark.parametrize("name", ["Fund &#x27 Class", "Fund &#x; Class", "Fund &#xZZ; Class"])
+def test_decode_html_entities_ignores_malformed_hex_entities(name: str) -> None:
+    """Only a well-formed, semicolon-terminated hex entity is ever decoded."""
+    assert instruments.decode_html_entities(name) == name
+    assert not instruments.has_undecoded_html_entities(name)
+
+
+def test_get_instrument_meta_decodes_html_entities_on_s3_read(monkeypatch, tmp_path) -> None:
+    """The S3 read path decodes names exactly like the local-file path."""
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.setenv(instruments.METADATA_BUCKET_ENV, "bucket")
+    monkeypatch.setenv(instruments.METADATA_PREFIX_ENV, "prefix")
+
+    payload = {"ticker": "UPS.N", "name": "United Parcel Service Class &#x27;B&#x27; &#39;C&#39;"}
+
+    def fake_client(name):
+        def get_object(*, Bucket, Key):
+            assert (Bucket, Key) == ("bucket", "prefix/N/UPS.json")
+            return {"Body": io.BytesIO(json.dumps(payload).encode("utf-8"))}
+
+        return SimpleNamespace(get_object=get_object)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    instruments.get_instrument_meta.cache_clear()
+    instruments._s3_client.cache_clear()
+    try:
+        result = instruments.get_instrument_meta("UPS.N")
+    finally:
+        instruments.get_instrument_meta.cache_clear()
+        instruments._s3_client.cache_clear()
+    assert result["name"] == "United Parcel Service Class 'B' 'C'"

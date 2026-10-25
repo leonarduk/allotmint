@@ -595,6 +595,20 @@ export function isModeEnabled(
   return tabs[mode] !== false && !disabledTabs?.includes(mode);
 }
 
+/**
+ * Whether the advanced-analytics standalone routes (performance diagnostics,
+ * return comparison and the /metrics-explained glossary) are mounted. They
+ * piggyback on the `scenario` tab (see the route tree in main.tsx), so any
+ * link to them -- e.g. the Help page's glossary link (#7476) -- must check
+ * this rather than assume the route exists.
+ */
+export function isAdvancedAnalyticsEnabled(
+  tabs: TabsConfig,
+  disabledTabs?: readonly string[]
+): boolean {
+  return isModeEnabled('scenario', tabs, disabledTabs);
+}
+
 export function getMenuEntries(
   section: MenuSection
 ): Array<RouteRegistryEntry & { menuCategory: MenuCategory }> {

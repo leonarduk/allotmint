@@ -1031,6 +1031,8 @@
     "staleHeadlineTooltip": "Esta manchete vem de uma cache que não foi atualizada recentemente; as obtenções de notícias em direto podem estar a falhar ou limitadas.",
     "tooltipLevel": "Nível: {{value}}",
     "tooltipChange": "Variação: {{value}}%",
+    "tooltipChangeNoData": "Variação: sem dados",
+    "noChangeData": "Sem dados de variação % para: {{names}}",
     "ticker": "Ticker",
     "name": "Nome",
     "price": "Preço",
@@ -1320,6 +1322,10 @@
         "sunlight": {
           "title": "Luz solar",
           "detail": "A proporção de culturas avaliadas hoje com dados de mercado recentes (não desatualizados)."
+        },
+        "growerLevel": {
+          "title": "Nível de jardineiro e XP",
+          "detail": "Ganho ao concluir tarefas diárias. Chegar ao nível L exige 25 × L × (L − 1) XP no total, por isso os primeiros níveis chegam depressa e os seguintes demoram mais. Acompanha o seu próprio progresso, não um valor da carteira, por isso é igual na horta de cada jardineiro."
         }
       },
       "technicals": {
@@ -2169,6 +2175,9 @@
     "removeSymbol": "Remover {{symbol}}",
     "symbolsPlaceholder": "Adicione um ticker (p. ex. ^FTSE, EURGBP=X, VUSA.L) e prima Enter",
     "addSymbol": "Adicionar",
+    "symbolEmpty": "Introduza um símbolo para adicionar.",
+    "symbolInvalid": "Símbolo inválido: {{symbols}}. Use apenas letras, dígitos e . - ^ =, sem espaços (ex. VUSA.L, ^FTSE, EURGBP=X).",
+    "symbolDuplicate": "Já está nesta lista: {{symbols}}",
     "refreshFrequency": "Atualização automática",
     "everyMinute": "A cada minuto",
     "manual": "Manual",
@@ -2382,6 +2391,7 @@
     "cancel": "Cancelar",
     "emptyPrompt": "Pergunte sobre as suas carteiras, preços ou posições.",
     "thinking": "A pensar…",
+    "emptyReply": "O assistente não enviou nenhuma resposta. Tente perguntar novamente.",
     "messageInput": "Mensagem de chat",
     "send": "Enviar"
   },
@@ -3138,7 +3148,9 @@
       "meterLabel": "Nível de cultivador {{level}}, {{xp}} de {{xpForLevel}} XP para o próximo nível",
       "classicView": "Vista clássica",
       "progressLabel": "O seu progresso",
-      "progressTitle": "O nível, a patente, os XP e a sequência vêm das suas próprias tarefas — são iguais no terreno de qualquer cultivador."
+      "progressTitle": "O nível, a patente, os XP e a sequência vêm das suas próprias tarefas — são iguais no terreno de qualquer cultivador.",
+      "xpTerm": "Nível de jardineiro",
+      "explainXp": "Os XP são obtidos ao concluir as suas tarefas diárias. Cada nível precisa de um pouco mais de XP do que o anterior, e a barra mostra quão perto está do próximo."
     },
     "rail": {
       "ariaLabel": "Secções da horta",

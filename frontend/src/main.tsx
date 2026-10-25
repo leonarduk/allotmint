@@ -71,6 +71,7 @@ import {
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
+  isAdvancedAnalyticsEnabled,
   isModeEnabled,
   standalonePageRoutes,
   standaloneRouteNeedsChrome,
@@ -201,8 +202,7 @@ export function Root({
     tabs,
     disabledTabs
   );
-  const advancedAnalyticsEnabled = isModeEnabled(
-    'scenario',
+  const advancedAnalyticsEnabled = isAdvancedAnalyticsEnabled(
     tabs,
     disabledTabs
   );

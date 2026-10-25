@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from backend.config import Config, build_config, load_config
@@ -73,6 +75,53 @@ class TestOtherDefaultsConsistency:
         assert getattr(direct, field_name) == expected_default
         assert getattr(built, field_name) == expected_default
         assert getattr(direct, field_name) == getattr(built, field_name)
+
+
+# Environment variables build_config() reads; cleared so the comparison below
+# sees only the two sets of defaults.
+_BUILD_CONFIG_ENV = (
+    "ALLOWED_EMAILS",
+    "ALPHA_VANTAGE_KEY",
+    "APP_ENV",
+    "BEDROCK_MODEL_ID",
+    "CHAT_BASE_URL",
+    "CHAT_MODEL",
+    "CHAT_PROVIDER",
+    "CORS_ORIGINS",
+    "CORS_ORIGIN_REGEX",
+    "DATA_ROOT",
+    "DISABLE_AUTH",
+    "ENVIRONMENT",
+    "GOOGLE_AUTH_ENABLED",
+    "GOOGLE_CLIENT_ID",
+    "LOCAL_LOGIN_EMAIL",
+    "LOG_FORMAT",
+    "MCP_SERVER_URL",
+    "SKIP_SNAPSHOT_WARM",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
+    "TIMESERIES_CACHE_BASE",
+    "UI_AUTH_CLIENT_ID",
+    "UI_AUTH_DOMAIN",
+)
+
+# Resolved against the config file's directory by build_config(), so they
+# have no meaningful dataclass default to compare with.
+_DERIVED_PATH_FIELDS = {"repo_root", "data_root", "audit_dir"}
+
+
+def test_every_dataclass_default_matches_build_config_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Config() and build_config({}) agree on every field, not just a spot-checked few (#7672)."""
+    for name in _BUILD_CONFIG_ENV:
+        monkeypatch.delenv(name, raising=False)
+    direct = Config()
+    built = build_config({})
+    drift = {
+        field.name: (getattr(direct, field.name), getattr(built, field.name))
+        for field in dataclasses.fields(Config)
+        if field.name not in _DERIVED_PATH_FIELDS and getattr(direct, field.name) != getattr(built, field.name)
+    }
+    assert drift == {}
 
 
 class TestChatProviderEnv:

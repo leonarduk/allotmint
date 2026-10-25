@@ -682,6 +682,26 @@ describe("Custom Query page — Run button integration (real runCustomQuery)", (
     });
   });
 
+  it("says 'No results' when a successful run returns nothing (#7143)", async () => {
+    stubFetchOnce({ results: [] });
+
+    const { i18n } = renderWithI18n(<CustomQuery />);
+    await screen.findByLabelText("Alice Example");
+
+    fireEvent.click(screen.getByLabelText("Alice Example"));
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
+    expect(screen.queryByText(i18n.t("query.noResults"))).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: i18n.t("query.run") }),
+    );
+
+    expect(
+      await screen.findByText(i18n.t("query.noResults")),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
   it("shows an error state when the backend rejects the query", async () => {
     stubFetchOnce(
       { detail: "query blew up" },
@@ -707,6 +727,8 @@ describe("Custom Query page — Run button integration (real runCustomQuery)", (
       await screen.findByText("Failed to run query: query blew up"),
     ).toBeInTheDocument();
     expect(screen.queryByText("AAA")).not.toBeInTheDocument();
+    // A failed run is an error, not an empty result.
+    expect(screen.queryByText(i18n.t("query.noResults"))).not.toBeInTheDocument();
   });
 });
 

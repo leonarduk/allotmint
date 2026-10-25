@@ -64,7 +64,16 @@ const UNMAPPED_TASK = {
  * navigated instead) rather than this clear, specific mismatch.
  */
 async function findDoItButton() {
-  const button = await screen.findByRole('button');
+  // The HUD banner carries its own XP info-tip button (#7068); the chore
+  // row's button is the only one outside it.
+  const hud = await screen.findByRole('banner');
+  const button = await waitFor(() => {
+    const outsideHud = screen
+      .getAllByRole('button')
+      .filter((element) => !hud.contains(element));
+    expect(outsideHud).toHaveLength(1);
+    return outsideHud[0];
+  });
   expect(button).toHaveAccessibleName('Do it');
   return button;
 }

@@ -142,6 +142,9 @@ export function CustomQuery() {
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // True once a run has succeeded, so an empty result can say "No results"
+  // instead of leaving the page looking as if nothing happened (#7143).
+  const [hasRun, setHasRun] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   // Bumped after a save so the Saved Queries list re-fetches.
   const [savedVersion, setSavedVersion] = useState(0);
@@ -277,9 +280,11 @@ export function CustomQuery() {
     };
     setLoading(true);
     setError(null);
+    setHasRun(false);
     try {
       const data = await runCustomQuery(params);
       setRows(data as ResultRow[]);
+      setHasRun(true);
     } catch (e) {
       setRows([]);
       setError(e instanceof Error ? e.message : String(e));
@@ -497,6 +502,9 @@ export function CustomQuery() {
       </form>
       {saveStatus && <p role="status">{saveStatus}</p>}
       {error && <p className="text-red-500">{error}</p>}
+      {hasRun && !loading && !error && safeRows.length === 0 && (
+        <p role="status">{t("query.noResults")}</p>
+      )}
       {safeRows.length > 0 && (
         <table className="w-full border-collapse">
           <thead>

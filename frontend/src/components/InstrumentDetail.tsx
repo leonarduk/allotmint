@@ -117,7 +117,7 @@ const normaliseCurrency = (value: string | null | undefined): string | undefined
  * reused rather than reimplemented so the tooltip looks unchanged when the
  * hovered date has no trades.
  */
-function TradeTooltipContent({
+export function TradeTooltipContent({
   markers,
   ...props
 }: TooltipContentProps & { markers: TradeMarker[] }) {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -16,7 +17,9 @@ from backend.common.accounts_store import (
     LocalAccountsStore,
     S3AccountsStore,
 )
+from backend.common.approvals import save_approvals
 from backend.common.data_loader import ResolvedPaths
+from backend.common.user_config import save_user_config
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -657,5 +660,46 @@ def test_s3_store_put_invalidates_group_portfolio_cache():
     with mock.patch.object(S3AccountsStore, "_s3", return_value=mock.MagicMock()):
         store._put_document("alice", "isa.json", {"holdings": []})
 
+    portfolio_cache.cached_group_portfolio("all", None, lambda: builds.append(1) or {"slug": "all"})
+    assert builds == [1]
+
+
+def test_local_store_rebuild_portfolio_invalidates_cache_when_the_rebuild_fails(tmp_path, monkeypatch):
+    portfolio_cache = _seed_group_portfolio_cache()
+    builds = []
+
+    def _missing(*_a, **_k):
+        raise FileNotFoundError("no transactions")
+
+    monkeypatch.setattr(portfolio_loader, "rebuild_account_holdings", _missing)
+
+    store = LocalAccountsStore(root=tmp_path)
+    store.rebuild_portfolio("alice", "isa")
+
+    # The finally block runs on the FileNotFoundError path too (#7664).
+    portfolio_cache.cached_group_portfolio("all", None, lambda: builds.append(1) or {"slug": "all"})
+    assert builds == [1]
+
+
+def test_save_approvals_invalidates_group_portfolio_cache(tmp_path):
+    (tmp_path / "alice").mkdir()
+    portfolio_cache = _seed_group_portfolio_cache()
+    builds = []
+
+    save_approvals("alice", {"AAA.L": date(2026, 1, 2)}, tmp_path)
+
+    # Approvals feed enrich_holding, so the cached group portfolio is stale (#7664).
+    portfolio_cache.cached_group_portfolio("all", None, lambda: builds.append(1) or {"slug": "all"})
+    assert builds == [1]
+
+
+def test_save_user_config_invalidates_group_portfolio_cache(tmp_path):
+    (tmp_path / "alice").mkdir()
+    portfolio_cache = _seed_group_portfolio_cache()
+    builds = []
+
+    save_user_config("alice", {"hold_days_min": 10}, tmp_path)
+
+    # Hold-day and exemption rules feed enrich_holding too (#7664).
     portfolio_cache.cached_group_portfolio("all", None, lambda: builds.append(1) or {"slug": "all"})
     assert builds == [1]

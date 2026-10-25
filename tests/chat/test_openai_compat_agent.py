@@ -106,6 +106,20 @@ async def test_run_chat_turn_rejects_history_with_consecutive_same_role():
         )
 
 
+async def test_run_chat_turn_rejects_history_starting_with_assistant():
+    # Checked before the system prompt is prepended, so a system prompt
+    # never trips it (#7617).
+    with pytest.raises(ValueError, match="must start with a 'user' message"):
+        await openai_compat_agent.run_chat_turn(
+            "hi",
+            [{"role": "assistant", "content": "earlier"}],
+            mcp_server_url="http://localhost:8001/mcp",
+            base_url="http://localhost:11434/v1",
+            model="m",
+            system_prompt="be brief",
+        )
+
+
 async def test_run_chat_turn_returns_direct_answer_and_sends_api_key(monkeypatch):
     session = FakeSession(tools=[FakeTool("list_owners")])
     monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))

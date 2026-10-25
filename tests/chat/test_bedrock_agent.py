@@ -115,6 +115,25 @@ def test_validate_message_alternation_accepts_proper_alternation():
     bedrock_agent._validate_message_alternation(messages)  # must not raise
 
 
+def test_validate_message_alternation_rejects_assistant_first_message():
+    messages = [
+        {"role": "assistant", "content": [{"text": "hi"}]},
+        {"role": "user", "content": [{"text": "b"}]},
+    ]
+    with pytest.raises(ValueError, match="must start with a 'user' message"):
+        bedrock_agent._validate_message_alternation(messages)
+
+
+async def test_run_chat_turn_rejects_history_starting_with_assistant():
+    with pytest.raises(ValueError, match="must start with a 'user' message"):
+        await bedrock_agent.run_chat_turn(
+            "hi",
+            [{"role": "assistant", "content": "earlier"}],
+            mcp_server_url="https://example.com/mcp",
+            bedrock_model_id="amazon.nova-lite-v1:0",
+        )
+
+
 async def test_run_chat_turn_rejects_history_with_consecutive_same_role():
     with pytest.raises(ValueError, match="must alternate"):
         await bedrock_agent.run_chat_turn(

@@ -323,6 +323,78 @@ describe("Watchlist page", () => {
 
       expect(input.value).toBe("");
       expect(storedSymbols()).toBe("AAA,BBB");
+      // ...but says so rather than clearing silently (#7147).
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Already in this watchlist: AAA",
+      );
+    });
+
+    it("dedupes a symbol repeated within one paste without an alert", async () => {
+      renderWatchlist();
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "ccc, CCC" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      expect(storedSymbols()).toBe("AAA,BBB,CCC");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("rejects a ticker with an internal space and keeps it for editing (#7174)", async () => {
+      renderWatchlist();
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "aa pl" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(storedSymbols()).toBe("AAA,BBB");
+      expect(input.value).toBe("AA PL");
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("Not a valid ticker: AA PL");
+      expect(input).toHaveAttribute("aria-describedby", alert.id);
+      expect(input).toHaveAttribute("aria-invalid", "true");
+    });
+
+    it("reports an empty or whitespace-only entry via the Add button (#7174)", async () => {
+      renderWatchlist();
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: " , " } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      expect(storedSymbols()).toBe("AAA,BBB");
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Enter a ticker symbol to add.",
+      );
+    });
+
+    it("adds the valid tickers from a mixed paste and clears the error on edit (#7174)", async () => {
+      renderWatchlist();
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, {
+        target: { value: "^ftse, bad sym, eurgbp=x" },
+      });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(storedSymbols()).toBe("AAA,BBB,^FTSE,EURGBP=X");
+      expect(input.value).toBe("BAD SYM");
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+
+      fireEvent.change(input, { target: { value: "ccc" } });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(input.value).toBe("");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(storedSymbols()).toBe("AAA,BBB,^FTSE,EURGBP=X,CCC");
     });
 
     it("splits a pasted comma-separated list instead of storing it as one symbol", async () => {
@@ -641,6 +713,32 @@ describe("Watchlist page", () => {
 
       const row = await findRow("EURGBP=X");
       expect(row.querySelectorAll("a").length).toBe(0);
+    });
+
+    // #7330: isLinkableSymbol must accept exactly what InstrumentResearch
+    // accepts (/^[A-Za-z0-9.-]{1,10}$/, InstrumentResearch.tsx), so a row
+    // never links to a research page that rejects its ticker.
+    it.each([
+      ["GC=F", false],
+      ["^FTSE", false],
+      ["BTC-USD", true],
+      ["VUSA.L", true],
+    ])("links %s to its research page: %s (#7330)", async (symbol, linked) => {
+      const row: QuoteRow = { ...sampleRows[0], name: symbol, symbol };
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([row]);
+      localStorage.setItem("watchlistSymbols", symbol);
+
+      renderWatchlist();
+
+      const links = (await findRow(symbol)).querySelectorAll("a");
+      if (!linked) {
+        expect(links.length).toBe(0);
+        return;
+      }
+      expect(links.length).toBeGreaterThan(0);
+      links.forEach((a) => {
+        expect(a.getAttribute("href")).toBe(`/research/${symbol}`);
+      });
     });
 
     it("keeps toFixed precision sign-independent for crypto Chg (regression)", async () => {

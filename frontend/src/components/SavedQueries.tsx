@@ -10,23 +10,10 @@ type Props = {
   refreshKey?: number;
 };
 
-// Issue #7202: `data/queries/demo-slug.json` is a developer-seeded fixture
-// the backend's `/custom-query/saved` listing surfaces indistinguishably
-// from a real user-saved query, appearing here as an unlabelled internal
-// slug ("demo-slug"). It is genuinely off-limits to delete or rename from
-// this PR: `tests/backend/test_custom_query_route.py` reads it by that exact
-// path/slug and asserts its contents, so removing it breaks the backend
-// suite. Filed as follow-up #7381 to fix at the source — either exclude
-// known fixture slugs from the public listing server-side, or move the
-// fixture outside the publicly-listed queries directory.
-//
-// In the meantime we filter this one known placeholder id out of the
-// user-facing list here. The real, narrow risk this leaves: a user who
-// names a saved query anything that slugifies to exactly "demo-slug" (e.g.
-// "Demo Slug", "DEMO-SLUG") will have that specific query hidden from this
-// list too, indistinguishable from the seeded one. That's an accepted
-// trade-off for a rare, unlikely-to-occur name collision.
-const SEEDED_EXAMPLE_QUERY_IDS = new Set(["demo-slug"]);
+// Seeded demo fixtures (e.g. `data/queries/demo-slug.json`, #7202) are
+// excluded server-side by `list_saved_queries` in backend/routes/query.py
+// (`_seeded_fixture_slugs`), so this component renders whatever the API
+// returns without a hardcoded slug filter of its own (#7326).
 
 export function SavedQueries({ onLoad, refreshKey = 0 }: Props) {
   const { t } = useTranslation();
@@ -45,7 +32,6 @@ export function SavedQueries({ onLoad, refreshKey = 0 }: Props) {
           typeof q === "object" &&
           "id" in q &&
           typeof q.id === "string" &&
-          !SEEDED_EXAMPLE_QUERY_IDS.has(q.id) &&
           "name" in q &&
           typeof q.name === "string" &&
           "params" in q &&

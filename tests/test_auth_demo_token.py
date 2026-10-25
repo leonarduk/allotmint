@@ -124,6 +124,39 @@ def test_decode_demo_token_rejects_blank_owner():
     assert auth.decode_demo_token(token) is None
 
 
+def test_decode_token_rejects_demo_scoped_token_even_with_sub_claim():
+    """#7423: the DEMO_SCOPE guard in decode_token() must key off the scope
+    alone. A demo token that also carries a ``sub`` (e.g. one someone later
+    adds for debugging) must still never resolve as that real user."""
+    import datetime as dt
+
+    payload = {
+        "scope": auth.DEMO_SCOPE,
+        "owner": "demo",
+        "sub": "real@example.com",
+        "exp": dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=1),
+    }
+    token = jwt.encode(payload, auth.SECRET_KEY, algorithm=auth.ALGORITHM)
+
+    assert auth.decode_token(token) is None
+
+
+@pytest.mark.parametrize("scope", ["future_scope", "demo-readwrite", "", None])
+def test_decode_demo_token_rejects_other_scope_values(scope):
+    """#7423: decode_demo_token() accepts exactly DEMO_SCOPE, not any token
+    that merely has a scope claim alongside a valid owner."""
+    import datetime as dt
+
+    payload = {
+        "scope": scope,
+        "owner": "demo",
+        "exp": dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=1),
+    }
+    token = jwt.encode(payload, auth.SECRET_KEY, algorithm=auth.ALGORITHM)
+
+    assert auth.decode_demo_token(token) is None
+
+
 def test_create_demo_access_token_rejects_empty_owner():
     with pytest.raises(ValueError):
         auth.create_demo_access_token("")

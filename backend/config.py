@@ -177,8 +177,10 @@ class Config:
     offline_mode: Optional[bool] = None
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
-    demo_identity: str = "demo"
-    smoke_identity: str = "demo"
+    # Match build_config()'s fallback for an unset key (and demo_identity()'s
+    # default): "steve", with smoke_identity following demo_identity (#7672).
+    demo_identity: str = "steve"
+    smoke_identity: str = "steve"
     # Shareable read-only demo link (#7402 breakdown). Config-only for now:
     # `demo_link_enabled` is the master kill switch (defaults off),
     # `demo_link_owner` is the single owner id a demo-scoped token may read,
@@ -413,6 +415,21 @@ def _parse_non_negative(value: Any, *, key: str, default: float) -> float:
     if not (math.isfinite(number) and number >= 0):
         raise ConfigValidationError(f"'{key}' must be a non-negative number, got {value!r}")
     return number
+
+
+def _parse_positive_int(value: Any, *, key: str, default: int) -> int:
+    """Return ``value`` as a positive integer (``default`` when unset).
+
+    Accepts an ``int`` or a string of digits (e.g. ``"72"`` from an env-style
+    override); rejects booleans, floats, non-numeric strings and values <= 0.
+    """
+    if value is None or value == "":
+        return default
+    if isinstance(value, str) and value.strip().isascii() and value.strip().isdigit():
+        value = int(value.strip())
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ConfigValidationError(f"'{key}' must be a positive integer, got {value!r}")
+    return value
 
 
 def _parse_str_list(val: Any) -> Optional[List[str]]:
@@ -698,7 +715,11 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         key="demo_link_enabled",
         default=False,
     )
-    demo_link_ttl_hours = data.get("demo_link_ttl_hours", 72)
+    demo_link_ttl_hours = _parse_positive_int(
+        data.get("demo_link_ttl_hours"),
+        key="demo_link_ttl_hours",
+        default=72,
+    )
 
     cfg = Config(
         app_env=data.get("app_env"),

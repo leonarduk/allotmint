@@ -277,7 +277,7 @@ at most the single configured demo owner.
 |---|---|---|
 | `demo_link_enabled` | `False` | Master kill switch. Ships **off** — this whole feature is inert on any deployment that hasn't explicitly opted in. Checked both when a token is minted and, independently, every time one is used (`_resolve_demo_request`). |
 | `demo_link_owner` | `None` | The single owner id a demo token may read. Required (non-empty) for both minting and use — an unset value returns `503` from the mint endpoint (below) and `401` from every use path. |
-| `demo_link_ttl_hours` | `72` | Hours until a freshly-minted token's `exp`. Applied at mint time via `create_demo_access_token`; changing it does not retroactively affect already-minted tokens. |
+| `demo_link_ttl_hours` | `72` | Hours until a freshly-minted token's `exp` (must be a positive integer; anything else fails config load). Applied at mint time via `create_demo_access_token`; changing it does not retroactively affect already-minted tokens. |
 | `demo_link_mint_rate_limit` | `"5/minute"` | Per-IP rate limit on `POST /demo-link`, enforced the same way as `config.signup_rate_limit`. |
 
 (`backend/config.py:137-155`; see also `config.example.yaml`.)

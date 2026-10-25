@@ -132,14 +132,17 @@ def _tool_result_to_bedrock_content(result: CallToolResult) -> List[Dict[str, An
 
 
 def _validate_message_alternation(messages: List[Dict[str, Any]]) -> None:
-    """Raise ``ValueError`` if consecutive messages share a role.
+    """Raise ``ValueError`` unless the messages start with ``user`` and alternate roles.
 
-    Bedrock's Converse API requires strict user/assistant alternation and
-    rejects a violation with an HTTP 400 from deep inside boto3 -- this
-    check surfaces the same problem as a clean, catchable error at the
-    point the conversation is assembled instead.
+    Bedrock's Converse API requires the conversation to open with a user
+    turn and to alternate user/assistant strictly, and rejects a violation
+    with an HTTP 400 from deep inside boto3 -- this check surfaces the same
+    problem as a clean, catchable error at the point the conversation is
+    assembled instead (#7617).
     """
 
+    if messages and messages[0]["role"] != "user":
+        raise ValueError(f"Chat history must start with a 'user' message; got '{messages[0]['role']}'")
     for previous, current in zip(messages, messages[1:]):
         if previous["role"] == current["role"]:
             raise ValueError(

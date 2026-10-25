@@ -1031,6 +1031,8 @@
     "staleHeadlineTooltip": "Questo titolo proviene da una cache che non è stata aggiornata di recente; il recupero delle notizie in tempo reale potrebbe non riuscire o essere limitato.",
     "tooltipLevel": "Livello: {{value}}",
     "tooltipChange": "Variazione: {{value}}%",
+    "tooltipChangeNoData": "Variazione: nessun dato",
+    "noChangeData": "Nessun dato di variazione % per: {{names}}",
     "ticker": "Ticker",
     "name": "Nome",
     "price": "Prezzo",
@@ -1320,6 +1322,10 @@
         "sunlight": {
           "title": "Luce solare",
           "detail": "La quota di colture valutate oggi con dati di mercato aggiornati (non obsoleti)."
+        },
+        "growerLevel": {
+          "title": "Livello del coltivatore e XP",
+          "detail": "Si guadagna completando le attività quotidiane. Raggiungere il livello L richiede in totale 25 × L × (L − 1) XP, quindi i primi livelli arrivano in fretta e i successivi si allungano. Misura i tuoi progressi, non un dato del portafoglio, quindi è uguale nell'orto di ogni coltivatore."
         }
       },
       "technicals": {
@@ -2169,6 +2175,9 @@
     "removeSymbol": "Rimuovi {{symbol}}",
     "symbolsPlaceholder": "Aggiungi un ticker (es. ^FTSE, EURGBP=X, VUSA.L) e premi Invio",
     "addSymbol": "Aggiungi",
+    "symbolEmpty": "Inserisci un simbolo da aggiungere.",
+    "symbolInvalid": "Simbolo non valido: {{symbols}}. Usa solo lettere, cifre e . - ^ =, senza spazi (es. VUSA.L, ^FTSE, EURGBP=X).",
+    "symbolDuplicate": "Già in questa watchlist: {{symbols}}",
     "refreshFrequency": "Aggiornamento automatico",
     "everyMinute": "Ogni minuto",
     "manual": "Manuale",
@@ -2382,6 +2391,7 @@
     "cancel": "Annulla",
     "emptyPrompt": "Chiedi dei tuoi portafogli, prezzi o posizioni.",
     "thinking": "Sto pensando…",
+    "emptyReply": "L'assistente non ha inviato alcuna risposta. Riprova a chiedere.",
     "messageInput": "Messaggio della chat",
     "send": "Invia"
   },
@@ -3138,7 +3148,9 @@
       "meterLabel": "Livello coltivatore {{level}}, {{xp}} di {{xpForLevel}} XP per il livello successivo",
       "classicView": "Vista classica",
       "progressLabel": "I tuoi progressi",
-      "progressTitle": "Livello, grado, XP e serie si guadagnano con le tue faccende: sono uguali sull'orto di ogni coltivatore."
+      "progressTitle": "Livello, grado, XP e serie si guadagnano con le tue faccende: sono uguali sull'orto di ogni coltivatore.",
+      "xpTerm": "Livello del coltivatore",
+      "explainXp": "Gli XP si ottengono completando le attività quotidiane. Ogni livello richiede un po' più XP del precedente e la barra mostra quanto sei vicino al successivo."
     },
     "rail": {
       "ariaLabel": "Sezioni dell'orto",

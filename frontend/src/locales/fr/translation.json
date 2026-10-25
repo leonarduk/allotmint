@@ -1031,6 +1031,8 @@
     "staleHeadlineTooltip": "Ce titre provient d'un cache qui n'a pas été actualisé récemment ; les récupérations d'actualités en direct échouent peut-être ou sont limitées.",
     "tooltipLevel": "Niveau : {{value}}",
     "tooltipChange": "Variation : {{value}}%",
+    "tooltipChangeNoData": "Variation : aucune donnée",
+    "noChangeData": "Aucune donnée de variation % pour : {{names}}",
     "ticker": "Ticker",
     "name": "Nom",
     "price": "Prix",
@@ -1320,6 +1322,10 @@
         "sunlight": {
           "title": "Ensoleillement",
           "detail": "La part des cultures valorisées aujourd'hui avec des données de marché fraîches (non périmées)."
+        },
+        "growerLevel": {
+          "title": "Niveau de jardinier et XP",
+          "detail": "Gagné en accomplissant les tâches quotidiennes. Atteindre le niveau L demande 25 × L × (L − 1) XP au total : les premiers niveaux arrivent vite, les suivants s'allongent. Il suit votre propre progression, pas un chiffre du portefeuille, et reste donc identique sur le potager de chaque jardinier."
         }
       },
       "technicals": {
@@ -2169,6 +2175,9 @@
     "removeSymbol": "Retirer {{symbol}}",
     "symbolsPlaceholder": "Ajoutez un ticker (p. ex. ^FTSE, EURGBP=X, VUSA.L) et appuyez sur Entrée",
     "addSymbol": "Ajouter",
+    "symbolEmpty": "Saisissez un symbole à ajouter.",
+    "symbolInvalid": "Symbole invalide : {{symbols}}. Utilisez uniquement des lettres, des chiffres et . - ^ =, sans espaces (ex. VUSA.L, ^FTSE, EURGBP=X).",
+    "symbolDuplicate": "Déjà dans cette liste : {{symbols}}",
     "refreshFrequency": "Actualisation automatique",
     "everyMinute": "Toutes les minutes",
     "manual": "Manuel",
@@ -2382,6 +2391,7 @@
     "cancel": "Annuler",
     "emptyPrompt": "Posez des questions sur vos portefeuilles, cours ou positions.",
     "thinking": "Réflexion…",
+    "emptyReply": "L'assistant n'a envoyé aucune réponse. Posez à nouveau votre question.",
     "messageInput": "Message de discussion",
     "send": "Envoyer"
   },
@@ -3138,7 +3148,9 @@
       "meterLabel": "Niveau de jardinier {{level}}, {{xp}} sur {{xpForLevel}} XP pour le niveau suivant",
       "classicView": "Vue classique",
       "progressLabel": "Votre progression",
-      "progressTitle": "Le niveau, le rang, les XP et la série proviennent de vos propres corvées — ils sont identiques sur la parcelle de chaque jardinier."
+      "progressTitle": "Le niveau, le rang, les XP et la série proviennent de vos propres corvées — ils sont identiques sur la parcelle de chaque jardinier.",
+      "xpTerm": "Niveau de jardinier",
+      "explainXp": "Les XP s'obtiennent en accomplissant vos tâches quotidiennes. Chaque niveau demande un peu plus d'XP que le précédent, et la barre indique à quel point vous êtes proche du suivant."
     },
     "rail": {
       "ariaLabel": "Sections du potager",

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import SectionCard from "../components/SectionCard";
 import { useConfig } from "../ConfigContext";
 import { visibleHelpPages } from "../lib/helpPages";
+import { isAdvancedAnalyticsEnabled } from "../routes/registry";
 
 // Default issue tracker URL used when VITE_ISSUE_TRACKER_URL is not set.
 // Deployments using a different tracker (Jira, GitLab, self-hosted, ...) can
@@ -20,6 +21,9 @@ export default function Help() {
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const visiblePages = visibleHelpPages(tabs, disabledTabs);
+  // /metrics-explained is only mounted with the advanced-analytics routes;
+  // don't link a glossary that would 404 on this deployment (#7476).
+  const glossaryEnabled = isAdvancedAnalyticsEnabled(tabs, disabledTabs);
 
   return (
     <div className="container mx-auto max-w-3xl space-y-8 p-4">
@@ -58,20 +62,25 @@ export default function Help() {
         </dl>
       </SectionCard>
 
-      <SectionCard title={t("help.glossaryTitle", "Metrics glossary")} defaultOpen>
-        <p className="text-sm text-gray-600">
-          {t(
-            "help.glossaryDescription",
-            "Not sure what a metric like Sharpe ratio, max drawdown or tracking error means? The glossary explains the terms used throughout the app.",
-          )}
-        </p>
-        <Link
-          to="/metrics-explained"
-          className="mt-2 inline-block rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+      {glossaryEnabled && (
+        <SectionCard
+          title={t("help.glossaryTitle", "Metrics glossary")}
+          defaultOpen
         >
-          {t("help.glossaryLink", "Open the metrics glossary")}
-        </Link>
-      </SectionCard>
+          <p className="text-sm text-gray-600">
+            {t(
+              "help.glossaryDescription",
+              "Not sure what a metric like Sharpe ratio, max drawdown or tracking error means? The glossary explains the terms used throughout the app.",
+            )}
+          </p>
+          <Link
+            to="/metrics-explained"
+            className="mt-2 inline-block rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          >
+            {t("help.glossaryLink", "Open the metrics glossary")}
+          </Link>
+        </SectionCard>
+      )}
 
       <SectionCard title={t("help.reportTitle", "Report a problem")} defaultOpen>
         <p className="text-sm text-gray-600">

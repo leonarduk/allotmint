@@ -106,6 +106,27 @@ describe("ChatPanel", () => {
     URL.revokeObjectURL = original.revoke;
   });
 
+  it.each(["", "  \n "])(
+    "shows a fallback, not a blank bubble, for an empty reply %j (#7618)",
+    async (reply) => {
+      (api.postChat as Mock).mockResolvedValueOnce({ reply });
+      const user = userEvent.setup();
+
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.type(screen.getByLabelText(/chat message/i), "hi");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      const item = await screen.findByRole("listitem", { name: "Assistant" });
+      expect(item).toHaveTextContent("The assistant didn't send a reply. Try asking again.");
+      // Saved as the reply, so a later turn never sends an empty assistant message.
+      expect(getChatMessages().at(-1)).toMatchObject({
+        role: "assistant",
+        content: "The assistant didn't send a reply. Try asking again.",
+      });
+    },
+  );
+
   it("shows no download buttons for a reply without files", async () => {
     (api.postChat as Mock).mockResolvedValueOnce({ reply: "Nothing to export." });
     const user = userEvent.setup();

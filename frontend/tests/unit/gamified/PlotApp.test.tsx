@@ -179,6 +179,32 @@ describe('Plot mode hub', () => {
     ).toHaveTextContent('3');
   });
 
+  it('explains the XP meter with an info tip linking to the glossary (#7068)', async () => {
+    renderPlot();
+
+    const hud = await screen.findByRole('banner');
+    const progress = await within(hud).findByRole('group', {
+      name: 'Your progress',
+    });
+    const tip = within(progress).getByRole('button', {
+      name: 'What does Grower level mean?',
+    });
+    expect(tip).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(tip);
+
+    expect(tip).toHaveAttribute('aria-expanded', 'true');
+    const popover = document.getElementById(
+      tip.getAttribute('aria-controls') ?? ''
+    );
+    expect(popover).toHaveTextContent(
+      'XP comes from completing your daily chores'
+    );
+    expect(
+      within(popover as HTMLElement).getByRole('link', { name: 'Learn more' })
+    ).toHaveAttribute('href', '/metrics-explained#grower-level');
+  });
+
   it('puts the best crop on the stage and flags the genuinely troubled one', async () => {
     renderPlot();
 

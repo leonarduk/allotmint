@@ -130,12 +130,56 @@ function symbolUnit(
 // InstrumentResearch (#7218).
 const INSTRUMENT_ROUTE_PREFIX = "/research/";
 
-// InstrumentResearch only accepts tickers matching this shape -- indices
-// (^FTSE) and FX pairs (EURGBP=X) fail it and have no research page. Reuse
-// the same rule here so a watchlist row only links through when the symbol
-// actually resolves to a known instrument (#7218).
+// InstrumentResearch only accepts tickers matching this shape (the same
+// regex guards `tkr` in pages/InstrumentResearch.tsx) -- indices (^FTSE), FX
+// pairs (EURGBP=X) and commodity futures (GC=F) fail it and have no research
+// page, while crypto pairs such as BTC-USD pass. Reuse the same rule here so
+// a watchlist row only links through when the research page will accept the
+// symbol (#7218, #7330).
 function isLinkableSymbol(symbol: string): boolean {
   return /^[A-Za-z0-9.-]{1,10}$/.test(symbol);
+}
+
+// Ticker shapes the quote feed accepts: equities/ETFs (VUSA.L, BRK-B),
+// indices (^FTSE), FX pairs (EURGBP=X), futures (GC=F) and crypto
+// (BTC-USD). Anything else -- notably a space inside a symbol -- is stored
+// verbatim and can never be quoted, so it is rejected up front (#7174).
+const SYMBOL_PATTERN = /^[A-Z0-9.^=-]{1,20}$/;
+
+interface SymbolInputResult {
+  additions: string[];
+  invalid: string[];
+  duplicates: string[];
+}
+
+// Splits the add field into new, invalid and already-watched tickers. A
+// comma-separated paste is accepted as well as a single ticker: the field
+// this replaced held the whole CSV list, so pasting one back in is the
+// obvious move for anyone restoring a watchlist (#7110).
+function classifySymbolInput(
+  raw: string,
+  existing: readonly string[],
+): SymbolInputResult {
+  const already = new Set(existing.map((s) => s.toUpperCase()));
+  const seen = new Set<string>();
+  const result: SymbolInputResult = {
+    additions: [],
+    invalid: [],
+    duplicates: [],
+  };
+  for (const part of raw.split(",")) {
+    const symbol = part.trim().toUpperCase();
+    if (!symbol) continue;
+    if (!SYMBOL_PATTERN.test(symbol)) result.invalid.push(symbol);
+    else if (already.has(symbol)) result.duplicates.push(symbol);
+    // A symbol repeated within one paste is just deduped: it was never
+    // "already in this watchlist", so it must not be reported as such.
+    else if (!seen.has(symbol)) {
+      seen.add(symbol);
+      result.additions.push(symbol);
+    }
+  }
+  return result;
 }
 
 export function Watchlist() {
@@ -145,6 +189,7 @@ export function Watchlist() {
   const activeId = active.id;
   const symbolList = active.symbols;
   const [newSymbol, setNewSymbol] = useState("");
+  const [inputError, setInputError] = useState<string | null>(null);
   const [intervalMs, setIntervalMs] = useState(60000);
   const [rows, setRows] = useState<QuoteRow[]>([]);
   const [auto, setAuto] = useState(true);
@@ -158,25 +203,30 @@ export function Watchlist() {
   const [asc, setAsc] = useState(true);
 
   const addSymbol = useCallback(() => {
-    // Accept a comma-separated paste as well as a single ticker: the field
-    // this replaced held the whole CSV list, so pasting one back in is the
-    // obvious move for anyone restoring a watchlist -- and splitting here
-    // stops "AAA,BBB" being stored as one unquotable symbol (#7110).
-    const candidates = newSymbol
-      .split(",")
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean);
-    if (!candidates.length) {
-      setNewSymbol("");
-      return;
-    }
-    const seen = new Set(symbolList.map((s) => s.toUpperCase()));
-    const additions = candidates.filter((c) => !seen.has(c) && seen.add(c));
+    const { additions, invalid, duplicates } = classifySymbolInput(
+      newSymbol,
+      symbolList,
+    );
     if (additions.length) {
       setWatchlistSymbols(activeId, [...symbolList, ...additions]);
     }
-    setNewSymbol("");
-  }, [newSymbol, symbolList, activeId]);
+    // Keep rejected text in the field so it can be corrected; never clear
+    // silently, which used to read as "added" (#7147, #7174).
+    setNewSymbol(invalid.join(", "));
+    if (invalid.length) {
+      setInputError(
+        t("watchlist.symbolInvalid", { symbols: invalid.join(", ") }),
+      );
+    } else if (duplicates.length) {
+      setInputError(
+        t("watchlist.symbolDuplicate", { symbols: duplicates.join(", ") }),
+      );
+    } else if (!additions.length) {
+      setInputError(t("watchlist.symbolEmpty"));
+    } else {
+      setInputError(null);
+    }
+  }, [newSymbol, symbolList, activeId, t]);
 
   const removeSymbol = useCallback(
     (symbol: string) => {
@@ -340,7 +390,12 @@ export function Watchlist() {
             aria-label={t("watchlist.symbolsLabel", {
               defaultValue: "Watched tickers",
             })}
-            onChange={(e) => setNewSymbol(e.target.value)}
+            aria-invalid={inputError ? true : undefined}
+            aria-describedby={inputError ? "watchlist-symbol-error" : undefined}
+            onChange={(e) => {
+              setNewSymbol(e.target.value);
+              setInputError(null);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -352,6 +407,15 @@ export function Watchlist() {
             {t("watchlist.addSymbol", { defaultValue: "Add" })}
           </button>
         </div>
+        {inputError && (
+          <p
+            id="watchlist-symbol-error"
+            role="alert"
+            className="mt-1 text-sm text-red-600 dark:text-red-400"
+          >
+            {inputError}
+          </p>
+        )}
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">

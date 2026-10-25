@@ -1025,6 +1025,8 @@
     "staleHeadlineTooltip": "This headline is from a cache that has not refreshed recently; live news fetches may be failing or rate-limited.",
     "tooltipLevel": "Level: {{value}}",
     "tooltipChange": "Change: {{value}}%",
+    "tooltipChangeNoData": "Change: no data",
+    "noChangeData": "No % change data for: {{names}}",
     "ticker": "Ticker",
     "name": "Name",
     "price": "Price",
@@ -1314,6 +1316,10 @@
         "sunlight": {
           "title": "Sunlight",
           "detail": "The share of crops priced from fresh (not stale) market data today."
+        },
+        "growerLevel": {
+          "title": "Grower level and XP",
+          "detail": "Earned by completing daily chores. Reaching level L takes 25 × L × (L − 1) XP in total, so early levels come quickly and later ones stretch out. It tracks your own progress, not a portfolio figure, so it is the same on every grower's plot."
         }
       },
       "technicals": {
@@ -2162,6 +2168,9 @@
     "removeSymbol": "Remove {{symbol}}",
     "symbolsPlaceholder": "Add a ticker (e.g. ^FTSE, EURGBP=X, VUSA.L) and press Enter",
     "addSymbol": "Add",
+    "symbolEmpty": "Enter a ticker symbol to add.",
+    "symbolInvalid": "Not a valid ticker: {{symbols}}. Use letters, digits and . - ^ = only, with no spaces (e.g. VUSA.L, ^FTSE, EURGBP=X).",
+    "symbolDuplicate": "Already in this watchlist: {{symbols}}",
     "refreshFrequency": "Auto-refresh",
     "everyMinute": "Every minute",
     "manual": "Manual",
@@ -2375,6 +2384,7 @@
     "cancel": "Cancel",
     "emptyPrompt": "Ask about your portfolios, prices, or holdings.",
     "thinking": "Thinking…",
+    "emptyReply": "The assistant didn't send a reply. Try asking again.",
     "messageInput": "chat message",
     "send": "Send"
   },
@@ -3131,7 +3141,9 @@
       "meterLabel": "Grower level {{level}}, {{xp}} of {{xpForLevel}} XP to the next level",
       "classicView": "Classic view",
       "progressLabel": "Your progress",
-      "progressTitle": "Level, rank, XP and streak are earned from your own chores — they are the same on every grower's plot."
+      "progressTitle": "Level, rank, XP and streak are earned from your own chores — they are the same on every grower's plot.",
+      "xpTerm": "Grower level",
+      "explainXp": "XP comes from completing your daily chores. Each level needs a little more XP than the last, and the bar shows how close you are to the next one."
     },
     "rail": {
       "ariaLabel": "Plot sections",

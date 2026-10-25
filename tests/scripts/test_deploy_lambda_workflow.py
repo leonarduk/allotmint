@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
 
-WORKFLOW_PATH = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "deploy-lambda.yml"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "deploy-lambda.yml"
+BACKEND_STACK_PATH = REPO_ROOT / "cdk" / "stacks" / "backend_lambda_stack.py"
+_DURATION_SECONDS = {"seconds": 1, "minutes": 60}
+
+
+def _price_refresh_timeout_seconds() -> int:
+    """The ``timeout=`` of the ``PriceRefreshLambda`` construct, in seconds."""
+    source = BACKEND_STACK_PATH.read_text(encoding="utf-8")
+    construct = source[source.index('"PriceRefreshLambda",') :]
+    construct = construct[: construct.index(")\n")]
+    match = re.search(r"timeout=Duration\.(seconds|minutes)\((\d+)\)", construct)
+    assert match, f"PriceRefreshLambda timeout not found in {BACKEND_STACK_PATH}"
+    return int(match.group(2)) * _DURATION_SECONDS[match.group(1)]
 
 
 def test_deploy_workflow_warms_price_snapshot() -> None:
@@ -42,6 +56,22 @@ def test_deploy_workflow_warms_price_snapshot() -> None:
     deploy_idx = next(i for i, name in enumerate(step_names) if "Deploy BackendLambdaStack" in name)
     warm_idx = step_names.index("Warm price snapshot")
     assert warm_idx > deploy_idx, "Warm price snapshot must run after Deploy BackendLambdaStack"
+
+
+def test_warm_step_read_timeout_outlasts_the_price_refresh_lambda() -> None:
+    """The CLI must wait past the function timeout, or it retries a live run (#11020)."""
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["deploy"]["steps"]
+    warm_step = next(step for step in steps if step.get("name") == "Warm price snapshot")
+    match = re.search(r"--cli-read-timeout (\d+)", warm_step["run"])
+    assert match, "Warm price snapshot must set --cli-read-timeout"
+
+    read_timeout = int(match.group(1))
+    lambda_timeout = _price_refresh_timeout_seconds()
+    assert read_timeout > lambda_timeout, (
+        f"--cli-read-timeout {read_timeout} in {WORKFLOW_PATH.name} must exceed the "
+        f"PriceRefreshLambda timeout ({lambda_timeout}s) in {BACKEND_STACK_PATH}"
+    )
 
 
 def test_deploy_workflow_verify_price_snapshot_fails_hard_on_non_404() -> None:

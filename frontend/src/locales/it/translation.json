@@ -1761,6 +1761,9 @@
       "confirmOverwrite": "Sostituire il filtro esistente \"{{name}}\"?",
       "confirmDelete": "Eliminare il filtro \"{{name}}\"?",
       "nameTaken": "Esiste già un filtro chiamato \"{{name}}\"."
+    },
+    "presets": {
+      "label": "Preimpostazioni"
     }
   },
   "dataadmin": {
@@ -2211,7 +2214,8 @@
     "nameTaken": "Esiste già una lista di osservazione chiamata «{{name}}».",
     "cannotDeleteLast": "Serve almeno una lista di osservazione.",
     "listNotFound": "Nessuna watchlist chiamata \"{{name}}\" in questo browser: viene mostrata \"{{shown}}\".",
-    "constituentsAsOf": "Componenti al {{date}} · {{source}}"
+    "constituentsAsOf": "Componenti al {{date}} · {{source}}",
+    "loading": "Caricamento quotazioni…"
   },
   "scenarioFx": {
     "title": "Shock valutario",
@@ -4302,5 +4306,45 @@
   },
   "admin": {
     "cacheWarming": "Caricamento in corso dopo il riavvio del server: mostrati i {{count}} trovati finora. L'elenco si completa automaticamente."
+  },
+  "trendWatch": {
+    "title": "Monitoraggio dei trend",
+    "running": "In esecuzione…",
+    "run": "Esegui ora",
+    "loading": "Caricamento del monitoraggio dei trend…",
+    "empty": "Nessun report dei trend ancora. Eseguilo per controllare le tue posizioni.",
+    "summary": "Esecuzione {{date}}: {{checked}} posizioni controllate, {{count}} da rivedere.",
+    "none": "Nessuna posizione ha iniziato a scendere dall’ultima esecuzione.",
+    "notInvestigated": "Non analizzato",
+    "mutedLabel": "Posizione a lungo termine",
+    "unmute": "Riattiva",
+    "mute": "Silenzia (posizione a lungo termine)",
+    "new": "nuovo",
+    "context": "{{value}} ({{share}} del portafoglio); costo di carico {{cost}}, guadagno {{gain}}.",
+    "ownersError": "Impossibile caricare i titolari.",
+    "loadError": "Impossibile caricare il report dei trend.",
+    "runError": "L’esecuzione del monitoraggio dei trend non è riuscita.",
+    "muteError": "Impossibile aggiornare l’elenco delle posizioni silenziate.",
+    "hitRate": {
+      "title": "Storico di questo rilevatore",
+      "noHistory": "Non c’è ancora abbastanza storico dei prezzi per queste posizioni per misurarlo.",
+      "description": "Riprodotto settimanalmente su {{count}} delle tue posizioni: quanto spesso un segnale è stato seguito da un ulteriore calo, rispetto a una settimana qualsiasi.",
+      "horizon": "Nei prossimi",
+      "afterFlag": "Calo dopo un segnale",
+      "base": "Calo in una settimana qualsiasi",
+      "flags": "({{count}} segnali)",
+      "basis": "Cali misurati sul rendimento totale (dividendi reinvestiti) per {{total}} posizioni e solo sul prezzo per {{price}}, prive di storico dei dividendi.",
+      "noEdge": "Su {{horizons}}, un segnale su queste posizioni non è stato migliore del tasso base nel prevedere un ulteriore calo. Considera l’elenco come uno spunto per verificare, non una previsione."
+    },
+    "evidence": {
+      "toggle": "Evidenze",
+      "dataIssues": "Problemi dei dati",
+      "findings": "Risultati",
+      "basis": "base di rendimento: {{basis}}",
+      "source": "fonte",
+      "toolCalls": "Chiamate agli strumenti",
+      "failed": "(non riuscita)",
+      "notes": "Note"
+    }
   }
 }

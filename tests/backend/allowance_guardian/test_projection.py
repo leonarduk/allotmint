@@ -190,3 +190,17 @@ def test_projection_against_real_carry_forward_view():
     assert result["carry_forward_available_minor"] == 18_000_000
     assert result["carry_forward_first_needed"]["date"] == "2026-10-15"
     assert result["projected_breach"] == {"date": "2027-02-15", "month": "2027-02"}
+
+
+def test_isa_reversal_nets_against_subscriptions():
+    """A negative ISA DEPOSIT reverses a subscription rather than adding to it (#10794)."""
+    rows = [
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-05-01", amount_minor=500_000),
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-05-03", amount_minor=-30_000),
+    ]  # fmt: skip
+    assert isa_subscribed_minor(rows, TODAY) == 470_000
+
+
+def test_isa_lone_reversal_never_goes_negative():
+    rows = [Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-05-03", amount_minor=-30_000)]
+    assert isa_subscribed_minor(rows, TODAY) == 0

@@ -1285,34 +1285,101 @@ describe("GroupPortfolioView", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("renders metrics error message", async () => {
-    const mockPortfolio = {
-      name: "At a glance",
-      accounts: [],
-    };
-
-    const fetchMock = mockAllFetches(mockPortfolio);
-    const originalImpl = fetchMock.getMockImplementation();
-    fetchMock.mockImplementation((input: RequestInfo) => {
-      const url = typeof input === "string" ? input : input.url;
-      if (
-        url.includes("alpha-vs-benchmark") ||
-        url.includes("tracking-error") ||
-        url.includes("max-drawdown")
-      ) {
+  // Fails the benchmark requests whose URL contains any of `fragments` while
+  // `failing.active` is true; everything else uses the standard mocks.
+  const mockFailingMetrics = (
+    fragments: string[],
+    metrics = { alpha: 0.0344, trackingError: 0.025, maxDrawdown: -0.1234 },
+  ) => {
+    const failing = { active: true };
+    const fetchMock = mockAllFetches({ name: "At a glance", accounts: [] }, { metrics });
+    const standardImpl = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = toUrlString(input);
+      if (failing.active && fragments.some((fragment) => url.includes(fragment))) {
         return Promise.reject(new Error("boom"));
       }
-      return originalImpl ? originalImpl(input) : Promise.resolve({
-        ok: true,
-        json: async () => mockPortfolio,
-      } as Response);
+      return standardImpl(input);
     });
+    return { failing, fetchMock };
+  };
+  const metricRequests = (fetchMock: ReturnType<typeof vi.fn>, fragment: string) =>
+    fetchMock.mock.calls.filter(([input]) => toUrlString(input as RequestInfo | URL).includes(fragment))
+      .length;
+
+  it("keeps the other benchmark tiles when one metric fails (#10793)", async () => {
+    mockFailingMetrics(["tracking-error"]);
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
+    const warning = await screen.findByTestId("group-metrics-unavailable-warning");
+    expect(warning).toHaveTextContent("Tracking Error");
+    expect(warning).not.toHaveTextContent("Alpha vs Benchmark");
+    expect(screen.getByTestId("group-metric-alpha")).toHaveTextContent("3.44%");
+    expect(screen.getByTestId("group-metric-max-drawdown")).toHaveTextContent("-12.34%");
+    expect(screen.getByTestId("group-metric-tracking-error")).toHaveTextContent("N/A");
+  });
+
+  it("retries only the failed benchmark metrics and fills the tiles (#10793)", async () => {
+    const user = userEvent.setup();
+    const { failing, fetchMock } = mockFailingMetrics(["/alpha", "tracking-error", "max-drawdown"]);
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    const warning = await screen.findByTestId("group-metrics-unavailable-warning");
+    for (const label of ["Alpha vs Benchmark", "Tracking Error", "Max Drawdown"]) {
+      expect(warning).toHaveTextContent(label);
+    }
+
+    failing.active = false;
+    await user.click(screen.getByTestId("group-metrics-retry"));
+
     await waitFor(() =>
-      screen.getByText(`${i18n.t("common.error")}: boom`)
+      expect(screen.queryByTestId("group-metrics-unavailable-warning")).not.toBeInTheDocument(),
     );
+    expect(screen.getByTestId("group-metric-alpha")).toHaveTextContent("3.44%");
+    expect(screen.getByTestId("group-metric-tracking-error")).toHaveTextContent("2.50%");
+    expect(screen.getByTestId("group-metric-max-drawdown")).toHaveTextContent("-12.34%");
+    expect(metricRequests(fetchMock, "/alpha")).toBe(2);
+  });
+
+  it("does not refetch loaded benchmark metrics on Retry, and keeps the banner when Retry fails (#10793)", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = mockFailingMetrics(["max-drawdown"]);
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await screen.findByTestId("group-metrics-unavailable-warning");
+    await user.click(screen.getByTestId("group-metrics-retry"));
+
+    await waitFor(() => expect(metricRequests(fetchMock, "max-drawdown")).toBe(2));
+    await waitFor(() => expect(screen.getByTestId("group-metrics-retry")).not.toBeDisabled());
+    expect(screen.getByTestId("group-metrics-unavailable-warning")).toHaveTextContent("Max Drawdown");
+    expect(metricRequests(fetchMock, "/alpha")).toBe(1);
+    expect(metricRequests(fetchMock, "tracking-error")).toBe(1);
+    expect(screen.getByTestId("group-metric-alpha")).toHaveTextContent("3.44%");
+  });
+
+  it("keeps cached benchmark values quietly when their background refresh fails (#10793)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const dateSpy = vi.spyOn(Date, "now");
+    const first = mockFailingMetrics([]);
+    const firstView = renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("group-metric-alpha")).toHaveTextContent("3.44%"),
+    );
+    firstView.unmount();
+    expect(metricRequests(first.fetchMock, "/alpha")).toBe(1);
+
+    // Past the five-minute TTL, so the remount refreshes behind the cached values.
+    dateSpy.mockReturnValue(Date.now() + 10 * 60_000);
+    const second = mockFailingMetrics(["/alpha", "tracking-error", "max-drawdown"]);
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await waitFor(() => expect(metricRequests(second.fetchMock, "max-drawdown")).toBe(1));
+    await waitFor(() => expect(warnSpy).toHaveBeenCalled());
+    expect(screen.getByTestId("group-metric-alpha")).toHaveTextContent("3.44%");
+    expect(screen.queryByTestId("group-metrics-unavailable-warning")).not.toBeInTheDocument();
   });
 
   it("does not show the previous group's benchmark metrics while the new group's are still loading", async () => {

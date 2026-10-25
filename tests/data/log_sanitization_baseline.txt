@@ -128,7 +128,6 @@ backend/routes/support.py::post_portfolio_health::logger.exception('Portfolio he
 backend/routes/support.py::post_portfolio_health::logger.exception('Portfolio health refresh task failed: %s', exc)
 backend/routes/support.py::post_portfolio_health::logger.exception('Portfolio health refresh task failed: %s', exc)
 backend/timeseries/cache.py::_ensure_schema::logger.warning("Timeseries 'Date' column is tz-aware (%s); converting to UTC and stripping timezone before casting to datetime64[ms].", dates.dt.tz)
-backend/timeseries/cache.py::_load_parquet::logger.debug('Cache read miss (%s): %s', path, exc)
 backend/timeseries/cache.py::_load_parquet::logger.debug('Loaded %s rows from cache: %s', len(df), path)
 backend/timeseries/cache.py::_memoized_range_cached::logger.warning('Offline mode: no cached data for %s.%s', _sanitize_for_log(ticker), _sanitize_for_log(exchange))
 backend/timeseries/cache.py::_rolling_cache::logger.debug('Rolling cache: %s', cache_path)

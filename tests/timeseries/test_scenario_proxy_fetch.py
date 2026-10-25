@@ -91,9 +91,9 @@ def live_pipeline(monkeypatch, tmp_path):
     yahoo_mod = importlib.import_module("backend.timeseries.fetch_yahoo_timeseries")
     yahoo_calls: list[str] = []
 
-    def fake_history(full_ticker, start, end):
+    def fake_history(full_ticker, start, end, *, label=None):
         yahoo_calls.append(full_ticker)
-        return _spy_prices(full_ticker, start, end), pd.DataFrame()
+        return _spy_prices(label or full_ticker, start, end), pd.DataFrame()
 
     def fake_fx(base, quote, start, end):
         dates = pd.bdate_range(start, end).date

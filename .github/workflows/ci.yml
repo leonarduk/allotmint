@@ -150,11 +150,16 @@ jobs:
             ~/.gradle/wrapper
           key: gradle-twa-${{ runner.os }}-${{ hashFiles('mobile/twa/**/*.gradle', 'mobile/twa/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-twa-${{ runner.os }}-
+      # Install JDK 21 explicitly (AGP needs it) rather than relying on the
+      # runner image's undocumented $JAVA_HOME_21_X64; setup-java sets JAVA_HOME.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
       - name: Build unsigned release bundle
         working-directory: mobile/twa
         run: |
           set -euo pipefail
-          export JAVA_HOME="$JAVA_HOME_21_X64"
           ./gradlew --no-daemon bundleRelease
           test -s app/build/outputs/bundle/release/app-release.aab
 

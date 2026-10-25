@@ -412,3 +412,45 @@ async def test_run_chat_turn_logs_a_switched_off_tool_as_refused(monkeypatch, ca
     assert [(record.tool, record.status) for record in _tool_call_records(caplog)] == [
         ("get_investment_plan", "refused")
     ]
+
+
+async def test_plan_guard_reprompts_once_when_a_drift_answer_skips_the_plan(monkeypatch, caplog):
+    # #10653: a model that ignores the prompt rule gets one reminder, then calls the plan tool.
+    session = FakeSession(
+        tools=[FakeTool("get_investment_plan")],
+        tool_results={"get_investment_plan": FakeCallToolResult(PLAN_RESULT)},
+    )
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    responses = [_completion({"role": "assistant", "content": "You have no plan."})]
+    responses += _plan_call_completions("Drift against your plan is small.")
+    requests = _patch_http(monkeypatch, responses)
+
+    with caplog.at_level("INFO"):
+        reply = await openai_compat_agent.run_chat_turn(
+            "how far is my allocation from a Golden Butterfly mix?",
+            [],
+            mcp_server_url="http://localhost:8001/mcp",
+            base_url="http://x/v1",
+            model="m",
+        )
+
+    assert reply == "Drift against your plan is small."
+    assert len(requests) == 3
+    reminded = json.loads(requests[1].content)["messages"][-2:]
+    assert reminded[0] == {"role": "assistant", "content": "You have no plan."}
+    assert reminded[1]["role"] == "user" and "get_investment_plan" in reminded[1]["content"]
+    assert [record.tool for record in _tool_call_records(caplog)] == ["get_investment_plan"]
+    assert "steve" not in caplog.text
+
+
+async def test_plan_guard_adds_no_completion_for_unrelated_questions(monkeypatch):
+    session = FakeSession(tools=[FakeTool("get_investment_plan")])
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    requests = _patch_http(monkeypatch, [_completion({"role": "assistant", "content": "Hello!"})])
+
+    reply = await openai_compat_agent.run_chat_turn(
+        "hi", [], mcp_server_url="http://localhost:8001/mcp", base_url="http://x/v1", model="m"
+    )
+
+    assert reply == "Hello!"
+    assert len(requests) == 1

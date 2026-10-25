@@ -181,3 +181,18 @@ def test_s3_list_plots_excludes_metadata_stems(s3_provider: S3DataProvider) -> N
         plots = s3_provider.list_plots()
 
     assert plots == [{"owner": "lucy", "accounts": ["isa", "pension-forecast-isa"]}]
+
+
+def test_s3_list_plots_excludes_transactions_ledgers(s3_provider: S3DataProvider) -> None:
+    """``<account>_transactions.json`` is a ledger, not an account (#10839)."""
+    filenames = ("isa", "isa_transactions", "SIPP_Transactions", "transactions-isa")
+    contents = [{"Key": f"accounts/lucy/{stem}.json"} for stem in filenames]
+
+    class _FakeClient:
+        def list_objects_v2(self, **_params):
+            return {"Contents": contents, "IsTruncated": False}
+
+    with patch.object(s3_provider, "_client", return_value=_FakeClient()):
+        plots = s3_provider.list_plots()
+
+    assert plots == [{"owner": "lucy", "accounts": ["isa", "transactions-isa"]}]

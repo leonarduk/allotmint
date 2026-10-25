@@ -1,3 +1,4 @@
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -191,3 +192,49 @@ def test_get_quotes_returns_null_not_zero_for_missing_index_fields(monkeypatch):
     assert row["open"] is None
     assert row["high"] is None
     assert row["low"] is None
+
+
+@pytest.mark.parametrize(
+    "sym,expected",
+    [
+        ("BRK.B", "BRK.B"),
+        ("BT.A", "BT.A"),
+        ("BRK.B.N", "BRK-B"),
+        ("BF.B.US", "BF-B"),
+        ("ADBE.N", "ADBE"),
+        ("VOD.LSE", "VOD.L"),
+        ("BP.L", "BP.L"),
+        ("BT.A.L", "BT.A.L"),
+        ("BT.A.LSE", "BT.A.L"),
+        ("SAP.F", "SAP.F"),
+        ("7203.T", "7203.T"),
+        ("IWDA.AS", "IWDA.AS"),
+        ("ABC.V", "ABC.V"),
+        ("^GSPC", "^GSPC"),
+        ("GBPUSD=X", "GBPUSD=X"),
+        ("PFE", "PFE"),
+    ],
+)
+def test_yahoo_symbol_mapping(sym, expected):
+    """Exchange-qualified US share classes take Yahoo's dash; other symbols keep their spelling (#11081)."""
+    assert quotes._yahoo_symbol(sym) == expected
+
+
+def test_get_quotes_us_share_class_keyed_by_requested_symbol(monkeypatch):
+    app = FastAPI()
+    app.include_router(quotes.router)
+    requested = []
+
+    def fake_Tickers(symbols):
+        requested.append(symbols)
+        ticker = FakeChartTicker({"regularMarketPrice": 480.0, "currency": "USD"})
+        return type("TT", (), {"tickers": {"BRK-B": ticker}})()
+
+    monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
+    monkeypatch.setattr(quotes.config, "offline_mode", False)
+
+    with TestClient(app) as client:
+        resp = client.get("/api/quotes?symbols=BRK.B.US,BRK.B.N")
+    assert resp.status_code == 200
+    assert requested == ["BRK-B"]
+    assert [(row["symbol"], row["price"]) for row in resp.json()] == [("BRK.B.US", 480.0), ("BRK.B.N", 480.0)]

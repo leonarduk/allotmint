@@ -34,17 +34,19 @@ def _yahoo_symbol(sym: str) -> str:
     """Yahoo's spelling of an app ticker: ``ADBE.N`` -> ``ADBE``, ``VOD.LSE`` -> ``VOD.L``.
 
     The app suffixes US listings with the exchange (``.N``, ``.US``), which
-    Yahoo doesn't use, so those symbols got no quote at all. Only suffixes the
-    timeseries layer already maps are rewritten; anything else (``IWDA.AS``,
-    ``BRK.B``) is passed through as typed.
+    Yahoo doesn't use, so those symbols got no quote at all. A US share class
+    given with its exchange takes Yahoo's dash: ``BRK.B.N`` -> ``BRK-B``
+    (#11081). A bare ``BRK.B`` is passed through as typed, because without an
+    exchange it can't be told apart from a non-US class such as LSE's
+    ``BT.A``. Other unmapped suffixes (``IWDA.AS``) are passed through too.
     """
-    from backend.timeseries.fetch_yahoo_timeseries import get_yahoo_suffix
+    from backend.timeseries.fetch_yahoo_timeseries import _build_full_ticker
 
     base, dot, suffix = sym.rpartition(".")
     if not dot or not base:
         return sym
     try:
-        return base + get_yahoo_suffix(suffix)
+        return _build_full_ticker(base, suffix)
     except ValueError:
         return sym
 

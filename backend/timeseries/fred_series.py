@@ -110,11 +110,25 @@ def fetch_fred_csv(code: str, start: date | None = None) -> str:
     return resp.text
 
 
+def _warn_unparseable_dates(raw_dates: pd.Series, parsed: pd.Series, code: str) -> None:
+    """Log the rows whose date did not parse, so a FRED format change is not silent data loss."""
+    bad = raw_dates[parsed.isna() & raw_dates.fillna("").str.strip().ne("")]
+    if bad.empty:
+        return
+    logger.warning(
+        "FRED CSV for %s: dropped %s row(s) with unparseable dates, e.g. %s",
+        sanitise_log_value(code),
+        sanitise_log_value(len(bad)),
+        sanitise_log_value(list(bad.head(3))),
+    )
+
+
 def parse_fred_csv(text: str, code: str) -> pd.DataFrame:
     """Normalise a FRED CSV (date column then ``code``) into the stored schema.
 
     Missing observations (``.`` or blank cells, e.g. US holidays) are dropped,
-    so the frame only has days the series actually published.
+    so the frame only has days the series actually published. Rows whose date
+    does not parse as ``YYYY-MM-DD`` are dropped too, with a warning (#10604).
     """
     try:
         raw = pd.read_csv(io.StringIO(text), dtype=str)
@@ -124,6 +138,7 @@ def parse_fred_csv(text: str, code: str) -> pd.DataFrame:
     if date_column is None or code not in raw.columns:
         raise FredFetchError(f"FRED CSV for {code} is missing columns; got {list(raw.columns)[:6]}")
     dates = pd.to_datetime(raw[date_column], format="%Y-%m-%d", errors="coerce").astype("datetime64[ms]")
+    _warn_unparseable_dates(raw[date_column], dates, code)
     values = pd.to_numeric(raw[code].str.strip(), errors="coerce")
     frame = pd.DataFrame({"Date": dates, "Value": values}).dropna()
     frame["Series"] = code

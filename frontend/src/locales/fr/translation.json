@@ -1761,6 +1761,9 @@
       "confirmOverwrite": "Remplacer le filtre existant « {{name}} » ?",
       "confirmDelete": "Supprimer le filtre « {{name}} » ?",
       "nameTaken": "Un filtre nommé « {{name}} » existe déjà."
+    },
+    "presets": {
+      "label": "Préréglages"
     }
   },
   "dataadmin": {
@@ -2211,7 +2214,8 @@
     "nameTaken": "Une liste de suivi nommée « {{name}} » existe déjà.",
     "cannotDeleteLast": "Il faut au moins une liste de suivi.",
     "listNotFound": "Aucune liste de suivi nommée « {{name}} » dans ce navigateur — affichage de « {{shown}} ».",
-    "constituentsAsOf": "Composition au {{date}} · {{source}}"
+    "constituentsAsOf": "Composition au {{date}} · {{source}}",
+    "loading": "Chargement des cours…"
   },
   "scenarioFx": {
     "title": "Choc de change",
@@ -4302,5 +4306,45 @@
   },
   "admin": {
     "cacheWarming": "Chargement en cours après un redémarrage du serveur : {{count}} trouvés pour l'instant. La liste se complète automatiquement."
+  },
+  "trendWatch": {
+    "title": "Veille des tendances",
+    "running": "En cours…",
+    "run": "Lancer maintenant",
+    "loading": "Chargement de la veille des tendances…",
+    "empty": "Aucun rapport de veille pour l’instant. Lancez-le pour vérifier vos positions.",
+    "summary": "Exécution du {{date}} : {{checked}} positions vérifiées, {{count}} à examiner.",
+    "none": "Aucune position ne s’est retournée à la baisse depuis la dernière exécution.",
+    "notInvestigated": "Non examiné",
+    "mutedLabel": "Position à long terme",
+    "unmute": "Réactiver",
+    "mute": "Masquer (position à long terme)",
+    "new": "nouveau",
+    "context": "{{value}} ({{share}} du portefeuille) ; coût d’acquisition {{cost}}, gain {{gain}}.",
+    "ownersError": "Impossible de charger les titulaires.",
+    "loadError": "Impossible de charger le rapport de veille des tendances.",
+    "runError": "L’exécution de la veille des tendances a échoué.",
+    "muteError": "Impossible de mettre à jour la liste des positions masquées.",
+    "hitRate": {
+      "title": "Historique de ce détecteur",
+      "noHistory": "Pas encore assez d’historique de cours sur ces positions pour le mesurer.",
+      "description": "Rejoué chaque semaine sur {{count}} de vos positions : à quelle fréquence un signal a été suivi d’une nouvelle baisse, par rapport à n’importe quelle semaine.",
+      "horizon": "Sur les prochains",
+      "afterFlag": "Baisse après un signal",
+      "base": "Baisse sur une semaine quelconque",
+      "flags": "({{count}} signaux)",
+      "basis": "Baisses mesurées sur le rendement total (dividendes réinvestis) pour {{total}} positions et sur le cours seul pour {{price}}, sans historique de dividendes enregistré.",
+      "noEdge": "Sur {{horizons}}, un signal sur ces positions n’a pas mieux prévu une nouvelle baisse que le taux de base. Considérez la liste comme des invitations à regarder, pas des prévisions."
+    },
+    "evidence": {
+      "toggle": "Éléments",
+      "dataIssues": "Problèmes de données",
+      "findings": "Constats",
+      "basis": "base de rendement : {{basis}}",
+      "source": "source",
+      "toolCalls": "Appels d’outils",
+      "failed": "(échec)",
+      "notes": "Notes"
+    }
   }
 }

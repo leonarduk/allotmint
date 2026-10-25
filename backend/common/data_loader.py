@@ -16,10 +16,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import ValidationError
 
 from backend.common.account_models import (
-    ACCOUNT_METADATA_STEMS,
     AccountRecord,
     OwnerSummaryRecord,
     PersonMetadata,
+    is_account_file_stem,
 )
 from backend.common.data_providers import (
     DATA_BUCKET_ENV,
@@ -403,13 +403,8 @@ def _extract_account_names(owner_dir: Path) -> List[str]:
     for path in entries:
         if not path.is_file() or path.suffix.lower() != ".json":
             continue
-        stem = path.stem
-        lowered = stem.lower()
-        if lowered in ACCOUNT_METADATA_STEMS:
-            continue
-        if lowered.endswith("_transactions"):
-            continue
-        acct_names.append(stem)
+        if is_account_file_stem(path.stem):
+            acct_names.append(path.stem)
 
     seen: dict[str, int] = {}
     dedup: List[str] = []

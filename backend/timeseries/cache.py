@@ -274,15 +274,32 @@ def _weekday_range(today: date, days: int) -> tuple[date, date]:
 # ──────────────────────────────────────────────────────────────
 # Parquet I/O helpers
 # ──────────────────────────────────────────────────────────────
+# ``attrs`` flag on the empty frame :func:`_load_parquet` returns for a cache
+# file that exists but could not be read (corrupt, partial write, permissions).
+_CACHE_READ_FAILED_ATTR = "_timeseries_cache_read_failed"
+
+
 def _load_parquet(path: str) -> pd.DataFrame:
+    """The validated cache at ``path``; an empty frame when there is none or it is unreadable.
+
+    A missing file is a cold cache. Any other read failure is logged as a
+    warning and the empty frame carries ``attrs[_CACHE_READ_FAILED_ATTR]``, so
+    :func:`_rolling_cache` does not overwrite the history it could not read
+    with one fetch window (#10975).
+    """
     try:
         df = pd.read_parquet(path)
         df = _ensure_schema(df)
         logger.debug("Loaded %s rows from cache: %s", len(df), path)
         return df
-    except Exception as exc:
-        logger.debug("Cache read miss (%s): %s", path, exc)
+    except FileNotFoundError:
+        logger.debug("No cache yet at %s", sanitise_log_value(path))
         return _empty_ts()
+    except Exception as exc:
+        logger.warning("Could not read cache %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
+        unreadable = _empty_ts()
+        unreadable.attrs[_CACHE_READ_FAILED_ATTR] = True
+        return unreadable
 
 
 def with_canonical_ticker(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
@@ -311,6 +328,23 @@ def _save_parquet(df: pd.DataFrame, path: str) -> None:
     _ensure_local_dir(path)
     df.to_parquet(path, index=False)
     logger.debug("Saved cache to %s (%s rows)", path, len(df))
+
+
+def _save_unless_unreadable(df: pd.DataFrame, path: str, *, read_failed: bool, label: str) -> None:
+    """:func:`_save_parquet`, except over a cache file that exists but could not be read (#10975).
+
+    That file may hold years of history; replacing it with one fetch window
+    would lose it, so the fetched rows are served unsaved until the file is
+    repaired or removed.
+    """
+    if read_failed:
+        logger.warning(
+            "Not overwriting unreadable cache %s for %s; repair or delete it to resume caching",
+            sanitise_log_value(path),
+            sanitise_log_value(label),
+        )
+        return
+    _save_parquet(df, path)
 
 
 @lru_cache(maxsize=512)
@@ -577,6 +611,7 @@ def _rolling_cache(
     # take effect -- a default bound at def time would capture the original
     # function object instead.
     existing = (loader or _load_parquet)(cache_path)
+    read_failed = bool(existing.attrs.get(_CACHE_READ_FAILED_ATTR))
     existing, purged = _without_unpriced_rows(existing)
     if purged and not OFFLINE_MODE and not existing.empty:
         # Persist the clean-up so readers of the parquet stop seeing the
@@ -678,7 +713,7 @@ def _rolling_cache(
         # file already holding the other form converges on its next write.
         combined = with_canonical_ticker(combined, canonical_ticker)
     if changed:
-        _save_parquet(combined, cache_path)
+        _save_unless_unreadable(combined, cache_path, read_failed=read_failed, label=f"{ticker}.{exchange}")
     else:
         logger.debug(
             "No new or corrected rows for %s.%s; leaving cache untouched",

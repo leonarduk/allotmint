@@ -25,6 +25,7 @@ from backend.chat.bedrock_agent import (
 )
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import log_tool_call, mcp_session
+from backend.chat.plan_guard import PlanGuard
 from backend.chat.tool_switches import ToolPolicy, call_refusal
 from backend.chat.turn_limits import TurnLimits, not_allowed_message
 from backend.logging_setup import sanitise_log_value
@@ -121,8 +122,9 @@ async def run_chat_turn(
             offered = [tool for tool in offered if limits.allows(tool.name)]
         tools = [_tool_to_openai_spec(tool) for tool in offered]
         max_iterations = (limits.max_iterations if limits else None) or MAX_TOOL_ITERATIONS
+        plan_guard = PlanGuard(message, (tool.name for tool in offered))
 
-        for _ in range(max_iterations):
+        for iteration in range(max_iterations):
             output_message = await _complete(
                 client, base_url=base_url, model=model, messages=messages, tools=tools, limits=limits
             )
@@ -133,10 +135,15 @@ async def run_chat_turn(
                 else {"role": "assistant", "content": output_message.get("content") or ""}
             )
             if not tool_calls:
-                return output_message.get("content") or ""
+                reminder = plan_guard.reminder(max_iterations - iteration - 1)
+                if reminder is None:
+                    return output_message.get("content") or ""
+                messages.append({"role": "user", "content": reminder})
+                continue
 
             for tool_call in tool_calls:
                 name = tool_call["function"]["name"]
+                plan_guard.saw_call(name)
                 started = time.perf_counter()
                 raw_arguments: Any = tool_call["function"].get("arguments")
                 refusal = call_refusal(name, tool_policy)

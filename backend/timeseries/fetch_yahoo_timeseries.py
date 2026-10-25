@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import yfinance as yf
 
+from backend.common.yahoo_symbols import yahoo_share_class_symbol
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.corporate_actions import (
     CONFIRMED_FROM,
@@ -35,12 +36,13 @@ YAHOO_PRICE_BASIS = {"auto_adjust": False}
 YAHOO_HISTORY_KWARGS = {**YAHOO_PRICE_BASIS, "actions": True}
 
 
-def _build_full_ticker(ticker: str, exchange: str) -> str:
-    """
-    Return a Yahoo-compatible symbol, *without* duplicating the suffix.
-    Examples:
-        _build_full_ticker("XDEV", "L")   -> "XDEV.L"
-        _build_full_ticker("XDEV.L", "L") -> "XDEV.L"
+def _app_full_ticker(ticker: str, exchange: str) -> str:
+    """The app's spelling of ``ticker`` with its exchange's Yahoo suffix, never duplicated.
+
+    This labels fetched rows (``Ticker`` column); see :func:`_build_full_ticker`
+    for the symbol actually requested from Yahoo.
+        _app_full_ticker("XDEV", "L")  -> "XDEV.L"
+        _app_full_ticker("BRK.B", "N") -> "BRK.B"
     """
     suffix = get_yahoo_suffix(exchange)
     ticker = ticker.upper()
@@ -48,6 +50,18 @@ def _build_full_ticker(ticker: str, exchange: str) -> str:
     if ticker.endswith(suffix):  # already has ".L", ".DE", ...
         return ticker
     return ticker + suffix
+
+
+def _build_full_ticker(ticker: str, exchange: str) -> str:
+    """
+    Return the Yahoo symbol for ``ticker``, *without* duplicating the suffix.
+    US share classes take Yahoo's dash (#11081).
+    Examples:
+        _build_full_ticker("XDEV", "L")   -> "XDEV.L"
+        _build_full_ticker("XDEV.L", "L") -> "XDEV.L"
+        _build_full_ticker("BRK.B", "US") -> "BRK-B"
+    """
+    return yahoo_share_class_symbol(_app_full_ticker(ticker, exchange), exchange)
 
 
 def get_yahoo_suffix(exchange: str) -> str:
@@ -125,7 +139,9 @@ def _history_currency(stock: yf.Ticker) -> str | None:
     return currency if isinstance(currency, str) and currency else None
 
 
-def fetch_yahoo_history(full_ticker: str, start_date: date, end_date: date) -> tuple[pd.DataFrame, pd.DataFrame]:
+def fetch_yahoo_history(
+    full_ticker: str, start_date: date, end_date: date, *, label: str | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Daily traded prices for ``full_ticker`` plus the dividends/splits in that window.
 
     Returns ``(prices, actions)``: ``prices`` in ``STANDARD_COLUMNS`` on the
@@ -133,6 +149,7 @@ def fetch_yahoo_history(full_ticker: str, start_date: date, end_date: date) -> t
     ``corporate_actions.ACTION_COLUMNS``, confirmed complete from
     ``start_date`` (``attrs[CONFIRMED_FROM]``) even when empty. Raises
     ``ValueError`` when Yahoo returns no rows, so a failed fetch confirms nothing.
+    Rows are labelled ``label`` (the app's ticker) when given, else ``full_ticker``.
     """
     stock = yf.Ticker(full_ticker)
     raw = stock.history(
@@ -144,7 +161,7 @@ def fetch_yahoo_history(full_ticker: str, start_date: date, end_date: date) -> t
     if raw.empty:
         raise ValueError(f"No data returned for {full_ticker} between {start_date} and {end_date}")
     actions = actions_from_history(raw, currency=_history_currency(stock), source="Yahoo", window_start=start_date)
-    return normalize_history(raw, full_ticker, "Yahoo"), actions
+    return normalize_history(raw, label or full_ticker, "Yahoo"), actions
 
 
 def _store_symbol(ticker: str, exchange: str) -> str:
@@ -223,7 +240,9 @@ def fetch_yahoo_timeseries_range(
     logger.debug("Fetching Yahoo data for %s from %s to %s", sanitise_log_value(full_ticker), start_date, end_date)
 
     try:
-        prices, actions = fetch_yahoo_history(full_ticker, start_date, end_date)
+        prices, actions = fetch_yahoo_history(
+            full_ticker, start_date, end_date, label=_app_full_ticker(ticker, exchange)
+        )
     except Exception as e:
         logger.error("Failed to fetch Yahoo data for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(e))
         raise
@@ -270,7 +289,7 @@ def fetch_yahoo_timeseries_period(
             raise ValueError(f"No data returned for {full_ticker}")
 
         if normalize:
-            return normalize_history(df, full_ticker, "Yahoo")
+            return normalize_history(df, _app_full_ticker(ticker, exchange), "Yahoo")
 
         # For intraday data we keep the timestamp column as-is
         df = df.reset_index()

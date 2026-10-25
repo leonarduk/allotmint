@@ -59,6 +59,23 @@ def test_parse_accepts_the_older_date_header():
     assert parsed["Value"].tolist() == [1.2]
 
 
+def test_parse_warns_about_rows_with_unparseable_dates(caplog):
+    text = _csv("BAA10Y", [("1986-01-02", "1.85"), ("02/01/1986", "1.90"), ("1986-01-06", "1.80")])
+    with caplog.at_level("WARNING", logger=fred_series.logger.name):
+        parsed = fred_series.parse_fred_csv(text, "BAA10Y")
+
+    assert parsed["Date"].dt.date.tolist() == [date(1986, 1, 2), date(1986, 1, 6)]
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "BAA10Y" in warnings[0] and "1 row(s)" in warnings[0] and "02/01/1986" in warnings[0]
+
+
+def test_parse_does_not_warn_for_well_formed_dates(caplog):
+    with caplog.at_level("WARNING", logger=fred_series.logger.name):
+        fred_series.parse_fred_csv(BAA_CSV, "BAA10Y")
+    assert not [r for r in caplog.records if r.levelname == "WARNING"]
+
+
 @pytest.mark.parametrize("text", ["<html>Error</html>", "", "observation_date,OTHER\n1986-01-02,1\n"])
 def test_parse_rejects_responses_that_are_not_the_requested_csv(text):
     with pytest.raises(fred_series.FredFetchError):

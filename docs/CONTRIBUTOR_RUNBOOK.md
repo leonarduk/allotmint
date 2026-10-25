@@ -555,8 +555,23 @@ node frontend/scripts/capture-qa-screenshots.mjs
 
 The script temporarily flips `config.yaml`'s `reports` tab and
 `local_login_email` on to reach pages that need them, then restores the
-values it found on disk before it ran. It's not wired into CI — run it
-manually and review the diff before committing.
+values it found on disk before it ran. Because `PUT /config` rewrites
+`config.yaml` without its comments, it also snapshots the file's bytes first
+and writes them back at the end, so `git diff config.yaml` stays empty. It
+pre-dismisses the first-run help banner, and counts a page stuck on
+"Loading... retrying configuration." as skipped rather than saved. It's not
+wired into CI — run it manually and review the diff before committing.
+
+If your everyday app (possibly on private data) already holds :2568, run the
+demo stack on spare ports and point the script at it with `QA_FRONTEND_URL`.
+The backend must allow that origin via `CORS_ORIGINS`, or every page stays on
+"Loading... retrying configuration.":
+
+```bash
+CORS_ORIGINS=http://localhost:2578 DATA_ROOT=data bash scripts/bash/run-local-api.sh
+npm --prefix frontend run dev -- --port 2578
+QA_FRONTEND_URL=http://localhost:2578 node frontend/scripts/capture-qa-screenshots.mjs
+```
 
 ### Capturing the offline demo walkthrough
 

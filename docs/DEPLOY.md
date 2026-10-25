@@ -232,7 +232,11 @@ site instead of returning 402 (#11004):
    `backend/requirements.txt`, and **fails the build if no wheel is present**
    unless built with `--build-arg REQUIRE_PRO=0`. `docker-compose.lambda.yml`
    sets `REQUIRE_PRO=0` for local builds, which install a wheel if one is in
-   `pro_wheels/` and skip it otherwise.
+   `pro_wheels/` and skip it otherwise. A local build does not check that wheel
+   against the pin: a `pro_wheels/allotmint_pro-*.whl` left over from an earlier
+   deploy is baked into the image even if `pyproject.toml` now pins a newer
+   release. Delete `pro_wheels/*.whl` (or rebuild it at the pin as described below) before a
+   local build that should match the pin.
 
 Local deploys build the same wheel from the pinned requirement over SSH:
 `scripts/deploy-to-AWS.ps1 -Backend` does it automatically, and the manual

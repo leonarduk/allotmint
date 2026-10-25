@@ -26,8 +26,12 @@ from backend.common.accounts_store import (
 from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
 from backend.common.currency import CurrencyNormaliser
-from backend.common.holdings_rebuild import drop_future_dated, name_aliases, replay_transactions
 from backend.common.instruments import get_instrument_meta
+from backend.common.ledger_transfers import OPENING_BALANCE_REASON as OPENING_BALANCE_REASON
+from backend.common.ledger_transfers import SET_HOLDING_REASON as SET_HOLDING_REASON
+from backend.common.ledger_transfers import find_transactions_account
+from backend.common.ledger_transfers import offset_transaction as _opening_balance_transaction
+from backend.common.ledger_transfers import replayed_units as _replayed_units
 from backend.common.prices import get_price_gbp
 from backend.common.realised_gains import compute_disposal_gains
 from backend.common.ticker_utils import normalise_filter_ticker, split_ticker
@@ -610,13 +614,9 @@ def _find_transaction_account(owner: str, account: str, store: "AccountsStore") 
     dataset.  Raises ``404`` when no matching transactions file exists.
     """
     account_lower = account.lower()
-    suffix = "_transactions.json"
-    for name in store.list_owner_files(owner):
-        if not name.endswith(suffix):
-            continue
-        candidate_account = name[: -len(suffix)]
-        if candidate_account.lower() == account_lower:
-            return candidate_account
+    found = find_transactions_account(store, owner, account)
+    if found is not None:
+        return found
 
     global_root = _global_accounts_root()
     if global_root is not None:
@@ -1321,12 +1321,9 @@ async def reconcile_holdings(
     return {"owner": owner, "account": account, "provider": provider, **diff}
 
 
-OPENING_BALANCE_REASON = "Opening balance from holdings input"
-SET_HOLDING_REASON = "Set holding from holdings input"
 # A manual price this many times above (or below) the last close is rejected
 # unless confirmed: a pence/pounds mix-up is exactly 100x.
 PRICE_MISMATCH_FACTOR = 50.0
-_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _manual_holding_units_and_price(payload: ManualHoldingCreate, ticker: str) -> Tuple[float, float]:
@@ -1359,59 +1356,6 @@ def _transactions_account_name(owner: str, account: str, store: "AccountsStore")
         if exc.status_code != 404:
             raise
         return _normalise_account_file_name(account)
-
-
-def _replayed_units(transactions: List[Mapping[str, Any]], holdings: List[Mapping[str, Any]], ticker: str) -> float:
-    """``ticker``'s units after replaying ``transactions`` as the rebuild does.
-
-    Uses the rebuild's own replay (including its name -> ticker aliases), so
-    an offset computed from it agrees with the rebuilt holding, including
-    leaving out future-dated rows.
-    """
-    transactions = drop_future_dated(transactions, warn=False)
-    aliases = name_aliases(transactions, holdings)
-    position = replay_transactions(transactions, aliases=aliases, warn=False).positions.get(ticker)
-    return position.units if position else 0.0
-
-
-def _opening_balance_transaction(
-    transactions: List[Mapping[str, Any]],
-    holdings: List[Mapping[str, Any]],
-    ticker: str,
-    units: float,
-    price: float,
-    tx_date: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
-    """The transaction that makes ``ticker``'s replayed units equal ``units``, or None if they already do.
-
-    With ``tx_date`` the transaction is dated then (the user's choice).
-    Without it, an increase is an opening-balance TRANSFER_IN dated at the
-    account's oldest transaction, so it reads as a balance held from the
-    start, and a decrease is a TRANSFER_OUT dated today: dated earlier, it
-    could exceed the units held on that date, and the rebuild would ignore
-    the excess.
-    """
-    delta = round(units - _replayed_units(transactions, holdings, ticker), 8)
-    if abs(delta) < 1e-8:
-        return None
-    today = date.today().isoformat()
-    if tx_date:
-        when, reason = tx_date, SET_HOLDING_REASON
-    elif delta > 0:
-        dates = sorted(
-            str(t.get("date") or "")[:10] for t in transactions if _ISO_DATE.match(str(t.get("date") or "")[:10])
-        )
-        when, reason = (dates[0] if dates else today), OPENING_BALANCE_REASON
-    else:
-        when, reason = today, OPENING_BALANCE_REASON
-    return {
-        "type": "TRANSFER_IN" if delta > 0 else "TRANSFER_OUT",
-        "ticker": ticker,
-        "date": when,
-        "units": abs(delta),
-        "price_gbp": price,
-        "reason": reason,
-    }
 
 
 def _manual_price_warning(ticker: str, price: float) -> Optional[Dict[str, Any]]:

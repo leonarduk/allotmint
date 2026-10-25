@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -673,3 +674,122 @@ def test_resize_lots_clamps_negative_target_to_zero():
     kept = update_holdings_from_csv._resize_lots([{"units": 6}, {"units": 4}], -1)
 
     assert kept == [{"units": 0.0}]
+
+
+# --- #10917: CSV units changes are recorded as ledger transfers ------------
+
+
+def _write_ledger(tmp_path: Path, transactions: list[dict]) -> Path:
+    ledger = tmp_path / "steve" / "isa_transactions.json"
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    ledger.write_text(json.dumps({"owner": "steve", "account_type": "isa", "transactions": transactions}))
+    return ledger
+
+
+def _ledger_rows(tmp_path: Path) -> list[dict]:
+    return json.loads((tmp_path / "steve" / "isa_transactions.json").read_text())["transactions"]
+
+
+_BOUGHT_3IN = {"type": "BUY", "ticker": "3IN.L", "date": "2025-06-03", "units": 596, "price_gbp": 3.0}
+_TRACKED_3IN = {"ticker": "3IN.L", "units": 596, "acquired_date": "2025-06-03", "cost_basis_gbp": 1788}
+_UNTRACKED_AAA = {"ticker": "AAA.L", "units": 10, "acquired_date": "2024-01-02", "cost_basis_gbp": 15}
+
+
+def _post_unrelated_transaction(tmp_path: Path) -> dict[str, dict]:
+    """Write an unrelated transaction the way the API does; it rebuilds the holdings from the ledger."""
+    from backend.common.accounts_store import LocalAccountsStore
+    from backend.routes import transactions
+
+    unrelated = {"type": "BUY", "ticker": "ZZZ.L", "date": "2025-07-01", "units": 1, "price_gbp": 2.0}
+    transactions._persist_transaction(LocalAccountsStore(root=tmp_path), "steve", "isa", unrelated)
+    holdings = json.loads((tmp_path / "steve" / "isa.json").read_text())["holdings"]
+    return {h["ticker"]: h for h in holdings}
+
+
+def test_update_from_csv_records_transfer_in_that_survives_rebuild(tmp_path: Path, no_ticker_lookup):
+    from backend.common.ledger_transfers import CSV_IMPORT_REASON
+
+    _write_account(tmp_path, [_TRACKED_3IN, _UNTRACKED_AAA])
+    _write_ledger(tmp_path, [_BOUGHT_3IN])
+
+    _import_10906()
+
+    new_rows = _ledger_rows(tmp_path)[1:]
+    assert new_rows == [
+        {
+            "type": "TRANSFER_IN",
+            "ticker": "3IN.L",
+            "date": date.today().isoformat(),
+            "units": 1.0,
+            "reason": CSV_IMPORT_REASON,
+        }
+    ]
+
+    h = _post_unrelated_transaction(tmp_path)
+    assert h["3IN.L"]["units"] == pytest.approx(597)
+    # The transfer has no price, so the CSV's cost survives the rebuild.
+    assert h["3IN.L"]["cost_basis_gbp"] == pytest.approx(1800)
+    assert h["AAA.L"]["units"] == pytest.approx(10)
+
+
+def test_update_from_csv_records_transfer_out_for_decrease_and_removal(tmp_path: Path, no_ticker_lookup):
+    old = {"ticker": "OLD.L", "units": 4, "cost_basis_gbp": 8}
+    _write_account(tmp_path, [_TRACKED_3IN, _UNTRACKED_AAA, old])
+    _write_ledger(
+        tmp_path, [_BOUGHT_3IN, {"type": "BUY", "ticker": "OLD.L", "date": "2025-01-02", "units": 4, "price_gbp": 2}]
+    )
+
+    _import_10906("Code,Units held,Price (pence),Cost (£)\n" "3IN,595,350,1785\n" "AAA,10,150,15\n")
+
+    new_rows = [(r["type"], r["ticker"], r["units"]) for r in _ledger_rows(tmp_path)[2:]]
+    assert new_rows == [("TRANSFER_OUT", "3IN.L", 1.0), ("TRANSFER_OUT", "OLD.L", 4.0)]
+    h = _post_unrelated_transaction(tmp_path)
+    assert h["3IN.L"]["units"] == pytest.approx(595)
+    assert "OLD.L" not in h
+
+
+def test_update_from_csv_opens_untracked_holding_before_its_change(tmp_path: Path, no_ticker_lookup):
+    """A holding no transaction mentions gets an opening balance first, so the
+    rebuild that now tracks it lands on the imported units, not the delta alone."""
+    from backend.common.ledger_transfers import CSV_IMPORT_REASON, OPENING_BALANCE_REASON
+
+    untracked = {**_TRACKED_3IN}
+    _write_account(tmp_path, [untracked, _UNTRACKED_AAA])
+
+    _import_10906()
+
+    rows = [(r["type"], r["ticker"], r["units"], r["date"], r["reason"]) for r in _ledger_rows(tmp_path)]
+    assert rows == [
+        ("TRANSFER_IN", "3IN.L", 596.0, "2025-06-03", OPENING_BALANCE_REASON),
+        ("TRANSFER_IN", "3IN.L", 1.0, date.today().isoformat(), CSV_IMPORT_REASON),
+    ]
+    h = _post_unrelated_transaction(tmp_path)
+    assert h["3IN.L"]["units"] == pytest.approx(597)
+    assert h["AAA.L"]["units"] == pytest.approx(10)
+
+
+def test_update_from_csv_unchanged_units_record_no_transaction(tmp_path: Path, no_ticker_lookup):
+    _write_account(
+        tmp_path,
+        [{**_TRACKED_3IN, "units": 597}, _UNTRACKED_AAA, {"ticker": "CASH.GBP", "units": 100, "cost_basis_gbp": 100}],
+    )
+
+    _import_10906(ISSUE_10906_CSV + "CASH.GBP,120,100,120\n")
+
+    assert not (tmp_path / "steve" / "isa_transactions.json").exists()
+
+
+def test_reconcile_preview_records_no_transfer(client: TestClient, tmp_path: Path):
+    _write_account(tmp_path, [_TRACKED_3IN])
+    ledger = _write_ledger(tmp_path, [_BOUGHT_3IN])
+    before = ledger.read_bytes()
+
+    response = client.post(
+        "/holdings/reconcile",
+        data={"provider": "hargreaves", "owner": "steve", "account": "isa"},
+        files={"file": ("holdings.csv", ISSUE_10906_CSV.encode(), "text/csv")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["quantity_changed"][0]["delta"] == pytest.approx(1)
+    assert ledger.read_bytes() == before

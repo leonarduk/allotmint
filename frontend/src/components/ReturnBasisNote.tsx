@@ -55,7 +55,11 @@ export default function ReturnBasisNote({ fields, className }: Props) {
         <div data-testid="alpha-unpriced-holdings">
           {t("dashboard.returnBasisUnpriced", "Left out for want of prices: {{holdings}}", {
             holdings: unpriced
-              .map((holding) => `${holding.ticker} (${shortLabels[holding.return_basis]})`)
+              // A basis this build doesn't know is shown as sent, never "undefined".
+              .map(
+                (holding) =>
+                  `${holding.ticker} (${shortLabels[holding.return_basis] ?? holding.return_basis})`,
+              )
               .join(", "),
           })}
         </div>

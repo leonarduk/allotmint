@@ -271,6 +271,7 @@ export default function ContributionScheduleEditor({ owner, onSaved }: { owner: 
     event.preventDefault();
     const payload = toPayload(rows ?? []);
     if (!Array.isArray(payload)) {
+      setSaveError(null);
       setBadAmount(payload.badAmount);
       return;
     }

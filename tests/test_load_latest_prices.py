@@ -98,6 +98,33 @@ def test_load_latest_prices_reports_progress_when_opted_in(monkeypatch):
     assert snap["current_ticker"] == "DEF.L"
 
 
+def test_load_latest_prices_reports_resolved_in_flight_ticker(monkeypatch):
+    """While a ticker is fetched, progress names its resolved form and counts
+    only the tickers before it (#8038, #8047)."""
+    from backend.common import instrument_api
+
+    df = pd.DataFrame({"Date": [1], "Close_gbp": [2.0]})
+    seen = []
+
+    def fake_load(**kwargs):
+        seen.append(refresh_progress.snapshot())
+        return df
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load)
+    resolved = {"HFEL": ("HFEL", "L"), "AAPL": ("AAPL", "N")}
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda full, _latest: resolved[full])
+
+    refresh_progress.start(2)
+    try:
+        holding_utils.load_latest_prices(["HFEL", "AAPL"], report_progress=True)
+        final = refresh_progress.snapshot()
+    finally:
+        refresh_progress.finish()
+
+    assert [(s["current_ticker"], s["completed"]) for s in seen] == [("HFEL.L", 0), ("AAPL.N", 1)]
+    assert (final["current_ticker"], final["completed"]) == ("AAPL.N", 2)
+
+
 def test_load_latest_prices_ignores_progress_when_no_refresh_running(monkeypatch):
     df = pd.DataFrame({"Date": [1], "Close_gbp": [2.0]})
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: df)

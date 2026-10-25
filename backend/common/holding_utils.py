@@ -242,6 +242,11 @@ def load_latest_closes(
             ticker = full.split(".", 1)[0]
             exchange = "L"
             logger.debug("Could not resolve exchange for %s; defaulting to L", full)
+        # Progress names the resolved ticker being fetched now (e.g. ``HFEL.L``
+        # for input ``HFEL``), with ``completed`` counting the ones before it;
+        # the ``finally`` below advances the count once it's done (#8038, #8047).
+        if report_progress:
+            refresh_progress.update(f"{ticker}.{exchange}", i)
 
         try:
             df = load_meta_timeseries_range(
@@ -267,7 +272,7 @@ def load_latest_closes(
             if len(result) == priced_before:
                 unpriced.append(full)
             if report_progress:
-                refresh_progress.update(full, i + 1)
+                refresh_progress.update(f"{ticker}.{exchange}", i + 1)
 
     logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
     if unpriced:

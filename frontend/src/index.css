@@ -39,6 +39,9 @@
     --input-text: #fff;
     --gain-positive: lightgreen;
     --gain-negative: red;
+    /* Small-text action colours meeting WCAG AA (4.5:1) on --surface-card-bg (#9899). */
+    --danger-text: #f87171;
+    --success-text: #4ade80;
     --tab-border: #444;
     --tab-active-bg: #333;
     --tab-active-text: #eee;
@@ -80,6 +83,8 @@
     --input-text: #213547;
     --gain-positive: #15803d;
     --gain-negative: #b91c1c;
+    --danger-text: #b91c1c;
+    --success-text: #15803d;
     --tab-border: #d4d4d4;
     --tab-active-bg: #e5e7eb;
     --tab-active-text: #111827;
@@ -116,6 +121,9 @@
     --input-text: #fff;
     --gain-positive: lightgreen;
     --gain-negative: red;
+    /* Small-text action colours meeting WCAG AA (4.5:1) on --surface-card-bg (#9899). */
+    --danger-text: #f87171;
+    --success-text: #4ade80;
     --tab-border: #444;
     --tab-active-bg: #333;
     --tab-active-text: #eee;
@@ -156,6 +164,8 @@
         --input-text: #213547;
         --gain-positive: #15803d;
         --gain-negative: #b91c1c;
+        --danger-text: #b91c1c;
+        --success-text: #15803d;
         --tab-border: #d4d4d4;
         --tab-active-bg: #e5e7eb;
         --tab-active-text: #111827;

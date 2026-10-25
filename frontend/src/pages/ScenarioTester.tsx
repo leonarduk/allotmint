@@ -519,7 +519,7 @@ export default function ScenarioTester() {
                           <button
                             type="button"
                             onClick={() => removeCustomHolding(row.customIndex ?? 0)}
-                            className="rounded border border-red-400 bg-transparent px-2 py-1 text-xs text-red-500 hover:bg-[var(--menu-hover-bg)]"
+                            className="rounded border border-red-400 bg-transparent px-2 py-1 text-xs text-[var(--danger-text)] hover:bg-[var(--menu-hover-bg)]"
                           >
                             {t("scenarioTester.remove")}
                           </button>
@@ -559,8 +559,8 @@ export default function ScenarioTester() {
                           onClick={() => toggleHoldingRemoval(row.key)}
                           className={`rounded px-2 py-1 text-xs transition-colors ${
                             row.isRemoved
-                              ? "border border-green-500 bg-transparent text-green-500 hover:bg-[var(--menu-hover-bg)]"
-                              : "border border-red-400 bg-transparent text-red-500 hover:bg-[var(--menu-hover-bg)]"
+                              ? "border border-green-500 bg-transparent text-[var(--success-text)] hover:bg-[var(--menu-hover-bg)]"
+                              : "border border-red-400 bg-transparent text-[var(--danger-text)] hover:bg-[var(--menu-hover-bg)]"
                           }`}
                         >
                           {row.isRemoved ? t("scenarioTester.restore") : t("scenarioTester.remove")}

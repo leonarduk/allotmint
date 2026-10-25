@@ -436,6 +436,22 @@ describe("opening a saved chat", () => {
     expect(contents()).toEqual(["q", "a", "unsaved"]);
   });
 
+  it("adopts the current chat when opening loses a race with another tab (#9022)", async () => {
+    const conflict = Object.assign(new Error("conflict"), {
+      status: 409,
+      body: { current: { revision: 9, conversation: tree("other tab q", "other tab a") } },
+    });
+    (api.openSavedChat as Mock).mockRejectedValue(conflict);
+
+    await expect(openSavedChat("r00000001")).rejects.toBe(conflict);
+
+    expect(contents()).toEqual(["other tab q", "other tab a"]);
+    expect(getChatSyncState()).toMatchObject({ revision: 9, dirty: false });
+    // Adopting it is not a change to save back.
+    await settle();
+    expect(putMock()).not.toHaveBeenCalled();
+  });
+
   it("keeps the conversation when opening fails", async () => {
     (api.openSavedChat as Mock).mockRejectedValue(new Error("down"));
 

@@ -237,7 +237,18 @@ export async function saveCurrentChat(): Promise<void> {
 export async function openSavedChat(id: string): Promise<void> {
   await saveCurrentChat();
   const epoch = getChatIdentityEpoch();
-  const opened = await api.openSavedChat(id);
+  let opened: Awaited<ReturnType<typeof api.openSavedChat>>;
+  try {
+    opened = await api.openSavedChat(id);
+  } catch (e) {
+    // Another tab kept saving while the server swapped chats (#9022): show
+    // what is now current rather than a conversation the server replaced.
+    if (isConflict(e) && epoch === getChatIdentityEpoch()) {
+      adoptSavedChat(e.body.current.conversation);
+      updateSync({ revision: e.body.current.revision, dirty: false, archivePending: false });
+    }
+    throw e;
+  }
   if (epoch !== getChatIdentityEpoch()) return;
   adoptSavedChat(opened.conversation);
   updateSync({ revision: opened.revision, dirty: false, archivePending: false });

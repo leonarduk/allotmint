@@ -214,6 +214,24 @@ describe('InstrumentTable in the reporting currency', () => {
     ).not.toBeInTheDocument();
     expect(screen.getAllByText(usd(1250)).length).toBeGreaterThan(0);
   });
+
+  it('states the GBP translation when converting (#9794)', async () => {
+    render(<InstrumentTable rows={[row]} />, { wrapper: withCurrency('USD') });
+
+    expect(
+      await screen.findByText(/translated from GBP at today's rate/)
+    ).toHaveTextContent('1 USD = £0.8000');
+  });
+
+  it('shows no translation note when reporting in GBP', async () => {
+    render(<InstrumentTable rows={[row]} />, { wrapper: withCurrency('GBP') });
+
+    expect(
+      await screen.findByRole('columnheader', { name: /Market £/ })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/translated from GBP/)).not.toBeInTheDocument();
+    expect(mockGetGbpRate).not.toHaveBeenCalled();
+  });
 });
 
 describe('AccountBlock estimated value (#9795)', () => {

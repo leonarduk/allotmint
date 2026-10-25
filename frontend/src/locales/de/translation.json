@@ -1915,7 +1915,15 @@
         "chat_provider": "Backend des Chat-Assistenten: bedrock, ollama oder deepseek. Leer verwendet bedrock, bzw. ollama, wenn app_env \"local\" ist.",
         "chat_model": "Modellname für den Chat-Anbieter ollama oder deepseek. Leer verwendet den Standard des Anbieters.",
         "chat_base_url": "Basis-URL für den Chat-Anbieter ollama oder deepseek. Leer verwendet den Standard des Anbieters.",
-        "chat_rate_limit": "Ratenbegrenzung für Chat-Anfragen, z. B. \"20/minute\"."
+        "chat_rate_limit": "Ratenbegrenzung für Chat-Anfragen, z. B. \"20/minute\".",
+        "error_summary": "Einstellungen für scripts/run_with_error_summary.py, z. B. der ausgeführte default_command.",
+        "nav_refresh_enabled": "NAVs gehaltener Investment Trusts täglich von den Websites der Manager aktualisieren.",
+        "nav_refresh_time": "Uhrzeit der täglichen NAV-Aktualisierung (HH:MM, britische Zeit).",
+        "nav_refresh_request_interval_seconds": "Mindestabstand in Sekunden zwischen NAV-Anfragen an die Website eines Managers.",
+        "nav_refresh_cache_ttl_seconds": "Wie lange (in Sekunden) eine abgerufene NAV-Seite innerhalb eines Laufs wiederverwendet wird.",
+        "local_bot_schedule": "Bots, die die App im lokalen Modus planmäßig ausführt. Leer führt nur die Kurs- und Dividendenaktualisierung aus; eine leere Liste führt keine aus.",
+        "trading_agent": "Signalschwellen für den Trading-Agenten (RSI, gleitende Durchschnitte und Fundamentalfilter).",
+        "trend_watch": "Schwellenwerte für die Trendüberwachung der Bestände."
       },
       "themeOptions": {
         "dark": "Dunkel",
@@ -3659,6 +3667,8 @@
     "updatePlan": "Plan aktualisieren",
     "updatingPlan": "Plan wird aktualisiert…",
     "appliedPrompt": "Sie haben {{name}} angewendet. Auch Ihren Anlageplan entsprechend aktualisieren?",
+    "appliedUnmappable": "Sie haben {{name}} angewendet, aber seine Ziele lassen sich nicht den Anlageklassen des Plans zuordnen, daher kann der Plan nicht darauf umgestellt werden.",
+    "dismissApplied": "OK",
     "appliedAria": "Plan an angewendete Strategie anpassen",
     "decisionSwitched": "Zur Strategie {{name}} gewechselt: {{targets}}",
     "decisionMatched": "Planziel an Rebalancing-Ziele angepasst: {{targets}}",

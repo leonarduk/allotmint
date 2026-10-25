@@ -238,6 +238,30 @@ describe('PlanPanel', () => {
     expect(mockSaveInvestmentPlan).not.toHaveBeenCalled();
   });
 
+  it('explains why an applied strategy with no plan classes offers no plan update', async () => {
+    mockGetInvestmentPlan.mockResolvedValue(
+      makeResponse({ rebalance_as_plan: null })
+    );
+    render(
+      <PlanPanel owner="alex" appliedStrategy={{ name: 'Barbell', token: 1 }} />
+    );
+    expect(
+      await screen.findByText(
+        /You applied Barbell, but its targets don't map onto the plan's asset classes/
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Your rebalance targets differ from this plan.')
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Update plan/ })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(screen.queryByText(/You applied Barbell/)).not.toBeInTheDocument();
+    expect(mockSaveInvestmentPlan).not.toHaveBeenCalled();
+  });
+
   it('hides the update-plan button when the targets have no plan classes', async () => {
     mockGetInvestmentPlan.mockResolvedValue(
       makeResponse({ rebalance_as_plan: null })

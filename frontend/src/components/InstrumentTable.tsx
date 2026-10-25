@@ -10,6 +10,7 @@ import { useConfig } from '../ConfigContext';
 import { useReportingCurrency } from '../hooks/useReportingCurrency';
 import { isSupportedFx } from '../lib/fx';
 import { RelativeViewToggle } from './RelativeViewToggle';
+import { ReportingCurrencyNote } from './ReportingCurrencyNote';
 import {
   assignInstrumentGroup,
   clearInstrumentGroup,
@@ -195,6 +196,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
       <div style={{ marginBottom: '0.5rem' }}>
         <RelativeViewToggle />
       </div>
+      <ReportingCurrencyNote reporting={reporting} />
       {exchanges.length > 0 && (
         <fieldset
           style={{

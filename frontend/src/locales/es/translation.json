@@ -1915,7 +1915,15 @@
         "chat_provider": "Backend del asistente de chat: bedrock, ollama o deepseek. En blanco usa bedrock, u ollama cuando app_env es \"local\".",
         "chat_model": "Nombre del modelo para el proveedor de chat ollama o deepseek. En blanco usa el predeterminado del proveedor.",
         "chat_base_url": "URL base del proveedor de chat ollama o deepseek. En blanco usa el predeterminado del proveedor.",
-        "chat_rate_limit": "Límite de frecuencia para solicitudes de chat, p. ej. \"20/minute\"."
+        "chat_rate_limit": "Límite de frecuencia para solicitudes de chat, p. ej. \"20/minute\".",
+        "error_summary": "Ajustes de scripts/run_with_error_summary.py, como el default_command que ejecuta.",
+        "nav_refresh_enabled": "Actualizar a diario el NAV de los fondos cotizados en cartera desde las webs de sus gestoras.",
+        "nav_refresh_time": "Hora de la actualización diaria del NAV (HH:MM, hora del Reino Unido).",
+        "nav_refresh_request_interval_seconds": "Intervalo mínimo, en segundos, entre solicitudes de NAV a la web de una gestora.",
+        "nav_refresh_cache_ttl_seconds": "Tiempo, en segundos, durante el que se reutiliza una página de NAV descargada en una misma ejecución.",
+        "local_bot_schedule": "Bots que la aplicación ejecuta de forma programada en modo local. En blanco solo se actualizan precios y dividendos; una lista vacía no ejecuta ninguno.",
+        "trading_agent": "Umbrales de señal del agente de trading (RSI, medias móviles y filtros fundamentales).",
+        "trend_watch": "Umbrales del detector de tendencias de las posiciones."
       },
       "themeOptions": {
         "dark": "Oscuro",
@@ -3659,6 +3667,8 @@
     "updatePlan": "Actualizar plan",
     "updatingPlan": "Actualizando plan…",
     "appliedPrompt": "Has aplicado {{name}}. ¿Actualizar también tu plan de inversión?",
+    "appliedUnmappable": "Has aplicado {{name}}, pero sus objetivos no se corresponden con las clases de activos del plan, así que el plan no puede cambiarse a esta estrategia.",
+    "dismissApplied": "Entendido",
     "appliedAria": "Actualizar el plan a la estrategia aplicada",
     "decisionSwitched": "Cambio a la estrategia {{name}}: {{targets}}",
     "decisionMatched": "Objetivo del plan actualizado según los objetivos de reequilibrio: {{targets}}",

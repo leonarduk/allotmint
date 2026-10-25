@@ -296,6 +296,28 @@ function AppliedStrategyPrompt({
 }
 
 /**
+ * Right after a strategy is applied whose targets have no plan classes
+ * (`rebalance_as_plan` is null): says why no plan update is offered (#9822).
+ */
+function AppliedStrategyUnmappableNote({
+  strategyName,
+  onDismiss,
+}: {
+  strategyName: string;
+  onDismiss: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <p>
+      {t('planPanel.appliedUnmappable', { name: strategyName })}{' '}
+      <button type="button" onClick={onDismiss} className="underline">
+        {t('planPanel.dismissApplied')}
+      </button>
+    </p>
+  );
+}
+
+/**
  * Plan vs rebalance targets. Right after an active plan is saved with a
  * different target (`offerSync`), asks whether to update the rebalance
  * targets; otherwise reports the mismatch with a copy button (#9680).
@@ -359,6 +381,12 @@ function RebalanceComparison({
       <p className="text-amber-700 dark:text-amber-300">
         {prompt ? t('planPanel.updatePrompt') : t('planPanel.targetsDiffer')}
       </p>
+      {appliedStrategy && (
+        <AppliedStrategyUnmappableNote
+          strategyName={appliedStrategy}
+          onDismiss={onDismissApplied}
+        />
+      )}
       <p>
         {t('planPanel.planLabel')} {formatTargets(comparison.plan_targets, t)}
       </p>

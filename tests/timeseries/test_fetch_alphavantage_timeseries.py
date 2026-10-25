@@ -295,3 +295,13 @@ def test_split_adjust_without_coefficients_is_a_no_op():
 
     df = pd.DataFrame({"Close": [10.0, 11.0]})
     assert av.split_adjust(df)["Close"].tolist() == [10.0, 11.0]
+
+
+def test_split_adjust_leaves_its_input_unchanged():
+    import pandas as pd
+
+    df = pd.DataFrame({"Close": [10.0, 5.0], "Volume": [5.0, 10.0], av.SPLIT_COEFFICIENT_FIELD: ["1.0", "2.0"]})
+    before = df.copy()
+    out = av.split_adjust(df)
+    assert out["Close"].tolist() == [5.0, 5.0]
+    pd.testing.assert_frame_equal(df, before)

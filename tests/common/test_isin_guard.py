@@ -105,7 +105,14 @@ def test_save_over_an_unreadable_file_still_checks_the_new_isin(instruments_dir)
     path = instruments_dir / "L" / "BMY.json"
     path.parent.mkdir(parents=True)
     path.write_text("{not json", encoding="utf-8")
-    with pytest.raises(ForeignIsinError):
+    with pytest.raises(ForeignIsinError, match="existing instrument file could not be read") as exc:
+        instruments.save_instrument_meta("BMY", "L", {"ticker": "BMY.L", "isin": BRISTOL_MYERS})
+    assert "existing ISIN none" not in str(exc.value)
+    assert path.read_text(encoding="utf-8") == "{not json"
+
+
+def test_save_refusal_on_a_new_file_reports_no_existing_isin(instruments_dir):
+    with pytest.raises(ForeignIsinError, match="existing ISIN none"):
         instruments.save_instrument_meta("BMY", "L", {"ticker": "BMY.L", "isin": BRISTOL_MYERS})
 
 

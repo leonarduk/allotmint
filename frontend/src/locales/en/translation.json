@@ -1909,7 +1909,15 @@
         "chat_provider": "Chat assistant backend: bedrock, ollama or deepseek. Blank uses bedrock, or ollama when app_env is \"local\".",
         "chat_model": "Model name for the ollama or deepseek chat provider. Blank uses the provider default.",
         "chat_base_url": "Base URL for the ollama or deepseek chat provider. Blank uses the provider default.",
-        "chat_rate_limit": "Rate limit for chat requests, e.g. \"20/minute\"."
+        "chat_rate_limit": "Rate limit for chat requests, e.g. \"20/minute\".",
+        "error_summary": "Settings for scripts/run_with_error_summary.py, such as the default_command it runs.",
+        "nav_refresh_enabled": "Refresh held investment trusts' NAVs daily from their managers' websites.",
+        "nav_refresh_time": "Time of the daily NAV refresh (HH:MM, UK time).",
+        "nav_refresh_request_interval_seconds": "Minimum gap, in seconds, between NAV requests to one manager's website.",
+        "nav_refresh_cache_ttl_seconds": "How long, in seconds, a fetched NAV page is reused within one refresh run.",
+        "local_bot_schedule": "Bots the app runs on a schedule in local mode. Blank runs only the price and dividend refresh; an empty list runs none.",
+        "trading_agent": "Signal thresholds for the trading agent (RSI, moving averages and fundamentals screens).",
+        "trend_watch": "Thresholds for the holding trend-watch detector."
       },
       "themeOptions": {
         "dark": "dark",
@@ -3652,6 +3660,8 @@
     "updatePlan": "Update plan",
     "updatingPlan": "Updating plan…",
     "appliedPrompt": "You applied {{name}}. Also update your investment plan to match?",
+    "appliedUnmappable": "You applied {{name}}, but its targets don't map onto the plan's asset classes, so the plan can't be switched to it.",
+    "dismissApplied": "OK",
     "appliedAria": "Update plan to applied strategy",
     "decisionSwitched": "Switched to the {{name}} strategy: {{targets}}",
     "decisionMatched": "Plan target updated to match rebalance targets: {{targets}}",

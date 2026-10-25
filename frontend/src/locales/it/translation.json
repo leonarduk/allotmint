@@ -1915,7 +1915,15 @@
         "chat_provider": "Backend dell'assistente chat: bedrock, ollama o deepseek. Se vuoto usa bedrock, oppure ollama quando app_env è \"local\".",
         "chat_model": "Nome del modello per il provider di chat ollama o deepseek. Se vuoto usa il predefinito del provider.",
         "chat_base_url": "URL di base per il provider di chat ollama o deepseek. Se vuoto usa il predefinito del provider.",
-        "chat_rate_limit": "Limite di frequenza per le richieste di chat, ad es. \"20/minute\"."
+        "chat_rate_limit": "Limite di frequenza per le richieste di chat, ad es. \"20/minute\".",
+        "error_summary": "Impostazioni di scripts/run_with_error_summary.py, come il default_command che esegue.",
+        "nav_refresh_enabled": "Aggiorna ogni giorno il NAV degli investment trust detenuti dai siti dei rispettivi gestori.",
+        "nav_refresh_time": "Ora dell'aggiornamento giornaliero del NAV (HH:MM, ora del Regno Unito).",
+        "nav_refresh_request_interval_seconds": "Intervallo minimo, in secondi, tra le richieste di NAV al sito di un gestore.",
+        "nav_refresh_cache_ttl_seconds": "Per quanto tempo, in secondi, una pagina NAV scaricata viene riutilizzata nella stessa esecuzione.",
+        "local_bot_schedule": "Bot che l'app esegue in modo pianificato in modalità locale. Vuoto esegue solo l'aggiornamento di prezzi e dividendi; un elenco vuoto non ne esegue nessuno.",
+        "trading_agent": "Soglie dei segnali dell'agente di trading (RSI, medie mobili e filtri fondamentali).",
+        "trend_watch": "Soglie del rilevatore di tendenza delle posizioni."
       },
       "themeOptions": {
         "dark": "Scuro",
@@ -3659,6 +3667,8 @@
     "updatePlan": "Aggiorna piano",
     "updatingPlan": "Aggiornamento del piano…",
     "appliedPrompt": "Hai applicato {{name}}. Aggiornare anche il tuo piano di investimento?",
+    "appliedUnmappable": "Hai applicato {{name}}, ma i suoi obiettivi non corrispondono alle classi di attività del piano, quindi il piano non può essere aggiornato.",
+    "dismissApplied": "OK",
     "appliedAria": "Allinea il piano alla strategia applicata",
     "decisionSwitched": "Passaggio alla strategia {{name}}: {{targets}}",
     "decisionMatched": "Obiettivo del piano allineato agli obiettivi di ribilanciamento: {{targets}}",

@@ -305,20 +305,37 @@ def instrument_meta_path(ticker: str, exchange: str) -> Path:
     return _instrument_path(f"{sym}.{exch}")
 
 
-def _isin_on_disk(path: Path) -> Optional[str]:
-    """The ``isin`` currently stored at ``path``, or ``None`` if absent/unreadable."""
+def _isin_on_disk(path: Path) -> tuple[Optional[str], bool]:
+    """``(isin, readable)`` for the file at ``path``.
+
+    ``isin`` is the stored ``isin``, or ``None`` when absent; ``readable`` is
+    ``False`` only when the file exists but cannot be read or parsed, so the
+    ISIN guard can say the current ISIN is unknown rather than missing.
+    """
     try:
         stored = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return None
+        return None, True
     except (OSError, ValueError) as exc:
         logger.warning(
             "Cannot read existing instrument metadata at %s for the ISIN check: %s",
             sanitise_log_value(path),
             sanitise_log_value(exc),
         )
-        return None
-    return stored.get("isin") if isinstance(stored, dict) else None
+        return None, False
+    return (stored.get("isin") if isinstance(stored, dict) else None), True
+
+
+def _check_isin_against_disk(path: Path, new_isin: Any, exchange: Any, allow_foreign_isin: bool) -> None:
+    """Run :func:`check_isin_change` against the ISIN currently stored at ``path``."""
+    existing_isin, readable = _isin_on_disk(path)
+    check_isin_change(
+        existing_isin,
+        new_isin,
+        exchange,
+        allow_foreign_isin=allow_foreign_isin,
+        existing_unreadable=not readable,
+    )
 
 
 def save_instrument_meta(
@@ -365,7 +382,7 @@ def save_instrument_meta(
     data = _decode_metadata_name(data, source=f"save_instrument_meta:{ticker}.{exchange}")
 
     path = instrument_meta_path(ticker, exchange)  # type: ignore[arg-type]
-    check_isin_change(_isin_on_disk(path), data.get("isin"), exchange, allow_foreign_isin=allow_foreign_isin)
+    _check_isin_against_disk(path, data.get("isin"), exchange, allow_foreign_isin)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as fh:

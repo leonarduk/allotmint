@@ -104,16 +104,22 @@ def test_run_historical_scenario_valid_horizons(monkeypatch):
                     "baseline_total_value_gbp": 150.0,
                     "shocked_total_value_gbp": 149.0,
                     "coverage_pct": None,
+                    "return_basis": None,
+                    "price_return_tickers": [],
                 },
                 "1w": {
                     "baseline_total_value_gbp": 150.0,
                     "shocked_total_value_gbp": 143.0,
                     "coverage_pct": None,
+                    "return_basis": None,
+                    "price_return_tickers": [],
                 },
                 "30": {
                     "baseline_total_value_gbp": 150.0,
                     "shocked_total_value_gbp": 120.0,
                     "coverage_pct": None,
+                    "return_basis": None,
+                    "price_return_tickers": [],
                 },
             },
         }

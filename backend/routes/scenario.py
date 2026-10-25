@@ -225,6 +225,9 @@ def run_historical_scenario(
                 "baseline_total_value_gbp": baseline,
                 "shocked_total_value_gbp": shocked_label.get("total_value_gbp"),
                 "coverage_pct": shocked_label.get("coverage_pct"),
+                # Whether the shock used total or price returns (#9370, #9510).
+                "return_basis": shocked_label.get("return_basis"),
+                "price_return_tickers": shocked_label.get("price_return_tickers", []),
             }
 
         results.append(

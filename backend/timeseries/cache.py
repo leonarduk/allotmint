@@ -441,6 +441,13 @@ def _merge_fetched(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFr
     Only ``_VALUE_COLS`` are compared. When a cached date is kept, its other
     columns (``Source``, ``Ticker``) are kept too, so a re-fetch that changes
     only ``Source`` does not update the stored provenance.
+
+    Precondition: both frames have been through :func:`_ensure_schema`, so
+    ``Date`` is datetime64 and every ``_VALUE_COLS`` column exists (missing
+    ones NaN-filled). ``_rolling_cache`` guarantees this: ``existing`` comes
+    from ``_load_parquet`` (directly or via ``_load_meta_parquet_cached``) and
+    ``new`` is passed through ``_ensure_schema`` before any filtering (#7953,
+    #7989).
     """
     existing = existing.loc[~existing["Date"].dt.date.duplicated()]
     new = new.loc[~new["Date"].dt.date.duplicated(keep="last")]

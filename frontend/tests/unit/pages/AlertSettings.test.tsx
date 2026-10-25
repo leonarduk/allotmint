@@ -206,6 +206,23 @@ describe("AlertSettings identity resolution", () => {
     expect(mockGetAlertThreshold).not.toHaveBeenCalled();
   });
 
+  it("shows the resolving notice, not the sign-in notice, while config and owners are pending (#9243)", async () => {
+    // Never settle: the page must stay in its resolving state rather than
+    // flashing the sign-in notice before identity is known.
+    mockGetConfig.mockReturnValue(new Promise(() => {}));
+    mockGetOwners.mockReturnValue(new Promise(() => {}));
+
+    render(
+      <MemoryRouter initialEntries={["/alert-settings"]}>
+        <AlertSettings />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(en.alertSettings.resolving)).toBeInTheDocument();
+    expect(screen.queryByText(en.alertSettings.signInNotice)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.alertSettings.save })).toBeDisabled();
+    expect(mockGetAlertThreshold).not.toHaveBeenCalled();
+  });
 });
 
 describe("AlertSettings authorisation errors", () => {

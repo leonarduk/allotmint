@@ -409,7 +409,7 @@
     "drawdownUnreliable": "Il calcolo del drawdown massimo ha restituito un valore impossibile (un drawdown deve essere compreso tra -100% e 0%), quindi non viene mostrato. Di solito indica prezzi mancanti o errati.",
     "drawdownChartDescription": "Il drawdown è calcolato dalla curva giornaliera del valore del portafoglio. L'area ombreggiata mostra l'intervallo tra il picco e il minimo del drawdown massimo.",
     "drawdownSeriesUnavailable": "Non siamo riusciti a caricare la cronologia del drawdown per questo periodo.",
-    "performancePartialMembers": "Il rendimento ponderato per il tempo e l'XIRR sono incompleti: non è stato trovato alcuno storico delle transazioni per {{members}}, quindi questi valori probabilmente risultano più alti del rendimento reale del nucleo familiare.",
+    "performancePartialMembers": "Il rendimento ponderato per il tempo e l'XIRR sono incompleti: non è stato trovato alcuno storico delle transazioni per {{members}}, quindi questi valori non coprono l'intero nucleo familiare.",
     "performanceMetricsUnavailable": "Alcune metriche non sono state caricate e sono mostrate come non disponibili: {{metrics}}.",
     "performanceUnavailable": "Non siamo riusciti a caricare il grafico del valore del portafoglio per questo periodo. Le altre metriche di questa pagina potrebbero comunque essere disponibili.",
     "performanceEmpty": "Non c'è ancora uno storico del valore del portafoglio per questo periodo.",
@@ -1639,6 +1639,8 @@
   },
   "screener": {
     "checking": "Verifica della disponibilità dello screener…",
+    "provenanceSource": "Fonte: {{source}}",
+    "provenanceAsOf": "Aggiornato al {{date}}",
     "clearFilters": "Cancella filtri",
     "description": "Filtra una watchlist o un elenco personalizzato di ticker in base a rapporti di valutazione, redditività e rischio (P/E, livelli di debito, margini, rendimenti e altro) per selezionare le società da approfondire.",
     "fractionHint": "0,10 = 10%",
@@ -3008,7 +3010,8 @@
     "unattributed": "Non collegato a una posizione",
     "unattributedHelp": "Pagamenti di dividendi registrati senza ticker, ad es. trasferimenti da un conto proventi.",
     "noHistory": "Nessun dividendo registrato",
-    "holdingsUnavailable": "Impossibile caricare le posizioni attuali, quindi le posizioni senza dividendi non sono elencate."
+    "holdingsUnavailable": "Impossibile caricare le posizioni attuali, quindi le posizioni senza dividendi non sono elencate.",
+    "skippedNoAmount": "Righe di dividendi escluse da questi totali perché prive di importo: {{count}}."
   },
   "dividendHistory": {
     "trendAria": "Andamento dei dividendi",

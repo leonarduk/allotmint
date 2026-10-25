@@ -409,7 +409,7 @@
     "drawdownUnreliable": "O cálculo da máxima queda devolveu um valor impossível (uma queda deve estar entre -100% e 0%), por isso não é apresentado. Isto indica normalmente preços em falta ou incorretos.",
     "drawdownChartDescription": "A queda é calculada a partir da curva diária do valor da carteira. A área sombreada mostra o intervalo pico-vale da máxima queda.",
     "drawdownSeriesUnavailable": "Não conseguimos carregar o histórico de quedas para este período.",
-    "performancePartialMembers": "O retorno ponderado pelo tempo e o XIRR estão incompletos: não foi encontrado histórico de transações para {{members}}, por isso estes valores provavelmente estão acima do retorno real do agregado familiar.",
+    "performancePartialMembers": "O retorno ponderado pelo tempo e o XIRR estão incompletos: não foi encontrado histórico de transações para {{members}}, por isso estes valores não abrangem todo o agregado familiar.",
     "performanceMetricsUnavailable": "Algumas métricas não puderam ser carregadas e são apresentadas como indisponíveis: {{metrics}}.",
     "performanceUnavailable": "Não foi possível carregar o gráfico do valor da carteira para este período. Outras métricas desta página podem continuar disponíveis.",
     "performanceEmpty": "Ainda não há histórico do valor da carteira para este período.",
@@ -1639,6 +1639,8 @@
   },
   "screener": {
     "checking": "Verificando a disponibilidade do screener…",
+    "provenanceSource": "Fonte: {{source}}",
+    "provenanceAsOf": "Atualizado a {{date}}",
     "clearFilters": "Limpar filtros",
     "description": "Filtre uma lista de observação ou uma lista personalizada de tickers por índices de avaliação, rentabilidade e risco (P/L, níveis de dívida, margens, retornos e mais) para pré-selecionar empresas que mereçam uma análise mais detalhada.",
     "fractionHint": "0.10 = 10%",
@@ -3008,7 +3010,8 @@
     "unattributed": "Sem posição associada",
     "unattributedHelp": "Pagamentos de dividendos registados sem ticker, p. ex. transferências de uma conta de rendimentos.",
     "noHistory": "Sem dividendos registados",
-    "holdingsUnavailable": "Não foi possível carregar as posições atuais, por isso as posições sem dividendos não são listadas."
+    "holdingsUnavailable": "Não foi possível carregar as posições atuais, por isso as posições sem dividendos não são listadas.",
+    "skippedNoAmount": "Linhas de dividendos excluídas destes totais por não terem valor: {{count}}."
   },
   "dividendHistory": {
     "trendAria": "Tendência de dividendos",

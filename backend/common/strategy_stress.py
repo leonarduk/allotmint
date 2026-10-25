@@ -219,11 +219,19 @@ def _holding_sleeve(holding: Mapping[str, Any]) -> Optional[str]:
 
 def _sleeve_as_ticker_returns(
     sleeve: str, returns: SleeveReturns
-) -> tuple[str, tuple[dict[str, Optional[float]], str]]:
-    """A sleeve's returns in the holdings engine's ``(name, (returns, basis))`` shape."""
-    price_only = any(h.basis == PRICE_RETURN_BASIS for h in returns.values() if h.value is not None)
-    basis = PRICE_RETURN_BASIS if price_only else TOTAL_RETURN_BASIS
-    return f"{sleeve} stand-in", ({label: h.value for label, h in returns.items()}, basis)
+) -> tuple[str, tuple[dict[str, Optional[float]], dict[str, str]]]:
+    """A sleeve's returns in the holdings engine's ``(name, (returns, basis))`` shape.
+
+    The basis is per horizon: the stand-in chain can fill one horizon from a
+    ticker with stored dividends and another from one without, and each
+    horizon's figure is labelled by the series that produced it (#9946).
+    """
+    values = {label: h.value for label, h in returns.items()}
+    bases = {
+        label: PRICE_RETURN_BASIS if h.basis == PRICE_RETURN_BASIS else TOTAL_RETURN_BASIS
+        for label, h in returns.items()
+    }
+    return f"{sleeve} stand-in", (values, bases)
 
 
 def holding_fallback(

@@ -87,6 +87,34 @@ describe('Dividends page', () => {
     ).toHaveTextContent('£12.50');
     expect(screen.getByTestId('dividends-total')).toHaveTextContent('£17.50');
     expect(screen.getByRole('cell', { name: '2020/21' })).toBeInTheDocument();
+    expect(screen.queryByTestId('dividends-skipped')).not.toBeInTheDocument();
+  });
+
+  it('says how many rows were left out for having no amount (#10062)', async () => {
+    dividendsMock.mockResolvedValue([
+      {
+        owner: 'alex',
+        account: 'isa',
+        type: 'DIVIDEND',
+        date: '2020-10-12',
+        amount_minor: 500,
+        currency: 'GBP',
+      },
+      {
+        owner: 'alex',
+        account: 'isa',
+        type: 'DIVIDEND',
+        date: '2020-11-12',
+        amount_minor: null,
+        currency: 'GBP',
+      },
+    ]);
+    render(<Dividends />);
+
+    expect(await screen.findByTestId('dividends-skipped')).toHaveTextContent(
+      i18n.t('dividends.skippedNoAmount', { count: 1 })
+    );
+    expect(screen.getByTestId('dividends-total')).toHaveTextContent('£5.00');
   });
 
   it('marks held instruments with no dividend history instead of showing £0.00', async () => {

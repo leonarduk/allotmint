@@ -338,6 +338,77 @@ def test_run_blocks_warning_introduced_by_proposed_trade(monkeypatch):
     ]
 
 
+def test_run_reports_every_blocking_owner(monkeypatch):
+    """Each owner the trade would block is reported, not just the first (#10258)."""
+    from types import SimpleNamespace
+
+    _setup_historical_compliance(monkeypatch, [])
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}, {"owner": "bob"}])
+    new_warning = {"alice": "21 trades in 2026-10 (max 20)", "bob": "Holding AAA would exceed 20%"}
+    monkeypatch.setattr(
+        trading_agent,
+        "compliance",
+        SimpleNamespace(
+            check_owner=lambda owner: {"warnings": []},
+            check_trade=lambda trade: {"warnings": [new_warning[trade["owner"]]]},
+        ),
+    )
+
+    blocked: list = []
+    signals = trading_agent.run(blocked=blocked)
+
+    assert signals == []
+    assert blocked == [
+        {
+            "ticker": "AAA",
+            "action": "BUY",
+            "reasons": ["alice: 21 trades in 2026-10 (max 20)", "bob: Holding AAA would exceed 20%"],
+        },
+    ]
+
+
+def test_run_aggregates_when_one_owners_baseline_raises(monkeypatch):
+    """A failing baseline for one owner (fail-closed: every warning counts as
+    new) must not suppress or leak into another owner's genuine new warning
+    (#10258)."""
+    from types import SimpleNamespace
+
+    _setup_historical_compliance(monkeypatch, [])
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}, {"owner": "bob"}])
+
+    def check_owner(owner):
+        if owner == "alice":
+            raise RuntimeError("broken history")
+        return {"warnings": ["Shared warning"]}
+
+    # The same warning text for both owners is deliberate: if bob's baseline
+    # leaked into alice's, her copy would be suppressed; if alice's empty
+    # (fail-closed) baseline leaked into bob's, his pre-existing copy would be
+    # reported as new. Both directions are asserted below.
+    trade_warnings = {
+        "alice": ["Shared warning"],
+        "bob": ["Shared warning", "Holding AAA would exceed 20%"],
+    }
+    monkeypatch.setattr(
+        trading_agent,
+        "compliance",
+        SimpleNamespace(
+            check_owner=check_owner,
+            check_trade=lambda trade: {"warnings": trade_warnings[trade["owner"]]},
+        ),
+    )
+
+    blocked: list = []
+    assert trading_agent.run(blocked=blocked) == []
+    assert blocked == [
+        {
+            "ticker": "AAA",
+            "action": "BUY",
+            "reasons": ["alice: Shared warning", "bob: Holding AAA would exceed 20%"],
+        },
+    ]
+
+
 def test_run_snapshots_baseline_before_check_trade(monkeypatch):
     """The baseline must be taken before ``check_trade`` runs, so it can never
     include the proposed trade even if ``check_trade`` were to persist it into
@@ -635,9 +706,13 @@ def test_run_tags_signal_when_one_owners_compliance_check_raises(monkeypatch, ca
 
 
 def test_run_blocks_signal_when_compliance_raises_and_pro_checks_required(monkeypatch):
-    _setup_raising_compliance(monkeypatch, require_pro_checks=True)
+    calls = _setup_raising_compliance(monkeypatch, require_pro_checks=True)
 
-    assert trading_agent.run() == []
+    blocked: list = []
+    assert trading_agent.run(blocked=blocked) == []
+    assert blocked == [{"ticker": "AAA", "action": "BUY", "reasons": ["alice: compliance check failed"]}]
+    # The remaining owner is still checked, so its own reasons would be reported too.
+    assert calls == ["alice", "bob"]
 
 
 def test_run_require_pro_checks_raises_when_pro_absent(monkeypatch):

@@ -182,6 +182,22 @@ def test_opening_plus_flows_must_equal_closing_cash():
     assert any("does not add up" in w and "£140.00" in w and "£150.00" in w for w in extraction.warnings)
 
 
+def test_cash_check_skipped_for_a_trade_without_any_amount_says_so():
+    # A trade with neither amount nor consideration can't be costed: the check
+    # must not run (no false mismatch) but must say which row stopped it.
+    trade = {**CONTRACT_NOTE_JSON["rows"][0], "consideration": None, "amount": None, "price": None}
+    payload = {
+        "opening_cash": 2000,
+        "closing_cash": 500,
+        "rows": [{"date": "2026-01-09", "type": "DEPOSIT", "amount": 40}, trade],
+    }
+
+    warnings = _extraction(payload).warnings
+
+    assert "Cash check skipped: row 2 gave no cash amount" in warnings
+    assert not any("does not add up" in w for w in warnings)
+
+
 def test_balanced_cash_has_no_warning():
     payload = {
         "opening_cash": 100,

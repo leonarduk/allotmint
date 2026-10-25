@@ -30,6 +30,8 @@ export interface DividendSummary {
   periods: DividendPeriodRow[];
   holdings: DividendHoldingRow[];
   payments: number;
+  /** Rows left out of every total because they carry no amount (#10062). */
+  skippedNoAmount: number;
 }
 
 interface Payment {
@@ -144,10 +146,14 @@ export function summariseDividends(
   const periods = new Map<string, DividendPeriodRow>();
   const holdings = new Map<string, DividendHoldingRow>();
   let payments = 0;
+  let skippedNoAmount = 0;
 
   for (const tx of transactions) {
     const payment = toPayment(tx);
-    if (!payment) continue;
+    if (!payment) {
+      skippedNoAmount += 1;
+      continue;
+    }
     payments += 1;
     const inTrailing = payment.date !== null && payment.date > cutoff;
     add(total, payment.currency, payment.amount);
@@ -200,5 +206,6 @@ export function summariseDividends(
     periods: periodRows,
     holdings: sortHoldings([...holdings.values()]),
     payments,
+    skippedNoAmount,
   };
 }

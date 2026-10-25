@@ -570,6 +570,24 @@ describe("Custom Query page", () => {
     prompt.mockRestore();
   });
 
+  it("shows the server's warning when the save fell back from cloud storage (#9958)", async () => {
+    saveCustomQuery.mockResolvedValue({
+      id: "fallback",
+      storage: "local",
+      warning: "Saved on this server only.",
+    });
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Fallback");
+    const { i18n } = renderWithI18n(<CustomQuery />);
+    await screen.findByLabelText("Alice Example");
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("query.save") }));
+    expect(
+      await screen.findByText(
+        `${i18n.t("query.saved", { name: "Fallback" })} Saved on this server only.`,
+      ),
+    ).toBeInTheDocument();
+    prompt.mockRestore();
+  });
+
   it("reports a failed save instead of dropping it silently", async () => {
     saveCustomQuery.mockRejectedValue(new Error("HTTP 500"));
     const prompt = vi.spyOn(window, "prompt").mockReturnValue("Broken");

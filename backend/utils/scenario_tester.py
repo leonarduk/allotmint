@@ -320,7 +320,10 @@ def instrument_forward_returns(
 # holdings.
 _MIN_COVERAGE = 0.5
 
-_TickerReturns = tuple[str, tuple[Dict[str, float | None], str]]
+#: A return basis for every horizon, or one per horizon label (a stand-in
+#: chain can fall back to tickers with different dividend coverage, #9946).
+_ReturnBasis = str | Mapping[str, str]
+_TickerReturns = tuple[str, tuple[Dict[str, float | None], _ReturnBasis]]
 #: Returns for a holding that has no price history of its own (e.g. its asset
 #: class's stand-in), tried before the event's proxy index; ``None`` for none.
 HoldingFallback = Callable[[Mapping[str, Any]], Optional[_TickerReturns]]
@@ -347,7 +350,8 @@ def _horizon_return(label: str, *sources: Optional[_TickerReturns]) -> tuple[flo
     for ticker, (returns, basis) in (source for source in sources if source is not None):
         r = returns.get(label)
         if r is not None:
-            return r, (ticker if basis == PRICE_RETURN_BASIS else None)
+            label_basis = basis if isinstance(basis, str) else basis.get(label, PRICE_RETURN_BASIS)
+            return r, (ticker if label_basis == PRICE_RETURN_BASIS else None)
     return None, None
 
 

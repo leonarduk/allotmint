@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 
 import pandas as pd
 import pytest
 
 from backend.cash_deployment import tranche as tranche_mod
-from backend.cash_deployment.schedule import ScheduleInput, due_dates, tranche_amounts, window_end
+from backend.cash_deployment.bot import OwnerContext, evaluate_schedule
+from backend.cash_deployment.schedule import DeploymentSchedule, ScheduleInput, due_dates, tranche_amounts, window_end
 from backend.cash_deployment.tranche import ORDER_LIST_LABEL, build_tranche, indicative_units, target_policy
 from backend.common.allocation_policy import AllocationPolicy
 from backend.common.rebalance_plan import bucket_holdings, split_classes, suggest_new_cash
@@ -108,3 +110,24 @@ def test_gbx_close_is_converted_to_pounds(monkeypatch, portfolio, plan):
     equity = next(o for o in result["orders"] if o["asset_class"] == "equity")
     assert equity["price_gbp"] == 12.5
     assert equity["indicative_units"] == indicative_units(equity["amount_minor"] / 100, 12.5)
+
+
+def test_partly_done_tranche_drafts_only_the_remainder(tmp_path, portfolio, plan, start):
+    """A tranche already part-invested drafts orders for what is left, not the full amount (#10539)."""
+    owner_dir = tmp_path / "alex"
+    owner_dir.mkdir()
+    buy = {"date": "2026-01-20", "type": "BUY", "ticker": "VWX.L", "amount_minor": 40_000}
+    (owner_dir / "isa_transactions.json").write_text(json.dumps({"transactions": [buy]}), encoding="utf-8")
+    ctx = OwnerContext(owner="alex", accounts_root=tmp_path, prices=lambda tickers: {})
+    # Pre-fill the lazily loaded owner data so only the transactions come from disk.
+    ctx.__dict__.update(portfolio=portfolio, policy=AllocationPolicy(), setup=SleeveSetup(), plan=plan)
+    schedule = DeploymentSchedule(**_schedule(start).model_dump(), id="s1", created="2026-01-01T00:00:00")
+
+    result = evaluate_schedule(schedule, ctx, date(2026, 1, 25))
+
+    current = result["progress"]["current"]
+    assert current["status"] == "partly_done"
+    assert (current["amount_minor"], current["invested_minor"]) == (100_000, 40_000)
+    tranche = result["tranche"]
+    assert tranche["amount_minor"] == 60_000
+    assert sum(o["amount_minor"] for o in tranche["orders"]) + tranche["keep_as_cash_minor"] == 60_000

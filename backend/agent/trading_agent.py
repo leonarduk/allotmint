@@ -492,7 +492,9 @@ def _check_signal_compliance(
 
     Returns ``(block_reasons, errored)``; the signal is blocked when
     ``block_reasons`` is non-empty. Only warnings the proposed trade itself
-    introduces block it -- see :func:`_new_compliance_warnings`.
+    introduces block it -- see :func:`_new_compliance_warnings`. Every owner
+    is checked, so the reasons name each owner that blocks the trade rather
+    than only the first (#10258).
 
     An owner whose check raises (e.g. bad imported transaction data) is
     logged and skipped rather than failing the whole run, so one owner's
@@ -502,6 +504,7 @@ def _check_signal_compliance(
     """
 
     errored = False
+    reasons: List[str] = []
     for owner in owners:
         trade = {
             "owner": owner,
@@ -521,7 +524,7 @@ def _check_signal_compliance(
                 sanitise_log_value(sig["ticker"]),
             )
             if require_pro_checks:
-                return [f"{owner}: compliance check failed"], True
+                reasons.append(f"{owner}: compliance check failed")
             errored = True
             continue
         new_warnings = _new_compliance_warnings(owner, result.get("warnings") or [], baselines)
@@ -531,8 +534,8 @@ def _check_signal_compliance(
                 sanitise_log_value(owner),
                 sanitise_log_value(new_warnings),
             )
-            return [f"{owner}: {warning}" for warning in new_warnings], errored
-    return [], errored
+            reasons.extend(f"{owner}: {warning}" for warning in new_warnings)
+    return reasons, errored
 
 
 def run(

@@ -249,6 +249,26 @@ def test_a_holding_without_prices_moves_with_its_sleeve_before_the_event_proxy(m
     assert out["horizons"]["1y"]["return_pct"] == -0.5  # 500 * 0.0 + 500 * -0.01
 
 
+def test_a_sleeve_fallback_labels_each_horizon_by_the_series_used(monkeypatch):
+    """1m from a total-return stand-in, 1y from a price-only one: only 1y is price basis (#9946)."""
+    monkeypatch.setitem(SERIES, "VWRL.L", ({"1m": -0.20, "1y": None}, TOTAL_RETURN_BASIS))
+    monkeypatch.setitem(SERIES, "IWRD.L", ({}, TOTAL_RETURN_BASIS))
+    monkeypatch.setitem(SERIES, "IOO.N", ({"1m": -0.10, "1y": 0.05}, PRICE_RETURN_BASIS))
+    portfolio = {
+        "total_value_estimate_gbp": 1000.0,
+        "accounts": [{"holdings": [{"ticker": "NEW.L", "market_value_gbp": 1000.0, "asset_class": "equity"}]}],
+    }
+    monkeypatch.setattr(strategy_stress, "build_owner_portfolio", lambda owner, root: portfolio)
+    monkeypatch.setattr(
+        scenario_tester, "_forward_returns", lambda t, e, d, horizons: ({k: None for k in horizons}, TOTAL_RETURN_BASIS)
+    )
+    out = strategy_stress.portfolio_result("alex", {"date": "2020-02-19"}, HORIZONS, None)
+    assert out["horizons"]["1m"]["return_pct"] == -20.0
+    assert out["horizons"]["1m"]["return_basis"] == TOTAL_RETURN_BASIS
+    assert out["horizons"]["1y"]["return_pct"] == 5.0
+    assert out["horizons"]["1y"]["return_basis"] == PRICE_RETURN_BASIS
+
+
 def test_holding_sleeves_and_a_holding_with_no_known_sleeve():
     assert strategy_stress._holding_sleeve({"asset_class": "multi-asset"}) is None
     assert strategy_stress._holding_sleeve({"asset_class": "property"}) == "property"

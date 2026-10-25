@@ -3082,7 +3082,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             if df is not None and not df.empty:
                 scale = get_scaling_override(ticker_only, exchange, None)
                 df = apply_scaling(df, scale)
-                close = _snapshot_close_column(df, t)
+                # Metadata lives under the resolved exchange (``N/BAR.json``);
+                # a bare holding ticker ``t`` would miss it and drop the price.
+                close = _snapshot_close_column(df, f"{ticker_only}.{exchange}")
                 if close:
                     close_col, close_currency = close
                     if close_currency == "GBX":

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from backend.reconciliation.extract import normalise_statement
 from backend.reconciliation.match import RECONCILIATION_REASON, reconcile
 from backend.reconciliation.models import RawStatement
@@ -193,6 +195,29 @@ def test_contract_note_does_not_report_other_ledger_rows():
     matched, diffs, _ = _reconcile(extraction, ledger)
 
     assert diffs == [] and len(matched) == 1
+
+
+@pytest.mark.parametrize("document_type", [None, "other", "contribution_statement"])
+def test_document_not_known_to_be_a_full_statement_reports_no_missing_rows(document_type):
+    # The model can misread a contract note's type; that must not list every
+    # other ledger row in the period as missing from the statement.
+    extraction = _extraction(document_type=document_type, closing_cash=None, rows=STATEMENT["rows"][1:2])
+    ledger = [DEPOSIT, {**BUY_NO_FEE, "fees": 11.95}]
+
+    matched, diffs, warnings = _reconcile(extraction, ledger)
+
+    assert diffs == [] and len(matched) == 1
+    assert any("not a full account statement" in w for w in warnings)
+
+
+def test_full_statement_still_reports_unlisted_ledger_rows():
+    extraction = _extraction(closing_cash=None, rows=STATEMENT["rows"][1:2])
+    ledger = [DEPOSIT, {**BUY_NO_FEE, "fees": 11.95}]
+
+    _, diffs, warnings = _reconcile(extraction, ledger)
+
+    assert [(d.kind, d.ledger_id) for d in diffs] == [("missing_from_statement", "alice:isa:0")]
+    assert not any("not a full account statement" in w for w in warnings)
 
 
 def test_missing_trade_suggests_create_with_pounds_price():

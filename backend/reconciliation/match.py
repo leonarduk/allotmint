@@ -39,6 +39,11 @@ _RELATIVE_AMOUNT_TOLERANCE = 0.001
 # Ledger spellings folded onto the statement's type vocabulary.
 _TYPE_ALIASES = {"PURCHASE": "BUY", "DIVIDENDS": "DIVIDEND"}
 _STATEMENT_TYPES = frozenset(get_args(StatementRowType))
+# Only a full account statement lists every row of its period, so only it can
+# show a ledger row as missing. The type comes from the model: anything else,
+# including null or an unrecognised value, is treated like a contract note so
+# a misread type can't flood the result with false "missing" rows.
+_FULL_STATEMENT_TYPES = frozenset({"statement"})
 
 
 def _gbp(minor: int) -> str:
@@ -462,6 +467,29 @@ def _units_diffs(
     return diffs
 
 
+def _unlisted_ledger_rows(
+    extraction: StatementExtraction,
+    ledger: Sequence[LedgerRow],
+    used: set[str],
+    period: Tuple[date, date],
+    warnings: List[str],
+) -> List[Diff]:
+    """``missing_from_statement`` diffs for in-period ledger rows, for full statements only."""
+    if extraction.document_type not in _FULL_STATEMENT_TYPES:
+        if extraction.document_type != "contract_note":
+            warnings.append(
+                f"Document type {extraction.document_type or 'unknown'!r} is not a full account statement, "
+                "so ledger rows it does not list are not reported as missing"
+            )
+        return []
+    start, end = period
+    return [
+        _missing_from_statement(tx)
+        for tx in ledger
+        if tx.id not in used and tx.date is not None and start <= tx.date <= end and tx.type in _STATEMENT_TYPES
+    ]
+
+
 def reconcile(
     extraction: StatementExtraction,
     ledger_transactions: Sequence[Mapping[str, Any]],
@@ -485,12 +513,8 @@ def reconcile(
     matched, diffs, used = _pair_rows(extraction, ledger, ctx)
 
     start, end = _period(extraction)
-    if extraction.document_type != "contract_note" and start and end:
-        diffs.extend(
-            _missing_from_statement(tx)
-            for tx in ledger
-            if tx.id not in used and tx.date is not None and start <= tx.date <= end and tx.type in _STATEMENT_TYPES
-        )
+    if start and end:
+        diffs.extend(_unlisted_ledger_rows(extraction, ledger, used, (start, end), warnings))
 
     as_of = [tx for tx in ledger_transactions if end is None or (_parse_date(tx.get("date")) or date.min) <= end]
     diffs.extend(_cash_diff(extraction, as_of, trade_cash, warnings))

@@ -218,6 +218,15 @@ def test_legacy_and_new_other_commodities_rows_together_are_rejected():
         _commodity_plan(("gold", 5), ("commodities", 5), ("other_commodities", 10))
 
 
+def test_legacy_and_new_other_commodities_vehicles_together_are_rejected():
+    # Renaming the legacy key onto the existing one would silently drop a list (#10172).
+    target = [{"class": "equity", "weight_pct": 80}, {"class": "gold", "weight_pct": 10}]
+    target.append({"class": "commodities", "weight_pct": 10})
+    vehicles = {"commodities": ["PHSP.L"], "other_commodities": ["CMOP.L"]}
+    with pytest.raises(ValidationError, match="appears more than once in vehicles"):
+        parse_plan(plan_data(target=target, vehicles=vehicles), "alex")
+
+
 def test_other_commodities_plan_class_needs_no_gold():
     plan = _commodity_plan(("other_commodities", 20))
     assert rebalance_weights(plan) == {"equity": 80, "other_commodities": 20}

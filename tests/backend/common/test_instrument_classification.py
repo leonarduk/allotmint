@@ -209,7 +209,9 @@ def test_canonical_asset_class(value, expected) -> None:
         ({"instrumentType": "Equity"}, "Equity"),
         ({"instrument_type": " equity "}, "Equity"),
         ({"instrument_type": "INVESTMENT TRUST"}, "Investment Trust"),
-        ({"instrumentType": "MUTUALFUND"}, "MUTUALFUND"),
+        # Yahoo's MUTUALFUND quoteType is the same wrapper as "Fund" (#10244).
+        ({"instrumentType": "MUTUALFUND"}, "Fund"),
+        ({"instrument_type": "mutualfund"}, "Fund"),
         # Legacy and new asset classes resolve to the same instrument type, in
         # the same display casing as an explicit type (#7788 item 9).
         ({"asset_class": "Equity"}, "Equity"),

@@ -54,6 +54,7 @@ from backend.timeseries.quality import (
 from backend.utils.timeseries_helpers import (
     get_scaling_override,
     invalid_scaling_override,
+    is_valid_override_factor,
     scaling_override_paths,
 )
 
@@ -139,6 +140,7 @@ FIXABLE_TYPES = frozenset(
         IssueType.DUPLICATES,
         IssueType.MISSING_METADATA,
         IssueType.TICKER_MISMATCH,
+        IssueType.PRICE_SCALE_SUSPECT,
     }
 )
 
@@ -648,7 +650,12 @@ def _price_scale_issue(
     meta: dict[str, Any] | None,
     split_dates: frozenset[str],
 ) -> DataQualityIssue | None:
-    """Flag a price that looks 10x/100x wrong (#7789). Detection only."""
+    """Flag a price that looks 10x/100x wrong (#7789).
+
+    Fixable only when a valid override factor was suggested (#10198): the fix
+    writes that factor into scaling_overrides.json. A step inside the series
+    or a trailing-median outlier has no factor and stays detection-only.
+    """
     reasons: list[str] = []
     before: dict[str, Any] = {}
     steps = price_scale.find_scale_steps(closes, exclude_dates=split_dates)
@@ -670,6 +677,13 @@ def _price_scale_issue(
         before.update(invalid[1])
     if not reasons:
         return None
+    factor = before.get("suggested_factor")
+    fixable = factor is not None and is_valid_override_factor(factor) and not closes.empty
+    after: dict[str, Any] = {"price": "rescaled"}
+    fix_payload: dict[str, Any] = {}
+    if fixable:
+        after = {"price_gbp": round(float(closes.iloc[-1]) * factor, 4), "factor": factor}
+        fix_payload = {"kind": "scaling_override", "ticker": ticker, "exchange": exchange, "factor": factor}
     return DataQualityIssue(
         id=_issue_id(IssueType.PRICE_SCALE_SUSPECT, ticker, exchange),
         type=IssueType.PRICE_SCALE_SUSPECT,
@@ -677,8 +691,9 @@ def _price_scale_issue(
         entity={"ticker": ticker, "exchange": exchange},
         description=f"{ticker}.{exchange} price looks mis-scaled: " + "; ".join(reasons) + ".",
         suggested_fix=_price_scale_fix(ticker, exchange, before),
-        preview={"before": before, "after": {"price": "rescaled"}},
-        fixable=False,
+        preview={"before": before, "after": after},
+        fixable=fixable,
+        fix_payload=fix_payload,
     )
 
 

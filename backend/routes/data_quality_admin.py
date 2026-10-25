@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 from datetime import date
@@ -32,6 +33,7 @@ from backend.common.admin_cache_state import DATA_QUALITY_SERIES, WARMING_HEADER
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import AppError
 from backend.common.instruments import resolve_instrument_ticker
+from backend.config import config
 from backend.data_quality.audit import append_audit, find_audit_entry, read_audit
 from backend.data_quality.issues import (
     FIXABLE_TYPES,
@@ -48,6 +50,12 @@ from backend.timeseries.cache import (
     load_cached_meta_timeseries_full,
     load_meta_timeseries,
     meta_timeseries_cache_path,
+)
+from backend.utils.timeseries_helpers import (
+    get_scaling_override,
+    invalid_scaling_override,
+    is_valid_override_factor,
+    scaling_override_paths,
 )
 
 logger = logging.getLogger(__name__)
@@ -692,6 +700,158 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
     return {"status": "fixed", "tickers": [ticker], "audit_id": entry["id"]}
 
 
+def _scaling_overrides_target() -> Path:
+    """The ``scaling_overrides.json`` a scaling fix writes (#10198).
+
+    ``_scaling_override_paths`` overlays ``{data_root}/scaling_overrides.json``
+    last, so it wins on conflicts: writing any other copy could stay shadowed
+    by an older value there (#7787). It is created when missing. Without a
+    data root the highest-priority existing table is the one read.
+    """
+    if config.app_env == "aws":
+        # The Lambda filesystem is read-only and the deploy bakes the repo's
+        # table into the image (the bucket copy is excluded in
+        # deploy-lambda.yml), so a write here would fail or be lost.
+        raise HTTPException(
+            status_code=400,
+            detail="Scaling overrides cannot be edited on AWS; commit the change to data/scaling_overrides.json.",
+        )
+    data_root = getattr(config, "data_root", None)
+    if data_root:
+        return Path(str(data_root)).expanduser() / "scaling_overrides.json"
+    paths = scaling_override_paths()
+    if not paths:
+        raise HTTPException(status_code=409, detail="No scaling_overrides.json table to update.")
+    return paths[-1]
+
+
+def _read_overrides_table(path: Path) -> dict[str, Any]:
+    """Load ``path`` (``{}`` when missing), refusing to overwrite a malformed table."""
+    if not path.exists():
+        return {}
+    try:
+        table = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=f"{path.name} is unreadable; fix it by hand first.") from exc
+    if not isinstance(table, dict):
+        raise HTTPException(status_code=409, detail=f"{path.name} is not a JSON object; fix it by hand first.")
+    return table
+
+
+def _overrides_section(table: dict[str, Any], exchange: str) -> dict[str, Any]:
+    """The exchange section of ``table``, matched case-insensitively and created when missing."""
+    key = next((k for k in table if str(k).upper() == exchange), exchange)
+    section = table.setdefault(key, {})
+    if not isinstance(section, dict):
+        raise HTTPException(status_code=409, detail=f"Section {key!r} of the overrides table is not an object.")
+    return section
+
+
+def _write_overrides_table(path: Path, table: dict[str, Any]) -> bytes:
+    """Atomically write ``table`` to ``path``; return the bytes written."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write_text(path, json.dumps(table, indent=2) + "\n")
+    return path.read_bytes()
+
+
+def _restore_after_audit_failure(path: Path, *, before_bytes: bytes | None, after_bytes: bytes) -> None:
+    """Put back exactly what a scaling fix replaced when its audit write fails.
+
+    Unlike :func:`_rollback_after_audit_failure` this restores the bytes read
+    just before the write rather than the earliest ``.bak``, which may predate
+    earlier fixes to the same shared table. As there, a file changed since the
+    fix is left alone so a concurrent edit is not clobbered.
+    """
+    try:
+        if path.read_bytes() != after_bytes:
+            return
+    except OSError:
+        return
+    if before_bytes is None:
+        path.unlink(missing_ok=True)
+    else:
+        _atomic_write_bytes(path, before_bytes)
+
+
+def _validated_factor(value: Any) -> float:
+    """``value`` as a float, or 400 unless it is 0.01, 1 or 100 (#8597)."""
+    try:
+        factor = float(value)
+    except (TypeError, ValueError):
+        factor = math.nan
+    if not is_valid_override_factor(factor):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid scaling factor {value!r}; only 0.01, 1 or 100 are valid pence/pounds factors.",
+        )
+    return factor
+
+
+def _fix_scaling_override(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
+    """Add or replace a ticker's factor in the live scaling_overrides.json (#10198).
+
+    Overrides are applied at read time, so cached prices are never rewritten
+    (#8597); the next price read and issue recheck pick up the new factor.
+    """
+    ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
+    factor = _validated_factor(payload.get("factor"))
+    path = _scaling_overrides_target()
+    table = _read_overrides_table(path)
+    section = _overrides_section(table, exchange)
+    previous = section.get(ticker)
+    before_bytes = path.read_bytes() if path.exists() else None
+    if before_bytes is not None:
+        _backup_file_if_needed(path)
+    section[ticker] = factor
+    after_bytes = _write_overrides_table(path, table)
+    try:
+        entry = append_audit(
+            action="scaling_override",
+            issue_id=str(payload.get("issue_id") or ""),
+            entity={"ticker": ticker, "exchange": exchange},
+            before={"factor": previous},
+            after={"factor": factor},
+            actor=actor,
+            extra={"kind": "scaling_override", "ticker": ticker, "exchange": exchange},
+        )
+    except Exception:
+        _restore_after_audit_failure(path, before_bytes=before_bytes, after_bytes=after_bytes)
+        raise
+    return {"status": "fixed", "ticker": f"{ticker}.{exchange}", "factor": factor, "audit_id": entry["id"]}
+
+
+def _undo_scaling_override(entry: dict[str, Any], user: str | None) -> dict[str, Any]:
+    """Restore the factor a scaling fix replaced, if the table still holds the fix's value."""
+    extra = entry.get("extra") or {}
+    ticker, exchange = _validate_cache_key(str(extra.get("ticker") or ""), str(extra.get("exchange") or ""))
+    written = (entry.get("after") or {}).get("factor")
+    previous = (entry.get("before") or {}).get("factor")
+    path = _scaling_overrides_target()
+    table = _read_overrides_table(path)
+    section = _overrides_section(table, exchange)
+    current = section.get(ticker)
+    if not isinstance(current, (int, float)) or written is None or not math.isclose(current, float(written)):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot undo: {ticker} under {exchange!r} has changed since the fix.",
+        )
+    if previous is None:
+        del section[ticker]
+    else:
+        section[ticker] = previous
+    _write_overrides_table(path, table)
+    append_audit(
+        action="undo",
+        issue_id=str(entry.get("issue_id") or ""),
+        entity={"ticker": ticker, "exchange": exchange},
+        before={"action": entry.get("action"), "undo_of": entry.get("id")},
+        after={"restored": True},
+        actor=user,
+        extra={"kind": "undo", "undo_of": entry.get("id")},
+    )
+    return {"status": "undone", "entry_id": entry.get("id")}
+
+
 def _apply_resolved_fix(issue: DataQualityIssue, request: Request, actor: str | None) -> dict[str, Any]:
     """Dispatch an already-looked-up issue to its fix implementation."""
     if not issue.fixable or issue.type not in FIXABLE_TYPES:
@@ -712,6 +872,8 @@ def _apply_resolved_fix(issue: DataQualityIssue, request: Request, actor: str | 
         return _fix_missing_metadata(payload, actor)
     if kind == "ticker_mismatch":
         return _fix_ticker_mismatch(payload, actor)
+    if kind == "scaling_override":
+        return _fix_scaling_override(payload, actor)
     raise HTTPException(status_code=409, detail=f"Unsupported fix kind: {kind}")
 
 
@@ -832,6 +994,13 @@ def _issue_still_applies(issue: DataQualityIssue, accounts_root: Path) -> bool:
         if not ticker or not exchange:
             return True
         return not dq_issues.has_cached_meta_timeseries(ticker, exchange)
+
+    if kind == "scaling_override":
+        ticker = str(payload.get("ticker") or "")
+        exchange = str(payload.get("exchange") or "")
+        applied = get_scaling_override(ticker, exchange, None)
+        factor = float(payload.get("factor") or 0)
+        return not math.isclose(applied, factor) or invalid_scaling_override(ticker, exchange) is not None
 
     return _series_issue_still_applies(issue)
 
@@ -1082,6 +1251,9 @@ def undo_audit(
             extra={"kind": "undo", "undo_of": entry_id},
         )
         return {"status": "undone", "entry_id": entry_id}
+
+    if kind == "scaling_override":
+        return _undo_scaling_override(entry, user)
 
     raise HTTPException(
         status_code=409,

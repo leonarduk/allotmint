@@ -1126,3 +1126,143 @@ def test_partial_issues_skip_unchecked_series_while_warming(monkeypatch, tmp_pat
 
     assert admin_cache_state.WARMING_HEADER not in done.headers
     assert "OUTLIERS" in {i["type"] for i in done.json()["issues"]}
+
+
+# ── PRICE_SCALE_SUSPECT Preview / Apply (#10198) ───────────────────────────
+
+
+def _price_scale_client(monkeypatch, tmp_path, *, data_table=None):
+    """Client whose only series is AV.L in raw pence with GBP metadata (100x too high).
+
+    The override tables are real files: ``{tmp}/repo/data`` holds the base
+    table and ``{tmp}/live`` is the data root that a fix must write.
+    """
+    import backend.common.instruments as instruments_module
+    import backend.data_quality.issues as issues_module
+
+    monkeypatch.setattr(issues_module, "_split_dates", lambda t, e: frozenset())
+    dates = [f"2026-01-{d:02d}" for d in range(5, 25)]
+    av = pd.DataFrame({"Date": dates, "Close": [726.0] * len(dates)})
+    dq_client = _build_client(monkeypatch, tmp_path, series=[("AV", "L", av)])
+
+    meta = {"name": "Aviva", "instrumentType": "Equity", "currency": "GBP"}
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda full: meta if full == "AV.L" else {})
+    monkeypatch.setattr(instruments_module, "get_instrument_meta", lambda full: meta if full == "AV.L" else {})
+    repo_data = tmp_path / "repo" / "data"
+    repo_data.mkdir(parents=True)
+    (repo_data / "scaling_overrides.json").write_text(json.dumps({"L": {"SGLN": 0.01}}), encoding="utf-8")
+    live = tmp_path / "live"
+    live.mkdir()
+    if data_table is not None:
+        (live / "scaling_overrides.json").write_text(json.dumps(data_table), encoding="utf-8")
+    # create_app reloads config, so the roots are patched after building the client.
+    monkeypatch.setattr(config, "repo_root", tmp_path / "repo")
+    monkeypatch.setattr(config, "data_root", live)
+    return dq_client, live / "scaling_overrides.json"
+
+
+def _scale_issue(dq_client):
+    issues = dq_client.get("/data-quality/issues", params={"type": "PRICE_SCALE_SUSPECT"}).json()["issues"]
+    return issues[0] if issues else None
+
+
+def test_price_scale_fix_writes_live_overrides_with_backup_and_audit(monkeypatch, tmp_path):
+    dq_client, live_table = _price_scale_client(monkeypatch, tmp_path, data_table={"L": {"BP": 0.01}})
+    original = live_table.read_bytes()
+
+    issue = _scale_issue(dq_client)
+    assert issue["fixable"] is True
+    preview = dq_client.get(f"/data-quality/issues/{issue['id']}/preview").json()
+    assert preview["preview"]["after"] == {"price_gbp": 7.26, "factor": 0.01}
+
+    resp = dq_client.post(f"/data-quality/issues/{issue['id']}/fix")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["factor"] == 0.01
+
+    assert json.loads(live_table.read_text(encoding="utf-8")) == {"L": {"BP": 0.01, "AV": 0.01}}
+    assert live_table.with_name("scaling_overrides.json.bak").read_bytes() == original
+    # The base table is untouched; the live (data root) table wins on conflicts.
+    assert json.loads((tmp_path / "repo" / "data" / "scaling_overrides.json").read_text()) == {"L": {"SGLN": 0.01}}
+    entry = dq_client.get("/data-quality/audit").json()["entries"][0]
+    assert entry["action"] == "scaling_override"
+    assert entry["before"] == {"factor": None}
+    assert entry["after"] == {"factor": 0.01}
+    # The recheck clears the issue.
+    assert _scale_issue(dq_client) is None
+
+
+def test_price_scale_fix_creates_missing_live_table(monkeypatch, tmp_path):
+    dq_client, live_table = _price_scale_client(monkeypatch, tmp_path)
+
+    issue = _scale_issue(dq_client)
+    assert dq_client.post(f"/data-quality/issues/{issue['id']}/fix").status_code == 200
+
+    assert json.loads(live_table.read_text(encoding="utf-8")) == {"L": {"AV": 0.01}}
+    assert not live_table.with_name("scaling_overrides.json.bak").exists()
+
+
+def test_price_scale_fix_rejects_invalid_factor(monkeypatch, tmp_path):
+    import backend.routes.data_quality_admin as admin_module
+
+    _, live_table = _price_scale_client(monkeypatch, tmp_path, data_table={"L": {}})
+    before = live_table.read_bytes()
+
+    with pytest.raises(admin_module.HTTPException) as exc:
+        admin_module._fix_scaling_override({"ticker": "ADM", "exchange": "L", "factor": 0.1}, None)
+
+    assert exc.value.status_code == 400
+    assert live_table.read_bytes() == before
+
+
+def test_price_scale_fix_refused_on_aws(monkeypatch, tmp_path):
+    dq_client, live_table = _price_scale_client(monkeypatch, tmp_path, data_table={"L": {}})
+    issue = _scale_issue(dq_client)
+    monkeypatch.setattr(config, "app_env", "aws")
+
+    resp = dq_client.post(f"/data-quality/issues/{issue['id']}/fix")
+
+    assert resp.status_code == 400
+    assert json.loads(live_table.read_text(encoding="utf-8")) == {"L": {}}
+
+
+def test_price_scale_fix_restores_table_when_audit_fails(monkeypatch, tmp_path):
+    import backend.data_quality.audit as audit_module
+
+    dq_client, live_table = _price_scale_client(monkeypatch, tmp_path, data_table={"L": {"BP": 0.01}})
+    before = live_table.read_bytes()
+    issue = _scale_issue(dq_client)
+
+    def failing_append(path, line):
+        raise OSError("simulated audit disk failure")
+
+    monkeypatch.setattr(audit_module, "_atomic_append_text", failing_append)
+    with pytest.raises(OSError):
+        dq_client.post(f"/data-quality/issues/{issue['id']}/fix")
+
+    assert live_table.read_bytes() == before
+
+
+def test_price_scale_fix_undo_restores_previous_table(monkeypatch, tmp_path):
+    dq_client, live_table = _price_scale_client(monkeypatch, tmp_path, data_table={"L": {"BP": 0.01}})
+    issue = _scale_issue(dq_client)
+    dq_client.post(f"/data-quality/issues/{issue['id']}/fix")
+    entry_id = dq_client.get("/data-quality/audit").json()["entries"][0]["id"]
+
+    resp = dq_client.post(f"/data-quality/audit/{entry_id}/undo")
+
+    assert resp.status_code == 200, resp.text
+    assert json.loads(live_table.read_text(encoding="utf-8")) == {"L": {"BP": 0.01}}
+    assert _scale_issue(dq_client) is not None
+
+
+def test_price_scale_fix_undo_refuses_when_factor_changed_since(monkeypatch, tmp_path):
+    dq_client, live_table = _price_scale_client(monkeypatch, tmp_path, data_table={"L": {}})
+    issue = _scale_issue(dq_client)
+    dq_client.post(f"/data-quality/issues/{issue['id']}/fix")
+    entry_id = dq_client.get("/data-quality/audit").json()["entries"][0]["id"]
+    live_table.write_text(json.dumps({"L": {"AV": 1.0}}), encoding="utf-8")
+
+    resp = dq_client.post(f"/data-quality/audit/{entry_id}/undo")
+
+    assert resp.status_code == 409
+    assert json.loads(live_table.read_text(encoding="utf-8")) == {"L": {"AV": 1.0}}

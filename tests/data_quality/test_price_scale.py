@@ -57,10 +57,14 @@ def test_pence_read_as_pounds_is_flagged_with_override_fix(monkeypatch, ticker, 
 
     [issue] = _of_type(issues, IssueType.PRICE_SCALE_SUSPECT)
     assert issue.severity == "high"
-    assert issue.fixable is False
     assert "data/scaling_overrides.json" in issue.suggested_fix
     assert f'"{ticker}": 0.01' in issue.suggested_fix
     assert issue.preview["before"]["suggested_factor"] == 0.01
+    # A valid suggested factor drives Preview / Apply (#10198).
+    assert issue.fixable is True
+    assert issue.type in issues_module.FIXABLE_TYPES
+    assert issue.fix_payload == {"kind": "scaling_override", "ticker": ticker, "exchange": "L", "factor": 0.01}
+    assert issue.preview["after"] == {"price_gbp": round(price * 0.01, 4), "factor": 0.01}
 
 
 @pytest.mark.parametrize(
@@ -106,6 +110,9 @@ def test_ten_x_step_change_is_flagged(monkeypatch):
     [step] = issue.preview["before"]["scale_steps"]
     assert step["previous"] == 36.1 and step["value"] == 358.8
     assert "scaling_overrides.json" not in issue.suggested_fix
+    # No factor, so nothing for Apply to write (#10198).
+    assert issue.fixable is False
+    assert issue.fix_payload == {}
     # A scale step is not double-reported as a large daily move.
     assert _of_type(issues, IssueType.LARGE_DAILY_MOVE) == []
 
@@ -357,7 +364,9 @@ def test_invalid_adm_override_names_file_and_factor(monkeypatch, tmp_path, curre
 
     [issue] = issues
     assert issue.severity == "high"
-    assert issue.fixable is False
+    # Apply replaces the invalid 0.1 with the valid factor (#10198).
+    assert issue.fixable is True
+    assert issue.fix_payload["factor"] == 0.01
     assert issue.preview["before"]["invalid_override"] == 0.1
     assert issue.preview["before"]["suggested_factor"] == 0.01
     assert 'Replace "ADM": 0.1 under "L" in data/scaling_overrides.json with "ADM": 0.01' in issue.suggested_fix

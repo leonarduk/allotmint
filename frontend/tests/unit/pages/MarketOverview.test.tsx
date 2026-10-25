@@ -9,6 +9,7 @@ vi.mock("@/api");
 const mockBar = vi.hoisted(() => vi.fn(({ children }: any) => <>{children}</>));
 const mockCell = vi.hoisted(() => vi.fn(() => null));
 const mockXAxis = vi.hoisted(() => vi.fn(() => null));
+const mockYAxis = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
@@ -24,7 +25,7 @@ vi.mock("recharts", () => ({
   LineChart: ({ children }: any) => <div>{children}</div>,
   Line: () => null,
   XAxis: mockXAxis,
-  YAxis: () => null,
+  YAxis: mockYAxis,
   Tooltip: () => null,
   Cell: mockCell,
 }));
@@ -69,6 +70,20 @@ describe("MarketOverview", () => {
       screen.getByRole("heading", { name: "Index % Change (1 day)" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Index Levels")).not.toBeInTheDocument();
+  });
+
+  it("formats the index chart's Y-axis ticks as % change (#7144)", async () => {
+    mockYAxis.mockClear();
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: { "S&P 500": { value: 100, change: 1.5 } },
+      sectors: [],
+      headlines: [],
+    });
+    render(<MarketOverview />);
+    await screen.findAllByText("S&P 500");
+    const { tickFormatter } = (mockYAxis.mock.calls as any[][])[0][0];
+    expect(tickFormatter(1.5)).toBe("1.5%");
+    expect(tickFormatter(-0.25)).toBe("-0.3%");
   });
 
   it("renders headlines when provided", async () => {

@@ -3659,6 +3659,8 @@
     "updatePlan": "Aggiorna piano",
     "updatingPlan": "Aggiornamento del piano…",
     "appliedPrompt": "Hai applicato {{name}}. Aggiornare anche il tuo piano di investimento?",
+    "appliedUnmappable": "Hai applicato {{name}}, ma i suoi obiettivi non corrispondono alle classi di attività del piano, quindi il piano non può essere aggiornato.",
+    "dismissApplied": "OK",
     "appliedAria": "Allinea il piano alla strategia applicata",
     "decisionSwitched": "Passaggio alla strategia {{name}}: {{targets}}",
     "decisionMatched": "Obiettivo del piano allineato agli obiettivi di ribilanciamento: {{targets}}",

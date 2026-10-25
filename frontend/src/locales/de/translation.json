@@ -3659,6 +3659,8 @@
     "updatePlan": "Plan aktualisieren",
     "updatingPlan": "Plan wird aktualisiert…",
     "appliedPrompt": "Sie haben {{name}} angewendet. Auch Ihren Anlageplan entsprechend aktualisieren?",
+    "appliedUnmappable": "Sie haben {{name}} angewendet, aber seine Ziele lassen sich nicht den Anlageklassen des Plans zuordnen, daher kann der Plan nicht darauf umgestellt werden.",
+    "dismissApplied": "OK",
     "appliedAria": "Plan an angewendete Strategie anpassen",
     "decisionSwitched": "Zur Strategie {{name}} gewechselt: {{targets}}",
     "decisionMatched": "Planziel an Rebalancing-Ziele angepasst: {{targets}}",

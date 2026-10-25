@@ -3659,6 +3659,8 @@
     "updatePlan": "Mettre à jour le plan",
     "updatingPlan": "Mise à jour du plan…",
     "appliedPrompt": "Vous avez appliqué {{name}}. Mettre aussi à jour votre plan d’investissement ?",
+    "appliedUnmappable": "Vous avez appliqué {{name}}, mais ses cibles ne correspondent pas aux classes d'actifs du plan : le plan ne peut donc pas être basculé sur cette stratégie.",
+    "dismissApplied": "OK",
     "appliedAria": "Aligner le plan sur la stratégie appliquée",
     "decisionSwitched": "Passage à la stratégie {{name}} : {{targets}}",
     "decisionMatched": "Cible du plan alignée sur les cibles de rééquilibrage : {{targets}}",

@@ -3659,6 +3659,8 @@
     "updatePlan": "Atualizar plano",
     "updatingPlan": "Atualizando plano…",
     "appliedPrompt": "Você aplicou {{name}}. Atualizar também seu plano de investimento?",
+    "appliedUnmappable": "Aplicou {{name}}, mas os seus alvos não correspondem às classes de ativos do plano, por isso o plano não pode ser alterado para esta estratégia.",
+    "dismissApplied": "OK",
     "appliedAria": "Atualizar o plano para a estratégia aplicada",
     "decisionSwitched": "Mudança para a estratégia {{name}}: {{targets}}",
     "decisionMatched": "Meta do plano atualizada conforme as metas de rebalanceamento: {{targets}}",

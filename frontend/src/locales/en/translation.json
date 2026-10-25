@@ -3652,6 +3652,8 @@
     "updatePlan": "Update plan",
     "updatingPlan": "Updating plan…",
     "appliedPrompt": "You applied {{name}}. Also update your investment plan to match?",
+    "appliedUnmappable": "You applied {{name}}, but its targets don't map onto the plan's asset classes, so the plan can't be switched to it.",
+    "dismissApplied": "OK",
     "appliedAria": "Update plan to applied strategy",
     "decisionSwitched": "Switched to the {{name}} strategy: {{targets}}",
     "decisionMatched": "Plan target updated to match rebalance targets: {{targets}}",

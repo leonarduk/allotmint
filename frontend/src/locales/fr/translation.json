@@ -2391,6 +2391,7 @@
     "cancel": "Annuler",
     "emptyPrompt": "Posez des questions sur vos portefeuilles, cours ou positions.",
     "thinking": "Réflexion…",
+    "emptyReply": "L'assistant n'a envoyé aucune réponse. Posez à nouveau votre question.",
     "messageInput": "Message de discussion",
     "send": "Envoyer"
   },

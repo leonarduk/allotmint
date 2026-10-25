@@ -2384,6 +2384,7 @@
     "cancel": "Cancel",
     "emptyPrompt": "Ask about your portfolios, prices, or holdings.",
     "thinking": "Thinking…",
+    "emptyReply": "The assistant didn't send a reply. Try asking again.",
     "messageInput": "chat message",
     "send": "Send"
   },

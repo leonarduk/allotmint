@@ -2391,6 +2391,7 @@
     "cancel": "Annulla",
     "emptyPrompt": "Chiedi dei tuoi portafogli, prezzi o posizioni.",
     "thinking": "Sto pensando…",
+    "emptyReply": "L'assistente non ha inviato alcuna risposta. Riprova a chiedere.",
     "messageInput": "Messaggio della chat",
     "send": "Invia"
   },

@@ -2391,6 +2391,7 @@
     "cancel": "Cancelar",
     "emptyPrompt": "Pergunte sobre as suas carteiras, preços ou posições.",
     "thinking": "A pensar…",
+    "emptyReply": "O assistente não enviou nenhuma resposta. Tente perguntar novamente.",
     "messageInput": "Mensagem de chat",
     "send": "Enviar"
   },

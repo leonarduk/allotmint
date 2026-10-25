@@ -2391,6 +2391,7 @@
     "cancel": "Abbrechen",
     "emptyPrompt": "Fragen Sie nach Ihren Portfolios, Kursen oder Beständen.",
     "thinking": "Denke nach…",
+    "emptyReply": "Der Assistent hat keine Antwort gesendet. Bitte fragen Sie erneut.",
     "messageInput": "Chat-Nachricht",
     "send": "Senden"
   },

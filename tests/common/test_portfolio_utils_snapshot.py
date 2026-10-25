@@ -379,3 +379,37 @@ def test_refresh_snapshot_skips_native_close_with_unknown_currency(tmp_path, mon
     # The unpriced placeholder is kept as-is; nothing is rebuilt for ODD.X.
     assert refreshed == {"ODD.X": {}}
     assert "instrument currency is unknown" in caplog.text
+
+
+def test_refresh_snapshot_reads_currency_from_resolved_listing(tmp_path, monkeypatch):
+    """A bare holding ticker reads metadata from its resolved exchange (#10248).
+
+    Uses the real ``get_instrument_meta`` so the lookup path is exercised.
+    """
+    from backend.common import instrument_api, instruments
+
+    instruments_dir = tmp_path / "instruments"
+    (instruments_dir / "N").mkdir(parents=True)
+    (instruments_dir / "N" / "BAR.json").write_text(json.dumps({"ticker": "BAR.N", "currency": "USD"}))
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", instruments_dir)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    instruments.get_instrument_meta.cache_clear()
+    monkeypatch.setattr(pu, "get_instrument_meta", instruments.get_instrument_meta)
+
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {"BAR": {}})
+    monkeypatch.setattr(pu, "list_all_unique_tickers", lambda: ["BAR"])
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, latest: ("BAR", "N"))
+    frame = pd.DataFrame({"Date": pd.to_datetime(["2024-01-02"]), "Close": [7.0]})
+    monkeypatch.setattr(pu, "load_meta_timeseries_range", lambda **_: frame)
+    monkeypatch.setattr(pu, "get_scaling_override", lambda ticker, exchange, meta: 1)
+    monkeypatch.setattr(pu, "apply_scaling", lambda df, scale: df)
+    refreshed = {}
+    monkeypatch.setattr(pu, "refresh_snapshot_in_memory", lambda snap, ts: refreshed.update(snap))
+    monkeypatch.setattr(pu, "_PRICES_PATH", tmp_path / "latest_prices.json")
+
+    try:
+        pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+    finally:
+        instruments.get_instrument_meta.cache_clear()
+
+    assert refreshed["BAR"] == {"last_price": 7.0, "price_currency": "USD", "last_price_date": "2024-01-02"}

@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AllocationCharts from "@/pages/AllocationCharts";
 import * as api from "@/api";
 import type { GroupPortfolio, Holding, LookThroughExposure } from "@/types";
-import { MemoryRouter } from "react-router-dom";
+import { Link, MemoryRouter } from "react-router-dom";
 import { configContext, useConfig } from "@/ConfigContext";
 
 const chartFormatters = vi.hoisted(() => ({
@@ -225,6 +225,38 @@ describe("AllocationCharts page", () => {
         ),
       );
       await waitFor(() => expect(sliceNames()).toHaveLength(3));
+    });
+
+    it("keeps an owner only the newly selected group has while it loads (#10016)", async () => {
+      const carolPortfolio: GroupPortfolio = {
+        ...samplePortfolio,
+        slug: "b",
+        accounts: [
+          { ...samplePortfolio.accounts[0], owner: "carol" },
+          { ...samplePortfolio.accounts[0], owner: "dave" },
+        ],
+      };
+      let resolveB: (p: GroupPortfolio) => void = () => {};
+      mockGetGroupPortfolio
+        .mockResolvedValueOnce(twoOwnerPortfolio)
+        .mockReturnValueOnce(new Promise<GroupPortfolio>((resolve) => (resolveB = resolve)));
+      render(
+        <>
+          <AllocationCharts />
+          {/* setupTests mocks useNavigate, so switch groups with a real Link. */}
+          <Link to="/allocation?group=b&owner=carol">go</Link>
+        </>,
+      );
+
+      await screen.findByRole("tab", { name: "alice" });
+      fireEvent.click(screen.getByRole("link", { name: "go" }));
+      resolveB(carolPortfolio);
+
+      expect(await screen.findByRole("tab", { name: "carol" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(mockGetGroupPortfolio).toHaveBeenLastCalledWith("b");
     });
   });
 

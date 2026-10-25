@@ -332,7 +332,10 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
     activeOwner,
     isLookThroughView,
   );
-  const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
+  // Tagged with its group so a switch never shows (or judges ?owner= against)
+  // the previous group's portfolio while the new one loads (#10016).
+  const [loaded, setLoaded] = useState<{ slug: string; portfolio: GroupPortfolio } | null>(null);
+  const portfolio = loaded?.slug === resolvedSlug ? loaded.portfolio : null;
   const groupOwners = [
     ...new Set(
       (portfolio?.accounts ?? []).map((acct) => acct.owner?.trim()).filter((o): o is string => !!o),
@@ -366,13 +369,24 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
     [setSearchParams],
   );
 
+  // A slow response for a group no longer selected is ignored.
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
     getGroupPortfolio(resolvedSlug)
-      .then((p: GroupPortfolio) => setPortfolio(p))
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
+      .then((p: GroupPortfolio) => {
+        if (!cancelled) setLoaded({ slug: resolvedSlug, portfolio: p });
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [resolvedSlug]);
 
   // Drop an owner/account the loaded group doesn't have, as the overview does.

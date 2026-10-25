@@ -136,9 +136,9 @@ swallowing, no ignored return values, minimum scope).
 ### CI / GitHub Actions status
 - **`get_pull_request_status` does not cover GitHub Actions.** It calls the legacy Commit Status API and returns `total_count: 0` for repos that use only Actions — which looks like "no CI" but is misleading. Always use `gh run list --repo <owner>/<repo> --branch <head-branch> --limit 10` to get the real Actions run list.
 - **Never assume a failing check is a transient API error without reading the log.** Run `gh run view <run-id> --repo <owner>/<repo> --log-failed` for every failing run and read the actual output before drawing any conclusion.
-- **The Claude PR Review check exit code is meaningful.** Exit 1 from `extract_verdict.py` means one of two things — distinguish them by reading the log:
-  - `✗ Claude review: CHANGES REQUESTED` → the AI produced a real review with blocking feedback; read the review body from the PR's top-level comments and address each finding.
-  - `ERROR: Claude review output was empty` → the Anthropic API returned nothing; this is genuinely transient and a re-run is appropriate.
+- **The pre-merge AI review is DeepSeek's, and its failure is meaningful.** `ai-review / DeepSeek AI code review` (`.github/workflows/deepseek-pr-review.yml`, via `_ai-pr-review.yml`) runs on every PR push and is the AI review in the required checks. Claude PR Review and GPT PR Review (`claude-pr-review.yml`, `gpt-pr-review.yml`) run only after a PR is merged and are advisory — never wait on them before calling a PR mergeable. A failing DeepSeek job means one of two things — distinguish them by reading the log:
+  - `DeepSeek review: CHANGES REQUESTED — address the review findings before merging.` → the AI produced a real review with blocking feedback; read the review body from the PR's top-level comments and address each finding.
+  - `ERROR: DeepSeek review output was empty` → the DeepSeek API returned nothing; this is genuinely transient and a re-run is appropriate.
 - **Always verify that a green run is on the current HEAD SHA, not a stale commit — and do not declare a PR "ready to merge" until all required checks are green on that SHA.** "Checks re-running" is not the same as "checks passing". A green result on an older SHA does not satisfy the gate. Retrieve the PR head SHA and cross-check it against the run list:
   ```bash
   # Get the PR head SHA

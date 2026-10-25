@@ -1717,7 +1717,8 @@
       "mktCap": "MktCap",
       "wk52h": "52wH",
       "wk52l": "52wL",
-      "avgVol": "AvgVol"
+      "avgVol": "AvgVol",
+      "beta": "Beta"
     },
     "tips": {
       "infoLabel": "What does {{column}} mean?"
@@ -4364,7 +4365,9 @@
     "markets": "markets",
     "assumptions": "assumptions",
     "dataRevision": "data revisions",
-    "changed": "Changed since the last run: {{label}}"
+    "changed": "Changed since the last run: {{label}}",
+    "flagsLabel": "Flags",
+    "caveatsLabel": "Caveats"
   },
   "admin": {
     "cacheWarming": "Still loading after a server restart: showing the {{count}} found so far. This list fills in automatically."
@@ -4408,5 +4411,9 @@
       "failed": "(failed)",
       "notes": "Notes"
     }
+  },
+  "deleteSeries": {
+    "delete": "Delete Series",
+    "deleting": "Deleting…"
   }
 }

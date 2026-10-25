@@ -243,7 +243,7 @@ export default function RetirementReadinessCard({ owner }: { owner: string }) {
           ].length > 0 && (
             <ul
               className="list-disc space-y-1 pl-5 text-sm text-amber-800"
-              aria-label="flags"
+              aria-label={t('retirementReadiness.flagsLabel', 'Flags')}
             >
               {report.market.flags.map((flag) => (
                 <li key={flag}>{flag}</li>
@@ -277,7 +277,10 @@ export default function RetirementReadinessCard({ owner }: { owner: string }) {
               ))}
             </ul>
           )}
-          <ul className="space-y-1 text-xs text-slate-500" aria-label="caveats">
+          <ul
+            className="space-y-1 text-xs text-slate-500"
+            aria-label={t('retirementReadiness.caveatsLabel', 'Caveats')}
+          >
             {report.caveats.map((caveat) => (
               <li key={caveat}>{caveat}</li>
             ))}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { deleteTimeseries, getSeriesReferences } from "../api";
 
 type DeleteSeriesButtonProps = {
@@ -13,6 +14,7 @@ type DeleteSeriesButtonProps = {
  * transactions or instrument metadata) and the caller may delete it.
  */
 export function DeleteSeriesButton({ ticker, exchange, onDeleted }: DeleteSeriesButtonProps) {
+  const { t } = useTranslation();
   const [canDelete, setCanDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
@@ -63,7 +65,7 @@ export function DeleteSeriesButton({ ticker, exchange, onDeleted }: DeleteSeries
     <>
       {canDelete && (
         <button type="button" onClick={handleDelete} disabled={busy} style={{ marginLeft: "1rem" }}>
-          {busy ? "Deleting…" : "Delete Series"}
+          {busy ? t("deleteSeries.deleting", "Deleting…") : t("deleteSeries.delete", "Delete Series")}
         </button>
       )}
       {message && (

@@ -127,6 +127,16 @@ npm --prefix frontend run coverage
 npm --prefix frontend run build
 ```
 
+User-visible text in `frontend/src/pages/` and `frontend/src/components/` must
+go through i18n: the lint step runs `i18next/no-literal-string`
+(`frontend/eslint.config.js`) on JSX text and on `title`, `label`,
+`placeholder`, `aria-label` and `alt` values, so a hard-coded string fails CI.
+Use `t('area.key', 'English default')` and add the key to every
+`frontend/src/locales/*/translation.json`. Text that is not prose (a ticker
+placeholder such as `VWRL.L`, a package name) can opt out with
+`// eslint-disable-next-line i18next/no-literal-string -- <reason>` (inside JSX
+children, wrap it as `{/* ... */}`).
+
 ### Pre-deploy validation
 
 The root `package.json` pins the AWS CDK CLI exactly rather than using a

@@ -609,7 +609,7 @@ export function Screener() {
                 <RatioHeaderInfoTip column="Payout" />
               </th>
               <th style={right} onClick={() => handleSort("beta")}>
-                Beta
+                {t("screener.col.beta", "Beta")}
                 <RatioHeaderInfoTip column="Beta" />
               </th>
               <th

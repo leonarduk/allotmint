@@ -830,6 +830,7 @@ export default function RiskReturn() {
             <input
               value={tickerInput}
               onChange={(e) => setTickerInput(e.target.value)}
+              // eslint-disable-next-line i18next/no-literal-string -- ticker examples, not prose
               placeholder="^FTSE, VWRL.L"
               aria-invalid={tickerError ? true : undefined}
             />

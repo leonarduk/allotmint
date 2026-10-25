@@ -562,6 +562,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
             className="mt-1 w-full rounded border border-slate-300 p-2"
             value={manualOwner}
             onChange={(event) => setManualOwner(event.target.value)}
+            // eslint-disable-next-line i18next/no-literal-string -- owner id example, not prose
             placeholder="alice"
           />
           <datalist id="manual-owner-options">
@@ -587,6 +588,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
             onChange={(event) =>
               setManualTicker(event.target.value.toUpperCase())
             }
+            // eslint-disable-next-line i18next/no-literal-string -- ticker example, not prose
             placeholder="VUSA.L"
           />
         </label>

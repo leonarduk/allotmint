@@ -7,6 +7,9 @@ import {
   type McpServerStatus,
 } from '../api';
 
+// Package name, not prose, so it stays untranslated.
+const PRO_PACKAGE = 'allotmint-pro';
+
 const shortSha = (sha: string | null | undefined) =>
   sha ? sha.slice(0, 7) : '?';
 
@@ -41,7 +44,7 @@ function StatusSummary({ status }: { status: McpServerStatus }) {
       </p>
       {status.pro_dir && (
         <p>
-          allotmint-pro:{' '}
+          {PRO_PACKAGE}:{' '}
           <code title={status.pro_dir}>{shortSha(status.pro_commit)}</code>
         </p>
       )}

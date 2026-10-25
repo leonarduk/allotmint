@@ -1723,7 +1723,8 @@
       "mktCap": "Cap. bursátil",
       "wk52h": "Máx. 52 sem.",
       "wk52l": "Mín. 52 sem.",
-      "avgVol": "Vol. medio"
+      "avgVol": "Vol. medio",
+      "beta": "Beta"
     },
     "tips": {
       "infoLabel": "¿Qué significa {{column}}?"
@@ -4371,7 +4372,9 @@
     "markets": "mercados",
     "assumptions": "supuestos",
     "dataRevision": "revisiones de datos",
-    "changed": "Cambiado desde la última ejecución: {{label}}"
+    "changed": "Cambiado desde la última ejecución: {{label}}",
+    "flagsLabel": "Avisos",
+    "caveatsLabel": "Salvedades"
   },
   "admin": {
     "cacheWarming": "Todavía cargando tras reiniciar el servidor: se muestran los {{count}} encontrados hasta ahora. La lista se completa automáticamente."
@@ -4415,5 +4418,9 @@
       "failed": "(falló)",
       "notes": "Notas"
     }
+  },
+  "deleteSeries": {
+    "delete": "Eliminar serie",
+    "deleting": "Eliminando…"
   }
 }

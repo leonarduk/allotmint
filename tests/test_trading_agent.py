@@ -367,6 +367,44 @@ def test_run_reports_every_blocking_owner(monkeypatch):
     ]
 
 
+def test_run_aggregates_when_one_owners_baseline_raises(monkeypatch):
+    """A failing baseline for one owner (fail-closed: every warning counts as
+    new) must not suppress or leak into another owner's genuine new warning
+    (#10258)."""
+    from types import SimpleNamespace
+
+    _setup_historical_compliance(monkeypatch, [])
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}, {"owner": "bob"}])
+
+    def check_owner(owner):
+        if owner == "alice":
+            raise RuntimeError("broken history")
+        return {"warnings": ["Old bob warning"]}
+
+    trade_warnings = {
+        "alice": ["Old bob warning"],
+        "bob": ["Old bob warning", "Holding AAA would exceed 20%"],
+    }
+    monkeypatch.setattr(
+        trading_agent,
+        "compliance",
+        SimpleNamespace(
+            check_owner=check_owner,
+            check_trade=lambda trade: {"warnings": trade_warnings[trade["owner"]]},
+        ),
+    )
+
+    blocked: list = []
+    assert trading_agent.run(blocked=blocked) == []
+    assert blocked == [
+        {
+            "ticker": "AAA",
+            "action": "BUY",
+            "reasons": ["alice: Old bob warning", "bob: Holding AAA would exceed 20%"],
+        },
+    ]
+
+
 def test_run_snapshots_baseline_before_check_trade(monkeypatch):
     """The baseline must be taken before ``check_trade`` runs, so it can never
     include the proposed trade even if ``check_trade`` were to persist it into

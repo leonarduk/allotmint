@@ -108,10 +108,14 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
 } elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN) {
     Write-Skip "IAM simulation (requires GITHUB_DEPLOY_ROLE_ARN)"
 } else {
+    # No "|[0]": past 100 resources the CLI applies --query per page (#11091).
     $BucketId = & aws cloudformation list-stack-resources `
         --stack-name BackendLambdaStack `
-        --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId|[0]" `
-        --output text 2>$null
+        --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId" `
+        --output text 2>$null |
+        ForEach-Object { $_ -split "`t" } |
+        Where-Object { $_ -and $_ -ne 'None' } |
+        Select-Object -First 1
     if (-not $BucketId -or $BucketId -eq 'None') {
         Write-Skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
     } else {

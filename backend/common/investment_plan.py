@@ -227,7 +227,14 @@ class InvestmentPlan(BaseModel):
         keys = frozenset(row.asset_class for row in self.target)
         for row in self.target:
             row.asset_class = legacy_target_key(row.asset_class, keys)
-        self.vehicles = {legacy_target_key(key, keys): items for key, items in self.vehicles.items()}
+        renamed: dict[str, list[PlanVehicle]] = {}
+        for key, items in self.vehicles.items():
+            new_key = legacy_target_key(key, keys)
+            if new_key in renamed:
+                # Both spellings listed: renaming would silently drop one list (#10172).
+                raise ValueError(f"Vehicle class {new_key!r} appears more than once in vehicles")
+            renamed[new_key] = items
+        self.vehicles = renamed
         return self
 
     @model_validator(mode="after")

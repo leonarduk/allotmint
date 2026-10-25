@@ -81,10 +81,12 @@ if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]]; then
 elif [[ -z "${GITHUB_DEPLOY_ROLE_ARN:-}" ]]; then
     skip "IAM simulation (requires GITHUB_DEPLOY_ROLE_ARN)"
 else
+    # No "|[0]": past 100 resources the CLI applies --query per page (#11091).
     BUCKET_ID=$(aws cloudformation list-stack-resources \
         --stack-name BackendLambdaStack \
-        --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId|[0]" \
-        --output text 2>/dev/null || echo "")
+        --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId" \
+        --output text 2>/dev/null \
+        | tr '\t' '\n' | awk 'NF && $0 != "None" && !found {print; found=1}' || echo "")
     if [[ -z "$BUCKET_ID" || "$BUCKET_ID" == "None" ]]; then
         skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
     else

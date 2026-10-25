@@ -410,6 +410,22 @@ def test_aggregate_holding_issues_flags_missing_asset_class(monkeypatch, tmp_pat
     assert issue.fixable is False
 
 
+@pytest.mark.parametrize(
+    ("meta", "flagged"),
+    [
+        ({"assetClass": "Equity"}, False),
+        ({"asset_class": "equity"}, False),
+        ({"assetClass": "Fund"}, True),
+        ({"name": "Pfizer"}, True),
+    ],
+)
+def test_missing_asset_class_reads_the_legacy_camel_case_key(meta, flagged):
+    """``assetClass`` resolves as it does on the read path (#9268)."""
+    issue = issues_module._missing_asset_class_issue("PFE.N", meta)
+
+    assert (issue is not None) is flagged
+
+
 def test_missing_asset_class_reported_once_per_instrument(monkeypatch, tmp_path):
     """The same unclassified instrument held in two accounts yields one issue."""
     owner = tmp_path / "demo"

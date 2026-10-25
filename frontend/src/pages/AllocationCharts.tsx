@@ -12,6 +12,7 @@ import {
 import type {
   CurrencyContribution,
   GroupPortfolio,
+  Holding,
   LookThroughBucket,
   LookThroughExposure,
   OwnerSummary,
@@ -115,6 +116,19 @@ const addToBreakdown = (
 };
 
 const byValueDesc = (a: Slice, b: Slice) => b.value - a.value;
+
+/**
+ * Domicile region -> tickers of the funds domiciled there whose exposure
+ * ``region`` differs (#10250), e.g. a Europe-domiciled global tracker.
+ */
+type DomicileDifferences = Record<string, string[]>;
+
+const addDomicileDifference = (diffs: DomicileDifferences, h: Holding) => {
+  const domicile = h.domicile_region?.trim();
+  if (!domicile || domicile === h.region?.trim()) return;
+  const tickers = (diffs[domicile] ??= []);
+  if (!tickers.includes(h.ticker)) tickers.push(h.ticker);
+};
 
 /** One slice per group, largest first. */
 const groupSlices = (breakdown: Breakdown): Slice[] =>
@@ -318,6 +332,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
   const reporting = useReportingCurrency();
   const [view, setView] = useState<AllocationView>(initialView);
   const [breakdowns, setBreakdowns] = useState<Record<HoldingView, Breakdown>>(emptyBreakdowns);
+  const [domicileDiffs, setDomicileDiffs] = useState<DomicileDifferences>({});
   const [showHoldings, setShowHoldings] = useState(false);
   const activeOwner = searchParams.get("owner") || null;
   const activeAccountType = activeOwner ? searchParams.get("account") || null : null;
@@ -407,6 +422,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
     );
 
     const next = emptyBreakdowns();
+    const nextDomicileDiffs: DomicileDifferences = {};
     const coreLabel = t("sleeves.core");
 
     for (const acct of activeAccounts) {
@@ -456,10 +472,12 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         for (const dimension of HOLDING_VIEWS) {
           addToBreakdown(next[dimension], groups[dimension], key, label, mv);
         }
+        addDomicileDifference(nextDomicileDiffs, h);
       }
     }
 
     setBreakdowns(next);
+    setDomicileDiffs(nextDomicileDiffs);
   }, [portfolio, activeOwner, activeAccountType, ownerSleeves, ownerLookup, t]);
 
   if (loading && !portfolio) {
@@ -586,6 +604,21 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         <p className="mb-4 text-sm text-gray-600" data-testid="currency-exposure-note">
           {t("allocation.currencyNote")}
         </p>
+      )}
+      {view === "region" && (
+        <div className="mb-4 text-sm text-gray-600" data-testid="region-exposure-note">
+          <p>{t("allocation.regionNote")}</p>
+          {Object.entries(domicileDiffs)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([domicile, tickers]) => (
+              <p key={domicile}>
+                {t("allocation.domiciledIn", {
+                  region: domicile,
+                  tickers: [...tickers].sort().join(", "),
+                })}
+              </p>
+            ))}
+        </div>
       )}
       {view === "sleeve" && (
         <p className="mb-4 text-sm text-gray-600" data-testid="sleeve-note">

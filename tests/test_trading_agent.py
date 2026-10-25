@@ -379,11 +379,15 @@ def test_run_aggregates_when_one_owners_baseline_raises(monkeypatch):
     def check_owner(owner):
         if owner == "alice":
             raise RuntimeError("broken history")
-        return {"warnings": ["Old bob warning"]}
+        return {"warnings": ["Shared warning"]}
 
+    # The same warning text for both owners is deliberate: if bob's baseline
+    # leaked into alice's, her copy would be suppressed; if alice's empty
+    # (fail-closed) baseline leaked into bob's, his pre-existing copy would be
+    # reported as new. Both directions are asserted below.
     trade_warnings = {
-        "alice": ["Old bob warning"],
-        "bob": ["Old bob warning", "Holding AAA would exceed 20%"],
+        "alice": ["Shared warning"],
+        "bob": ["Shared warning", "Holding AAA would exceed 20%"],
     }
     monkeypatch.setattr(
         trading_agent,
@@ -400,7 +404,7 @@ def test_run_aggregates_when_one_owners_baseline_raises(monkeypatch):
         {
             "ticker": "AAA",
             "action": "BUY",
-            "reasons": ["alice: Old bob warning", "bob: Holding AAA would exceed 20%"],
+            "reasons": ["alice: Shared warning", "bob: Holding AAA would exceed 20%"],
         },
     ]
 

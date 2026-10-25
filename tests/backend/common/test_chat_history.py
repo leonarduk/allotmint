@@ -474,6 +474,47 @@ def test_open_with_an_empty_current_conversation_archives_nothing(store) -> None
     assert [c["id"] for c in ch.list_conversations(ALICE, store)] == ["current"]
 
 
+def test_open_retries_when_another_save_lands_after_the_archive(store, monkeypatch) -> None:
+    """#9022: a save between the archive and the write must not leave an empty current chat."""
+    ch.save_conversation(ALICE, _conversation("old"), 0, store)
+    ch.archive_conversation(ALICE, store)
+    real_save = ch.save_conversation
+    calls = {"n": 0}
+
+    def racing_save(email, conversation, base_revision, store, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # Another tab saves into the freshly emptied current conversation first.
+            real_save(email, _conversation("other tab"), base_revision, store)
+        return real_save(email, conversation, base_revision, store, **kwargs)
+
+    monkeypatch.setattr(ch, "save_conversation", racing_save)
+
+    opened = ch.open_conversation(ALICE, "r00000001", store)
+
+    assert [n["content"] for n in opened["conversation"]["nodes"]] == ["old"]
+    assert ch.load_conversation(ALICE, store)["conversation"] == opened["conversation"]
+    # The other tab's save was archived on the retry, and the opened chat left the archive.
+    assert [(c["id"], c["title"]) for c in ch.list_conversations(ALICE, store)] == [
+        ("current", "old"),
+        ("r00000003", "other tab"),
+    ]
+
+
+def test_open_that_keeps_losing_the_race_conflicts_and_keeps_the_archived_chat(store, monkeypatch) -> None:
+    ch.save_conversation(ALICE, _conversation("old"), 0, store)
+    ch.archive_conversation(ALICE, store)
+
+    def always_conflicts(email, conversation, base_revision, store, **kwargs):
+        raise ch.ChatConversationConflict(ch.load_conversation(email, store))
+
+    monkeypatch.setattr(ch, "save_conversation", always_conflicts)
+
+    with pytest.raises(ch.ChatConversationConflict):
+        ch.open_conversation(ALICE, "r00000001", store)
+    assert "r00000001" in _archived_ids(store)
+
+
 def test_clean_title() -> None:
     assert ch.clean_title("  ISA \n plan ") == "ISA plan"
     assert ch.clean_title("   ") is None

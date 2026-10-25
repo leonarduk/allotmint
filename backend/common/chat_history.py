@@ -548,24 +548,41 @@ def delete_conversation(email: str, chat_id: str, store: Optional[ChatStore] = N
     store.delete(key)
 
 
-def open_conversation(email: str, chat_id: str, store: Optional[ChatStore] = None) -> Dict[str, Any]:
-    """Make archived ``chat_id`` the current conversation, archiving the current one first.
+def _swap_in(
+    email: str, store: ChatStore, key: str, conversation: Dict[str, Any], title: Optional[str]
+) -> Dict[str, Any]:
+    """Archive the current conversation, make ``conversation`` current, then drop its archived copy at ``key``."""
 
-    Returns ``{"revision", "conversation", "title"}`` of the new current one.
-
-    Raises:
-        ChatConversationConflict: another tab or device saved between the archive and the write.
-    """
-
-    store = store or get_chat_store()
-    key, doc = _read_archived(store, user_key(email), chat_id)
     revision = archive_conversation(email, store)["revision"]
-    conversation = doc.get("conversation") or empty_conversation()
-    title = _title(doc)
     revision = save_conversation(email, conversation, revision, store, title=title)
     # Now current, so drop the archived copy; the next "New chat" archives it again.
     store.delete(key)
     return {"revision": revision, "conversation": conversation, "title": title}
+
+
+def open_conversation(email: str, chat_id: str, store: Optional[ChatStore] = None) -> Dict[str, Any]:
+    """Make archived ``chat_id`` the current conversation, archiving the current one first.
+
+    Returns ``{"revision", "conversation", "title"}`` of the new current one.
+    A tab or device that saves between the archive and the write would leave
+    an empty current conversation, so the swap is retried: the next pass
+    archives what that save wrote (#9022).
+
+    Raises:
+        ChatConversationConflict: every attempt lost a race. The archived
+            ``chat_id`` is only deleted after a successful write, so it is kept.
+    """
+
+    store = store or get_chat_store()
+    key, doc = _read_archived(store, user_key(email), chat_id)
+    conversation = doc.get("conversation") or empty_conversation()
+    title = _title(doc)
+    for _ in range(_ARCHIVE_ATTEMPTS - 1):
+        try:
+            return _swap_in(email, store, key, conversation, title)
+        except ChatConversationConflict:
+            continue  # Another save landed after the archive; the next pass archives it too.
+    return _swap_in(email, store, key, conversation, title)
 
 
 def delete_history(email: str, store: Optional[ChatStore] = None) -> int:

@@ -159,8 +159,12 @@ function VersionSwitcher({ version, busy }: { version: ChatMessageVersion; busy:
       >
         <ChevronLeft size={14} aria-hidden />
       </button>
+      {/* Screen readers announce the full "Version 2 of 3", not "2 slash 3" (#8866). */}
       <span aria-live="polite" title={t("chatMessage.versionOf", { current, count })}>
-        {current} / {count}
+        <span aria-hidden="true">
+          {current} / {count}
+        </span>
+        <span className="sr-only">{t("chatMessage.versionOf", { current, count })}</span>
       </span>
       <button
         type="button"

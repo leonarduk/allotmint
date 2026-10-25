@@ -323,6 +323,65 @@ describe("Watchlist page", () => {
 
       expect(input.value).toBe("");
       expect(storedSymbols()).toBe("AAA,BBB");
+      // ...but says so rather than clearing silently (#7147).
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Already in this watchlist: AAA",
+      );
+    });
+
+    it("rejects a ticker with an internal space and keeps it for editing (#7174)", async () => {
+      renderWatchlist();
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "aa pl" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(storedSymbols()).toBe("AAA,BBB");
+      expect(input.value).toBe("AA PL");
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("Not a valid ticker: AA PL");
+      expect(input).toHaveAttribute("aria-describedby", alert.id);
+      expect(input).toHaveAttribute("aria-invalid", "true");
+    });
+
+    it("reports an empty or whitespace-only entry via the Add button (#7174)", async () => {
+      renderWatchlist();
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: " , " } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      expect(storedSymbols()).toBe("AAA,BBB");
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Enter a ticker symbol to add.",
+      );
+    });
+
+    it("adds the valid tickers from a mixed paste and clears the error on edit (#7174)", async () => {
+      renderWatchlist();
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, {
+        target: { value: "^ftse, bad sym, eurgbp=x" },
+      });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(storedSymbols()).toBe("AAA,BBB,^FTSE,EURGBP=X");
+      expect(input.value).toBe("BAD SYM");
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+
+      fireEvent.change(input, { target: { value: "ccc" } });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(input.value).toBe("");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(storedSymbols()).toBe("AAA,BBB,^FTSE,EURGBP=X,CCC");
     });
 
     it("splits a pasted comma-separated list instead of storing it as one symbol", async () => {

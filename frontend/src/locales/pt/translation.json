@@ -1761,6 +1761,9 @@
       "confirmOverwrite": "Substituir o filtro existente \"{{name}}\"?",
       "confirmDelete": "Excluir o filtro \"{{name}}\"?",
       "nameTaken": "Já existe um filtro chamado \"{{name}}\"."
+    },
+    "presets": {
+      "label": "Predefinições"
     }
   },
   "dataadmin": {
@@ -2211,7 +2214,8 @@
     "nameTaken": "Já existe uma lista de observação chamada \"{{name}}\".",
     "cannotDeleteLast": "É necessária pelo menos uma lista de observação.",
     "listNotFound": "Nenhuma lista chamada \"{{name}}\" neste navegador — a mostrar \"{{shown}}\".",
-    "constituentsAsOf": "Constituintes em {{date}} · {{source}}"
+    "constituentsAsOf": "Constituintes em {{date}} · {{source}}",
+    "loading": "A carregar cotações…"
   },
   "scenarioFx": {
     "title": "Choque cambial",
@@ -4302,5 +4306,45 @@
   },
   "admin": {
     "cacheWarming": "Ainda carregando após reiniciar o servidor: mostrando os {{count}} encontrados até agora. A lista é completada automaticamente."
+  },
+  "trendWatch": {
+    "title": "Monitorização de tendências",
+    "running": "A executar…",
+    "run": "Executar agora",
+    "loading": "A carregar a monitorização de tendências…",
+    "empty": "Ainda não há relatório de tendências. Execute-o para verificar as suas posições.",
+    "summary": "Execução {{date}}: {{checked}} posições verificadas, {{count}} a rever.",
+    "none": "Nenhuma posição começou a descer desde a última execução.",
+    "notInvestigated": "Não investigado",
+    "mutedLabel": "Posição de longo prazo",
+    "unmute": "Reativar",
+    "mute": "Silenciar (posição de longo prazo)",
+    "new": "novo",
+    "context": "{{value}} ({{share}} da carteira); custo de aquisição {{cost}}, ganho {{gain}}.",
+    "ownersError": "Não foi possível carregar os titulares.",
+    "loadError": "Não foi possível carregar o relatório de tendências.",
+    "runError": "A execução da monitorização de tendências falhou.",
+    "muteError": "Não foi possível atualizar a lista de silenciados.",
+    "hitRate": {
+      "title": "Historial deste detetor",
+      "noHistory": "Ainda não há histórico de preços suficiente nestas posições para o medir.",
+      "description": "Reproduzido semanalmente sobre {{count}} das suas posições: com que frequência um alerta foi seguido de nova queda, face a qualquer semana.",
+      "horizon": "Nos próximos",
+      "afterFlag": "Caiu após um alerta",
+      "base": "Caiu em qualquer semana",
+      "flags": "({{count}} alertas)",
+      "basis": "Quedas medidas pelo retorno total (dividendos reinvestidos) para {{total}} posições e apenas pelo preço para {{price}}, que não têm histórico de dividendos guardado.",
+      "noEdge": "Em {{horizons}}, um alerta nestas posições não foi melhor do que a taxa base a prever uma nova queda. Trate a lista como sugestões para analisar, não previsões."
+    },
+    "evidence": {
+      "toggle": "Evidências",
+      "dataIssues": "Problemas de dados",
+      "findings": "Conclusões",
+      "basis": "base de retorno: {{basis}}",
+      "source": "fonte",
+      "toolCalls": "Chamadas de ferramentas",
+      "failed": "(falhou)",
+      "notes": "Notas"
+    }
   }
 }

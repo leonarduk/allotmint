@@ -1761,6 +1761,9 @@
       "confirmOverwrite": "Vorhandenen Screen „{{name}}“ ersetzen?",
       "confirmDelete": "Screen „{{name}}“ löschen?",
       "nameTaken": "Ein Screen namens „{{name}}“ existiert bereits."
+    },
+    "presets": {
+      "label": "Vorlagen"
     }
   },
   "dataadmin": {
@@ -2211,7 +2214,8 @@
     "nameTaken": "Eine Beobachtungsliste namens „{{name}}“ existiert bereits.",
     "cannotDeleteLast": "Mindestens eine Beobachtungsliste ist erforderlich.",
     "listNotFound": "Keine Watchlist namens „{{name}}“ in diesem Browser – stattdessen wird „{{shown}}“ angezeigt.",
-    "constituentsAsOf": "Bestandteile Stand {{date}} · {{source}}"
+    "constituentsAsOf": "Bestandteile Stand {{date}} · {{source}}",
+    "loading": "Kurse werden geladen…"
   },
   "scenarioFx": {
     "title": "Währungsschock",
@@ -4302,5 +4306,45 @@
   },
   "admin": {
     "cacheWarming": "Wird nach einem Serverneustart noch geladen: {{count}} bisher gefunden. Die Liste vervollständigt sich automatisch."
+  },
+  "trendWatch": {
+    "title": "Trendbeobachtung",
+    "running": "Läuft…",
+    "run": "Jetzt ausführen",
+    "loading": "Trendbeobachtung wird geladen…",
+    "empty": "Noch kein Trendbericht. Führen Sie ihn aus, um Ihre Bestände zu prüfen.",
+    "summary": "Lauf {{date}}: {{checked}} Bestände geprüft, {{count}} zu überprüfen.",
+    "none": "Seit dem letzten Lauf hat sich kein Bestand neu abwärts entwickelt.",
+    "notInvestigated": "Nicht untersucht",
+    "mutedLabel": "Langfristige Position",
+    "unmute": "Stummschaltung aufheben",
+    "mute": "Stummschalten (langfristige Position)",
+    "new": "neu",
+    "context": "{{value}} ({{share}} des Portfolios); Einstandskosten {{cost}}, Gewinn {{gain}}.",
+    "ownersError": "Eigentümer konnten nicht geladen werden.",
+    "loadError": "Der Trendbericht konnte nicht geladen werden.",
+    "runError": "Die Trendbeobachtung ist fehlgeschlagen.",
+    "muteError": "Die Stummschaltliste konnte nicht aktualisiert werden.",
+    "hitRate": {
+      "title": "Trefferbilanz dieses Detektors",
+      "noHistory": "Für diese Bestände gibt es noch nicht genug Kurshistorie, um das zu messen.",
+      "description": "Wöchentlich über {{count}} Ihrer Bestände nachgespielt: wie oft auf eine Markierung ein weiterer Rückgang folgte, verglichen damit, wie oft das in einer beliebigen Woche geschah.",
+      "horizon": "In den nächsten",
+      "afterFlag": "Gefallen nach Markierung",
+      "base": "Gefallen in beliebiger Woche",
+      "flags": "({{count}} Markierungen)",
+      "basis": "Rückgänge gemessen an der Gesamtrendite (Dividenden reinvestiert) für {{total}} Bestände und nur am Kurs für {{price}}, für die keine Dividendenhistorie gespeichert ist.",
+      "noEdge": "Über {{horizons}} war eine Markierung bei diesen Beständen nicht besser als die Basisrate darin, einen weiteren Rückgang vorherzusehen. Betrachten Sie die Liste als Anlass zum Hinsehen, nicht als Prognose."
+    },
+    "evidence": {
+      "toggle": "Belege",
+      "dataIssues": "Datenprobleme",
+      "findings": "Ergebnisse",
+      "basis": "Renditebasis: {{basis}}",
+      "source": "Quelle",
+      "toolCalls": "Tool-Aufrufe",
+      "failed": "(fehlgeschlagen)",
+      "notes": "Notizen"
+    }
   }
 }

@@ -1755,6 +1755,9 @@
       "confirmOverwrite": "Replace the existing screen \"{{name}}\"?",
       "confirmDelete": "Delete the screen \"{{name}}\"?",
       "nameTaken": "A screen called \"{{name}}\" already exists."
+    },
+    "presets": {
+      "label": "Presets"
     }
   },
   "dataadmin": {
@@ -2204,7 +2207,8 @@
     "nameTaken": "A watchlist called \"{{name}}\" already exists.",
     "cannotDeleteLast": "You need at least one watchlist.",
     "listNotFound": "No watchlist called \"{{name}}\" in this browser — showing \"{{shown}}\" instead.",
-    "constituentsAsOf": "Constituents as of {{date}} · {{source}}"
+    "constituentsAsOf": "Constituents as of {{date}} · {{source}}",
+    "loading": "Loading quotes…"
   },
   "scenarioFx": {
     "title": "Currency shock",
@@ -4295,5 +4299,45 @@
   },
   "admin": {
     "cacheWarming": "Still loading after a server restart: showing the {{count}} found so far. This list fills in automatically."
+  },
+  "trendWatch": {
+    "title": "Trend watch",
+    "running": "Running…",
+    "run": "Run now",
+    "loading": "Loading trend watch…",
+    "empty": "No trend-watch report yet. Run it to check your holdings.",
+    "summary": "Run {{date}}: {{checked}} holdings checked, {{count}} to review.",
+    "none": "No holding has newly turned down since the last run.",
+    "notInvestigated": "Not investigated",
+    "mutedLabel": "Long-term holding",
+    "unmute": "Unmute",
+    "mute": "Mute (long-term holding)",
+    "new": "new",
+    "context": "{{value}} ({{share}} of the portfolio); book cost {{cost}}, gain {{gain}}.",
+    "ownersError": "Could not load owners.",
+    "loadError": "Could not load the trend-watch report.",
+    "runError": "The trend-watch run failed.",
+    "muteError": "Could not update the mute list.",
+    "hitRate": {
+      "title": "Track record of this detector",
+      "noHistory": "Not enough price history in these holdings to measure it yet.",
+      "description": "Replayed weekly over {{count}} of your holdings: how often a flag was followed by a further fall, against how often any week was.",
+      "horizon": "Over the next",
+      "afterFlag": "Fell after a flag",
+      "base": "Fell in any week",
+      "flags": "({{count}} flags)",
+      "basis": "Falls measured on total return (dividends reinvested) for {{total}} holdings and on price only for {{price}}, which have no stored dividend history.",
+      "noEdge": "Over {{horizons}}, a flag on these holdings has been no better than the base rate at foreseeing a further fall. Treat the list as prompts to look, not forecasts."
+    },
+    "evidence": {
+      "toggle": "Evidence",
+      "dataIssues": "Data issues",
+      "findings": "Findings",
+      "basis": "return basis: {{basis}}",
+      "source": "source",
+      "toolCalls": "Tool calls",
+      "failed": "(failed)",
+      "notes": "Notes"
+    }
   }
 }

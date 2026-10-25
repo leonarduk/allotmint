@@ -2137,7 +2137,6 @@
     "fixErrors": "Fix the highlighted fields before saving.",
     "approvalsSessionExpired": "Your session has expired. Sign in again to manage approvals.",
     "avatarAlt": "user avatar",
-    "complianceDocsLink": "Learn more about compliance",
     "dateColumn": "Date",
     "loadApprovalsFailed": "Failed to load approvals",
     "removeApprovalFailed": "Failed to remove approval"

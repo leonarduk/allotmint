@@ -2144,7 +2144,6 @@
     "fixErrors": "Corrige los campos resaltados antes de guardar.",
     "approvalsSessionExpired": "Tu sesión ha caducado. Inicia sesión de nuevo para gestionar las aprobaciones.",
     "avatarAlt": "avatar de usuario",
-    "complianceDocsLink": "Más información sobre cumplimiento",
     "dateColumn": "Fecha",
     "loadApprovalsFailed": "No se pudieron cargar las aprobaciones",
     "removeApprovalFailed": "No se pudo eliminar la aprobación"

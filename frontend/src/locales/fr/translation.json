@@ -2144,7 +2144,6 @@
     "fixErrors": "Corrigez les champs en surbrillance avant d'enregistrer.",
     "approvalsSessionExpired": "Votre session a expiré. Reconnectez-vous pour gérer les approbations.",
     "avatarAlt": "avatar de l'utilisateur",
-    "complianceDocsLink": "En savoir plus sur la conformité",
     "dateColumn": "Date",
     "loadApprovalsFailed": "Échec du chargement des approbations",
     "removeApprovalFailed": "Échec de la suppression de l'approbation"

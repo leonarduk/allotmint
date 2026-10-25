@@ -329,6 +329,19 @@ describe("Watchlist page", () => {
       );
     });
 
+    it("dedupes a symbol repeated within one paste without an alert", async () => {
+      renderWatchlist();
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "ccc, CCC" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      expect(storedSymbols()).toBe("AAA,BBB,CCC");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
     it("rejects a ticker with an internal space and keeps it for editing (#7174)", async () => {
       renderWatchlist();
 

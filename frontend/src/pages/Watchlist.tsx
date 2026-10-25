@@ -160,7 +160,8 @@ function classifySymbolInput(
   raw: string,
   existing: readonly string[],
 ): SymbolInputResult {
-  const seen = new Set(existing.map((s) => s.toUpperCase()));
+  const already = new Set(existing.map((s) => s.toUpperCase()));
+  const seen = new Set<string>();
   const result: SymbolInputResult = {
     additions: [],
     invalid: [],
@@ -170,8 +171,10 @@ function classifySymbolInput(
     const symbol = part.trim().toUpperCase();
     if (!symbol) continue;
     if (!SYMBOL_PATTERN.test(symbol)) result.invalid.push(symbol);
-    else if (seen.has(symbol)) result.duplicates.push(symbol);
-    else {
+    else if (already.has(symbol)) result.duplicates.push(symbol);
+    // A symbol repeated within one paste is just deduped: it was never
+    // "already in this watchlist", so it must not be reported as such.
+    else if (!seen.has(symbol)) {
       seen.add(symbol);
       result.additions.push(symbol);
     }

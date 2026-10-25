@@ -423,7 +423,7 @@ def _parse_positive_int(value: Any, *, key: str, default: int) -> int:
     """
     if value is None or value == "":
         return default
-    if isinstance(value, str) and value.strip().isdigit():
+    if isinstance(value, str) and value.strip().isascii() and value.strip().isdigit():
         value = int(value.strip())
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ConfigValidationError(f"'{key}' must be a positive integer, got {value!r}")

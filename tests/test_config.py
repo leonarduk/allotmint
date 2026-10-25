@@ -409,7 +409,7 @@ def test_demo_link_enabled_rejects_non_boolean(monkeypatch, tmp_path):
         reload_config()
 
 
-@pytest.mark.parametrize("raw", ["-1", "0", "'abc'", "72.5", "true", "'-5'"])
+@pytest.mark.parametrize("raw", ["-1", "0", "'abc'", "72.5", "true", "'-5'", "'\u0667\u0662'"])
 def test_demo_link_ttl_hours_rejects_non_positive_integer(monkeypatch, tmp_path, raw):
     """#7428: a zero/negative/non-integer TTL must fail at config load, not
     when the first demo link is minted."""

@@ -1004,6 +1004,36 @@ describe("AllocationCharts page", () => {
       expect(rows[11]).toBe("Other: 350");
     });
 
+    it("merges the backend Other bucket into the folded tail (#9979)", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      const many = Array.from({ length: 15 }, (_, i) => bucket(`C${i}`, 100 - i));
+      mockGetGroupLookThrough.mockResolvedValueOnce(lookThrough([...many, bucket("Other", 200)]));
+
+      render(<AllocationCharts />, "/allocation?view=lt-country");
+
+      await waitFor(() => expect(screen.getAllByTestId("slice-row")).toHaveLength(12));
+      const rows = screen.getAllByTestId("slice-row").map((el) => el.textContent);
+      expect(rows.filter((r) => r?.startsWith("Other:"))).toEqual(["Other: 550"]);
+      expect(rows[0]).toBe("C0: 100");
+    });
+
+    it("keeps a backend Other bucket as one slice in a short breakdown", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupLookThrough.mockResolvedValueOnce(
+        lookThrough([bucket("United States", 500), bucket("Other", 200), bucket("Japan", 300)]),
+      );
+
+      render(<AllocationCharts />, "/allocation?view=lt-country");
+
+      await waitFor(() =>
+        expect(screen.getAllByTestId("slice-row").map((el) => el.textContent)).toEqual([
+          "United States: 500",
+          "Japan: 300",
+          "Other: 200",
+        ]),
+      );
+    });
+
     it("lists combined holdings with direct and via-fund values", async () => {
       mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
       mockGetGroupLookThrough.mockResolvedValueOnce(lookThrough([bucket("United States", 1000)]));

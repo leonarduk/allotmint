@@ -223,7 +223,14 @@ function useCurrencyExposure(slug: string, owner: string | null, enabled: boolea
   return { rows, error };
 }
 
-/** Pie slices for a look-through breakdown, largest first, the tail folded into ``otherLabel``. */
+/** Backend label for the part of a fund its published breakdown does not cover (#9979). */
+const LOOK_THROUGH_OTHER = "Other";
+
+/**
+ * Pie slices for a look-through breakdown, largest first, the tail folded into
+ * ``otherLabel``. The backend's own "Other" bucket joins that slice, so the
+ * chart never shows two "Other" slices.
+ */
 const toLookThroughSlices = (
   rows: LookThroughBucket[],
   otherLabel: string,
@@ -232,10 +239,16 @@ const toLookThroughSlices = (
     .map((row) => ({ name: row.label, value: toFiniteNumber(row.value_gbp) }))
     .filter((slice) => slice.value > 0)
     .sort((a, b) => b.value - a.value);
-  if (slices.length <= MAX_LOOK_THROUGH_SLICES) return slices;
-  const head = slices.slice(0, MAX_LOOK_THROUGH_SLICES - 1);
-  const rest = slices.slice(MAX_LOOK_THROUGH_SLICES - 1).reduce((sum, s) => sum + s.value, 0);
-  return [...head, { name: otherLabel, value: rest }];
+  const isOther = (s: Slice) => s.name === LOOK_THROUGH_OTHER || s.name === otherLabel;
+  const named = slices.filter((s) => !isOther(s));
+  const other = slices.filter(isOther).reduce((sum, s) => sum + s.value, 0);
+  const otherSlices = other > 0 ? [{ name: otherLabel, value: other }] : [];
+  if (named.length + otherSlices.length <= MAX_LOOK_THROUGH_SLICES) {
+    return [...named, ...otherSlices].sort(byValueDesc);
+  }
+  const head = named.slice(0, MAX_LOOK_THROUGH_SLICES - 1);
+  const rest = named.slice(MAX_LOOK_THROUGH_SLICES - 1).reduce((sum, s) => sum + s.value, 0);
+  return [...head, { name: otherLabel, value: rest + other }];
 };
 
 /**

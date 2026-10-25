@@ -1208,15 +1208,19 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
 
   if (!hasTickerInput) {
     return (
-      <EmptyState
-        message={t("instrumentDetail.chooseTicker", {
-          defaultValue: "Choose a ticker from search to open research.",
-        })}
-      >
-        <div style={{ maxWidth: "28rem", margin: "1rem auto 0" }}>
-          <InstrumentSearchBar />
-        </div>
-      </EmptyState>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+        {/* Page landmark for the empty state, as on Screener/Watchlist (#7822). */}
+        <h1 className="mb-4 text-2xl">{t("app.research")}</h1>
+        <EmptyState
+          message={t("instrumentDetail.chooseTicker", {
+            defaultValue: "Choose a ticker from search to open research.",
+          })}
+        >
+          <div style={{ maxWidth: "28rem", margin: "1rem auto 0" }}>
+            <InstrumentSearchBar />
+          </div>
+        </EmptyState>
+      </div>
     );
   }
   if (!tkr) return <div>{t("instrumentDetail.research.invalidTicker")}</div>;

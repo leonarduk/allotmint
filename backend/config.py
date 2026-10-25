@@ -177,8 +177,10 @@ class Config:
     offline_mode: Optional[bool] = None
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
-    demo_identity: str = "demo"
-    smoke_identity: str = "demo"
+    # Match build_config()'s fallback for an unset key (and demo_identity()'s
+    # default): "steve", with smoke_identity following demo_identity (#7672).
+    demo_identity: str = "steve"
+    smoke_identity: str = "steve"
     # Shareable read-only demo link (#7402 breakdown). Config-only for now:
     # `demo_link_enabled` is the master kill switch (defaults off),
     # `demo_link_owner` is the single owner id a demo-scoped token may read,

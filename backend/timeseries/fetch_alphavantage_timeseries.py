@@ -63,7 +63,7 @@ def _build_symbol(ticker: str, exchange: str) -> str:
 
 
 def split_adjust(df: pd.DataFrame) -> pd.DataFrame:
-    """Split-adjust a date-ascending Alpha Vantage frame in place; return it.
+    """A split-adjusted copy of a date-ascending Alpha Vantage frame; ``df`` is left unchanged.
 
     Each row's OHLC is divided, and its volume multiplied, by the product of the
     split coefficients on all *later* rows. A missing, non-numeric or
@@ -79,6 +79,7 @@ def split_adjust(df: pd.DataFrame) -> pd.DataFrame:
     later = coef[::-1].cumprod()[::-1].shift(-1, fill_value=1.0)
     if (later == 1.0).all():
         return df
+    df = df.copy()
     for col in PRICE_FIELDS.values():
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce") / later
@@ -165,7 +166,7 @@ def fetch_alphavantage_timeseries_range(
 
         df.index = pd.to_datetime(df.index)
         df.sort_index(inplace=True)
-        split_adjust(df)  # before the range cut: later splits rescale earlier rows
+        df = split_adjust(df)  # before the range cut: later splits rescale earlier rows
         df = df.loc[str(start_date) : str(end_date)]
         df.reset_index(inplace=True)
         df.rename(columns={"index": "Date"}, inplace=True)

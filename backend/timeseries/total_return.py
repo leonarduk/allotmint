@@ -66,7 +66,11 @@ def dividends_on_trading_days(closes: pd.Series, dividends: pd.Series | None) ->
     holder from that close is not entitled (only a holder from the previous,
     out-of-window close is). Those after the last close are dropped too.
     """
-    closes = _clean_closes(closes)
+    return _dividends_on_clean(_clean_closes(closes), dividends)
+
+
+def _dividends_on_clean(closes: pd.Series, dividends: pd.Series | None) -> pd.Series:
+    """:func:`dividends_on_trading_days` for closes already through :func:`_clean_closes`."""
     paid = pd.Series(0.0, index=closes.index)
     if dividends is None or dividends.empty or closes.empty:
         return paid
@@ -90,10 +94,14 @@ def total_return_index(
     Starts at ``base`` (default: the first close, so the index reads in price
     units and equals the price series when no dividends are paid).
     """
-    clean = _clean_closes(closes)
+    return _total_return_index_clean(_clean_closes(closes), dividends, base)
+
+
+def _total_return_index_clean(clean: pd.Series, dividends: pd.Series | None, base: float | None) -> pd.Series:
+    """:func:`total_return_index` for closes already through :func:`_clean_closes`."""
     if clean.empty:
         return clean
-    paid = dividends_on_trading_days(clean, dividends)
+    paid = _dividends_on_clean(clean, dividends)
     growth = (clean + paid) / clean.shift(1)
     growth.iloc[0] = 1.0
     start = float(clean.iloc[0]) if base is None else float(base)
@@ -147,15 +155,22 @@ def reinvestment_factor(closes: pd.Series, dividends: pd.Series | None) -> pd.Se
     1.0 until the first dividend in the window. Being a ratio, it applies to the
     same closes in any currency or scale (``Close_gbp``, pence vs pounds).
     """
-    clean = _clean_closes(closes)
+    return _reinvestment_factor_clean(_clean_closes(closes), dividends)
+
+
+def _reinvestment_factor_clean(clean: pd.Series, dividends: pd.Series | None) -> pd.Series:
+    """:func:`reinvestment_factor` for closes already through :func:`_clean_closes`."""
     if clean.empty:
         return clean
-    return total_return_index(clean, dividends) / clean
+    return _total_return_index_clean(clean, dividends, None) / clean
 
 
-def _factor_on(dates: Any, closes: pd.Series, dividends: pd.Series) -> np.ndarray:
-    """The reinvestment factor of ``closes`` aligned to ``dates`` (1.0 before the first close)."""
-    factor = reinvestment_factor(closes, dividends)
+def _factor_on(dates: Any, clean: pd.Series, dividends: pd.Series) -> np.ndarray:
+    """The reinvestment factor of ``clean`` closes aligned to ``dates`` (1.0 before the first close).
+
+    ``clean`` must already be through :func:`_clean_closes`, so callers clean once.
+    """
+    factor = _reinvestment_factor_clean(clean, dividends)
     keys = _naive_days(dates)
     if factor.empty:
         return np.ones(len(keys))
@@ -209,8 +224,8 @@ def _dividends_for(
     return adjust_dividends(converted, ticker, exchange)
 
 
-def _first_close(closes: pd.Series) -> pd.Timestamp | None:
-    clean = _clean_closes(closes)
+def _first_close(clean: pd.Series) -> pd.Timestamp | None:
+    """The first date of closes already through :func:`_clean_closes`."""
     return None if clean.empty else clean.index[0]
 
 
@@ -229,10 +244,11 @@ def total_return_closes(
     dividends but is only confirmed from after the first close.
     """
     values = pd.to_numeric(closes, errors="coerce")
-    dividends = _dividends_for(ticker, exchange, load_dividends, _first_close(values))
+    clean = _clean_closes(values)
+    dividends = _dividends_for(ticker, exchange, load_dividends, _first_close(clean))
     if dividends is None:
         return closes, PRICE_RETURN_BASIS
-    factor = pd.Series(_factor_on(values.index, values, dividends), index=values.index)
+    factor = pd.Series(_factor_on(values.index, clean, dividends), index=values.index)
     return values * factor, TOTAL_RETURN_BASIS
 
 
@@ -315,12 +331,13 @@ def total_return_frame(
         _report_price_fallback(ticker, exchange, "no Date column or date index to align dividends to")
         return df, PRICE_RETURN_BASIS
     closes = pd.Series(pd.to_numeric(df[native], errors="coerce").to_numpy(), index=_naive_days(dates))
-    dividends = _dividends_for(ticker, exchange, load_dividends, _first_close(closes))
+    clean = _clean_closes(closes)
+    dividends = _dividends_for(ticker, exchange, load_dividends, _first_close(clean))
     if dividends is None:
         return df, PRICE_RETURN_BASIS
     # Each row's factor comes from that row's date and native close; keyed by the
     # frame's own index so every close column is scaled row-for-row by label.
-    factor = pd.Series(_factor_on(closes.index, closes, dividends), index=df.index)
+    factor = pd.Series(_factor_on(closes.index, clean, dividends), index=df.index)
     out = df.copy()
     for lower, col in columns.items():
         if lower == _NATIVE_CLOSE or lower.startswith(_CONVERTED_CLOSE_PREFIX):

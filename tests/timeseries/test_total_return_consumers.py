@@ -93,6 +93,22 @@ def test_total_return_closes_reinvests_stored_dividends(store):
     assert levels.index.equals(DATES)
 
 
+def test_total_return_closes_cleans_the_closes_once(store, monkeypatch):
+    store("PAY", "L", {EX_DATE: 2.0})
+    real = tr._clean_closes
+    calls = []
+
+    def counting(closes):
+        calls.append(len(closes))
+        return real(closes)
+
+    monkeypatch.setattr(tr, "_clean_closes", counting)
+    levels, _basis = tr.total_return_closes(_closes(), "PAY", "L")
+
+    assert len(calls) == 1
+    assert levels.tolist() == pytest.approx(TOTAL_LEVELS)
+
+
 def test_file_without_dividends_is_a_genuine_total_return(store):
     store("NODIV", "L", splits={DATES[3]: 2.0})
 

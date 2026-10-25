@@ -88,20 +88,29 @@ def check_isin_change(
     exchange: Any,
     *,
     allow_foreign_isin: bool = False,
+    existing_unreadable: bool = False,
 ) -> None:
     """Raise :class:`ForeignIsinError` if ``new_isin`` would replace ``existing_isin`` with a misfit.
 
     Nothing is checked when the ISIN is unchanged (case-insensitively), being
-    removed, or when ``allow_foreign_isin`` is set.
+    removed, or when ``allow_foreign_isin`` is set. ``existing_unreadable``
+    says the existing instrument file could not be read (so ``existing_isin``
+    is unknown, not absent); the check still fails closed, but the message
+    says so instead of reporting no existing ISIN.
     """
     new = normalise_isin(new_isin)
     if allow_foreign_isin or new is None or new == normalise_isin(existing_isin):
         return
     if isin_fits_exchange(new, exchange) is False:
         expected = ", ".join(sorted(_expected_prefixes(exchange) or ()))
+        existing = (
+            "the existing instrument file could not be read, so the current ISIN is unknown"
+            if existing_unreadable
+            else f"existing ISIN {normalise_isin(existing_isin) or 'none'}"
+        )
         raise ForeignIsinError(
             f"ISIN {new} has country prefix {new[:2]}, which does not fit exchange {exchange} "
-            f"(expected {expected}); existing ISIN {normalise_isin(existing_isin) or 'none'}. "
+            f"(expected {expected}); {existing}. "
             "If the ISIN is right (e.g. an overseas company trading via depositary interests), "
             "set allow_foreign_isin."
         )

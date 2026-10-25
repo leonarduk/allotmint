@@ -197,7 +197,8 @@ def test_get_quotes_returns_null_not_zero_for_missing_index_fields(monkeypatch):
 @pytest.mark.parametrize(
     "sym,expected",
     [
-        ("BRK.B", "BRK-B"),
+        ("BRK.B", "BRK.B"),
+        ("BT.A", "BT.A"),
         ("BRK.B.N", "BRK-B"),
         ("BF.B.US", "BF-B"),
         ("ADBE.N", "ADBE"),
@@ -215,7 +216,7 @@ def test_get_quotes_returns_null_not_zero_for_missing_index_fields(monkeypatch):
     ],
 )
 def test_yahoo_symbol_mapping(sym, expected):
-    """US share classes take Yahoo's dash; other symbols keep their spelling (#11081)."""
+    """Exchange-qualified US share classes take Yahoo's dash; other symbols keep their spelling (#11081)."""
     assert quotes._yahoo_symbol(sym) == expected
 
 
@@ -233,7 +234,7 @@ def test_get_quotes_us_share_class_keyed_by_requested_symbol(monkeypatch):
     monkeypatch.setattr(quotes.config, "offline_mode", False)
 
     with TestClient(app) as client:
-        resp = client.get("/api/quotes?symbols=BRK.B,BRK.B.N")
+        resp = client.get("/api/quotes?symbols=BRK.B.US,BRK.B.N")
     assert resp.status_code == 200
     assert requested == ["BRK-B"]
-    assert [(row["symbol"], row["price"]) for row in resp.json()] == [("BRK.B", 480.0), ("BRK.B.N", 480.0)]
+    assert [(row["symbol"], row["price"]) for row in resp.json()] == [("BRK.B.US", 480.0), ("BRK.B.N", 480.0)]

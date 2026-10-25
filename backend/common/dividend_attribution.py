@@ -19,6 +19,7 @@ booked row arrives, so recent dividends are not missing in the meantime.
 
 from __future__ import annotations
 
+import re
 from typing import Any, List, Mapping, MutableMapping, Optional, Sequence
 
 ATTRIBUTION_ONLY_KEY = "attribution_only"
@@ -26,6 +27,8 @@ ESTIMATED_KEY = "estimated"
 # Rows written before refresh_dividends set ESTIMATED_KEY carry only this reason.
 ESTIMATED_DIVIDEND_REASON = "Automated dividend import"
 _DIVIDEND_TYPES = {"DIVIDEND", "DIVIDENDS"}
+# Dates compare as text, so only strict YYYY-MM-DD values take part.
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def is_attribution_only(tx: Mapping[str, Any]) -> bool:
@@ -51,7 +54,7 @@ def _is_booked_income_sweep(tx: Mapping[str, Any]) -> bool:
 def booked_income_cutoff(transactions: Sequence[Mapping[str, Any]]) -> Optional[str]:
     """ISO date of the account's latest ticker-less booked dividend row, if any."""
     dates = [str(tx.get("date") or "")[:10] for tx in transactions if _is_booked_income_sweep(tx)]
-    dated = [d for d in dates if d]
+    dated = [d for d in dates if _ISO_DATE_RE.match(d)]
     return max(dated) if dated else None
 
 
@@ -67,7 +70,7 @@ def mark_attribution_only(transactions: List[MutableMapping[str, Any]]) -> int:
         if not is_estimated_dividend(tx):
             continue
         day = str(tx.get("date") or "")[:10]
-        covered = bool(cutoff and day and day <= cutoff)
+        covered = bool(cutoff and _ISO_DATE_RE.match(day) and day <= cutoff)
         if covered and not is_attribution_only(tx):
             tx[ATTRIBUTION_ONLY_KEY] = True
             changed += 1

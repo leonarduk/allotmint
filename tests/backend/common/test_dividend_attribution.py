@@ -80,6 +80,16 @@ def test_flag_is_removed_when_no_booked_row_covers_the_estimate_any_more():
     assert ATTRIBUTION_ONLY_KEY not in rows[0]
 
 
+def test_non_iso_dates_take_no_part_in_the_cutoff():
+    rows = [{**SWEEP, "date": "2026-8-10"}, SWEEP, _estimate("2026-7-16"), _estimate("2026-07-16")]
+
+    assert booked_income_cutoff(rows) == "2026-08-10"
+    mark_attribution_only(rows)
+
+    assert not is_attribution_only(rows[2])
+    assert is_attribution_only(rows[3])
+
+
 def test_account_without_booked_sweeps_keeps_every_estimate_as_income():
     rows = [_estimate("2026-07-16"), _estimate("2026-08-13", "UKW.L")]
 

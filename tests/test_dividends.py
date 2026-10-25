@@ -497,3 +497,32 @@ def test_refresh_dividends_marks_estimates_and_flags_those_booked_income_covers(
     assert estimates["2024-06-01"]["attribution_only"] is True
     sweep = next(t for t in _read_transactions(tmp_path, "alice", "isa") if t["date"] == sweep_day)
     assert "attribution_only" not in sweep
+
+
+def test_refresh_dividends_leaves_estimates_after_the_latest_sweep_as_income(tmp_path, monkeypatch):
+    """Until the next sweep arrives, a new estimate is the only record of that income (#11086)."""
+    _make_holding("alice", "isa", "AAA.L", 100, tmp_path)
+    path = tmp_path / "alice" / "isa_transactions.json"
+    data = json.loads(path.read_text())
+    data["transactions"].append(
+        {"type": "DIVIDEND", "date": "2024-06-01", "amount_minor": 5100, "comments": "Transfer from Income Account"}
+    )
+    path.write_text(json.dumps(data))
+    _store(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        dividends.yf,
+        "Ticker",
+        lambda ticker: SimpleNamespace(dividends=_dividends_series({RECENT_EX_DATE: 0.5})),
+    )
+    monkeypatch.setattr(dividends, "get_instrument_meta", lambda ticker: {"currency": "GBP"})
+
+    summary = dividends.refresh_dividends()
+
+    assert summary["attribution_only_changed"] == 0
+    new = next(
+        t
+        for t in _read_transactions(tmp_path, "alice", "isa")
+        if t.get("ticker") == "AAA.L" and t["type"] == "DIVIDEND"
+    )
+    assert new["estimated"] is True
+    assert "attribution_only" not in new

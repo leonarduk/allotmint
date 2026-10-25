@@ -324,6 +324,26 @@ def test_ticker_less_trades_move_cash_with_opt_in() -> None:
     assert replay.cash == pytest.approx(-50.0)
 
 
+@pytest.mark.parametrize("trade_cash_effects", [False, True])
+def test_cash_gbp_trade_rows_move_cash_whatever_the_opt_in(trade_cash_effects: bool) -> None:
+    # CASH.GBP BUY/SELL rows are cash movements of ``units`` pounds, not trades
+    # in a CASH.GBP instrument, so they move cash with or without the opt-in
+    # and never settle a second time against their amount_minor (#8108).
+    tx = {
+        "trade_cash_effects": trade_cash_effects,
+        "transactions": [
+            _buy("CASH.GBP", 100, 100, "2024-01-01"),
+            _sell("CASH.GBP", 30, 30, "2024-02-01"),
+        ],
+    }
+
+    doc = rebuild_holdings_document(tx, "a", "isa")
+
+    assert [h["ticker"] for h in doc["holdings"]] == ["CASH.GBP"]
+    assert doc["holdings"][0]["units"] == pytest.approx(70.0)
+    assert doc["holdings"][0]["cost_basis_gbp"] == pytest.approx(70.0)
+
+
 def test_sold_out_holding_is_dropped() -> None:
     tx = {"transactions": [_buy("ABC", 10, 100, "2024-01-10"), _sell("ABC", 10, 120, "2024-02-10")]}
     existing = {"holdings": [{"ticker": "ABC", "units": 10, "value_gbp": 120.0}]}

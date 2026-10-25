@@ -290,6 +290,8 @@ def _apply_trade(replay: Replay, index: int, tx: Mapping[str, Any], tx_type: str
             )
         return
     if key == CASH_TICKER:
+        # A CASH.GBP trade row is a movement of ``qty`` pounds, whatever
+        # ``trade_cash`` says, rather than a pool in a CASH.GBP instrument.
         replay.cash += qty if tx_type in _ACQUIRE else -qty
         replay.cash_seen = True
         return

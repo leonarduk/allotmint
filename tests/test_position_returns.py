@@ -431,3 +431,22 @@ def test_bot_estimates_never_cut_the_full_history_estimate_short(gbx):
     # Not just the bot's £129: the July dividend before it too.
     assert holding["income_gbp"] == pytest.approx(125.0 + 129.0)
     assert holding["income_estimated"] is True
+
+
+def test_bot_estimates_are_the_income_when_no_dividend_history_is_stored(gbx):
+    """With nothing to estimate from, the bot's rows are the only record (#11086)."""
+    estimate = {
+        "date": "2025-11-20",
+        "ticker": "REC.L",
+        "type": "DIVIDEND",
+        "amount_minor": 12900,
+        "reason": "Automated dividend import",
+        "estimated": True,
+    }
+    holding = {"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}
+    attach_total_returns(
+        [holding], [*HL_TXS, estimate], lambda ticker, keys: ticker if ticker in keys else None, lambda s, e: None
+    )
+
+    assert holding["income_gbp"] == pytest.approx(129.0)
+    assert holding["income_estimated"] is True

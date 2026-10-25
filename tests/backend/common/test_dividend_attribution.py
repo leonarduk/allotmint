@@ -151,7 +151,10 @@ def test_position_returns_leave_estimates_to_the_full_history_estimate():
 
     returns = position_returns(rows, as_of=END)
 
-    # No recorded income row is left for AAA.L, so attach_total_returns falls
-    # back to the full-history estimate for it.
-    assert "AAA.L" not in returns
+    # The estimate is not recorded income, so attach_total_returns prefers the
+    # full-history estimate; it is kept only as that estimate's fallback.
+    assert returns["AAA.L"].income_rows == 0
+    assert returns["AAA.L"].income_gbp == 0.0
+    assert returns["AAA.L"].bot_rows == 1
+    assert returns["AAA.L"].bot_income_gbp == pytest.approx(31.0)
     assert returns["BBB.L"].income_gbp == pytest.approx(5.0)

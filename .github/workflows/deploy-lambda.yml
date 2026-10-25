@@ -287,9 +287,8 @@ jobs:
           set -euo pipefail
 
           # No "| [0]" in --query: past 100 resources the CLI applies it per page
-
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value.
-
+          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
+          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
           data_bucket="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId" \
@@ -312,9 +311,8 @@ jobs:
           fi
 
           # No "| [0]" in --query: past 100 resources the CLI applies it per page
-
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value.
-
+          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
+          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
           price_refresh_alias_arn="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PriceRefreshLambdaLiveAlias')].PhysicalResourceId" \
@@ -325,9 +323,8 @@ jobs:
           fi
 
           # No "| [0]" in --query: past 100 resources the CLI applies it per page
-
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value.
-
+          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
+          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
           backend_log_group="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?starts_with(LogicalResourceId,'BackendLambdaLogGroup')].PhysicalResourceId" \
@@ -592,7 +589,8 @@ jobs:
         run: |
           set -euo pipefail
           # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value.
+          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
+          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
           refresh_fn="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'PriceRefreshLambda')].PhysicalResourceId" \
@@ -603,7 +601,8 @@ jobs:
             exit 1
           fi
           # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value.
+          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
+          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
           data_bucket="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?ResourceType=='AWS::S3::Bucket' && starts_with(LogicalResourceId, 'PortfolioDataBucket')].PhysicalResourceId" \
@@ -1173,7 +1172,8 @@ jobs:
         run: |
           set -euo pipefail
           # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value.
+          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
+          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
           backend_fn="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId" \
@@ -1404,7 +1404,8 @@ jobs:
             exit 0
           fi
           # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value.
+          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
+          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
           backend_fn="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId" \

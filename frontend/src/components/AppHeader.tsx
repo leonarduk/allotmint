@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useConfig } from '../ConfigContext';
@@ -7,7 +7,6 @@ import { LanguageSwitcher } from './LanguageSwitcher';
 import Menu from './Menu';
 import { InstrumentSearchBarToggle } from './InstrumentSearchBar';
 import { NotificationsDrawer } from './NotificationsDrawer';
-import { ChatPanel } from './ChatPanel';
 import {
   canDetachChat,
   openChatWindow,
@@ -20,6 +19,14 @@ import UserAvatar from './UserAvatar';
 // which at 1.5rem renders each emoji ~91px wide and wraps the header onto a
 // second row at phone widths (#7812). Matches the search/language toggles.
 const ICON_BUTTON_PADDING = '0.25rem';
+
+// The chat drawer (and the react-markdown/remark-gfm stack its replies render
+// with) is fetched on first use rather than in the initial chunk (#7998).
+// Hovering/focusing the chat button warms the chunk so opening feels instant.
+const loadChatPanel = () => import('./ChatPanel');
+const ChatPanel = lazy(() =>
+  loadChatPanel().then((module) => ({ default: module.ChatPanel }))
+);
 
 const CHAT_WINDOW_BLOCKED =
   'Your browser blocked the chat window. Allow pop-ups for this site to detach the chat.';
@@ -48,6 +55,10 @@ export default function AppHeader({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatNotice, setChatNotice] = useState<string | null>(null);
+  // Mounted on first open and kept mounted afterwards, so the drawer keeps its
+  // in-progress state (draft, pending reply) across close/reopen as before.
+  const [chatMounted, setChatMounted] = useState(false);
+  if (chatOpen && !chatMounted) setChatMounted(true);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { tabs, disabledTabs } = useConfig();
@@ -134,6 +145,8 @@ export default function AppHeader({
           aria-pressed={chatDetached || undefined}
           title={chatDetached ? t('appHeader.chatDetached') : undefined}
           onClick={openChat}
+          onMouseEnter={() => void loadChatPanel()}
+          onFocus={() => void loadChatPanel()}
           style={{
             background: 'none',
             border: 'none',
@@ -152,23 +165,27 @@ export default function AppHeader({
         open={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       />
-      <ChatPanel
-        open={chatOpen && !chatDetached}
-        onClose={() => {
-          setChatOpen(false);
-          setChatNotice(null);
-        }}
-        pages={chatPages}
-        context={chatContext}
-        onDetach={canDetachChat() ? detachChat : undefined}
-        notice={chatNotice}
-        onNavigate={(path) => {
-          // Close the drawer so the page the user asked for is visible; the
-          // conversation is kept for when they reopen it.
-          setChatOpen(false);
-          navigate(path);
-        }}
-      />
+      {chatMounted && (
+        <Suspense fallback={null}>
+          <ChatPanel
+            open={chatOpen && !chatDetached}
+            onClose={() => {
+              setChatOpen(false);
+              setChatNotice(null);
+            }}
+            pages={chatPages}
+            context={chatContext}
+            onDetach={canDetachChat() ? detachChat : undefined}
+            notice={chatNotice}
+            onNavigate={(path) => {
+              // Close the drawer so the page the user asked for is visible; the
+              // conversation is kept for when they reopen it.
+              setChatOpen(false);
+              navigate(path);
+            }}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

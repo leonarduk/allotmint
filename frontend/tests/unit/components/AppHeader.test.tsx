@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
@@ -16,7 +16,13 @@ vi.mock('@/components/InstrumentSearchBar', () => ({
 vi.mock('@/components/NotificationsDrawer', () => ({
   NotificationsDrawer: () => null,
 }));
-vi.mock('@/components/ChatPanel', () => ({ ChatPanel: () => null }));
+vi.mock('@/components/ChatPanel', () => ({
+  ChatPanel: ({ open, onClose }: { open: boolean; onClose: () => void }) => (
+    <div data-testid="chat-panel" data-open={String(open)}>
+      <button onClick={onClose}>close chat</button>
+    </div>
+  ),
+}));
 
 const config: ConfigContextValue = {
   configLoaded: true,
@@ -29,6 +35,16 @@ const config: ConfigContextValue = {
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
 };
+
+function renderHeader() {
+  return render(
+    <configContext.Provider value={config}>
+      <MemoryRouter>
+        <AppHeader />
+      </MemoryRouter>
+    </configContext.Provider>
+  );
+}
 
 describe('AppHeader', () => {
   // The global `button { padding: 0.6em 1.2em }` made each 1.5rem emoji
@@ -46,5 +62,31 @@ describe('AppHeader', () => {
       const button = screen.getByRole('button', { name: i18n.t(key) });
       expect(button.style.padding).toBe('0.25rem');
     }
+  });
+
+  // The chat drawer pulls in react-markdown/remark-gfm, so it is lazy-loaded
+  // on first open instead of shipping in the initial chunk (#7998).
+  it('does not mount the chat drawer until the chat is first opened', async () => {
+    renderHeader();
+    expect(screen.queryByTestId('chat-panel')).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: i18n.t('appHeader.chat') })
+    );
+    const panel = await screen.findByTestId('chat-panel');
+    expect(panel).toHaveAttribute('data-open', 'true');
+  });
+
+  it('keeps the chat drawer mounted (closed) after it is closed', async () => {
+    renderHeader();
+    fireEvent.click(
+      screen.getByRole('button', { name: i18n.t('appHeader.chat') })
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'close chat' }));
+
+    expect(screen.getByTestId('chat-panel')).toHaveAttribute(
+      'data-open',
+      'false'
+    );
   });
 });

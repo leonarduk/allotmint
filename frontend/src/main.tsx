@@ -41,7 +41,6 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import DisabledFeature from './components/DisabledFeature';
 import AppHeader from './components/AppHeader';
-import DetachedChat from './components/DetachedChat';
 import { CHAT_WINDOW_PATH } from './utils/chatWindow';
 import DemoReadOnlyBanner from './components/DemoReadOnlyBanner';
 import WorkspaceTabBar from './components/WorkspaceTabBar';
@@ -108,6 +107,9 @@ const PerformanceDiagnostics = lazy(
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
 const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'));
 const SmokeTest = lazy(() => import('./pages/SmokeTest'));
+// Lazy so the chat's react-markdown/remark-gfm stack stays out of the
+// initial chunk (#7998); AppHeader lazy-loads the drawer the same way.
+const DetachedChat = lazy(() => import('./components/DetachedChat'));
 const FAMILY_MVP_ROUTE_GATES: ReadonlyArray<{
   mode: Parameters<typeof isModeEnabled>[0];
   path: string;

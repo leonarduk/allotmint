@@ -574,6 +574,9 @@ def test_refresh_prices_uploads_existing_snapshot_to_s3_when_all_prices_null(
     assert put_calls[0]["Key"] == prices.PRICES_S3_KEY
     assert json.loads(put_calls[0]["Body"]) == seed
     assert put_calls[0]["ContentType"] == "application/json"
+    # A non-empty snapshot overwrites unconditionally; the "only if absent" write
+    # is for {} alone, or a good snapshot could never be replaced (#8933).
+    assert "IfNoneMatch" not in put_calls[0]
 
 
 def test_refresh_universe_finds_held_tickers_with_auth_enabled_only_as_system_job(

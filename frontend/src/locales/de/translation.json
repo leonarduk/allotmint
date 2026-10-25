@@ -3008,7 +3008,8 @@
     "unattributed": "Keiner Position zugeordnet",
     "unattributedHelp": "Dividendenzahlungen ohne Ticker, z. B. Überträge von einem Ertragskonto.",
     "noHistory": "Keine Dividenden erfasst",
-    "holdingsUnavailable": "Aktuelle Positionen konnten nicht geladen werden, daher fehlen Positionen ohne Dividenden."
+    "holdingsUnavailable": "Aktuelle Positionen konnten nicht geladen werden, daher fehlen Positionen ohne Dividenden.",
+    "skippedNoAmount": "Dividendenzeilen ohne Betrag, die in diesen Summen fehlen: {{count}}."
   },
   "dividendHistory": {
     "trendAria": "Dividendentrend",

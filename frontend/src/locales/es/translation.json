@@ -3008,7 +3008,8 @@
     "unattributed": "Sin posición asociada",
     "unattributedHelp": "Pagos de dividendos registrados sin ticker, p. ej. transferencias desde una cuenta de rentas.",
     "noHistory": "Sin dividendos registrados",
-    "holdingsUnavailable": "No se pudieron cargar las posiciones actuales, así que no se muestran las posiciones sin dividendos."
+    "holdingsUnavailable": "No se pudieron cargar las posiciones actuales, así que no se muestran las posiciones sin dividendos.",
+    "skippedNoAmount": "Filas de dividendos excluidas de estos totales por no tener importe: {{count}}."
   },
   "dividendHistory": {
     "trendAria": "Tendencia de dividendos",

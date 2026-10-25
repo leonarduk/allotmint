@@ -145,6 +145,13 @@ export default function Dividends() {
               </dd>
             </div>
           </dl>
+          {summary.skippedNoAmount > 0 && (
+            <p role="note" data-testid="dividends-skipped">
+              {t('dividends.skippedNoAmount', {
+                count: summary.skippedNoAmount,
+              })}
+            </p>
+          )}
 
           {summary.payments === 0 ? (
             <p>{t('dividends.empty')}</p>

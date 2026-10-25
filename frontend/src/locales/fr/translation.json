@@ -3008,7 +3008,8 @@
     "unattributed": "Non rattaché à une position",
     "unattributedHelp": "Versements de dividendes enregistrés sans ticker, par ex. transferts depuis un compte de revenus.",
     "noHistory": "Aucun dividende enregistré",
-    "holdingsUnavailable": "Les positions actuelles n’ont pas pu être chargées ; les positions sans dividendes ne sont donc pas listées."
+    "holdingsUnavailable": "Les positions actuelles n’ont pas pu être chargées ; les positions sans dividendes ne sont donc pas listées.",
+    "skippedNoAmount": "Lignes de dividendes exclues de ces totaux faute de montant : {{count}}."
   },
   "dividendHistory": {
     "trendAria": "Évolution des dividendes",

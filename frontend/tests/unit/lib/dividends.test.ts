@@ -133,6 +133,7 @@ describe('summariseDividends', () => {
       { period: 'year', now: NOW }
     );
     expect(summary.payments).toBe(1);
+    expect(summary.skippedNoAmount).toBe(1);
     expect(summary.trailing12m).toEqual({});
     expect(summary.periods).toEqual([
       { period: '', amounts: { GBP: 1 }, payments: 1 },

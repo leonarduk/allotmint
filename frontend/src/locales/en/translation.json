@@ -3001,7 +3001,8 @@
     "unattributed": "Not linked to a holding",
     "unattributedHelp": "Dividend payments recorded without a ticker, e.g. transfers from an income account.",
     "noHistory": "No dividends recorded",
-    "holdingsUnavailable": "Current holdings could not be loaded, so holdings without dividends are not listed."
+    "holdingsUnavailable": "Current holdings could not be loaded, so holdings without dividends are not listed.",
+    "skippedNoAmount": "Dividend rows left out of these totals because they have no amount: {{count}}."
   },
   "dividendHistory": {
     "trendAria": "Dividend trend",

@@ -3008,7 +3008,8 @@
     "unattributed": "Sem posição associada",
     "unattributedHelp": "Pagamentos de dividendos registados sem ticker, p. ex. transferências de uma conta de rendimentos.",
     "noHistory": "Sem dividendos registados",
-    "holdingsUnavailable": "Não foi possível carregar as posições atuais, por isso as posições sem dividendos não são listadas."
+    "holdingsUnavailable": "Não foi possível carregar as posições atuais, por isso as posições sem dividendos não são listadas.",
+    "skippedNoAmount": "Linhas de dividendos excluídas destes totais por não terem valor: {{count}}."
   },
   "dividendHistory": {
     "trendAria": "Tendência de dividendos",

@@ -3396,7 +3396,9 @@
       "bedPriced": "valorado {{date}}",
       "biggestCrops": "Mayores cultivos",
       "nothingToShow": "Aún no hay nada que mostrar.",
-      "fullRoster": "Ver la lista completa de cultivos →"
+      "fullRoster": "Ver la lista completa de cultivos →",
+      "seedStore": "Reserva de semillas",
+      "readyToSow": "{{amount}} en efectivo listo para sembrar"
     },
     "model": {
       "unnamedBed": "Bancal sin nombre",

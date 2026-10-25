@@ -432,6 +432,47 @@ describe('Plot mode hub', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows cash as ready-to-sow resource on the hub, not as a crop (#7201)', async () => {
+    const [isa] = portfolio.accounts;
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      total_value_estimate_gbp: 14_000,
+      accounts: [
+        {
+          ...isa,
+          value_estimate_gbp: 14_000,
+          holdings: [
+            ...isa.holdings,
+            {
+              ticker: 'CASH.GBP',
+              name: 'Cash (GBP)',
+              units: 4_000,
+              market_value_gbp: 4_000,
+              sector: '',
+              instrument_type: 'Cash',
+              is_stale: null,
+            },
+          ],
+        },
+      ],
+    });
+    renderPlot();
+
+    expect(
+      await screen.findByText('£4.0k cash ready to sow')
+    ).toBeInTheDocument();
+    // Cash still counts toward the plot value in the HUD...
+    expect(
+      within(screen.getByRole('banner')).getByText('£14.0k')
+    ).toBeInTheDocument();
+    // ...but not toward SUNLIGHT, the bed's crop count or the crop cards.
+    expect(
+      screen.getByText('1 fresh, 1 unknown of 2 crops')
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^2 crops/)).toBeInTheDocument();
+    expect(screen.queryByText('CASH.GBP')).toBeNull();
+  });
+
   it('omits the FEED meter rather than showing an empty one when the allowances fetch fails (#7195)', async () => {
     mocks.getAllowances.mockRejectedValue(
       Object.assign(new Error('HTTP 402 - Payment Required'), { status: 402 })

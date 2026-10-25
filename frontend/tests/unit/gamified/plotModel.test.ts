@@ -316,12 +316,13 @@ describe('buildPlotSnapshot', () => {
     expect(crops[0].lastPriceDate).toBeNull();
   });
 
-  it('is unknown, not stale, when is_stale is explicitly null (the live CASH.GBP shape) (#7186)', () => {
-    // The real backend sends `is_stale: null` for cash rows, not just
-    // `undefined` — `typeof null === 'object'`, so a naive simplification
-    // to `holding.is_stale !== undefined` would silently treat this as a
-    // *confirmed* stale price. It must land on 'unknown' like the
-    // undefined case above.
+  it('is unknown, not stale, when is_stale is explicitly null (#7186)', () => {
+    // The real backend sends `is_stale: null` (first seen on cash rows),
+    // not just `undefined` — `typeof null === 'object'`, so a naive
+    // simplification to `holding.is_stale !== undefined` would silently
+    // treat this as a *confirmed* stale price. It must land on 'unknown'
+    // like the undefined case above. Cash itself is no longer a crop
+    // (#7201), so a non-cash ticker carries the same shape here.
     const cashRow: Portfolio = {
       owner: 'alex',
       as_of: '2026-08-25',
@@ -336,8 +337,8 @@ describe('buildPlotSnapshot', () => {
           value_estimate_gbp: 100,
           holdings: [
             {
-              ticker: 'CASH.GBP',
-              name: 'Cash (GBP)',
+              ticker: 'MMF.L',
+              name: 'Money Market Fund',
               units: 100,
               market_value_gbp: 100,
               is_stale: null,
@@ -514,6 +515,76 @@ describe('buildPlotSnapshot', () => {
     expect(snapshot.plotValueGbp).toBe(0);
     expect(snapshot.grower.level).toBe(1);
     expect(snapshot.resources).toHaveLength(3);
+    expect(snapshot.cashGbp).toBe(0);
+  });
+
+  describe('cash (#7201)', () => {
+    const withCash: Portfolio = {
+      owner: 'alex',
+      as_of: '2026-08-25',
+      trades_this_month: 0,
+      trades_remaining: 5,
+      total_value_estimate_gbp: 1_500,
+      accounts: [
+        {
+          account_type: 'isa',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 1_200,
+          holdings: [
+            {
+              ticker: 'CASH.GBP',
+              name: 'Cash (GBP)',
+              units: 700,
+              market_value_gbp: 700,
+              sector: '',
+              instrument_type: 'Cash',
+              is_stale: null,
+            },
+            {
+              ticker: 'VWRL.L',
+              name: 'Vanguard FTSE All-World',
+              units: 5,
+              market_value_gbp: 500,
+              is_stale: false,
+            },
+          ],
+        },
+        {
+          account_type: 'sipp',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 300,
+          holdings: [
+            {
+              // Some deployments populate a sector on cash: instrument_type
+              // is what identifies it, not an empty sector.
+              ticker: 'GBP-SWEEP',
+              name: 'Sweep account',
+              units: 300,
+              market_value_gbp: 300,
+              sector: 'Cash',
+              instrument_type: 'cash',
+            },
+          ],
+        },
+      ],
+    };
+
+    it('holds cash back from the crops and totals it as ready-to-sow', () => {
+      const snapshot = buildPlotSnapshot({ portfolio: withCash });
+      expect(snapshot.crops.map((crop) => crop.ticker)).toEqual(['VWRL.L']);
+      expect(snapshot.cashGbp).toBe(1_000);
+      // Cash still counts toward the plot's total value.
+      expect(snapshot.plotValueGbp).toBe(1_500);
+    });
+
+    it('leaves cash out of bed crop counts and the SUNLIGHT denominator', () => {
+      const snapshot = buildPlotSnapshot({ portfolio: withCash });
+      expect(snapshot.beds.map((bed) => bed.cropCount)).toEqual([1, 0]);
+      const sun = snapshot.resources.find((resource) => resource.id === 'sun');
+      expect(sun).toMatchObject({ current: 1, max: 1, display: '1 / 1' });
+    });
   });
 
   it('threads an allowances fetch failure through to the HUD by omitting FEED (#7195)', () => {

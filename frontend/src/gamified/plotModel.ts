@@ -10,6 +10,7 @@
 
 import type { Account, Holding, Portfolio } from '../types';
 import { isCostBasisUnreliable } from '../lib/costBasis';
+import { isCashInstrument } from '../lib/instruments';
 import { pricingFreshness } from '../lib/pricingFreshness';
 import i18n from '../i18n';
 
@@ -370,6 +371,7 @@ export interface Bed {
   icon: string;
   owner: string | null;
   valueGbp: number;
+  /** Non-cash holdings only: cash is unplanted resource, not a crop (#7201). */
   cropCount: number;
   currency: string;
   lastUpdated: string | null;
@@ -385,10 +387,21 @@ export function bedFromAccount(account: Account, index: number): Bed {
     icon: bedIconFor(type),
     owner: account.owner ?? null,
     valueGbp: account.value_estimate_gbp ?? 0,
-    cropCount: account.holdings?.length ?? 0,
+    cropCount: (account.holdings ?? []).filter((holding) => !isCash(holding))
+      .length,
     currency: account.currency ?? 'GBP',
     lastUpdated: account.last_updated ?? null,
   };
+}
+
+/**
+ * Cash is the resource a grower plants with, not something planted (#7201).
+ * Uses the same helper as the classic PortfolioSummary so both skins agree
+ * on what counts as cash: `instrument_type` first, so a deployment that
+ * reports cash with a populated sector is still caught.
+ */
+function isCash(holding: Pick<Holding, 'instrument_type' | 'ticker'>): boolean {
+  return isCashInstrument(holding);
 }
 
 /**
@@ -605,7 +618,14 @@ export interface PlotSnapshot {
   totalGainGbp: number;
   dayChangeGbp: number;
   beds: Bed[];
+  /** Every non-cash holding; cash is held back in `cashGbp` (#7201). */
   crops: Crop[];
+  /**
+   * Cash across every bed — "ready to sow". Still part of `plotValueGbp`,
+   * but never a crop, so it stays out of stage counts, shares, the crop
+   * count milestone and the SUNLIGHT denominator.
+   */
+  cashGbp: number;
   resources: PlotResource[];
   grower: GrowerLevel;
   rank: string;
@@ -636,9 +656,14 @@ export function buildPlotSnapshot({
     beds.reduce((sum, bed) => sum + bed.valueGbp, 0);
 
   const crops: Crop[] = [];
+  let cashGbp = 0;
   accounts.forEach((account, bedIndex) => {
     const bed = beds[bedIndex];
     (account.holdings ?? []).forEach((holding, holdingIndex) => {
+      if (isCash(holding)) {
+        cashGbp += holding.market_value_gbp ?? 0;
+        return;
+      }
       crops.push(
         cropFromHolding(holding, bed, plotValue, bedIndex, holdingIndex)
       );
@@ -664,6 +689,7 @@ export function buildPlotSnapshot({
     dayChangeGbp,
     beds,
     crops,
+    cashGbp,
     resources: resourcesFromPlot(portfolio, crops, allowances, allowancesUnavailable),
     grower,
     rank: growerRank(grower.level),

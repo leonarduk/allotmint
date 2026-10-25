@@ -122,7 +122,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
     dailyTotals,
     today,
   } = usePlotData();
-  const { crops, beds, resources } = snapshot;
+  const { crops, beds, resources, cashGbp } = snapshot;
   const sunUnknownCount = crops.filter(
     (crop) => crop.freshness === 'unknown'
   ).length;
@@ -245,6 +245,21 @@ export default function PlotHub({ basePath }: { basePath: string }) {
             </div>
           );
         })}
+        {/* Cash is planting resource, not a crop (#7201): it is counted in
+            the plot value but shown here rather than as a "sown" seedling. */}
+        {cashGbp > 0 && (
+          <div className={styles.pill}>
+            <div className={styles.pillHead}>
+              <span>
+                <span aria-hidden="true">🧺</span> {t('plot.hub.seedStore')}
+              </span>
+              <span className={styles.pillValue}>{formatGbp(cashGbp)}</span>
+            </div>
+            <p className={styles.pillHint}>
+              {t('plot.hub.readyToSow', { amount: formatGbp(cashGbp) })}
+            </p>
+          </div>
+        )}
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>

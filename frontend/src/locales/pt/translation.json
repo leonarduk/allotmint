@@ -3396,7 +3396,9 @@
       "bedPriced": "avaliado {{date}}",
       "biggestCrops": "Maiores culturas",
       "nothingToShow": "Ainda nada para mostrar.",
-      "fullRoster": "Ver a lista completa de culturas →"
+      "fullRoster": "Ver a lista completa de culturas →",
+      "seedStore": "Reserva de sementes",
+      "readyToSow": "{{amount}} em dinheiro pronto para semear"
     },
     "model": {
       "unnamedBed": "Canteiro sem nome",

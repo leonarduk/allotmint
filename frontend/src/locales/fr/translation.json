@@ -3396,7 +3396,9 @@
       "bedPriced": "valorisé {{date}}",
       "biggestCrops": "Plus grosses cultures",
       "nothingToShow": "Rien à afficher pour l'instant.",
-      "fullRoster": "Voir la liste complète des cultures →"
+      "fullRoster": "Voir la liste complète des cultures →",
+      "seedStore": "Réserve de semences",
+      "readyToSow": "{{amount}} en espèces prêts à semer"
     },
     "model": {
       "unnamedBed": "Planche sans nom",

@@ -29,7 +29,11 @@ Nothing in Plot mode is invented; every figure traces back to an existing
 endpoint. The mapping lives in `frontend/src/gamified/plotModel.ts` and is
 unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
 
-- **Crop** — one card per `Holding` from `GET /portfolio/{owner}`.
+- **Crop** — one card per non-cash `Holding` from `GET /portfolio/{owner}`.
+- **Seed store** — cash holdings (`instrument_type` "Cash", the same
+  `isCashInstrument` rule the classic summary uses) are not crops: they are
+  summed into a "ready to sow" tile on the hub, still count toward plot
+  value, and stay out of crop counts, shares and the Sunlight meter.
 - **Bed** — one per `Account` in the same response; the account type gives
   the bed its name and icon.
 - **Growth stage** — from `gain_pct`: wilting ≤ −20%, sown ≤ 0%,

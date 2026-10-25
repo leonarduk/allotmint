@@ -3389,7 +3389,9 @@
       "bedPriced": "priced {{date}}",
       "biggestCrops": "Biggest crops",
       "nothingToShow": "Nothing to show yet.",
-      "fullRoster": "See the full roster →"
+      "fullRoster": "See the full roster →",
+      "seedStore": "Seed store",
+      "readyToSow": "{{amount}} cash ready to sow"
     },
     "model": {
       "unnamedBed": "Unnamed bed",

@@ -3396,7 +3396,9 @@
       "bedPriced": "valutato {{date}}",
       "biggestCrops": "Colture più grandi",
       "nothingToShow": "Ancora nulla da mostrare.",
-      "fullRoster": "Vedi l'elenco completo delle colture →"
+      "fullRoster": "Vedi l'elenco completo delle colture →",
+      "seedStore": "Scorta di semi",
+      "readyToSow": "{{amount}} in contanti pronti da seminare"
     },
     "model": {
       "unnamedBed": "Aiuola senza nome",

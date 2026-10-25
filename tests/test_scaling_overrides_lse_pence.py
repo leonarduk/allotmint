@@ -96,6 +96,29 @@ def test_data_root_sections_merge_case_insensitively(monkeypatch, tmp_path, gbp_
     assert merged == {"L": {"SGLN": 0.01, "BP": 0.01}}
 
 
+@pytest.mark.parametrize("bad_section", [None, 0.01, "pence"], ids=["null", "number", "string"])
+def test_non_dict_data_root_section_keeps_repo_section(monkeypatch, tmp_path, bad_section):
+    _point_at(monkeypatch, tmp_path, data_table={"L": bad_section}, repo_table={"L": {"BP": 0.01}})
+
+    merged, _sources = th._load_scaling_overrides()
+    assert merged == {"L": {"BP": 0.01}}
+
+
+@pytest.mark.parametrize("bad_factor", [None, "pence", [0.01]], ids=["null", "string", "list"])
+def test_non_numeric_data_root_factor_does_not_shadow_repo_entry(
+    monkeypatch, tmp_path, caplog, gbp_metadata, bad_factor
+):
+    """A broken live entry must not wipe the repo's factor for the same symbol (#9188)."""
+    _point_at(monkeypatch, tmp_path, data_table={"L": {"BP": bad_factor, "VOD": 0.01}}, repo_table={"L": {"BP": 0.01}})
+
+    with caplog.at_level("WARNING", logger=th.logger.name):
+        merged, _sources = th._load_scaling_overrides()
+
+    assert merged == {"L": {"BP": 0.01, "VOD": 0.01}}
+    assert th.get_scaling_override("BP.L", "L", None) == pytest.approx(0.01)
+    assert "non-numeric scaling override L/BP" in caplog.text
+
+
 def test_only_data_root_table_present(monkeypatch, tmp_path, gbp_metadata):
     data_file, _repo_file = _point_at(monkeypatch, tmp_path, data_table={"L": {"BP": 0.01}})
 

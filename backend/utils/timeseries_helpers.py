@@ -166,8 +166,32 @@ def _load_scaling_overrides() -> tuple[dict, list[Path]]:
         for ex_key, section in table.items():
             if not isinstance(section, dict):
                 continue
-            merged.setdefault(str(ex_key).upper(), {}).update(section)
+            merged.setdefault(str(ex_key).upper(), {}).update(_numeric_override_entries(section, path, ex_key))
     return merged, sources
+
+
+def _numeric_override_entries(section: dict, path: Path, ex_key: object) -> dict:
+    """``section`` without entries whose factor is not a number.
+
+    A ``null`` or non-numeric factor in a later table (e.g. ``{"L": {"BP":
+    null}}`` in ``DATA_ROOT``) would otherwise replace the valid entry for the
+    same symbol from an earlier table, silently losing it (#9188). Such
+    entries are dropped with a warning so the earlier value survives.
+    """
+    kept: dict = {}
+    for symbol, factor in section.items():
+        try:
+            float(factor)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Ignoring non-numeric scaling override %s/%s in %s",
+                sanitise_log_value(str(ex_key)),
+                sanitise_log_value(str(symbol)),
+                sanitise_log_value(str(path)),
+            )
+            continue
+        kept[symbol] = factor
+    return kept
 
 
 def _infer_override_exchange(ticker: str, base: str, overrides: dict) -> str:

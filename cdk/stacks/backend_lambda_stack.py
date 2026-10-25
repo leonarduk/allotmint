@@ -1735,19 +1735,20 @@ class BackendLambdaStack(Stack):
             file="backend/Dockerfile.lambda",
             cmd=["backend.lambda_api.plan_brief.lambda_handler"],
         )
+        # New outbound email is opt-in: `-c plan_brief_send_email=true`
+        # emails each owner their brief; briefs are saved either way.
+        plan_brief_send_email = str(
+            self.node.try_get_context("plan_brief_send_email")
+            if self.node.try_get_context("plan_brief_send_email") is not None
+            else os.getenv("PLAN_BRIEF_SEND_EMAIL", "false")
+        ).lower()
         plan_brief_env = {
             "APP_ENV": env,
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
             "PLAN_BRIEFS_URI": f"s3://{bucket_name}/{PLAN_BRIEFS_PREFIX}",
-            # New outbound email is opt-in: `-c plan_brief_send_email=true`
-            # emails each owner their brief; briefs are saved either way.
-            "PLAN_BRIEF_SEND_EMAIL": str(
-                self.node.try_get_context("plan_brief_send_email")
-                if self.node.try_get_context("plan_brief_send_email") is not None
-                else os.getenv("PLAN_BRIEF_SEND_EMAIL", "false")
-            ).lower(),
+            "PLAN_BRIEF_SEND_EMAIL": plan_brief_send_email,
             # Same backend.auth import-time SECRET_KEY check as pension_report.
             "JWT_SECRET": jwt_secret,
         }
@@ -1788,12 +1789,16 @@ class BackendLambdaStack(Stack):
         # Alerts history (#10831): lambda_api/plan_brief.py:_run calls
         # common/alerts.py:publish_sns_alert when it fails to start or for any owner.
         self._grant_alerts_history_write(plan_brief_fn, bucket=data_bucket)
-        plan_brief_fn.add_to_role_policy(
-            iam.PolicyStatement(
-                actions=["ses:SendEmail"],
-                resources=ses_send_email_resources,
+        # Only a deploy that turns email on may send it (#10548). Same truthy
+        # set as backend/lambda_api/plan_brief.py:_send_email, which reads the
+        # PLAN_BRIEF_SEND_EMAIL value set above.
+        if plan_brief_send_email.strip() in {"1", "true", "yes"}:
+            plan_brief_fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["ses:SendEmail"],
+                    resources=ses_send_email_resources,
+                )
             )
-        )
         # Optional recipient list (backend/lambda_api/plan_brief.py
         # _DEFAULT_RECIPIENTS_URI). Without this read the parameter could never
         # be honoured and every owner would be briefed; a missing parameter

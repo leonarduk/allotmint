@@ -1576,6 +1576,9 @@ def test_plan_brief_email_is_a_context_switch(monkeypatch, context, expected) ->
         if resource.get("Type") == "AWS::Lambda::Function" and "PlanBriefLambda" in logical_id
     ]
     assert env["PLAN_BRIEF_SEND_EMAIL"] == expected
+    # The SES grant follows the same switch, so a send-disabled deploy cannot email (#10548).
+    role = _role_logical_id_for_lambda(template, "PlanBriefLambda")
+    assert bool(_resources_for_s3_action(template, role, "ses:SendEmail")) is (expected == "true")
 
 
 def test_backend_lambda_gets_the_deploy_app_version(monkeypatch) -> None:

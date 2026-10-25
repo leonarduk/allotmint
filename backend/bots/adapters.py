@@ -226,11 +226,13 @@ for _bot in (TradingAgentBot(), PriceRefreshBot(), DividendRefreshBot(), Pension
     register_bot(_bot, replace=True)
 
 # Agents that live in their own packages.
+from backend.allowance_guardian.bot import AllowanceGuardianBot  # noqa: E402
 from backend.cash_deployment.bot import CashDeploymentBot  # noqa: E402
 from backend.trend_watch.bot import TrendWatchBot  # noqa: E402
 
 register_bot(TrendWatchBot(), replace=True)
 register_bot(CashDeploymentBot(), replace=True)
+register_bot(AllowanceGuardianBot(), replace=True)
 
 # Agents that register themselves from their own module (see the module docstring).
 import backend.data_steward.bot  # noqa: E402,F401  (registers the data steward, #10471)

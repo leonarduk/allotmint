@@ -8,7 +8,7 @@ import pytest
 
 from backend.common import holding_utils, portfolio_utils
 from backend.common import instrument_api as ia
-from backend.common.holdings_rebuild import rebuild_holdings_document, transaction_cost_hints
+from backend.common.holdings_rebuild import name_aliases, rebuild_holdings_document, transaction_cost_hints
 from backend.common.portfolio import fill_missing_costs
 from backend.common.ticker_utils import canonical_ticker, split_ticker
 from backend.utils import update_holdings_from_csv
@@ -108,6 +108,19 @@ def test_padded_and_suffixed_transactions_share_one_pool():
     hints = transaction_cost_hints(txs)
     assert list(hints) == ["BP.L"]
     assert hints["BP.L"] == (842.0 * 3.5 + 8.0 * 4.0, None)
+
+
+def test_ticker_less_trade_joins_the_padded_epic_pool_by_name():
+    """A trade with only a name joins the canonical pool its name maps to (#8674)."""
+    txs = [
+        {"date": "2025-05-09", "ticker": "BP.", "name": "BP plc", "type": "BUY", "units": 10.0, "price_gbp": 3.5},
+        {"date": "2025-06-01", "name": "BP plc", "type": "BUY", "units": 5.0, "price_gbp": 4.0},
+    ]
+
+    assert name_aliases(txs) == {"BP PLC": "BP.L"}
+    hints = transaction_cost_hints(txs)
+    assert list(hints) == ["BP.L"]
+    assert hints["BP.L"] == (10.0 * 3.5 + 5.0 * 4.0, None)
 
 
 def test_rebuild_does_not_duplicate_a_padded_epic_holding():

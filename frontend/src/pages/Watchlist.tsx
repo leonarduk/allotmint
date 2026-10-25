@@ -130,10 +130,12 @@ function symbolUnit(
 // InstrumentResearch (#7218).
 const INSTRUMENT_ROUTE_PREFIX = "/research/";
 
-// InstrumentResearch only accepts tickers matching this shape -- indices
-// (^FTSE) and FX pairs (EURGBP=X) fail it and have no research page. Reuse
-// the same rule here so a watchlist row only links through when the symbol
-// actually resolves to a known instrument (#7218).
+// InstrumentResearch only accepts tickers matching this shape (the same
+// regex guards `tkr` in pages/InstrumentResearch.tsx) -- indices (^FTSE), FX
+// pairs (EURGBP=X) and commodity futures (GC=F) fail it and have no research
+// page, while crypto pairs such as BTC-USD pass. Reuse the same rule here so
+// a watchlist row only links through when the research page will accept the
+// symbol (#7218, #7330).
 function isLinkableSymbol(symbol: string): boolean {
   return /^[A-Za-z0-9.-]{1,10}$/.test(symbol);
 }

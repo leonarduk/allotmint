@@ -702,6 +702,32 @@ describe("Watchlist page", () => {
       expect(row.querySelectorAll("a").length).toBe(0);
     });
 
+    // #7330: isLinkableSymbol must accept exactly what InstrumentResearch
+    // accepts (/^[A-Za-z0-9.-]{1,10}$/, InstrumentResearch.tsx), so a row
+    // never links to a research page that rejects its ticker.
+    it.each([
+      ["GC=F", false],
+      ["^FTSE", false],
+      ["BTC-USD", true],
+      ["VUSA.L", true],
+    ])("links %s to its research page: %s (#7330)", async (symbol, linked) => {
+      const row: QuoteRow = { ...sampleRows[0], name: symbol, symbol };
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([row]);
+      localStorage.setItem("watchlistSymbols", symbol);
+
+      renderWatchlist();
+
+      const links = (await findRow(symbol)).querySelectorAll("a");
+      if (!linked) {
+        expect(links.length).toBe(0);
+        return;
+      }
+      expect(links.length).toBeGreaterThan(0);
+      links.forEach((a) => {
+        expect(a.getAttribute("href")).toBe(`/research/${symbol}`);
+      });
+    });
+
     it("keeps toFixed precision sign-independent for crypto Chg (regression)", async () => {
       // pricePrecision's sub-$1 crypto clause used to be evaluated against
       // whatever value was currently being formatted. Fed the *change*

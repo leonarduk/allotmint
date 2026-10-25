@@ -22,9 +22,6 @@ import type {
 } from "../types";
 import {
   getGroupPortfolio,
-  getGroupAlphaVsBenchmark,
-  getGroupTrackingError,
-  getGroupMaxDrawdown,
   getGroupSectorContributions,
   getGroupRegionContributions,
   getGroupInstruments,
@@ -34,6 +31,10 @@ import * as api from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { useLiveQuotes } from "../hooks/useLiveQuotes";
 import { useInstrumentSelection } from "../hooks/useInstrumentSelection";
+import {
+  GROUP_BENCHMARK_METRIC_LABEL_KEYS,
+  useGroupBenchmarkMetrics,
+} from "../hooks/useGroupBenchmarkMetrics";
 import { applyLiveQuotes } from "../lib/liveValuation";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
@@ -106,19 +107,11 @@ const PIE_COLORS = [
 
 const INLINE_PIE_LABEL_MIN_WIDTH = 640;
 
-// Both of these back data that changes at most once a day (a 365-day
-// benchmark window; hand-edited grouping config), so a five-minute window is
-// generous rather than risky -- and both are still refreshed on expiry
-// behind whatever is already rendered.
-const BENCHMARK_METRICS_TTL_MS = 5 * 60_000;
+// Backs hand-edited grouping config that changes at most once a day, so a
+// five-minute window is generous rather than risky -- and it is still
+// refreshed on expiry behind whatever is already rendered.
 const GROUPING_DEFINITIONS_TTL_MS = 5 * 60_000;
 const GROUPING_DEFINITIONS_CACHE_KEY = "instrument-grouping-definitions";
-
-type GroupBenchmarkMetrics = {
-  alpha: number | null;
-  trackingError: number | null;
-  maxDrawdown: number | null;
-};
 
 const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
 // Warn when a single holding represents more than this share of the full portfolio.
@@ -441,10 +434,12 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     !!slug,
     { cacheKey: activeOwner ? `all-in-cost:owner:${activeOwner}` : `all-in-cost:group:${slug}` },
   );
-  const [alpha, setAlpha] = useState<number | null>(null);
-  const [trackingError, setTrackingError] = useState<number | null>(null);
-  const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
-  const [error, setError] = useState<Error | null>(null);
+  const {
+    metrics: { alpha, trackingError, maxDrawdown },
+    failedMetrics,
+    retrying: retryingMetrics,
+    retryFailedMetrics,
+  } = useGroupBenchmarkMetrics(slug, enableAdvancedAnalytics);
   const [contribTab, setContribTab] = useState<"sector" | "region">("sector");
   const [instrumentRows, setInstrumentRows] = useState<InstrumentSummary[] | null>(null);
   const [instrumentLoading, setInstrumentLoading] = useState(false);
@@ -702,76 +697,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       preloadInstrumentHistory(unique, 30).catch(() => {});
     }
   }, [portfolio]);
-
-  // Three 365-day benchmark computations that can only change once a day, yet
-  // were re-run on every mount. Cached together under one key because they are
-  // fetched and consumed as a set.
-  const benchmarkMetricsCacheKey = `group-benchmark-metrics:${slug}`;
-
-  // Effects run after the commit, so switching group would otherwise leave the
-  // previous group's alpha/tracking error/drawdown rendered under the new
-  // group's heading for a frame. Swap them during render instead, the same way
-  // `useFetch` swaps on a cache-key change.
-  const [trackedMetricsKey, setTrackedMetricsKey] = useState(benchmarkMetricsCacheKey);
-  if (trackedMetricsKey !== benchmarkMetricsCacheKey) {
-    setTrackedMetricsKey(benchmarkMetricsCacheKey);
-    const nextCached = readFetchCache<GroupBenchmarkMetrics>(benchmarkMetricsCacheKey);
-    setAlpha(nextCached?.value.alpha ?? null);
-    setTrackingError(nextCached?.value.trackingError ?? null);
-    setMaxDrawdown(nextCached?.value.maxDrawdown ?? null);
-  }
-
-  useEffect(() => {
-    if (!slug || !enableAdvancedAnalytics) return;
-    let cancelled = false;
-    setError(null);
-
-    const applyMetrics = (metrics: GroupBenchmarkMetrics) => {
-      setAlpha(metrics.alpha);
-      setTrackingError(metrics.trackingError);
-      setMaxDrawdown(metrics.maxDrawdown);
-    };
-
-    const cacheKey = benchmarkMetricsCacheKey;
-    const cached = readFetchCache<GroupBenchmarkMetrics>(cacheKey);
-    if (cached) {
-      applyMetrics(cached.value);
-      if (isFresh(cached, BENCHMARK_METRICS_TTL_MS)) return;
-    }
-
-    // These three are all valid for group scope: the backend computes alpha
-    // and tracking error from the combined group portfolio series (see
-    // getGroupAlphaVsBenchmark / getGroupTrackingError in api.ts), not by
-    // averaging per-owner values, so they are meaningful aggregates here.
-    runDeduped(cacheKey, () =>
-      Promise.all([
-        getGroupAlphaVsBenchmark(slug, "VWRL.L"),
-        getGroupTrackingError(slug, "VWRL.L"),
-        getGroupMaxDrawdown(slug),
-      ]).then(([a, te, md]) => ({
-        alpha: a.alpha_vs_benchmark,
-        trackingError: te.tracking_error,
-        maxDrawdown: md.max_drawdown,
-      })),
-    )
-      .then((metrics) => {
-        if (!cancelled) applyMetrics(metrics);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        // A failed background refresh of values already on screen must not
-        // replace them with an error, for the same reason `useFetch` stays
-        // quiet in that case.
-        if (cached) {
-          console.warn("Background refresh of benchmark metrics failed", e);
-          return;
-        }
-        setError(e instanceof Error ? e : new Error(String(e)));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [slug, enableAdvancedAnalytics, benchmarkMetricsCacheKey]);
 
   useEffect(() => {
     if (onTradeInfo) {
@@ -1374,9 +1299,32 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {!portfolioLoading && isAllPositions && enableAdvancedAnalytics && error && (
-        <p style={{ color: "red" }}>
-          {t("common.error")}: {error.message}
+      {!portfolioLoading && isAllPositions && enableAdvancedAnalytics && failedMetrics.length > 0 && (
+        <p
+          data-testid="group-metrics-unavailable-warning"
+          style={{ fontSize: "0.85rem", color: "#facc15", marginBottom: "0.75rem" }}
+        >
+          {t("dashboard.performanceMetricsUnavailable", {
+            metrics: failedMetrics.map((key) => t(GROUP_BENCHMARK_METRIC_LABEL_KEYS[key])).join(", "),
+          })}{" "}
+          <button
+            type="button"
+            onClick={retryFailedMetrics}
+            disabled={retryingMetrics}
+            aria-busy={retryingMetrics}
+            data-testid="group-metrics-retry"
+            style={{
+              fontSize: "0.85rem",
+              color: "#60a5fa",
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: retryingMetrics ? "progress" : "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            {t("common.retry")}
+          </button>
         </p>
       )}
 

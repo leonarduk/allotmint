@@ -101,6 +101,52 @@ describe('InfoTip', () => {
     ).not.toThrow();
   });
 
+  describe('viewport-aware placement (#7364)', () => {
+    // setupTests stubs every element's offsetHeight to 600px, so the popover
+    // "measures" 600px tall here: 1000px of room fits it, 20px does not.
+    function renderWithTriggerTop(top: number) {
+      const { container } = render(
+        <InfoTip label="What does RSI mean?">RSI measures momentum.</InfoTip>
+      );
+      const root = container.firstElementChild as HTMLElement;
+      root.getBoundingClientRect = () =>
+        ({
+          top,
+          bottom: top + 18,
+          left: 0,
+          right: 18,
+          width: 18,
+          height: 18,
+        }) as DOMRect;
+      return screen.getByRole('button', { name: 'What does RSI mean?' });
+    }
+
+    it('shows the popover above the trigger when there is room above', () => {
+      fireEvent.click(renderWithTriggerTop(1000));
+      expect(screen.getByRole('tooltip')).toHaveAttribute(
+        'data-placement',
+        'above'
+      );
+    });
+
+    it('flips the popover below the trigger near the top of the viewport', () => {
+      fireEvent.click(renderWithTriggerTop(20));
+      expect(screen.getByRole('tooltip')).toHaveAttribute(
+        'data-placement',
+        'below'
+      );
+    });
+
+    it('re-measures on hover, which shows the popover without a click', () => {
+      const button = renderWithTriggerTop(20);
+      fireEvent.mouseEnter(button.parentElement as HTMLElement);
+      expect(screen.getByRole('tooltip', { hidden: true })).toHaveAttribute(
+        'data-placement',
+        'below'
+      );
+    });
+  });
+
   it('has no accessibility violations', async () => {
     const { container } = render(
       <InfoTip label="What does RSI mean?" to="/metrics-explained#rsi">

@@ -17,6 +17,31 @@ interface InfoTipProps {
   to?: string;
 }
 
+type Placement = 'above' | 'below';
+
+/** Gap between trigger and popover; mirrors `0.45rem` in InfoTip.module.css. */
+const POPOVER_GAP_PX = 8;
+/**
+ * Height assumed for a popover that is not laid out yet (it is
+ * `display: none` while closed, so it measures 0). Roughly a three-line
+ * explanation plus a "Learn more" link.
+ */
+const ESTIMATED_POPOVER_HEIGHT_PX = 120;
+
+/**
+ * Prefer showing the popover above the trigger, but flip it below when there
+ * is not enough room above (e.g. an InfoTip in a table header at the top of
+ * the viewport), so it is never clipped off-screen (#7364).
+ */
+function choosePlacement(
+  trigger: HTMLElement,
+  popover: HTMLElement | null
+): Placement {
+  const popoverHeight = popover?.offsetHeight || ESTIMATED_POPOVER_HEIGHT_PX;
+  const spaceAbove = trigger.getBoundingClientRect().top;
+  return spaceAbove >= popoverHeight + POPOVER_GAP_PX ? 'above' : 'below';
+}
+
 /**
  * A small "what does this mean?" affordance for jargon-heavy labels across
  * the app (see #7006 for its original home in the Plot HUD, #7230 for its
@@ -27,8 +52,10 @@ interface InfoTipProps {
  */
 export default function InfoTip({ label, children, to }: InfoTipProps) {
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<Placement>('above');
   const popoverId = useId();
   const rootRef = useRef<HTMLSpanElement>(null);
+  const popoverRef = useRef<HTMLSpanElement>(null);
   const { t } = useTranslation();
   const inRouterContext = useInRouterContext();
 
@@ -55,8 +82,20 @@ export default function InfoTip({ label, children, to }: InfoTipProps) {
     };
   }, [open]);
 
+  // Re-measured on every way the popover can appear: hover and focus (both
+  // shown via CSS) and click (shown via the `open` state).
+  function updatePlacement() {
+    if (!rootRef.current) return;
+    setPlacement(choosePlacement(rootRef.current, popoverRef.current));
+  }
+
   return (
-    <span className={styles.infoTip} ref={rootRef}>
+    <span
+      className={styles.infoTip}
+      ref={rootRef}
+      onMouseEnter={updatePlacement}
+      onFocus={updatePlacement}
+    >
       <button
         type="button"
         className={styles.infoTipButton}
@@ -67,6 +106,7 @@ export default function InfoTip({ label, children, to }: InfoTipProps) {
           // Info tips are frequently nested inside clickable rows/headers
           // (e.g. a sortable table header); stop the click reaching them.
           event.stopPropagation();
+          updatePlacement();
           setOpen((current) => !current);
         }}
       >
@@ -75,6 +115,8 @@ export default function InfoTip({ label, children, to }: InfoTipProps) {
       <span
         role="tooltip"
         id={popoverId}
+        ref={popoverRef}
+        data-placement={placement}
         className={`${styles.infoTipPopover} ${
           open ? styles.infoTipPopoverOpen : ''
         }`}

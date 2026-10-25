@@ -73,6 +73,11 @@
   transition: opacity 0.12s ease, display 0.12s allow-discrete;
 }
 
+.infoTipPopover[data-placement='below'] {
+  top: calc(100% + 0.45rem);
+  bottom: auto;
+}
+
 .infoTip:hover .infoTipPopover,
 .infoTip:focus-within .infoTipPopover,
 .infoTipPopoverOpen {

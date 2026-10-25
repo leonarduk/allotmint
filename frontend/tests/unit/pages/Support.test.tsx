@@ -16,6 +16,12 @@ const mockGetMcpTools = vi.hoisted(() => vi.fn());
 const mockGetAppUpdateStatus = vi.hoisted(() => vi.fn());
 const mockGetMcpServerStatus = vi.hoisted(() => vi.fn());
 const mockGetDataSyncStatus = vi.hoisted(() => vi.fn());
+const mockClearFetchCache = vi.hoisted(() => vi.fn());
+
+vi.mock("@/utils/fetchCache", async () => {
+  const actual = await vi.importActual<typeof import("@/utils/fetchCache")>("@/utils/fetchCache");
+  return { ...actual, clearFetchCache: mockClearFetchCache };
+});
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -816,6 +822,37 @@ describe("Support page", () => {
     expect(
       await screen.findByRole("button", { name: en.app.refreshPrices }),
     ).toBeInTheDocument();
+  });
+
+  it("clears the fetch cache after a successful price refresh (#7679)", async () => {
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    expect(mockClearFetchCache).not.toHaveBeenCalled();
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    expect(
+      await screen.findByRole("button", { name: en.app.refreshPrices }),
+    ).toBeInTheDocument();
+    expect(mockRefreshPrices).toHaveBeenCalledTimes(1);
+    expect(mockClearFetchCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the fetch cache when the price refresh fails", async () => {
+    mockRefreshPrices.mockRejectedValue(new Error("refresh failed"));
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    expect(await screen.findByText(/refresh failed/)).toBeInTheDocument();
+    expect(mockClearFetchCache).not.toHaveBeenCalled();
   });
 
   it("falls back to the static refreshing label when progress polling fails", async () => {

@@ -53,6 +53,7 @@ import {
   type ColumnVisibility,
 } from "../lib/holdingsColumns";
 import { getVirtualSpacerHeights } from "./instrumentTable/virtualPadding";
+import { HoldingSleeveCell, type SleeveControl } from "./HoldingSleeveCell";
 import {
   buildCategoryLookup,
   calculateGroupTotals,
@@ -134,6 +135,8 @@ type Props = {
   categoryDefinitions?: InstrumentGroupDefinition[];
   /** Intraday quotes keyed by upper-cased ticker; overlays the price column. */
   liveQuotes?: Record<string, LiveQuote>;
+  /** One owner's sleeves: adds a sleeve picker column to flat, per-lot rows (#9839). */
+  sleeveControl?: SleeveControl;
 };
 
 const NO_LIVE_QUOTES: Record<string, LiveQuote> = {};
@@ -181,6 +184,7 @@ export function HoldingsTable({
   groupingMode = "flat",
   categoryDefinitions = [],
   liveQuotes = NO_LIVE_QUOTES,
+  sleeveControl,
 }: Props) {
   // RollupRow is the adapter's deliberately presentation-neutral shape. Its
   // nullable lot-only fields are rendered the same way as absent Holding fields.
@@ -228,7 +232,9 @@ export function HoldingsTable({
   const activeColumnPreset = matchingPreset(visibleColumns);
   const show = (key: ColumnKey) =>
     visibleColumns[key] && !(relativeViewEnabled && RELATIVE_VIEW_HIDDEN.has(key));
-  const trailingColumnCount = TRAILING_COLUMNS.filter(show).length;
+  // Tags are per ticker, so only flat per-lot rows get the picker (never rollup or grouped rows).
+  const sleeves = !rollupMode && groupingMode === "flat" ? sleeveControl : undefined;
+  const trailingColumnCount = TRAILING_COLUMNS.filter(show).length + (sleeves ? 1 : 0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -636,6 +642,7 @@ export function HoldingsTable({
     (showAccount ? 1 : 0) +
     (showForward7d ? 1 : 0) +
     (showForward30d ? 1 : 0) +
+    (sleeves ? 1 : 0) +
     (Object.keys(visibleColumns) as ColumnKey[]).filter(show).length;
   // Ticker + name (+ sector) share the label cell in group and total rows.
   const labelColSpan = ALWAYS_VISIBLE_COLUMN_COUNT + (show("sector") ? 1 : 0);
@@ -1052,6 +1059,7 @@ export function HoldingsTable({
             {show("eligible") && (
               <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.eligible")}</th>
             )}
+            {sleeves && <th className={tableStyles.cell}>{t("sleeves.assign.col.sleeve")}</th>}
           </tr>
         </thead>
 
@@ -1374,6 +1382,7 @@ export function HoldingsTable({
                     )}
                   </td>
                 )}
+                {sleeves && <HoldingSleeveCell control={sleeves} ticker={h.ticker} />}
               </tr>
             );
             if (!group) return holdingRow;

@@ -94,6 +94,7 @@ import { PricingAsOf } from "./PricingAsOf";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
 import { useViewportWidth } from "../hooks/useViewportWidth";
+import { useOwnerSleeveControl } from "../hooks/useOwnerSleeveControl";
 
 const PIE_COLORS = [
   "#8884d8",
@@ -375,6 +376,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const [instrumentRefreshVersion, setInstrumentRefreshVersion] = useState(0);
   const activeOwner: string | null = routeScope.owner || null;
   const activeAccountType: string | null = routeScope.account || null;
+  // Per-owner tags only: a group view never offers one tag for a ticker several owners hold (#9839).
+  const sleeveControl = useOwnerSleeveControl(activeOwner);
 
   const fetchPortfolio = useCallback(
     () => getGroupPortfolio(slug, { asOf: asOfOverride ?? undefined }),
@@ -1780,6 +1783,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             onSelectInstrument={selectInstrument}
             selectedTicker={selectedInstrument?.ticker}
             liveQuotes={liveQuotes}
+            sleeveControl={displayMode === "flat" ? sleeveControl : undefined}
           />
           {displayMode !== "flat" && instrumentLoading && !instrumentRows && (
             <p style={{ marginTop: "0.5rem" }}>

@@ -1694,6 +1694,7 @@
     "tickers": "Ticker",
     "title": "Screener",
     "unavailableBody": "Questa distribuzione non include lo screener sui fondamentali, quindi qui non è possibile filtrare in base ai rapporti finanziari.",
+    "temporarilyUnavailable": "Lo screener è temporaneamente non disponibile. Riprova.",
     "watchlist": "Watchlist:",
     "watchlistLabel": "Watchlist",
     "custom": "Personalizzata",

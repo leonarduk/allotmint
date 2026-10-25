@@ -23,7 +23,7 @@ function savedSelect() {
 describe('Screener saved screens', () => {
   beforeEach(() => {
     localStorage.clear();
-    mockCheckScreenerAvailable.mockResolvedValue(true);
+    mockCheckScreenerAvailable.mockResolvedValue("available");
   });
   afterEach(() => {
     vi.restoreAllMocks();

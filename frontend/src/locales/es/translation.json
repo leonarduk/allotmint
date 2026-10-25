@@ -1694,6 +1694,7 @@
     "tickers": "Tickers",
     "title": "Screener",
     "unavailableBody": "Este despliegue no incluye el screener de fundamentales, por lo que aquí no es posible filtrar por ratios financieros.",
+    "temporarilyUnavailable": "El screener no está disponible temporalmente. Inténtalo de nuevo.",
     "watchlist": "Lista de seguimiento:",
     "watchlistLabel": "Lista de seguimiento",
     "custom": "Personalizada",

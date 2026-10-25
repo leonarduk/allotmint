@@ -1575,24 +1575,43 @@ export const getScreenerRiskReturn = (
 };
 
 /**
+ * Outcome of the screener capability probe. `temporarily-unavailable` means
+ * the probe could not tell either way (network failure, timeout, 5xx, or any
+ * other unexpected status) -- distinct from `unavailable`, which is the
+ * definitive 402 "not in this deployment" answer (#7349).
+ */
+export type ScreenerAvailability =
+  | "available"
+  | "unavailable"
+  | "temporarily-unavailable";
+
+/**
  * Cheap up-front probe for whether the screener is available in this
  * deployment (i.e. the paid screener package is installed), without running
  * a real screen. The backend rejects an unavailable screener with HTTP 402
  * before it even validates the ticker list (see require_core() in
  * backend/routes/screener.py), so probing with an empty ticker list is
  * enough to tell the two cases apart: a 402 means the feature is gated,
- * anything else -- including the 400 "no tickers supplied" the backend
- * returns when the feature *is* available -- means it can be used. Used to
- * gate the screener UI before the user fills in any filters (#7221).
+ * while a 2xx or the 400 "no tickers supplied" the backend returns when the
+ * feature *is* available means it can be used. Anything else -- no status
+ * at all (network error, timeout), a 5xx, or another 4xx such as 401/403/429
+ * -- means the probe never reached that check, so the answer is unknown and
+ * reported as `temporarily-unavailable` rather than optimistically
+ * `available` (#7349). A 401 additionally triggers the app-wide sign-out via
+ * UNAUTHORIZED_EVENT, so the page state there is moot. Used to gate the
+ * screener UI before the user fills in any filters (#7221).
  */
 export const checkScreenerAvailable = async (
   signal?: AbortSignal,
-): Promise<boolean> => {
+): Promise<ScreenerAvailability> => {
   try {
     await getScreener([], {}, signal);
-    return true;
+    return "available";
   } catch (e) {
-    return (e as { status?: number } | undefined)?.status !== 402;
+    const status = (e as { status?: number } | undefined)?.status;
+    if (status === 400) return "available";
+    if (status === 402) return "unavailable";
+    return "temporarily-unavailable";
   }
 };
 

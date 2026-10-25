@@ -46,7 +46,7 @@ describe("Screener", () => {
     // Default every test to an available screener unless a test overrides
     // this -- the gate probe (#7221) must not affect existing form-render
     // and submit tests.
-    mockCheckScreenerAvailable.mockResolvedValue(true);
+    mockCheckScreenerAvailable.mockResolvedValue("available");
     // Risk/return columns stay hidden unless a test opts in (#10607).
     mockGetScreenerRiskReturn.mockRejectedValue(
       Object.assign(new Error("Risk/return screen is not available"), { status: 402 }),
@@ -81,7 +81,7 @@ describe("Screener", () => {
   });
 
   it("hides the filter form and shows an honest message when the screener is gated (#7221)", async () => {
-    mockCheckScreenerAvailable.mockResolvedValue(false);
+    mockCheckScreenerAvailable.mockResolvedValue("unavailable");
 
     renderScreener();
 
@@ -98,7 +98,7 @@ describe("Screener", () => {
     // Mocks are not reset between tests, so clear call history here rather
     // than relying on no earlier test having submitted the form.
     mockGetScreener.mockClear();
-    mockCheckScreenerAvailable.mockResolvedValue(false);
+    mockCheckScreenerAvailable.mockResolvedValue("unavailable");
 
     renderScreener();
 
@@ -131,6 +131,37 @@ describe("Screener", () => {
     renderScreener();
 
     expect(await screen.findByLabelText("Watchlist")).toBeInTheDocument();
+  });
+
+  it("shows a temporarily-unavailable message, not the form, when the probe can't decide (#7349)", async () => {
+    mockCheckScreenerAvailable.mockResolvedValue("temporarily-unavailable");
+
+    renderScreener();
+
+    expect(
+      await screen.findByText(/temporarily unavailable/i),
+    ).toBeInTheDocument();
+    // Must read differently from the permanent 402 gate copy.
+    expect(
+      screen.queryByText(/doesn't include the fundamentals screener/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Watchlist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /run/i })).not.toBeInTheDocument();
+  });
+
+  it("re-runs the probe on Retry and shows the form once it succeeds (#7349)", async () => {
+    mockCheckScreenerAvailable.mockReset();
+    mockCheckScreenerAvailable
+      .mockResolvedValueOnce("temporarily-unavailable")
+      .mockResolvedValueOnce("available");
+
+    renderScreener();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByLabelText("Watchlist")).toBeInTheDocument();
+    expect(mockCheckScreenerAvailable).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
   it("shows the built-in watchlist's as-of date and hides it for Custom (#10912)", async () => {
@@ -776,7 +807,7 @@ const rowCells = (container: HTMLElement, n: number) =>
 
 describe("Screener risk/return columns (#10607)", () => {
   beforeEach(() => {
-    mockCheckScreenerAvailable.mockResolvedValue(true);
+    mockCheckScreenerAvailable.mockResolvedValue("available");
     mockGetScreener.mockReset();
     mockGetScreenerRiskReturn.mockReset();
   });

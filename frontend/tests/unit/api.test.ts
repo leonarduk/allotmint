@@ -1355,7 +1355,7 @@ describe("checkScreenerAvailable", () => {
     setApiBase(DEFAULT_API_BASE);
   });
 
-  it("returns false when the backend gates the screener behind a 402", async () => {
+  it("returns unavailable when the backend gates the screener behind a 402", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 402,
@@ -1369,10 +1369,10 @@ describe("checkScreenerAvailable", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(checkScreenerAvailable()).resolves.toBe(false);
+    await expect(checkScreenerAvailable()).resolves.toBe("unavailable");
   });
 
-  it("returns true when the probe reaches ticker validation (400 = feature present)", async () => {
+  it("returns available when the probe reaches ticker validation (400 = feature present)", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
@@ -1382,10 +1382,10 @@ describe("checkScreenerAvailable", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(checkScreenerAvailable()).resolves.toBe(true);
+    await expect(checkScreenerAvailable()).resolves.toBe("available");
   });
 
-  it("returns true on a successful probe response", async () => {
+  it("returns available on a successful probe response", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve([]),
@@ -1393,23 +1393,41 @@ describe("checkScreenerAvailable", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(checkScreenerAvailable()).resolves.toBe(true);
+    await expect(checkScreenerAvailable()).resolves.toBe("available");
   });
 
-  it("returns true when fetch rejects with a network error", async () => {
+  it("returns temporarily-unavailable when fetch rejects with a network error (#7349)", async () => {
     // A rejected fetch (DNS failure, connection refused, offline, etc.) means
     // there is no Response object and therefore no status code. The probe
-    // treats "no status" as "screener is available" so a transient network
-    // blip does not hide the feature from the user; the real request will
-    // surface the error if the backend is genuinely unreachable.
+    // cannot tell whether the feature exists, so it must not optimistically
+    // show a form that is bound to fail on Run.
     const mockFetch = vi
       .fn()
       .mockRejectedValue(new TypeError("Failed to fetch"));
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(checkScreenerAvailable()).resolves.toBe(true);
+    await expect(checkScreenerAvailable()).resolves.toBe("temporarily-unavailable");
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    // 502/503/504 go through fetchJson's transient-retry delays first, so
+    // 500 stands in for the 5xx family here.
+    [500, "Internal Server Error"],
+    [403, "Forbidden"],
+    [429, "Too Many Requests"],
+  ])("returns temporarily-unavailable on HTTP %i (#7349)", async (status, statusText) => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status,
+      statusText,
+      json: () => Promise.resolve({}),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(checkScreenerAvailable()).resolves.toBe("temporarily-unavailable");
   });
 });
 

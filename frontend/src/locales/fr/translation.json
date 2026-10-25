@@ -1694,6 +1694,7 @@
     "tickers": "Tickers",
     "title": "Filtre",
     "unavailableBody": "Ce déploiement n'inclut pas le filtre fondamental ; le filtrage par ratios financiers n'est donc pas possible ici.",
+    "temporarilyUnavailable": "Le filtre est temporairement indisponible. Veuillez réessayer.",
     "watchlist": "Liste de suivi :",
     "watchlistLabel": "Liste de suivi",
     "custom": "Personnalisée",

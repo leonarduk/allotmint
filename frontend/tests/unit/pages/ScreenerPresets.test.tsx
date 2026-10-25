@@ -28,7 +28,7 @@ function presetButton(name: string) {
 describe('Screener presets', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.mocked(api.checkScreenerAvailable).mockResolvedValue(true);
+    vi.mocked(api.checkScreenerAvailable).mockResolvedValue("available");
   });
   afterEach(() => {
     vi.restoreAllMocks();

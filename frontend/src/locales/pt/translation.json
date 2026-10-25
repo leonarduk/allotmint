@@ -1694,6 +1694,7 @@
     "tickers": "Tickers",
     "title": "Screener",
     "unavailableBody": "Esta implantação não inclui o screener de fundamentos, portanto não é possível filtrar por índices financeiros aqui.",
+    "temporarilyUnavailable": "O screener está temporariamente indisponível. Tente novamente.",
     "watchlist": "Lista de observação:",
     "watchlistLabel": "Lista de acompanhamento",
     "custom": "Personalizada",

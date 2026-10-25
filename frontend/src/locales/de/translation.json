@@ -1694,6 +1694,7 @@
     "tickers": "Ticker",
     "title": "Screener",
     "unavailableBody": "Dieses Deployment enthält den Fundamentaldaten-Screener nicht, daher ist eine Filterung nach Finanzkennzahlen hier nicht möglich.",
+    "temporarilyUnavailable": "Der Screener ist vorübergehend nicht verfügbar. Bitte versuche es erneut.",
     "watchlist": "Beobachtungsliste:",
     "watchlistLabel": "Watchlist",
     "custom": "Benutzerdefiniert",

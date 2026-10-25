@@ -23,7 +23,7 @@ export function useOwnerSleeveControl(owner: string | null): SleeveControl | und
       })
       .catch((err) => {
         // The control is an optional convenience; the Strategy page still tags holdings.
-        console.warn(`Sleeve tagging unavailable for ${owner}`, err);
+        console.warn("Sleeve tagging unavailable for owner", owner, err);
       });
     return () => {
       active = false;

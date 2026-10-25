@@ -593,6 +593,30 @@ def test_get_news_serves_fresh_cache_from_sync_route(monkeypatch, tmp_path):
     assert "news_ONE" not in page_cache._refresh_tasks
 
 
+def _news_route_status(monkeypatch, exc: Exception) -> int:
+    """Status ``/news`` returns when ``get_cached_news`` raises ``exc``."""
+
+    from fastapi import FastAPI
+
+    def boom(*_args, **_kwargs):
+        raise exc
+
+    monkeypatch.setattr(news_module, "get_cached_news", boom)
+    app = FastAPI()
+    app.include_router(news_module.router)
+    client = TestClient(app, raise_server_exceptions=False)
+    return client.get("/news", params={"ticker": "ONE"}).status_code
+
+
+def test_get_news_maps_only_quota_exhaustion_to_429(monkeypatch):
+    """Regression for #9114: ``NewsQuotaExceeded`` subclasses ``RuntimeError``,
+    so widening the route's ``except`` back to ``RuntimeError`` would report
+    unrelated failures as quota exhaustion. Only the real quota error is 429."""
+
+    assert _news_route_status(monkeypatch, news_module.NewsQuotaExceeded("quota")) == 429
+    assert _news_route_status(monkeypatch, RuntimeError("boom")) == 500
+
+
 def test_get_cached_news_rebuilds_stale_cache_off_event_loop(monkeypatch, tmp_path):
     """Off the event loop no background refresh is scheduled, so a stale cache
     must be rebuilt synchronously on the request instead of served forever."""

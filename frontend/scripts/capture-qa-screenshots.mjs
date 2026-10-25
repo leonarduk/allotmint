@@ -150,6 +150,34 @@ async function setConfig(payload) {
   if (!res.ok) throw new Error(`PUT /config failed: ${res.status}`);
 }
 
+// Run `fn`, then `restore` config.yaml -- also when the run is interrupted
+// with Ctrl-C (SIGINT) or SIGTERM, which skip a plain try/finally and would
+// otherwise leave the developer's local_login_email pointing at the demo
+// owner (#8397). The restore runs at most once: a signal arriving while the
+// finally-block restore is in flight waits for that same write before exiting.
+async function withConfigRestore(restore, fn) {
+  let restoring = null;
+  const restoreOnce = () => (restoring ??= restore());
+  const onSignal = (signal) => {
+    console.warn(`\n${signal} received: restoring config.yaml before exiting...`);
+    restoreOnce()
+      .catch((err) => console.error(`config.yaml restore failed: ${err.message}`))
+      .finally(() => process.exit(signal === "SIGINT" ? 130 : 143));
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
+  try {
+    return await fn();
+  } finally {
+    try {
+      await restoreOnce();
+    } finally {
+      process.off("SIGINT", onSignal);
+      process.off("SIGTERM", onSignal);
+    }
+  }
+}
+
 async function shot(browser, { name, url, waitFor, viewport = { width: 1440, height: 900 } }) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
@@ -313,7 +341,8 @@ async function runDemo() {
   const originalLocalLoginEmail = before.local_login_email ?? null;
 
   const captured = [];
-  try {
+  const restore = () => setConfig({ auth: { local_login_email: originalLocalLoginEmail ?? "" } });
+  await withConfigRestore(restore, async () => {
     // Same local-login override the main run needs, so the dashboard and
     // portfolio pages render real content instead of an auth wall.
     await setConfig({ auth: { local_login_email: OWNER } });
@@ -327,9 +356,7 @@ async function runDemo() {
     } finally {
       await browser.close();
     }
-  } finally {
-    await setConfig({ auth: { local_login_email: originalLocalLoginEmail ?? "" } });
-  }
+  });
 
   if (!captured.length) {
     console.warn("\nNo demo steps captured -- is the local stack running?");
@@ -351,11 +378,21 @@ async function main() {
 
   const results = [];
 
+  // GET /config normalizes an empty-string override to null, so restoring
+  // with that raw value would write a literal `null` into config.yaml
+  // instead of the repo's `''` convention for "no override" -- coerce back.
+  // The reports tab is restored too, in case a signal lands mid-page.
+  const restore = async () => {
+    await setConfig({ auth: { local_login_email: originalLocalLoginEmail ?? "" } });
+    await setConfig({ ui: { tabs: { reports: originalReportsTab } } });
+  };
+
   // Everything from here on mutates config.yaml (local_login_email, and per-
-  // page tab overrides), so it all lives inside this try/finally -- a crash
+  // page tab overrides), so it all runs inside withConfigRestore -- a crash
   // anywhere below (chromium failing to launch, a setConfig network error,
-  // etc.) must still trigger the restore, not just a clean loop completion.
-  try {
+  // etc.) or a Ctrl-C must still trigger the restore, not just a clean loop
+  // completion.
+  await withConfigRestore(restore, async () => {
     // Several admin/settings pages 404 into an auth-wall unless a local
     // login identity is configured (auth.disable_auth alone isn't enough).
     await setConfig({ auth: { local_login_email: OWNER } });
@@ -379,12 +416,7 @@ async function main() {
     } finally {
       await browser.close();
     }
-  } finally {
-    // GET /config normalizes an empty-string override to null, so restoring
-    // with that raw value would write a literal `null` into config.yaml
-    // instead of the repo's `''` convention for "no override" -- coerce back.
-    await setConfig({ auth: { local_login_email: originalLocalLoginEmail ?? "" } });
-  }
+  });
 
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} screenshots captured.`);

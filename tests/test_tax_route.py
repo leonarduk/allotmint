@@ -88,3 +88,24 @@ def test_tax_allowances_route_with_auth(monkeypatch):
             }
     finally:
         app.dependency_overrides.clear()
+
+
+def test_tax_allowances_route_returns_503_when_ledger_usage_fails(monkeypatch, caplog):
+    """A ledger read failure is a 503, never 200 with zero usage (#10796)."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr("backend.routes.tax.current_tax_year", lambda: 2024)
+
+    def broken_ledger(owner, tax_year):
+        raise ValueError("bad date in ledger")
+
+    monkeypatch.setattr("backend.routes.tax.remaining_allowances", broken_ledger)
+    from backend.app import create_app
+
+    app = create_app()
+    with TestClient(app) as client, caplog.at_level("ERROR", logger="backend.routes.tax"):
+        resp = client.get("/tax/allowances", params={"owner": "bob"})
+
+    assert resp.status_code == 503
+    assert resp.json() == {"detail": "Allowance usage could not be derived from the transaction ledger"}
+    assert "owner bob, tax year 2024" in caplog.text

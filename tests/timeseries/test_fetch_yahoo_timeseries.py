@@ -43,6 +43,50 @@ def test_build_full_ticker_no_duplicate():
     assert _build_full_ticker("XDEV.L", "L") == "XDEV.L"
 
 
+@pytest.mark.parametrize(
+    "ticker,exchange,expected",
+    [
+        ("BRK.B", "US", "BRK-B"),
+        ("bf.b", "N", "BF-B"),
+        ("BP.L", "L", "BP.L"),
+        ("BT.A", "L", "BT.A.L"),
+        ("GBPUSD", "FX", "GBPUSD=X"),
+    ],
+)
+def test_build_full_ticker_us_share_class(ticker, exchange, expected):
+    """Yahoo spells US share classes with a dash; non-US symbols are untouched (#11081)."""
+    assert _build_full_ticker(ticker, exchange) == expected
+
+
+@patch("backend.timeseries.fetch_yahoo_timeseries.yf.Ticker")
+def test_fetch_yahoo_timeseries_range_us_share_class(mock_ticker_cls):
+    """``BRK.B`` is requested as ``BRK-B`` but rows stay labelled ``BRK.B`` (#11081)."""
+    raw = pd.DataFrame(
+        {"Open": [1.0], "High": [1.0], "Low": [1.0], "Close": [1.0], "Volume": [1]},
+        index=pd.to_datetime(["2024-01-02"]),
+    )
+    raw.index.name = "Date"
+    mock_ticker_cls.return_value.history.return_value = raw
+    with patch("backend.timeseries.fetch_yahoo_timeseries.is_valid_ticker", return_value=True):
+        df = fetch_yahoo_timeseries_range(
+            "BRK.B", "US", start_date=date(2024, 1, 2), end_date=date(2024, 1, 2), store_actions=False
+        )
+    mock_ticker_cls.assert_called_once_with("BRK-B")
+    assert df.loc[0, "Ticker"] == "BRK.B"
+
+
+@patch("backend.timeseries.fetch_yahoo_timeseries.yf.Ticker")
+def test_fetch_yahoo_timeseries_period_us_share_class(mock_ticker_cls):
+    raw = pd.DataFrame({"Close": [1.0]}, index=pd.to_datetime(["2024-01-02"]))
+    raw.index.name = "Date"
+    for col in ("Open", "High", "Low", "Volume"):
+        raw[col] = 1.0
+    mock_ticker_cls.return_value.history.return_value = raw
+    df = fetch_yahoo_timeseries_period("BF.B", "N")
+    mock_ticker_cls.assert_called_once_with("BF-B")
+    assert df.loc[0, "Ticker"] == "BF.B"
+
+
 def test_build_full_ticker_unsupported_exchange():
     with pytest.raises(ValueError):
         _build_full_ticker("TEST", "MOON")

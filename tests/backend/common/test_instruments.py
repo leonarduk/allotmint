@@ -693,6 +693,8 @@ def test_yahoo_suffix_for_exchange_unknown() -> None:
         ("abc.l", "LSE", "ABC.L"),
         ("usdgbp=x", "fx", "USDGBP=X"),
         ("spy", "NYSE", "SPY"),
+        ("brk.b", "N", "BRK-B"),
+        ("bt.a", "L", "BT.A.L"),
     ],
 )
 def test_build_yahoo_symbol(symbol, exchange, expected) -> None:

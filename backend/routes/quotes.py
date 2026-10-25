@@ -30,23 +30,33 @@ router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
 
 
+# Single-letter Yahoo market suffixes that aren't app exchange codes, so a bare
+# ``ABC.V`` (TSX Venture) is never mistaken for a US share class.
+_YAHOO_SINGLE_LETTER_MARKETS = frozenset({"T", "V"})
+
+
 def _yahoo_symbol(sym: str) -> str:
     """Yahoo's spelling of an app ticker: ``ADBE.N`` -> ``ADBE``, ``VOD.LSE`` -> ``VOD.L``.
 
     The app suffixes US listings with the exchange (``.N``, ``.US``), which
-    Yahoo doesn't use, so those symbols got no quote at all. Only suffixes the
-    timeseries layer already maps are rewritten; anything else (``IWDA.AS``,
-    ``BRK.B``) is passed through as typed.
+    Yahoo doesn't use, so those symbols got no quote at all. US share classes
+    take Yahoo's dash, with or without the exchange suffix: ``BRK.B`` and
+    ``BRK.B.N`` -> ``BRK-B`` (#11081). Other unmapped suffixes (``IWDA.AS``)
+    are passed through as typed.
     """
-    from backend.timeseries.fetch_yahoo_timeseries import get_yahoo_suffix
+    from backend.timeseries.fetch_yahoo_timeseries import _build_full_ticker
 
     base, dot, suffix = sym.rpartition(".")
     if not dot or not base:
         return sym
     try:
-        return base + get_yahoo_suffix(suffix)
+        return _build_full_ticker(base, suffix)
     except ValueError:
-        return sym
+        pass
+    if len(suffix) == 1 and suffix not in _YAHOO_SINGLE_LETTER_MARKETS:
+        # No exchange suffix: Yahoo treats a bare symbol as a US listing.
+        return _build_full_ticker(sym, "US")
+    return sym
 
 
 @router.get("/quotes")

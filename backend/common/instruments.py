@@ -21,6 +21,7 @@ from backend.common.instrument_classification import (
 )
 from backend.common.isin import check_isin_change
 from backend.common.yahoo_chart import chart_quote
+from backend.common.yahoo_symbols import yahoo_share_class_symbol
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -483,10 +484,10 @@ def _yahoo_suffix_for_exchange(exchange: str) -> str:
 
 
 def _build_yahoo_symbol(symbol: str, exchange: str) -> str:
-    """Return a Yahoo-compatible ticker for ``symbol`` on ``exchange``."""
+    """Return a Yahoo-compatible ticker for ``symbol`` on ``exchange`` (``BRK.B`` -> ``BRK-B``, #11081)."""
 
     suffix = _yahoo_suffix_for_exchange(exchange)
-    normalized = symbol.upper()
+    normalized = yahoo_share_class_symbol(symbol.upper(), exchange)
     if suffix and normalized.endswith(suffix):
         return normalized
     return f"{normalized}{suffix}"

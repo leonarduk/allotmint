@@ -1031,6 +1031,8 @@
     "staleHeadlineTooltip": "Esta manchete vem de uma cache que não foi atualizada recentemente; as obtenções de notícias em direto podem estar a falhar ou limitadas.",
     "tooltipLevel": "Nível: {{value}}",
     "tooltipChange": "Variação: {{value}}%",
+    "tooltipChangeNoData": "Variação: sem dados",
+    "noChangeData": "Sem dados de variação % para: {{names}}",
     "ticker": "Ticker",
     "name": "Nome",
     "price": "Preço",

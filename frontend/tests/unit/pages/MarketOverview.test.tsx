@@ -164,6 +164,46 @@ describe("MarketOverview", () => {
     expect(screen.getByText("Change: -0.22%")).toBeInTheDocument();
   });
 
+  it("shows 'no data' rather than 0% for a missing index change (#7176)", () => {
+    render(
+      <IndexTooltip
+        active
+        label="Nikkei"
+        payload={[{ payload: { value: 38000, change: null } }]}
+      />
+    );
+
+    expect(screen.getByText("Change: no data")).toBeInTheDocument();
+    expect(screen.queryByText("Change: 0.00%")).not.toBeInTheDocument();
+  });
+
+  it("keeps a genuine 0% index change as 0.00% in the tooltip (#7176)", () => {
+    render(
+      <IndexTooltip
+        active
+        label="FTSE 100"
+        payload={[{ payload: { value: 8000, change: 0 } }]}
+      />
+    );
+
+    expect(screen.getByText("Change: 0.00%")).toBeInTheDocument();
+  });
+
+  it("lists indexes with no change data under the chart (#7176)", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {
+        "S&P 500": { value: 100, change: 0 },
+        Nikkei: { value: 200, change: null },
+      },
+      sectors: [],
+      headlines: [],
+    });
+    render(<MarketOverview />);
+    expect(
+      await screen.findByText("No % change data for: Nikkei"),
+    ).toBeInTheDocument();
+  });
+
   it("colours sector bars by sign and labels the axis as % change (#7817)", async () => {
     mockCell.mockClear();
     mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);

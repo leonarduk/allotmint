@@ -1031,6 +1031,8 @@
     "staleHeadlineTooltip": "Diese Schlagzeile stammt aus einem Cache, der zuletzt nicht aktualisiert wurde; Live-Nachrichtenabrufe schlagen möglicherweise fehl oder sind ratenbegrenzt.",
     "tooltipLevel": "Stand: {{value}}",
     "tooltipChange": "Veränderung: {{value}}%",
+    "tooltipChangeNoData": "Veränderung: keine Daten",
+    "noChangeData": "Keine %-Veränderungsdaten für: {{names}}",
     "ticker": "Ticker",
     "name": "Name",
     "price": "Kurs",

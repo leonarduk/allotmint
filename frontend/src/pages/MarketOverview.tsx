@@ -28,16 +28,27 @@ import {
   Cell,
 } from 'recharts';
 
+// A missing change must not read as a flat "0.00%" day: a null bar has zero
+// height, exactly like a genuine 0% move, so the tooltip and a note under the
+// chart call it out as missing instead (#7176).
+const hasChange = (change: unknown): change is number =>
+  typeof change === 'number' && Number.isFinite(change);
+
 export const IndexTooltip = ({ active, payload, label }: any) => {
   const { t } = useTranslation();
   if (active && payload && payload.length) {
     const { value, change } = payload[0].payload;
-    const safeChange = typeof change === 'number' ? change : 0;
     return (
       <div className="rounded border bg-white p-2 text-sm shadow text-gray-900">
         <p className="font-semibold">{label}</p>
         <p>{t('market.tooltipLevel', { value: formatIndexLevel(value) })}</p>
-        <p>{t('market.tooltipChange', { value: safeChange.toFixed(2) })}</p>
+        <p>
+          {hasChange(change)
+            ? t('market.tooltipChange', { value: change.toFixed(2) })
+            : t('market.tooltipChangeNoData', {
+                defaultValue: 'Change: no data',
+              })}
+        </p>
       </div>
     );
   }
@@ -56,6 +67,9 @@ function IndexChart({
     change,
   }));
   const asOf = formatLatestAsOf(indexes);
+  const missingChange = indexData
+    .filter((row) => !hasChange(row.change))
+    .map((row) => row.name);
   return (
     <>
       {asOf && (
@@ -75,6 +89,14 @@ function IndexChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      {missingChange.length > 0 && (
+        <p className="mt-1 text-sm text-gray-500">
+          {t('market.noChangeData', {
+            names: missingChange.join(', '),
+            defaultValue: 'No % change data for: {{names}}',
+          })}
+        </p>
+      )}
       <table className="mt-4 w-full text-left">
         <thead>
           <tr>

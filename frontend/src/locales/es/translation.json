@@ -1031,6 +1031,8 @@
     "staleHeadlineTooltip": "Este titular proviene de una caché que no se ha actualizado recientemente; es posible que las consultas de noticias en directo estén fallando o limitadas.",
     "tooltipLevel": "Nivel: {{value}}",
     "tooltipChange": "Variación: {{value}}%",
+    "tooltipChangeNoData": "Variación: sin datos",
+    "noChangeData": "Sin datos de variación % para: {{names}}",
     "ticker": "Ticker",
     "name": "Nombre",
     "price": "Precio",

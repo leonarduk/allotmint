@@ -627,7 +627,6 @@ def portfolio_var(
         owner = owner_dir.name
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
-        sharpe = risk.compute_sharpe_ratio(owner, days=days)
     except FileNotFoundError:
         log_owner_not_found(owner)
         raise HTTPException(status_code=404, detail="Owner not found")
@@ -638,7 +637,6 @@ def portfolio_var(
         "owner": owner,
         "as_of": calc.reporting_date.isoformat(),
         "var": var,
-        "sharpe_ratio": sharpe,
     }
 
 

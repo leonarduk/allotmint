@@ -451,7 +451,6 @@ export interface ValueAtRiskResponse {
   var: {
     [horizon: string]: number | null;
   };
-  sharpe_ratio?: number | null;
 }
 
 export interface DataQualityGapPeriod {

@@ -258,13 +258,13 @@ def test_portfolio_var(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         "backend.routes.portfolio.risk.compute_sharpe_ratio",
-        lambda owner, days: 0.5,
+        lambda owner, days: pytest.fail("current-holdings Sharpe used (#10840)"),
     )
     resp = client.get("/var/alice", params={"days": 10, "confidence": 0.9})
     assert resp.status_code == 200
     data = resp.json()
     assert data["var"] == {"1d": 1.0}
-    assert data["sharpe_ratio"] == 0.5
+    assert "sharpe_ratio" not in data
 
 
 def test_portfolio_var_owner_missing(monkeypatch, tmp_path):

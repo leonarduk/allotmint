@@ -301,31 +301,29 @@ def test_instrument_detail(mock_list, mock_build, mock_positions, mock_timeserie
 
 @requires_allotmint_pro
 @patch("backend.routes.portfolio.portfolio_mod.list_owners", return_value=["steve"])
-@patch("backend.common.risk.compute_sharpe_ratio", return_value=1.23)
 @patch("backend.common.risk.compute_portfolio_var", return_value={"1d": 100.0, "10d": 200.0})
-def test_var_endpoint(mock_var, mock_sharpe, mock_list, client):
+def test_var_endpoint(mock_var, mock_list, client):
     response = client.get("/var/steve")
     assert response.status_code == 200
     payload = response.json()
     assert payload["owner"] == "steve"
     assert payload["var"] == {"1d": 100.0, "10d": 200.0}
-    assert payload["sharpe_ratio"] == 1.23
+    # The current-holdings Sharpe disagreed with Reports' ledger basis (#10840).
+    assert "sharpe_ratio" not in payload
 
 
 @requires_allotmint_pro
 @patch("backend.routes.portfolio.portfolio_mod.list_owners", return_value=["steve"])
-@patch("backend.common.risk.compute_sharpe_ratio", side_effect=FileNotFoundError)
 @patch("backend.common.risk.compute_portfolio_var", side_effect=FileNotFoundError)
-def test_var_owner_not_found(mock_var, mock_sharpe, mock_list, client):
+def test_var_owner_not_found(mock_var, mock_list, client):
     response = client.get("/var/missing")
     assert response.status_code == 404
 
 
 @requires_allotmint_pro
 @patch("backend.routes.portfolio.portfolio_mod.list_owners", return_value=["steve"])
-@patch("backend.common.risk.compute_sharpe_ratio", return_value=1.0)
 @patch("backend.common.risk.compute_portfolio_var", side_effect=ValueError("bad"))
-def test_var_invalid_params(mock_var, mock_sharpe, mock_list, client):
+def test_var_invalid_params(mock_var, mock_list, client):
     response = client.get("/var/steve?confidence=2")
     assert response.status_code == 400
 

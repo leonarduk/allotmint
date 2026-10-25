@@ -432,6 +432,76 @@ describe('Plot mode hub', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows cash as ready-to-sow resource on the hub, not as a crop (#7201)', async () => {
+    const [isa] = portfolio.accounts;
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      total_value_estimate_gbp: 14_000,
+      accounts: [
+        {
+          ...isa,
+          value_estimate_gbp: 14_000,
+          holdings: [
+            ...isa.holdings,
+            {
+              ticker: 'CASH.GBP',
+              name: 'Cash (GBP)',
+              units: 4_000,
+              market_value_gbp: 4_000,
+              sector: '',
+              instrument_type: 'Cash',
+              is_stale: null,
+            },
+          ],
+        },
+      ],
+    });
+    renderPlot();
+
+    expect(
+      await screen.findByText('£4.0k cash ready to sow')
+    ).toBeInTheDocument();
+    // Cash still counts toward the plot value in the HUD...
+    expect(
+      within(screen.getByRole('banner')).getByText('£14.0k')
+    ).toBeInTheDocument();
+    // ...but not toward SUNLIGHT, the bed's crop count or the crop cards.
+    expect(
+      screen.getByText('1 fresh, 1 unknown of 2 crops')
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^2 crops/)).toBeInTheDocument();
+    expect(screen.queryByText('CASH.GBP')).toBeNull();
+  });
+
+  it('shows each instrument once in "Biggest crops", with its bed count (#7212)', async () => {
+    const [isa] = portfolio.accounts;
+    const [vusa] = isa.holdings;
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      total_value_estimate_gbp: 12_000,
+      accounts: [
+        isa,
+        {
+          ...isa,
+          account_type: 'sipp',
+          value_estimate_gbp: 2_000,
+          holdings: [{ ...vusa, units: 10, market_value_gbp: 2_000 }],
+        },
+      ],
+    });
+    renderPlot();
+
+    const heading = await screen.findByRole('heading', {
+      name: 'Biggest crops',
+    });
+    const panel = heading.closest('section') as HTMLElement;
+    // VUSA.L sits in both beds but gets one card, valued at the sum.
+    expect(within(panel).getAllByText('VUSA.L')).toHaveLength(1);
+    expect(within(panel).getByText('in 2 beds')).toBeInTheDocument();
+    expect(within(panel).getByText('£9.0k')).toBeInTheDocument();
+    expect(within(panel).getByText('WILT.L')).toBeInTheDocument();
+  });
+
   it('omits the FEED meter rather than showing an empty one when the allowances fetch fails (#7195)', async () => {
     mocks.getAllowances.mockRejectedValue(
       Object.assign(new Error('HTTP 402 - Payment Required'), { status: 402 })
@@ -477,6 +547,11 @@ describe('Plot mode crop roster', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('VUSA.L')).toBeInTheDocument();
     expect(screen.getByText('WILT.L')).toBeInTheDocument();
+    // Position size reads as a share of plot, not a star rating (#7197):
+    // ★ on the roster belongs to the favourite toggle alone.
+    expect(screen.getByText('70% of plot')).toBeInTheDocument();
+    expect(screen.getByText('30% of plot')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/of 7 stars/)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: /all beds/i }));
     expect(screen.getByRole('button', { name: /all beds/i })).toHaveAttribute(
@@ -512,10 +587,14 @@ describe('Plot mode crop detail', () => {
     expect(
       screen.getByText(/Held 500 days · ready to lift/)
     ).toBeInTheDocument();
-    // Root depth reuses the 7-star plot-share rating, so it must not be
-    // labelled against the 5-point scale the other traits use.
-    expect(screen.getByText('Lv 7/7')).toBeInTheDocument();
+    // Root depth is position size (#7197): a share-of-plot bar with its
+    // figure spelled out, not a "Lv 7/7" score that reads as quality.
+    expect(screen.getByText('70.0% of total plot value')).toBeInTheDocument();
+    expect(screen.queryByText('Lv 7/7')).toBeNull();
     expect(screen.getByText('Lv 4/5')).toBeInTheDocument();
+    // The portrait's size indicator is a "% of plot" chip, never stars.
+    expect(screen.getByText('70% of plot')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/of 7 stars/)).toBeNull();
   });
 
   it('falls back to the Growth trait when there is no yield on record (#7019)', async () => {

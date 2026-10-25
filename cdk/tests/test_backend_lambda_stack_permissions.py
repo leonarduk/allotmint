@@ -69,6 +69,9 @@ TREND_WATCH_LIST_PREFIXES = ("accounts", "instruments", "prices", "trend_watch")
 # price_refresh it never calls list_portfolios(), so it needs no accounts/
 # list grant. See backend/common/dividends.py::refresh_dividends() (#2750).
 DIVIDEND_REFRESH_LIST_PREFIXES = (WRITABLE_ACCOUNTS_PREFIX,)
+# bots_digest: owner discovery (accounts/) plus run records, digest settings
+# and saved digests under bots/ (backend/lambda_api/bots_digest.py, #10501).
+BOTS_DIGEST_LIST_PREFIXES = ("accounts", "bots")
 
 
 def _stack_template() -> dict:
@@ -643,6 +646,24 @@ def test_trend_watch_lambda_writes_only_its_own_prefix() -> None:
     ), "TrendWatchLambda s3:ListBucket must be conditioned to its audited prefixes"
 
 
+def test_bots_digest_lambda_writes_only_saved_digests() -> None:
+    """BotsDigestLambda writes only bots/digests/* (digests and alerted.json) and the alerts history.
+
+    It reads run records and settings under bots/ but must never write them,
+    nor anything else in the bucket (#10501).
+    """
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "BotsDigestLambda")
+
+    put_resources = [str(r) for r in _resources_for_s3_action(template, role, "s3:PutObject")]
+    digest_writes = [r for r in put_resources if not _is_alerts_history_object(r)]
+    assert len(digest_writes) == 1 and "/bots/digests/*" in digest_writes[0], put_resources
+    assert _s3_actions_for_role(template, role) <= {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
+    assert _expected_prefix_condition(BOTS_DIGEST_LIST_PREFIXES) in _conditions_for_s3_action(
+        template, role, "s3:ListBucket"
+    ), "BotsDigestLambda s3:ListBucket must be conditioned to accounts/ and bots/"
+
+
 def test_alert_publishing_lambdas_can_persist_the_alerts_history() -> None:
     """Lambdas that publish alerts may write the one alerts history object (#10831).
 
@@ -653,7 +674,13 @@ def test_alert_publishing_lambdas_can_persist_the_alerts_history() -> None:
     bucket-wide read grant.
     """
     template = _stack_template()
-    for fragment in ("TradingAgentLambda", "TrendWatchLambda", "PensionReportLambda", "PlanBriefLambda"):
+    for fragment in (
+        "TradingAgentLambda",
+        "TrendWatchLambda",
+        "PensionReportLambda",
+        "PlanBriefLambda",
+        "BotsDigestLambda",
+    ):
         role = _role_logical_id_for_lambda(template, fragment)
         writes = [str(r) for r in _resources_for_s3_action(template, role, "s3:PutObject")]
         reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
@@ -673,16 +700,16 @@ def test_alerts_history_key_matches_backend_alerts() -> None:
 
 
 def test_ses_send_email_scoped_to_sender_identity_not_wildcard() -> None:
-    """BackendLambda and PensionReportLambda's ses:SendEmail must not be `"*"`.
+    """BackendLambda, PensionReportLambda and BotsDigestLambda's ses:SendEmail must not be `"*"`.
 
-    Both Lambdas only ever send from the WEEKLY_REPORT_FROM sender identity
+    These Lambdas only ever send from the WEEKLY_REPORT_FROM sender identity
     (backend/emails/*.py's `_SENDER_EMAIL`, default "no-reply@allotmint.com").
     A wildcard resource would let a compromised Lambda send email as any
     verified SES identity in the account (issue #5372).
     """
     template = _stack_template()
 
-    for fragment in ("BackendLambda", "PensionReportLambda"):
+    for fragment in ("BackendLambda", "PensionReportLambda", "BotsDigestLambda"):
         role = _role_logical_id_for_lambda(template, fragment)
         send_email_resources = _resources_for_s3_action(template, role, "ses:SendEmail")
 

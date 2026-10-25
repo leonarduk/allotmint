@@ -12,6 +12,7 @@ import pandas as pd
 
 from backend.common import refresh_progress
 from backend.common.approvals import is_approval_valid, needs_sell_approval
+from backend.common.cash_tickers import cash_price_key, cash_ticker_currency, is_cash_listing
 from backend.common.constants import (
     ACQUIRED_DATE,
     COST_BASIS_GBP,
@@ -360,6 +361,45 @@ def _close_column(df: pd.DataFrame, ticker: Optional[str] = None, exchange: Opti
     return native
 
 
+# Why a holding has or lacks a GBP price (#10318). "unconverted" means a close
+# exists but was never converted to GBP (no FX rate, #7722/#9664), which a
+# user can't tell apart from "no data at all" by the missing price alone.
+PRICE_STATUS_PRICED = "priced"
+PRICE_STATUS_UNCONVERTED = "unconverted"
+PRICE_STATUS_NO_DATA = "no_data"
+
+
+def _has_usable_values(df: pd.DataFrame, col: Optional[str]) -> bool:
+    if not col:
+        return False
+    values = pd.to_numeric(df[col], errors="coerce")
+    return bool((values.notna() & (values > 0)).any())
+
+
+def _has_unconverted_close(ticker: str, exchange: str, d: dt.date) -> bool:
+    """Whether the window a day-``d`` price lookup reads holds a native close
+    but no GBP-converted one -- the #7722 case ``_close_column`` refuses."""
+    start = d - dt.timedelta(days=_PRICE_WALK_BACK_DAYS)
+    df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=start, end_date=d)
+    if df is None or df.empty:
+        return False
+    nm = _lower_name_map(df)
+    if _has_usable_values(df, nm.get("close_gbp")):
+        return False
+    native = nm.get("close") or nm.get("adj close") or nm.get("adj_close")
+    return _has_usable_values(df, native)
+
+
+def _price_status(px: Optional[float], unconverted_fx: bool, ticker: str, exchange: str, d: dt.date) -> str:
+    if px is not None:
+        return PRICE_STATUS_PRICED
+    if unconverted_fx:
+        return PRICE_STATUS_UNCONVERTED
+    if not _native_close_is_gbp(ticker, exchange) and _has_unconverted_close(ticker, exchange, d):
+        return PRICE_STATUS_UNCONVERTED
+    return PRICE_STATUS_NO_DATA
+
+
 # ─────── cost basis (single source of truth) ───────
 def _derived_cost_basis_close_px(
     ticker: str,
@@ -433,7 +473,7 @@ def _load_unscaled_price_for_date_impl(
     ``CASH`` ticker has no backing parquet to hit ``load_meta_timeseries_range``
     for (#8232 review round 4).
     """
-    if "CASH" in ticker.upper().split("."):
+    if is_cash_listing(ticker, exchange):
         return 1.0, None, False, d
 
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
@@ -581,8 +621,7 @@ def _get_dated_price_for_date_scaled(
 ) -> tuple[Optional[float], Optional[str], Optional[dt.date]]:
     """Like :func:`_get_price_for_date_scaled`, plus the date of the row used
     (which may be earlier than ``d`` -- see ``_load_unscaled_price_for_date_impl``)."""
-    parts = ticker.upper().split(".")
-    if "CASH" in parts:
+    if is_cash_listing(ticker, exchange):
         # Also duplicated in _load_unscaled_price_for_date_impl for direct
         # callers -- load-bearing here too: removing it would route CASH
         # through _load_unscaled_price_for_date_cache_only and memoize it
@@ -745,6 +784,7 @@ def get_effective_cost_basis_gbp(
     else:
         exchange = "L"
         logger.debug("Could not resolve exchange for %s; defaulting to L", full)
+    ticker, exchange = cash_price_key(full, ticker, exchange)
 
     scale = get_scaling_override(ticker, exchange, None)
     booked_raw = h.get(COST_BASIS_GBP)
@@ -995,6 +1035,7 @@ def enrich_holding(
         out["next_eligible_sell_date"] = None
         out["cost_basis_source"] = "cash"
         out["fx_rate_source"] = fx_rate_source
+        out["price_status"] = "priced" if gbp_rate is not None else PRICE_STATUS_UNCONVERTED
 
         return out
 
@@ -1065,6 +1106,7 @@ def enrich_holding(
         out["current_price_gbp"] = None
         out["cost_basis_source"] = "none"
         out["fx_rate_source"] = None
+        out["price_status"] = None
         return out
 
     # No transaction/lot date on record: leave it genuinely null instead of
@@ -1196,7 +1238,8 @@ def enrich_holding(
                         out["forward_30d_change_pct"] = round(change * 100, 4)
 
     out["fx_rate_source"] = _holding_fx_rate_source(out.get("currency"), ticker, exchange)
-    if out["fx_rate_source"] == FX_RATE_SOURCE_MISSING and px is not None:
+    unconverted_fx = out["fx_rate_source"] == FX_RATE_SOURCE_MISSING and px is not None
+    if unconverted_fx:
         # The GBP price can only have come from an unconverted native close
         # (#7722): treat the holding as unpriced rather than value it at an
         # FX rate nobody has (#9664).
@@ -1214,6 +1257,7 @@ def enrich_holding(
     out["last_price_date"] = last_price_date.isoformat() if last_price_date else None
     out["last_price_time"] = last_price_time
     out["is_stale"] = is_stale
+    out["price_status"] = _price_status(px, unconverted_fx, ticker, exchange, calc.reporting_date)
 
     helper = get_effective_cost_basis_gbp
     pass_price_hint = False
@@ -1327,12 +1371,11 @@ def _is_cash(full: str, account_ccy: str = "GBP") -> bool:
 
 
 def _cash_ticker_ccy(full: str) -> Optional[str]:
-    """Currency encoded in a ``CASH.<CCY>``/``<CCY>.CASH`` ticker, else ``None``."""
-    parts = (full or "").upper().split(".")
-    if len(parts) != 2 or "CASH" not in parts:
-        return None
-    ccy = parts[1] if parts[0] == "CASH" else parts[0]
-    return ccy if ccy and ccy != "CASH" else None
+    """Currency encoded in a ``CASH.<CCY>``/``<CCY>.CASH`` ticker, else ``None``.
+
+    ``CASH.N`` (Pathward Financial) yields ``None``, not ``"N"`` (#10538).
+    """
+    return cash_ticker_currency(full)
 
 
 def _cash_name(full: str, account_ccy: str = "GBP") -> str:

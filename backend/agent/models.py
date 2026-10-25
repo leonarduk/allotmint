@@ -43,11 +43,17 @@ class BlockedSignal(BaseModel):
         action: The action that was blocked, either ``"BUY"`` or ``"SELL"``.
         reasons: The compliance warnings the proposed trade would introduce,
             each prefixed with the owner it applies to.
+        baseline_failed: ``True`` when a blocking owner's compliance baseline
+            could not be computed, so its warnings all counted as new and the
+            signal was blocked fail-closed rather than for a genuine new
+            warning. A failed baseline on an owner that adds no blocking
+            reason does not set it.
     """
 
     ticker: str
     action: Literal["BUY", "SELL"]
     reasons: List[str] = Field(default_factory=list)
+    baseline_failed: bool = False
 
 
 class TradingSignalsReport(BaseModel):

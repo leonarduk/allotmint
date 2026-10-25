@@ -24,6 +24,8 @@ import {
   getCachedGroupInstruments,
   clearGroupInstrumentCache,
   checkScreenerAvailable,
+  getInstrumentBatch,
+  fetchInstrumentBatchWithRetry,
   getChatConversation,
   putChatConversation,
   archiveChatConversation,
@@ -1355,7 +1357,7 @@ describe("checkScreenerAvailable", () => {
     setApiBase(DEFAULT_API_BASE);
   });
 
-  it("returns false when the backend gates the screener behind a 402", async () => {
+  it("returns unavailable when the backend gates the screener behind a 402", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 402,
@@ -1369,10 +1371,10 @@ describe("checkScreenerAvailable", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(checkScreenerAvailable()).resolves.toBe(false);
+    await expect(checkScreenerAvailable()).resolves.toBe("unavailable");
   });
 
-  it("returns true when the probe reaches ticker validation (400 = feature present)", async () => {
+  it("returns available when the probe reaches ticker validation (400 = feature present)", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
@@ -1382,10 +1384,10 @@ describe("checkScreenerAvailable", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(checkScreenerAvailable()).resolves.toBe(true);
+    await expect(checkScreenerAvailable()).resolves.toBe("available");
   });
 
-  it("returns true on a successful probe response", async () => {
+  it("returns available on a successful probe response", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve([]),
@@ -1393,23 +1395,157 @@ describe("checkScreenerAvailable", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(checkScreenerAvailable()).resolves.toBe(true);
+    await expect(checkScreenerAvailable()).resolves.toBe("available");
   });
 
-  it("returns true when fetch rejects with a network error", async () => {
+  it("returns temporarily-unavailable when fetch rejects with a network error (#7349)", async () => {
     // A rejected fetch (DNS failure, connection refused, offline, etc.) means
     // there is no Response object and therefore no status code. The probe
-    // treats "no status" as "screener is available" so a transient network
-    // blip does not hide the feature from the user; the real request will
-    // surface the error if the backend is genuinely unreachable.
+    // cannot tell whether the feature exists, so it must not optimistically
+    // show a form that is bound to fail on Run.
     const mockFetch = vi
       .fn()
       .mockRejectedValue(new TypeError("Failed to fetch"));
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(checkScreenerAvailable()).resolves.toBe(true);
+    await expect(checkScreenerAvailable()).resolves.toBe("temporarily-unavailable");
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    // 502/503/504 go through fetchJson's transient-retry delays first, so
+    // 500 stands in for the 5xx family here.
+    [500, "Internal Server Error"],
+    [403, "Forbidden"],
+    [429, "Too Many Requests"],
+  ])("returns temporarily-unavailable on HTTP %i (#7349)", async (status, statusText) => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status,
+      statusText,
+      json: () => Promise.resolve({}),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(checkScreenerAvailable()).resolves.toBe("temporarily-unavailable");
+  });
+});
+
+describe("instrument batch endpoint (#7127)", () => {
+  const BATCH_BODY = { instruments: {}, empty: [], unknown: [] };
+  const okResponse = () => ({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve(BATCH_BODY),
+  });
+  const errorResponse = (status: number, statusText: string, headers = new Headers()) => ({
+    ok: false,
+    status,
+    statusText,
+    headers,
+    json: () => Promise.resolve({}),
+  });
+  const requestedUrl = (mockFetch: ReturnType<typeof vi.fn>, call = 0) =>
+    new URL(mockFetch.mock.calls[call]?.[0] as string);
+
+  beforeEach(() => {
+    localStorage.clear();
+    setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  describe("getInstrumentBatch URL construction", () => {
+    it("comma-joins the tickers and percent-encodes the joined list", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(okResponse());
+      // @ts-expect-error: replacing global fetch with mock
+      global.fetch = mockFetch;
+
+      await expect(getInstrumentBatch(["BRK.B", "FOO BAR"], 30, true)).resolves.toEqual(
+        BATCH_BODY,
+      );
+
+      const url = mockFetch.mock.calls[0]?.[0] as string;
+      // The whole joined list goes through encodeURIComponent, so the
+      // separator comma is encoded too and the dot is left alone.
+      expect(url).toContain(
+        "/instrument/batch?tickers=BRK.B%2CFOO%20BAR&days=30&include_mini=true",
+      );
+      expect(requestedUrl(mockFetch).searchParams.get("tickers")).toBe("BRK.B,FOO BAR");
+    });
+
+    it("defaults to 365 days and include_mini=false", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(okResponse());
+      // @ts-expect-error: replacing global fetch with mock
+      global.fetch = mockFetch;
+
+      await getInstrumentBatch(["AAA.L"]);
+
+      const params = requestedUrl(mockFetch).searchParams;
+      expect(params.get("days")).toBe("365");
+      expect(params.get("include_mini")).toBe("false");
+    });
+  });
+
+  describe("fetchInstrumentBatchWithRetry", () => {
+    it("retries a 429 after backing off and resolves with the next response", async () => {
+      vi.useFakeTimers();
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce(errorResponse(429, "Too Many Requests"))
+        .mockResolvedValueOnce(okResponse());
+      // @ts-expect-error: replacing global fetch with mock
+      global.fetch = mockFetch;
+
+      const pending = fetchInstrumentBatchWithRetry(["AAA.L", "BBB.L"], 30, true);
+      // Let the first attempt fail, then sit inside the backoff wait.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // First backoff is 500ms plus up to 100ms of jitter.
+      await vi.advanceTimersByTimeAsync(600);
+      await expect(pending).resolves.toEqual(BATCH_BODY);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      // The retry re-issues the identical batch request.
+      expect(requestedUrl(mockFetch, 1).href).toBe(requestedUrl(mockFetch, 0).href);
+    });
+
+    it("honours a Retry-After header over the default backoff", async () => {
+      vi.useFakeTimers();
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce(
+          errorResponse(429, "Too Many Requests", new Headers({ "Retry-After": "2" })),
+        )
+        .mockResolvedValueOnce(okResponse());
+      // @ts-expect-error: replacing global fetch with mock
+      global.fetch = mockFetch;
+
+      const pending = fetchInstrumentBatchWithRetry(["AAA.L"]);
+      await vi.advanceTimersByTimeAsync(1500);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(600);
+      await expect(pending).resolves.toEqual(BATCH_BODY);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("throws a non-429 error immediately without retrying", async () => {
+      vi.useFakeTimers();
+      const mockFetch = vi.fn().mockResolvedValue(errorResponse(500, "Internal Server Error"));
+      // @ts-expect-error: replacing global fetch with mock
+      global.fetch = mockFetch;
+
+      await expect(fetchInstrumentBatchWithRetry(["AAA.L"])).rejects.toMatchObject({
+        status: 500,
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

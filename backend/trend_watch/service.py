@@ -25,6 +25,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 import pandas as pd
 
+from backend.common.cash_tickers import is_cash_ticker
 from backend.common.core_optional import missing_package
 from backend.common.instruments import get_instrument_meta
 from backend.common.ticker_utils import split_ticker
@@ -121,7 +122,7 @@ def holdings_by_ticker(portfolio: Mapping[str, Any]) -> Dict[str, Dict[str, Any]
         for holding in account.get("holdings") or []:
             ticker = str(holding.get("ticker") or "").upper()
             kind = str(holding.get("instrument_type") or "").lower()
-            if not ticker or ticker.startswith("CASH") or kind in NON_TRADED_TYPES:
+            if not ticker or is_cash_ticker(ticker) or kind in NON_TRADED_TYPES:
                 continue
             entry = out.setdefault(
                 ticker,

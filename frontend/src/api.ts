@@ -1332,6 +1332,27 @@ export const getGroupMaxDrawdown = (slug: string, days = 365) =>
     `${API_BASE}/performance-group/${slug}/max-drawdown?days=${days}`,
   );
 
+/**
+ * A group's time-weighted return (a fraction) over ``days``, on its own --
+ * without the history and XIRR that {@link getGroupPerformance} also fetches.
+ * ``partial`` means a member's ledger was missing, so the figure is incomplete.
+ */
+export const getGroupTwr = (
+  slug: string,
+  days = 365,
+  opts: { asOf?: string | null } = {},
+) =>
+  fetchGroupPerformanceJson<{
+    group: string;
+    time_weighted_return: number | null;
+    partial?: boolean;
+    missing_members?: string[];
+  }>(
+    `${API_BASE}/performance-group/${slug}/twr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
+  );
+
 /** Fetch combined performance metrics for a group (mirrors getPerformance). */
 export const getGroupPerformance = (
   slug: string,
@@ -1357,16 +1378,7 @@ export const getGroupPerformance = (
   }>(
     `${API_BASE}/performance-group/${slug}?${params.toString()}`,
   );
-  const twr = fetchGroupPerformanceJson<{
-    group: string;
-    time_weighted_return: number | null;
-    partial?: boolean;
-    missing_members?: string[];
-  }>(
-    `${API_BASE}/performance-group/${slug}/twr?days=${days}${
-      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
-    }`,
-  );
+  const twr = getGroupTwr(slug, days, opts);
   const xirr = fetchGroupPerformanceJson<{
     group: string;
     xirr: number | null;
@@ -1575,24 +1587,43 @@ export const getScreenerRiskReturn = (
 };
 
 /**
+ * Outcome of the screener capability probe. `temporarily-unavailable` means
+ * the probe could not tell either way (network failure, timeout, 5xx, or any
+ * other unexpected status) -- distinct from `unavailable`, which is the
+ * definitive 402 "not in this deployment" answer (#7349).
+ */
+export type ScreenerAvailability =
+  | "available"
+  | "unavailable"
+  | "temporarily-unavailable";
+
+/**
  * Cheap up-front probe for whether the screener is available in this
  * deployment (i.e. the paid screener package is installed), without running
  * a real screen. The backend rejects an unavailable screener with HTTP 402
  * before it even validates the ticker list (see require_core() in
  * backend/routes/screener.py), so probing with an empty ticker list is
  * enough to tell the two cases apart: a 402 means the feature is gated,
- * anything else -- including the 400 "no tickers supplied" the backend
- * returns when the feature *is* available -- means it can be used. Used to
- * gate the screener UI before the user fills in any filters (#7221).
+ * while a 2xx or the 400 "no tickers supplied" the backend returns when the
+ * feature *is* available means it can be used. Anything else -- no status
+ * at all (network error, timeout), a 5xx, or another 4xx such as 401/403/429
+ * -- means the probe never reached that check, so the answer is unknown and
+ * reported as `temporarily-unavailable` rather than optimistically
+ * `available` (#7349). A 401 additionally triggers the app-wide sign-out via
+ * UNAUTHORIZED_EVENT, so the page state there is moot. Used to gate the
+ * screener UI before the user fills in any filters (#7221).
  */
 export const checkScreenerAvailable = async (
   signal?: AbortSignal,
-): Promise<boolean> => {
+): Promise<ScreenerAvailability> => {
   try {
     await getScreener([], {}, signal);
-    return true;
+    return "available";
   } catch (e) {
-    return (e as { status?: number } | undefined)?.status !== 402;
+    const status = (e as { status?: number } | undefined)?.status;
+    if (status === 400) return "available";
+    if (status === 402) return "unavailable";
+    return "temporarily-unavailable";
   }
 };
 
@@ -2061,6 +2092,8 @@ export const getTransactions = async (params: {
   end?: string;
   type?: string;
   ticker?: string;
+  /** "base" ignores exchange suffixes, so `VOD.L` also matches `VOD`; default exact. */
+  ticker_match?: "exact" | "base";
 }) => {
   const query = new URLSearchParams();
   if (params.owner) query.set("owner", params.owner);
@@ -2069,6 +2102,7 @@ export const getTransactions = async (params: {
   if (params.end) query.set("end", params.end);
   if (params.type) query.set("type", params.type);
   if (params.ticker) query.set("ticker", params.ticker);
+  if (params.ticker_match) query.set("ticker_match", params.ticker_match);
   const qs = query.toString();
   return transactionsContractSchema.parse(
     await fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`),
@@ -3397,6 +3431,45 @@ export interface AllowanceGuardianReport {
 
 export const getAllowanceGuardian = (owner: string) =>
   fetchJson<AllowanceGuardianReport>(`${API_BASE}/allowance-guardian/${encodeURIComponent(owner)}`);
+
+// Mirrors backend/allowance_guardian/schedule.py (#10496).
+export type ContributionFrequency = "monthly" | "quarterly" | "annual";
+export type ContributionSource =
+  | "personal_relief_at_source"
+  | "personal_gross"
+  | "employer"
+  | "isa_subscription";
+
+export interface ScheduledContribution {
+  account: string;
+  /** Pence paid in (net of relief at source). */
+  amount_minor: number;
+  frequency: ContributionFrequency;
+  source: ContributionSource;
+  expected_day: number;
+  start_date: string;
+  end_date?: string | null;
+  label?: string | null;
+}
+
+export interface ContributionSchedule {
+  owner: string;
+  contributions: ScheduledContribution[];
+}
+
+const scheduleUrl = (owner: string) =>
+  `${API_BASE}/allowance-guardian/${encodeURIComponent(owner)}/schedule`;
+
+export const getContributionSchedule = (owner: string) =>
+  fetchJson<ContributionSchedule>(scheduleUrl(owner));
+
+/** Replace the owner's schedule; a 400 rejects with the backend's validation detail as the message. */
+export const putContributionSchedule = (owner: string, schedule: ContributionSchedule) =>
+  fetchJson<ContributionSchedule>(scheduleUrl(owner), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(schedule),
+  });
 
 // ───────────── Pension Forecast ─────────────
 export interface PensionIncomeBreakdown {

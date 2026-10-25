@@ -17,13 +17,34 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field, model_validator
 
+from backend.bots.digest_models import DigestItem, Severity
 from backend.bots.registry import BotKind, BotRunContext, BotScope, BotSettings, RunResult, Schedule, register_bot
+from backend.bots.run_records import DIGEST_ITEMS_KEY
 
 PENSION_REPORT_CADENCE_ENV = "PENSION_REPORT_CADENCE"
 
 
 def _base_settings() -> Dict[str, Any]:
     return {"enabled": True, "cadence": "daily"}
+
+
+def _system_digest_item(
+    bot_id: str, key: str, context: BotRunContext, *, severity: Severity, title: str, summary: str
+) -> Dict[str, Any]:
+    """A system-wide (``owner=None``, admins only) digest item, JSON-ready for the run report (docs/BOTS_DIGEST.md)."""
+
+    return DigestItem(
+        id=f"{bot_id}:{key}",
+        bot=bot_id,
+        owner=None,
+        severity=severity,
+        title=title,
+        summary=summary,
+        link="/bots",
+        action_required=True,
+        created=context.started_at,
+        dedupe_key=f"{bot_id}:{key}",
+    ).model_dump(mode="json")
 
 
 # ─────────────────────────────── price refresh ─────────────────────────────
@@ -63,6 +84,19 @@ class PriceRefreshBot:
             )
         priced = len(tickers) - len(unpriced)
         summary = f"{priced} of {len(tickers)} tickers priced"
+        if unpriced:
+            shown = ", ".join(str(t) for t in unpriced[:10])
+            more = f" and {len(unpriced) - 10} more" if len(unpriced) > 10 else ""
+            report[DIGEST_ITEMS_KEY] = [
+                _system_digest_item(
+                    self.id,
+                    "unpriced",
+                    context,
+                    severity=Severity.MEDIUM,
+                    title=f"{len(unpriced)} of {len(tickers)} tickers have no price",
+                    summary=f"No price found for {shown}{more}.",
+                )
+            ]
         return RunResult(status="partial" if unpriced else "ok", summary=summary, report=report, raw=raw)
 
 
@@ -96,6 +130,16 @@ class DividendRefreshBot:
             "skipped_tickers": skipped[:100],
         }
         if accounts == 0:
+            report[DIGEST_ITEMS_KEY] = [
+                _system_digest_item(
+                    self.id,
+                    "no-accounts",
+                    context,
+                    severity=Severity.MEDIUM,
+                    title="Dividend refresh found no accounts with holdings",
+                    summary="No dividends were checked because no account with holdings was found.",
+                )
+            ]
             return RunResult(status="partial", summary="No accounts with holdings found", report=report, raw=raw)
         return RunResult(
             status="ok",
@@ -141,8 +185,19 @@ class PensionReportBot:
         raw = pension_report._run_report()
         sent = int(raw.get("sent") or 0)
         errors = [str(e) for e in raw.get("errors") or []]
-        report = {"sent": sent, "errors": errors}
+        report: Dict[str, Any] = {"sent": sent, "errors": errors}
         if errors:
+            # Counts only: the error lines name owners and are in the run's error field.
+            report[DIGEST_ITEMS_KEY] = [
+                _system_digest_item(
+                    self.id,
+                    "errors",
+                    context,
+                    severity=Severity.HIGH if sent == 0 else Severity.MEDIUM,
+                    title=f"{len(errors)} pension report{'s' if len(errors) != 1 else ''} not sent",
+                    summary=f"{sent} sent and {len(errors)} failed in the last run.",
+                )
+            ]
             return RunResult(
                 status="partial" if sent else "failed",
                 summary=f"{sent} reports sent, {len(errors)} failed",
@@ -226,9 +281,13 @@ for _bot in (TradingAgentBot(), PriceRefreshBot(), DividendRefreshBot(), Pension
     register_bot(_bot, replace=True)
 
 # Agents that live in their own packages.
+from backend.allowance_guardian.bot import AllowanceGuardianBot  # noqa: E402
+from backend.cash_deployment.bot import CashDeploymentBot  # noqa: E402
 from backend.trend_watch.bot import TrendWatchBot  # noqa: E402
 
 register_bot(TrendWatchBot(), replace=True)
+register_bot(CashDeploymentBot(), replace=True)
+register_bot(AllowanceGuardianBot(), replace=True)
 
 # Agents that register themselves from their own module (see the module docstring).
 import backend.data_steward.bot  # noqa: E402,F401  (registers the data steward, #10471)

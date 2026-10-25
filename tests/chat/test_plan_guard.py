@@ -16,6 +16,9 @@ from backend.chat.plan_guard import PLAN_REMINDER, PLAN_TOOL_NAME, PlanGuard, is
         "What's my target allocation?",
         "How does it compare with the All Weather portfolio?",
         "Show me the investment plan",
+        "How far am I from my target allocation?",
+        "How far is my allocation from my plan?",
+        "How far off am I from the model weights?",
     ],
 )
 def test_flags_allocation_vs_target_questions(message):
@@ -24,7 +27,16 @@ def test_flags_allocation_vs_target_questions(message):
 
 @pytest.mark.parametrize(
     "message",
-    ["What's VOD.L trading at?", "List the owners", "Export my trades as a spreadsheet", "", "hi"],
+    [
+        "What's VOD.L trading at?",
+        "List the owners",
+        "Export my trades as a spreadsheet",
+        "",
+        "hi",
+        # Price-level "how far ... from" questions are not about the plan (#11083).
+        "How far is VOD.L from its 52-week low?",
+        "How far is my portfolio from its all-time high?",
+    ],
 )
 def test_ignores_unrelated_questions(message):
     assert not is_plan_question(message)

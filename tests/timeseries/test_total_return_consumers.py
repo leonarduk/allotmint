@@ -602,7 +602,12 @@ def test_unpriced_cash_is_not_listed(store, portfolio_env):
     ]
     portfolio_env["closes"]["CASH"] = UNPRICEABLE
 
-    breakdown = _alpha_breakdown()
+    # A bare CASH whose exchange resolved to a market is still sterling cash
+    # (#10538), so it is valued over the window; price it on the fixture's
+    # last date so that window overlaps the stored closes.
+    _value, breakdown = portfolio_utils.compute_alpha_vs_benchmark(
+        "alice", "FLATB.L", days=5, include_breakdown=True, pricing_date=DATES[-1].date()
+    )
 
     assert breakdown["portfolio_unpriced_holdings"] == []
     assert breakdown["portfolio_return_basis"] == tr.PRICE_RETURN_BASIS

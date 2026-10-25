@@ -102,7 +102,9 @@
     "currencyMissingFx": "Sem taxa de câmbio guardada para {{currencies}}: essas posições são avaliadas a uma taxa aproximada ou excluídas, pelo que a sua parte pode não ser exata.",
     "currencyNote": "Exposição por moeda de cotação: a moeda em que cada posição é cotada, não a sua exposição subjacente (um fundo global cotado em GBP conta como GBP). Abrange todas as contas deste grupo.",
     "instrumentTypes": "Tipos de instrumentos",
-    "region": "Regiões",
+    "region": "Regiões de exposição",
+    "regionNote": "As regiões mostram onde cada fundo investe, não onde está domiciliado.",
+    "domiciledIn": "Domiciliado em {{region}}: {{tickers}}",
     "sector": "Indústrias",
     "unknownCurrency": "Moeda desconhecida",
     "viewAllocation": "Ver alocação por {{dimension}}",
@@ -434,9 +436,18 @@
     "alphaVsBenchmarkInfoLabel": "O que significa Alfa vs Referência?",
     "alphaVsBenchmarkInfo": "O alfa mede em que medida o retorno da carteira diferiu do de {{ticker}} durante o período selecionado.",
     "vsBenchmark": "vs {{ticker}}",
+    "returnBasisLabel": "Base de rentabilidade: {{basis}}",
+    "returnBasisTotal": "rentabilidade total (dividendos reinvestidos)",
+    "returnBasisPrice": "apenas preço (sem dividendos)",
+    "returnBasisMixed": "mista: algumas posições são apenas de preço",
+    "returnBasisTotalShort": "rentabilidade total",
+    "returnBasisPriceShort": "apenas preço",
+    "returnBasisPriceShare": "{{share}} do valor apenas com preço",
+    "returnBasisUnpriced": "Excluídas por falta de preços: {{holdings}}",
     "cumulativeReturnPortfolio": "A sua carteira",
     "cumulativeReturnBenchmark": "{{ticker}} (referência)",
     "cumulativeReturnBasis": "Ambas as linhas usam dividendos reinvestidos, as posições atuais e as mesmas datas ({{from}} a {{to}}) que o alfa vs {{ticker}}.",
+    "twrVsCumulative": "A rentabilidade ponderada no tempo acompanha as posições que realmente detinha em cada dia e elimina o efeito do momento dos depósitos e levantamentos, enquanto este gráfico mostra como as suas posições atuais teriam evoluído durante todo o período, pelo que os dois valores podem diferir bastante.",
     "benchmarkSeriesFailed": "Não foi possível carregar {{ticker}} para comparação, por isso só é mostrado o retorno acumulado da sua carteira baseado no valor.",
     "benchmarkSeriesEmpty": "Não há preços de {{ticker}} que coincidam com este período, por isso só é mostrado o retorno acumulado da sua carteira baseado no valor.",
     "trackingErrorInfoLabel": "O que significa o erro de acompanhamento?",
@@ -665,6 +676,8 @@
   "instrumentDetail": {
     "bollingerBands": "Bandas de Bollinger",
     "tradeMarkers": "Marcadores de negociações",
+    "tradeMarkersHidden_one": "{{count}} negociação oculta",
+    "tradeMarkersHidden_other": "{{count}} negociações ocultas",
     "tradeSide": {
       "buy": "Compra",
       "sell": "Venda"
@@ -1685,6 +1698,7 @@
     "tickers": "Tickers",
     "title": "Screener",
     "unavailableBody": "Esta implantação não inclui o screener de fundamentos, portanto não é possível filtrar por índices financeiros aqui.",
+    "temporarilyUnavailable": "O screener está temporariamente indisponível. Tente novamente.",
     "watchlist": "Lista de observação:",
     "watchlistLabel": "Lista de acompanhamento",
     "custom": "Personalizada",
@@ -1709,7 +1723,8 @@
       "mktCap": "Cap. mercado",
       "wk52h": "Máx. 52 sem.",
       "wk52l": "Mín. 52 sem.",
-      "avgVol": "Vol. médio"
+      "avgVol": "Vol. médio",
+      "beta": "Beta"
     },
     "tips": {
       "infoLabel": "O que significa {{column}}?"
@@ -2061,6 +2076,7 @@
     "noSignalsDescription": "Nenhum instrumento monitorizado cruza atualmente os limiares ativos. Os sinais aparecem quando as condições de RSI ou de médias móveis são cumpridas e quaisquer filtros de avaliação e risco ativados também passam.",
     "blockedTitle": "Sinais bloqueados pela conformidade",
     "blockedDescription": "Estes instrumentos ultrapassaram os limites ativos, mas a operação proposta geraria um novo aviso de conformidade, por isso nenhum sinal é mostrado para eles.",
+    "blockedBaselineFailed": "Base de conformidade indisponível — sinais bloqueados até que possa ser verificada",
     "checksSkippedBadge": "Verificações ignoradas",
     "checksSkippedTitle": "Verificações ignoradas: {{checks}}",
     "checksSkippedInfo": "Não foi possível executar uma verificação opcional que requer o suplemento allotmint-pro. «compliance» significa que a operação não foi verificada face às suas regras de conformidade; «fundamental_screen» significa que os filtros de P/E e dívida/capital próprio acima (os que estiverem configurados) não foram aplicados a este candidato de compra.",
@@ -2517,6 +2533,15 @@
     "addCost": "Adicionar custo",
     "showAll": "Mostrar todas ({{count}})",
     "showTop": "Mostrar só as {{count}} primeiras"
+  },
+  "portfolioSentence": {
+    "valueOnly": "A sua carteira vale {{value}}.",
+    "withDay": "A sua carteira vale {{value}} — {{day}} hoje.",
+    "withYear": "A sua carteira vale {{value}} — {{year}} no último ano.",
+    "withDayAndYear": "A sua carteira vale {{value}} — {{day}} hoje e {{year}} no último ano.",
+    "up": "a subir {{amount}}",
+    "down": "a descer {{amount}}",
+    "unchanged": "sem alteração"
   },
   "portfolioSummary": {
     "fxCause": "({{count}} sem taxa de câmbio)",
@@ -3124,6 +3149,47 @@
       "awaiting": "A aguardar"
     }
   },
+  "contributionSchedule": {
+    "title": "Contribuições previstas",
+    "intro": "Registe o que prevê pagar em cada conta de pensão ou ISA. O guardião acima verifica as entradas e projeta os seus limites a partir deste plano.",
+    "loadFailed": "Falha ao carregar o plano de contribuições",
+    "empty": "Ainda não há contribuições registadas. Adicione uma para começar.",
+    "rowLegend": "Contribuição {{number}}",
+    "account": "Conta",
+    "chooseAccount": "Escolha uma conta",
+    "amount": "Montante (£)",
+    "amountInvalid": "Introduza um montante positivo em libras com no máximo duas casas decimais.",
+    "frequency": "Frequência",
+    "frequencies": {
+      "monthly": "Mensal",
+      "quarterly": "Trimestral",
+      "annual": "Anual"
+    },
+    "source": "Origem",
+    "sources": {
+      "personal_relief_at_source": "Pessoal (alívio na fonte)",
+      "personal_gross": "Pessoal (bruto)",
+      "employer": "Empregador ou salary sacrifice",
+      "isa_subscription": "Subscrição ISA"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "Paga o montante líquido e o seu fornecedor acrescenta o alívio fiscal à taxa básica, por isso conta como montante ÷ 0,8 para o limite anual de pensões.",
+      "personal_gross": "Uma contribuição pessoal sem alívio fiscal acrescentado na fonte; conta pelo valor nominal para o limite anual de pensões.",
+      "employer": "Paga pelo empregador ou por salary sacrifice; conta pelo valor nominal para o limite anual de pensões.",
+      "isa_subscription": "Dinheiro pago numa ISA; conta para o limite ISA, não para o de pensões. As contas ISA só aceitam esta origem."
+    },
+    "expectedDay": "Dia do mês previsto",
+    "startDate": "Data de início",
+    "endDate": "Data de fim (opcional)",
+    "label": "Etiqueta (opcional)",
+    "remove": "Remover contribuição {{number}}",
+    "add": "Adicionar contribuição",
+    "save": "Guardar plano",
+    "saving": "A guardar…",
+    "saved": "Plano guardado.",
+    "saveFailed": "Falha ao guardar o plano de contribuições",
+    "rejected": "Não guardado: {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Acompanhamento de limites",
     "account": "Conta",
@@ -3224,9 +3290,9 @@
       "removeFavourite": "Remover {{ticker}} dos favoritos",
       "addFavourite": "Adicionar {{ticker}} aos favoritos",
       "today": "{{pct}} hoje",
-      "noDataToday": "sem dados hoje"
+      "noDataToday": "sem dados hoje",
+      "shareOfPlot": "{{pct}} da horta"
     },
-    "stars": "{{filled}} de {{max}} estrelas",
     "data": {
       "ownersError": "Não foi possível carregar a lista de cultivadores.",
       "noOwners": "Nenhum cultivador encontrado para esta conta."
@@ -3306,7 +3372,7 @@
       "growthStages": "Fases de crescimento",
       "growthStagesLabel": "O que significam as fases de crescimento?",
       "growthStagesTip": "A fase de uma cultura é o seu ganho total desde a compra, não a variação do dia — Semeada/A brotar significa pouco ou nenhum lucro por agora, Frutificação e Colheita recorde significam que ganhou muito.",
-      "stageNote": "A fase vem do ganho total de cada posição e as estrelas da sua quota no valor da horta.",
+      "stageNote": "A fase vem do ganho total de cada posição; a barra mostra a sua quota no valor da horta.",
       "title": "Lista de culturas ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} canteiro",
       "bedCount_other": "{{count}} canteiros",
@@ -3386,7 +3452,11 @@
       "bedPriced": "avaliado {{date}}",
       "biggestCrops": "Maiores culturas",
       "nothingToShow": "Ainda nada para mostrar.",
-      "fullRoster": "Ver a lista completa de culturas →"
+      "fullRoster": "Ver a lista completa de culturas →",
+      "seedStore": "Reserva de sementes",
+      "readyToSow": "{{amount}} em dinheiro pronto para semear",
+      "inBeds_one": "em {{count}} canteiro",
+      "inBeds_other": "em {{count}} canteiros"
     },
     "model": {
       "unnamedBed": "Canteiro sem nome",
@@ -4302,7 +4372,9 @@
     "markets": "mercados",
     "assumptions": "pressupostos",
     "dataRevision": "revisões de dados",
-    "changed": "Alterado desde a última execução: {{label}}"
+    "changed": "Alterado desde a última execução: {{label}}",
+    "flagsLabel": "Alertas",
+    "caveatsLabel": "Ressalvas"
   },
   "admin": {
     "cacheWarming": "Ainda carregando após reiniciar o servidor: mostrando os {{count}} encontrados até agora. A lista é completada automaticamente."
@@ -4346,5 +4418,9 @@
       "failed": "(falhou)",
       "notes": "Notas"
     }
+  },
+  "deleteSeries": {
+    "delete": "Excluir série",
+    "deleting": "Excluindo…"
   }
 }

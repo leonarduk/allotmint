@@ -37,7 +37,9 @@ _PLAN_QUESTION = re.compile(
     r"|\bpermanent portfolio\b"
     r"|\bmodel (?:mix|portfolio)\b"
     r"|\binvestment plan\b"
-    r"|\bhow far\b.*\bfrom\b",
+    # "How far ... from" only counts when what it is measured from is a
+    # plan-like yardstick, not a price level ("from its 52-week low") (#11083).
+    r"|\bhow far\b.*\bfrom\b.*\b(?:targets?|allocations?|plans?|mix|weights?)\b",
     re.IGNORECASE | re.DOTALL,
 )
 

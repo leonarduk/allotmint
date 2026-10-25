@@ -74,6 +74,25 @@ def test_warm_step_read_timeout_outlasts_the_price_refresh_lambda() -> None:
     )
 
 
+def test_deploy_workflow_checks_snapshot_scaling_after_seed_verification() -> None:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+
+    steps = workflow["jobs"]["deploy"]["steps"]
+    step_names = [s.get("name", "") for s in steps]
+
+    check_idx = step_names.index("Check price snapshot scaling")
+    assert check_idx > step_names.index("Verify price snapshot seeded in S3")
+    # The raw closes it compares against come from the bucket sync.
+    assert check_idx > step_names.index("Sync data from S3")
+
+    run_script = steps[check_idx]["run"]
+    assert "prices/latest_prices.json" in run_script
+    assert "python -m scripts.check_snapshot_scaling" in run_script
+    assert "data/timeseries" in run_script
+    assert 'if [ -z "${DATA_BUCKET:-}" ]' in run_script
+    assert "continue-on-error" not in steps[check_idx]
+
+
 def test_deploy_workflow_verify_price_snapshot_fails_hard_on_non_404() -> None:
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
 

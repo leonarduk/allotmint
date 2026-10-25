@@ -972,6 +972,37 @@ jobs:
             exit 1
           done
 
+      - name: Check price snapshot scaling
+        # The snapshot stores scaled GBP; a dropped or stale scaling override
+        # would ship 100x-wrong prices without failing anything (#10352). The
+        # script compares each override ticker's last_price with the raw close
+        # from the timeseries cache that "Sync data from S3" copied into
+        # data/timeseries, and fails only on a wrong-scale ratio; tickers not in
+        # the snapshot or without a cached series are skipped with a notice.
+        # A missing snapshot is already reported by the step above, so it is a
+        # soft skip here too; any other download error fails.
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET || vars.DATA_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATA_BUCKET:-}" ]; then
+            echo "DATA_BUCKET not set; skipping price snapshot scaling check." >&2
+            exit 0
+          fi
+          snapshot="$RUNNER_TEMP/latest_prices.json"
+          cp_output="$(aws s3 cp "s3://${DATA_BUCKET}/prices/latest_prices.json" "$snapshot" \
+              --only-show-errors 2>&1)" && cp_exit=0 || cp_exit=$?
+          if [ "$cp_exit" -ne 0 ]; then
+            if echo "$cp_output" | grep -qi "NoSuchKey\|Not Found\|404"; then
+              echo "::notice::prices/latest_prices.json is not in s3://${DATA_BUCKET}; skipping price snapshot scaling check."
+              exit 0
+            fi
+            echo "::error::Could not download prices/latest_prices.json from s3://${DATA_BUCKET} (exit ${cp_exit}): ${cp_output}"
+            exit 1
+          fi
+          python -m scripts.check_snapshot_scaling "$snapshot" data/timeseries
+
       - name: Warm up backend Lambda (absorb cold-start before validation)
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}

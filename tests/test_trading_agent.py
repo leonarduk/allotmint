@@ -334,7 +334,12 @@ def test_run_blocks_warning_introduced_by_proposed_trade(monkeypatch):
 
     assert signals == []
     assert blocked == [
-        {"ticker": "AAA", "action": "BUY", "reasons": ["alice: 21 trades in 2026-10 (max 20)"]},
+        {
+            "ticker": "AAA",
+            "action": "BUY",
+            "reasons": ["alice: 21 trades in 2026-10 (max 20)"],
+            "baseline_failed": False,
+        },
     ]
 
 
@@ -363,6 +368,7 @@ def test_run_reports_every_blocking_owner(monkeypatch):
             "ticker": "AAA",
             "action": "BUY",
             "reasons": ["alice: 21 trades in 2026-10 (max 20)", "bob: Holding AAA would exceed 20%"],
+            "baseline_failed": False,
         },
     ]
 
@@ -405,6 +411,8 @@ def test_run_aggregates_when_one_owners_baseline_raises(monkeypatch):
             "ticker": "AAA",
             "action": "BUY",
             "reasons": ["alice: Shared warning", "bob: Holding AAA would exceed 20%"],
+            # alice's baseline raised, so her warning counts as new (#10259).
+            "baseline_failed": True,
         },
     ]
 
@@ -437,7 +445,12 @@ def test_run_snapshots_baseline_before_check_trade(monkeypatch):
     assert order[:2] == ["check_owner", "check_trade"]
     assert signals == []
     assert blocked == [
-        {"ticker": "AAA", "action": "BUY", "reasons": ["alice: 21 trades in 2026-10 (max 20)"]},
+        {
+            "ticker": "AAA",
+            "action": "BUY",
+            "reasons": ["alice: 21 trades in 2026-10 (max 20)"],
+            "baseline_failed": False,
+        },
     ]
 
 
@@ -461,6 +474,37 @@ def test_new_compliance_warnings_fails_closed_when_baseline_raises(monkeypatch):
     monkeypatch.setattr(trading_agent, "compliance", SimpleNamespace(check_owner=boom))
 
     assert trading_agent._new_compliance_warnings("alice", ["w"], {}) == ["w"]
+
+
+def test_run_marks_blocked_signal_when_compliance_baseline_fails(monkeypatch):
+    """#10259: when ``check_owner`` raises, the signal is still blocked (fail
+    closed) and the blocked entry says the baseline failed, with the reasons
+    unchanged."""
+    from types import SimpleNamespace
+
+    _setup_historical_compliance(monkeypatch, ["Sold CGT.L without approval"])
+
+    def boom(owner):
+        raise ValueError("bad data")
+
+    monkeypatch.setattr(
+        trading_agent,
+        "compliance",
+        SimpleNamespace(check_owner=boom, check_trade=lambda trade: {"warnings": ["Sold CGT.L without approval"]}),
+    )
+
+    blocked: list = []
+    signals = trading_agent.run(blocked=blocked)
+
+    assert signals == []
+    assert blocked == [
+        {
+            "ticker": "AAA",
+            "action": "BUY",
+            "reasons": ["alice: Sold CGT.L without approval"],
+            "baseline_failed": True,
+        },
+    ]
 
 
 def test_log_trade_recreates_directory(tmp_path, monkeypatch):
@@ -710,7 +754,9 @@ def test_run_blocks_signal_when_compliance_raises_and_pro_checks_required(monkey
 
     blocked: list = []
     assert trading_agent.run(blocked=blocked) == []
-    assert blocked == [{"ticker": "AAA", "action": "BUY", "reasons": ["alice: compliance check failed"]}]
+    assert blocked == [
+        {"ticker": "AAA", "action": "BUY", "reasons": ["alice: compliance check failed"], "baseline_failed": False}
+    ]
     # The remaining owner is still checked, so its own reasons would be reported too.
     assert calls == ["alice", "bob"]
 

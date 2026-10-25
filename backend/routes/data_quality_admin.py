@@ -9,18 +9,22 @@ plus preview/fix/batch/dedupe/audit/undo write actions.  Every fix:
     holding changes (never direct JSON file mutation).
 
 Read endpoints (``GET /issues``, ``GET /issues/{id}/preview``, ``GET /audit``)
-never fetch live data and never mutate state.
+never fetch live data and never mutate state.  They only return holding-level
+issues and audit entries whose ``entity.owner`` the caller may access (same
+``ensure_owner_access`` rule as the write paths); series-only entries carry no
+owner and stay visible to everyone (#10557).
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -30,8 +34,9 @@ import backend.data_quality.issues as dq_issues
 from backend.common.accounts_store import LocalAccountsStore
 from backend.common.admin_cache_state import DATA_QUALITY_SERIES, WARMING_HEADER, is_step_warming
 from backend.common.authz import ensure_owner_access
-from backend.common.errors import AppError
+from backend.common.errors import AppError, PermissionDeniedError
 from backend.common.instruments import resolve_instrument_ticker
+from backend.config import config
 from backend.data_quality.audit import append_audit, find_audit_entry, read_audit
 from backend.data_quality.issues import (
     FIXABLE_TYPES,
@@ -48,6 +53,12 @@ from backend.timeseries.cache import (
     load_cached_meta_timeseries_full,
     load_meta_timeseries,
     meta_timeseries_cache_path,
+)
+from backend.utils.timeseries_helpers import (
+    get_scaling_override,
+    invalid_scaling_override,
+    is_valid_override_factor,
+    scaling_override_paths,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,8 +97,35 @@ class BatchFixRequest(BaseModel):
     issue_ids: list[str] = Field(min_length=1)
 
 
-def _issue_list(request: Request, *, cached_only: bool = False, **filters: Any) -> list[dict[str, Any]]:
-    """Return the aggregated issue list as plain dicts.
+def _owner_visibility(user: str | None, accounts_root: Path) -> Callable[[Any], bool]:
+    """Return a predicate saying whether ``user`` may see an entity's owner.
+
+    Reuses ``ensure_owner_access`` -- the same check the fix/undo write paths
+    apply -- so a demo request sees only ``config.demo_link_owner`` and an
+    authenticated user sees only owners they own or view (#10557).  Entities
+    with no owner (series-only issues, cache audit entries) are visible to
+    everyone.  Decisions are memoised per owner for the request so a long
+    list does one person-meta lookup per owner, not per issue.
+    """
+    decisions: dict[str, bool] = {}
+
+    def can_see(entity: Any) -> bool:
+        owner = str(entity.get("owner") or "") if isinstance(entity, dict) else ""
+        if not owner:
+            return True
+        if owner not in decisions:
+            try:
+                ensure_owner_access(user, owner, accounts_root)
+                decisions[owner] = True
+            except PermissionDeniedError:
+                decisions[owner] = False
+        return decisions[owner]
+
+    return can_see
+
+
+def _visible_issues(request: Request, user: str | None, *, cached_only: bool = False) -> list[DataQualityIssue]:
+    """Aggregate issues and drop those whose owner ``user`` may not access.
 
     Scans the request-scoped accounts root (``resolve_accounts_root``) rather
     than the process-wide ``config.accounts_root``, so a multi-tenant/
@@ -95,9 +133,17 @@ def _issue_list(request: Request, *, cached_only: bool = False, **filters: Any) 
     in this file already use (#6763). ``cached_only`` limits the series checks
     to cached results (see :func:`aggregate_series_issues`).
     """
-    issues = aggregate_issues(resolve_accounts_root(request), cached_only=cached_only)
+    accounts_root = resolve_accounts_root(request)
+    can_see = _owner_visibility(user, accounts_root)
+    return [issue for issue in aggregate_issues(accounts_root, cached_only=cached_only) if can_see(issue.entity)]
+
+
+def _issue_list(
+    request: Request, user: str | None, *, cached_only: bool = False, **filters: Any
+) -> list[dict[str, Any]]:
+    """Return the caller-visible aggregated issue list as plain dicts."""
     result = []
-    for issue in issues:
+    for issue in _visible_issues(request, user, cached_only=cached_only):
         item = issue.to_dict()
         if _matches_filters(item, filters):
             result.append(item)
@@ -692,6 +738,164 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
     return {"status": "fixed", "tickers": [ticker], "audit_id": entry["id"]}
 
 
+def _scaling_overrides_target() -> Path:
+    """The ``scaling_overrides.json`` a scaling fix writes (#10198).
+
+    ``_scaling_override_paths`` overlays ``{data_root}/scaling_overrides.json``
+    last, so it wins on conflicts: writing any other copy could stay shadowed
+    by an older value there (#7787). It is created when missing. Without a
+    data root the highest-priority existing table is the one read.
+    """
+    if config.app_env == "aws":
+        # The Lambda filesystem is read-only and the deploy bakes the repo's
+        # table into the image (the bucket copy is excluded in
+        # deploy-lambda.yml), so a write here would fail or be lost.
+        raise HTTPException(
+            status_code=400,
+            detail="Scaling overrides cannot be edited on AWS; commit the change to data/scaling_overrides.json.",
+        )
+    data_root = getattr(config, "data_root", None)
+    if data_root:
+        return Path(str(data_root)).expanduser() / "scaling_overrides.json"
+    paths = scaling_override_paths()
+    if not paths:
+        raise HTTPException(status_code=409, detail="No scaling_overrides.json table to update.")
+    return paths[-1]
+
+
+def _read_overrides_table(path: Path) -> dict[str, Any]:
+    """Load ``path`` (``{}`` when missing), refusing to overwrite a malformed table."""
+    if not path.exists():
+        return {}
+    try:
+        table = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=f"{path.name} is unreadable; fix it by hand first.") from exc
+    if not isinstance(table, dict):
+        raise HTTPException(status_code=409, detail=f"{path.name} is not a JSON object; fix it by hand first.")
+    return table
+
+
+def _overrides_section(table: dict[str, Any], exchange: str) -> dict[str, Any]:
+    """The exchange section of ``table``, matched case-insensitively and created when missing."""
+    key = next((k for k in table if str(k).upper() == exchange), exchange)
+    section = table.setdefault(key, {})
+    if not isinstance(section, dict):
+        raise HTTPException(status_code=409, detail=f"Section {key!r} of the overrides table is not an object.")
+    return section
+
+
+def _write_overrides_table(path: Path, table: dict[str, Any]) -> bytes:
+    """Atomically write ``table`` to ``path``; return the bytes written."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write_text(path, json.dumps(table, indent=2) + "\n")
+    return path.read_bytes()
+
+
+def _restore_after_audit_failure(path: Path, *, before_bytes: bytes | None, after_bytes: bytes) -> None:
+    """Put back exactly what a scaling fix replaced when its audit write fails.
+
+    Unlike :func:`_rollback_after_audit_failure` this restores the bytes read
+    just before the write rather than the earliest ``.bak``, which may predate
+    earlier fixes to the same shared table. As there, a file changed since the
+    fix is left alone so a concurrent edit is not clobbered.
+    """
+    try:
+        if path.read_bytes() != after_bytes:
+            return
+    except OSError:
+        return
+    if before_bytes is None:
+        path.unlink(missing_ok=True)
+    else:
+        _atomic_write_bytes(path, before_bytes)
+
+
+def _validated_factor(value: Any) -> float:
+    """``value`` as a float, or 400 unless it is 0.01, 1 or 100 (#8597)."""
+    try:
+        factor = float(value)
+    except (TypeError, ValueError):
+        factor = math.nan
+    if not is_valid_override_factor(factor):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid scaling factor {value!r}; only 0.01, 1 or 100 are valid pence/pounds factors.",
+        )
+    return factor
+
+
+def _fix_scaling_override(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
+    """Add or replace a ticker's factor in the live scaling_overrides.json (#10198).
+
+    Overrides are applied at read time, so cached prices are never rewritten
+    (#8597); the next price read and issue recheck pick up the new factor.
+    """
+    ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
+    factor = _validated_factor(payload.get("factor"))
+    path = _scaling_overrides_target()
+    table = _read_overrides_table(path)
+    section = _overrides_section(table, exchange)
+    previous = section.get(ticker)
+    before_bytes = path.read_bytes() if path.exists() else None
+    if before_bytes is not None:
+        _backup_file_if_needed(path)
+    section[ticker] = factor
+    after_bytes = _write_overrides_table(path, table)
+    try:
+        entry = append_audit(
+            action="scaling_override",
+            issue_id=str(payload.get("issue_id") or ""),
+            entity={"ticker": ticker, "exchange": exchange},
+            before={"factor": previous},
+            after={"factor": factor},
+            actor=actor,
+            extra={"kind": "scaling_override", "ticker": ticker, "exchange": exchange},
+        )
+    except Exception:
+        _restore_after_audit_failure(path, before_bytes=before_bytes, after_bytes=after_bytes)
+        raise
+    return {"status": "fixed", "ticker": f"{ticker}.{exchange}", "factor": factor, "audit_id": entry["id"]}
+
+
+def _undo_scaling_override(entry: dict[str, Any], user: str | None) -> dict[str, Any]:
+    """Restore the factor a scaling fix replaced, if the table still holds the fix's value."""
+    extra = entry.get("extra") or {}
+    ticker, exchange = _validate_cache_key(str(extra.get("ticker") or ""), str(extra.get("exchange") or ""))
+    written = (entry.get("after") or {}).get("factor")
+    previous = (entry.get("before") or {}).get("factor")
+    path = _scaling_overrides_target()
+    table = _read_overrides_table(path)
+    section = _overrides_section(table, exchange)
+    current = section.get(ticker)
+    if not isinstance(current, (int, float)) or written is None or not math.isclose(current, float(written)):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot undo: {ticker} under {exchange!r} has changed since the fix.",
+        )
+    if previous is None:
+        del section[ticker]
+    else:
+        section[ticker] = previous
+    before_bytes = path.read_bytes()
+    after_bytes = _write_overrides_table(path, table)
+    try:
+        append_audit(
+            action="undo",
+            issue_id=str(entry.get("issue_id") or ""),
+            entity={"ticker": ticker, "exchange": exchange},
+            before={"action": entry.get("action"), "undo_of": entry.get("id")},
+            after={"restored": True},
+            actor=user,
+            extra={"kind": "undo", "undo_of": entry.get("id")},
+        )
+    except Exception:
+        # Same as the fix: an unaudited table change is put back.
+        _restore_after_audit_failure(path, before_bytes=before_bytes, after_bytes=after_bytes)
+        raise
+    return {"status": "undone", "entry_id": entry.get("id")}
+
+
 def _apply_resolved_fix(issue: DataQualityIssue, request: Request, actor: str | None) -> dict[str, Any]:
     """Dispatch an already-looked-up issue to its fix implementation."""
     if not issue.fixable or issue.type not in FIXABLE_TYPES:
@@ -712,6 +916,8 @@ def _apply_resolved_fix(issue: DataQualityIssue, request: Request, actor: str | 
         return _fix_missing_metadata(payload, actor)
     if kind == "ticker_mismatch":
         return _fix_ticker_mismatch(payload, actor)
+    if kind == "scaling_override":
+        return _fix_scaling_override(payload, actor)
     raise HTTPException(status_code=409, detail=f"Unsupported fix kind: {kind}")
 
 
@@ -833,6 +1039,13 @@ def _issue_still_applies(issue: DataQualityIssue, accounts_root: Path) -> bool:
             return True
         return not dq_issues.has_cached_meta_timeseries(ticker, exchange)
 
+    if kind == "scaling_override":
+        ticker = str(payload.get("ticker") or "")
+        exchange = str(payload.get("exchange") or "")
+        applied = get_scaling_override(ticker, exchange, None)
+        factor = float(payload.get("factor") or 0)
+        return not math.isclose(applied, factor) or invalid_scaling_override(ticker, exchange) is not None
+
     return _series_issue_still_applies(issue)
 
 
@@ -846,20 +1059,33 @@ def list_issues(
     account: str | None = Query(None, description="Filter by holding account"),
     ticker: str | None = Query(None, description="Filter by ticker (series) or holding ticker"),
     partial: bool = Query(False, description="While the startup warm-up runs, include only cached series checks"),
+    user: str | None = Depends(get_active_user),
 ) -> dict[str, Any]:
     cached_only = partial and is_step_warming(DATA_QUALITY_SERIES)
     if cached_only:
         response.headers[WARMING_HEADER] = "true"
     issues = _issue_list(
-        request, cached_only=cached_only, type=type, severity=severity, owner=owner, account=account, ticker=ticker
+        request,
+        user,
+        cached_only=cached_only,
+        type=type,
+        severity=severity,
+        owner=owner,
+        account=account,
+        ticker=ticker,
     )
     return {"count": len(issues), "issues": issues}
 
 
 @router.get("/issues/{issue_id}/preview")
-def preview_issue(issue_id: str, request: Request) -> dict[str, Any]:
-    issues = aggregate_issues(resolve_accounts_root(request))
-    issue = find_issue(issues, issue_id)
+def preview_issue(
+    issue_id: str,
+    request: Request,
+    user: str | None = Depends(get_active_user),
+) -> dict[str, Any]:
+    # Another owner's issue 404s like an unknown id rather than 403ing, so
+    # the response does not confirm which owners/holdings exist (#10557).
+    issue = find_issue(_visible_issues(request, user), issue_id)
     if issue is None:
         raise HTTPException(status_code=404, detail=f"Unknown issue id: {issue_id}")
     return {
@@ -953,8 +1179,16 @@ def dedupe_series(
 
 
 @router.get("/audit")
-def list_audit(limit: int | None = Query(None, ge=1, le=1000)) -> dict[str, Any]:
-    entries = read_audit(limit=limit)
+def list_audit(
+    request: Request,
+    limit: int | None = Query(None, ge=1, le=1000),
+    user: str | None = Depends(get_active_user),
+) -> dict[str, Any]:
+    # Filter before applying ``limit`` so hidden entries don't eat into it.
+    can_see = _owner_visibility(user, resolve_accounts_root(request))
+    entries = [entry for entry in read_audit() if can_see(entry.get("entity"))]
+    if limit is not None:
+        entries = entries[:limit]
     return {"count": len(entries), "entries": entries}
 
 
@@ -1082,6 +1316,9 @@ def undo_audit(
             extra={"kind": "undo", "undo_of": entry_id},
         )
         return {"status": "undone", "entry_id": entry_id}
+
+    if kind == "scaling_override":
+        return _undo_scaling_override(entry, user)
 
     raise HTTPException(
         status_code=409,

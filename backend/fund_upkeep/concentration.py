@@ -13,6 +13,7 @@ import math
 from typing import Any, Dict, List, Mapping, Optional
 
 from backend.common.look_through import COMMODITIES_COUNTRY, NOT_LOOKED_THROUGH, UNKNOWN_LABEL
+from backend.common.look_through_sources import OTHER_LABEL
 from backend.common.sector_labels import CASH_SECTOR_LABEL
 
 DEFAULT_THRESHOLDS: Dict[str, float] = {
@@ -24,7 +25,7 @@ DEFAULT_THRESHOLDS: Dict[str, float] = {
 }
 
 # Buckets that are not a country/sector exposure in their own right.
-_NOT_EXPOSURES = {CASH_SECTOR_LABEL, NOT_LOOKED_THROUGH, UNKNOWN_LABEL, COMMODITIES_COUNTRY}
+_NOT_EXPOSURES = {CASH_SECTOR_LABEL, NOT_LOOKED_THROUGH, UNKNOWN_LABEL, COMMODITIES_COUNTRY, OTHER_LABEL}
 
 
 def normalise_thresholds(raw: Optional[Mapping[str, Any]]) -> Dict[str, float]:

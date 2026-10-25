@@ -18,6 +18,7 @@ from fastapi import APIRouter, Query
 from backend.common.currency import CurrencyNormaliser
 from backend.common.errors import ProviderFailure
 from backend.common.yahoo_chart import chart_quote
+from backend.common.yahoo_symbols import yahoo_symbol_for
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.utils.lazy_import import lazy_import
@@ -40,13 +41,11 @@ def _yahoo_symbol(sym: str) -> str:
     exchange it can't be told apart from a non-US class such as LSE's
     ``BT.A``. Other unmapped suffixes (``IWDA.AS``) are passed through too.
     """
-    from backend.timeseries.fetch_yahoo_timeseries import _build_full_ticker
-
     base, dot, suffix = sym.rpartition(".")
     if not dot or not base:
         return sym
     try:
-        return _build_full_ticker(base, suffix)
+        return yahoo_symbol_for(base, suffix)
     except ValueError:
         return sym
 

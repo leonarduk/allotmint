@@ -102,7 +102,9 @@
     "currencyMissingFx": "Kein gespeicherter Wechselkurs für {{currencies}}: Diese Positionen werden mit einem Näherungskurs bewertet oder ausgelassen, ihr Anteil kann daher abweichen.",
     "currencyNote": "Engagement nach Notierungswährung: die Währung, in der jede Position gehandelt wird, nicht das zugrunde liegende Engagement (ein in GBP notierter globaler Fonds zählt als GBP). Umfasst alle Konten dieser Gruppe.",
     "instrumentTypes": "Instrumenttypen",
-    "region": "Regionen",
+    "region": "Engagement-Regionen",
+    "regionNote": "Regionen zeigen, wo ein Fonds investiert, nicht wo er domiziliert ist.",
+    "domiciledIn": "Domiziliert in {{region}}: {{tickers}}",
     "sector": "Branchen",
     "unknownCurrency": "Unbekannte Währung",
     "viewAllocation": "Allokation nach {{dimension}} anzeigen",
@@ -434,9 +436,18 @@
     "alphaVsBenchmarkInfoLabel": "Was bedeutet Alpha vs Benchmark?",
     "alphaVsBenchmarkInfo": "Alpha misst, wie stark die Rendite des Portfolios im gewählten Zeitraum von {{ticker}} abwich.",
     "vsBenchmark": "vs {{ticker}}",
+    "returnBasisLabel": "Renditebasis: {{basis}}",
+    "returnBasisTotal": "Gesamtrendite (Dividenden reinvestiert)",
+    "returnBasisPrice": "nur Kurs (ohne Dividenden)",
+    "returnBasisMixed": "gemischt: einige Positionen nur auf Kursbasis",
+    "returnBasisTotalShort": "Gesamtrendite",
+    "returnBasisPriceShort": "nur Kurs",
+    "returnBasisPriceShare": "{{share}} des Werts nur auf Kursbasis",
+    "returnBasisUnpriced": "Mangels Kursen ausgelassen: {{holdings}}",
     "cumulativeReturnPortfolio": "Ihr Portfolio",
     "cumulativeReturnBenchmark": "{{ticker}} (Benchmark)",
     "cumulativeReturnBasis": "Beide Linien verwenden reinvestierte Dividenden, die aktuellen Positionen und dieselben Daten ({{from}} bis {{to}}) wie Alpha vs. {{ticker}}.",
+    "twrVsCumulative": "Die zeitgewichtete Rendite folgt den Positionen, die Sie an jedem Tag tatsächlich gehalten haben, und klammert den Zeitpunkt von Einzahlungen und Abhebungen aus, während dieses Diagramm zeigt, wie sich Ihre aktuellen Positionen über den gesamten Zeitraum entwickelt hätten. Daher können die beiden Werte stark voneinander abweichen.",
     "benchmarkSeriesFailed": "{{ticker}} konnte zum Vergleich nicht geladen werden, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
     "benchmarkSeriesEmpty": "Für diesen Zeitraum gibt es keine überlappenden {{ticker}}-Kurse, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
     "trackingErrorInfoLabel": "Was bedeutet Tracking Error?",
@@ -665,6 +676,8 @@
   "instrumentDetail": {
     "bollingerBands": "Bollinger-Bänder",
     "tradeMarkers": "Handelsmarkierungen",
+    "tradeMarkersHidden_one": "{{count}} Transaktion ausgeblendet",
+    "tradeMarkersHidden_other": "{{count}} Transaktionen ausgeblendet",
     "tradeSide": {
       "buy": "Kauf",
       "sell": "Verkauf"
@@ -1685,6 +1698,7 @@
     "tickers": "Ticker",
     "title": "Screener",
     "unavailableBody": "Dieses Deployment enthält den Fundamentaldaten-Screener nicht, daher ist eine Filterung nach Finanzkennzahlen hier nicht möglich.",
+    "temporarilyUnavailable": "Der Screener ist vorübergehend nicht verfügbar. Bitte versuche es erneut.",
     "watchlist": "Beobachtungsliste:",
     "watchlistLabel": "Watchlist",
     "custom": "Benutzerdefiniert",
@@ -1709,7 +1723,8 @@
       "mktCap": "Marktkap.",
       "wk52h": "52W-Hoch",
       "wk52l": "52W-Tief",
-      "avgVol": "Ø Volumen"
+      "avgVol": "Ø Volumen",
+      "beta": "Beta"
     },
     "tips": {
       "infoLabel": "Was bedeutet {{column}}?"
@@ -2061,6 +2076,7 @@
     "noSignalsDescription": "Kein überwachtes Instrument überschreitet derzeit die aktiven Schwellenwerte. Signale erscheinen, wenn die RSI- oder Gleitendurchschnittsbedingungen erfüllt sind und alle aktivierten Bewertungs- und Risikofilter ebenfalls erfüllt werden.",
     "blockedTitle": "Durch Compliance blockierte Signale",
     "blockedDescription": "Diese Instrumente haben die aktiven Schwellenwerte überschritten, aber der vorgeschlagene Handel würde eine neue Compliance-Warnung auslösen, daher wird für sie kein Signal angezeigt.",
+    "blockedBaselineFailed": "Compliance-Basis nicht verfügbar — Signale bleiben blockiert, bis sie geprüft werden kann",
     "checksSkippedBadge": "Prüfungen übersprungen",
     "checksSkippedTitle": "Übersprungene Prüfungen: {{checks}}",
     "checksSkippedInfo": "Eine optionale Prüfung, die das allotmint-pro-Add-on benötigt, konnte nicht ausgeführt werden. „compliance“ bedeutet, dass der Handel nicht anhand Ihrer Compliance-Regeln geprüft wurde; „fundamental_screen“ bedeutet, dass die oben genannten KGV- und Verschuldungsgrad-Filter (soweit konfiguriert) für diesen Kaufkandidaten nicht angewendet wurden.",
@@ -2517,6 +2533,15 @@
     "addCost": "Kosten erfassen",
     "showAll": "Alle {{count}} anzeigen",
     "showTop": "Nur die größten {{count}} anzeigen"
+  },
+  "portfolioSentence": {
+    "valueOnly": "Ihr Portfolio ist {{value}} wert.",
+    "withDay": "Ihr Portfolio ist {{value}} wert — heute {{day}}.",
+    "withYear": "Ihr Portfolio ist {{value}} wert — im vergangenen Jahr {{year}}.",
+    "withDayAndYear": "Ihr Portfolio ist {{value}} wert — heute {{day}} und im vergangenen Jahr {{year}}.",
+    "up": "{{amount}} im Plus",
+    "down": "{{amount}} im Minus",
+    "unchanged": "unverändert"
   },
   "portfolioSummary": {
     "fxCause": "({{count}} ohne Wechselkurs)",
@@ -3124,6 +3149,47 @@
       "awaiting": "Ausstehend"
     }
   },
+  "contributionSchedule": {
+    "title": "Erwartete Einzahlungen",
+    "intro": "Erfassen Sie, was Sie voraussichtlich in jedes Renten- oder ISA-Konto einzahlen. Der Wächter oben prüft anhand dieses Plans die Eingänge und projiziert Ihre Freibeträge.",
+    "loadFailed": "Einzahlungsplan konnte nicht geladen werden",
+    "empty": "Noch keine Einzahlungen erfasst. Fügen Sie eine hinzu.",
+    "rowLegend": "Einzahlung {{number}}",
+    "account": "Konto",
+    "chooseAccount": "Konto wählen",
+    "amount": "Betrag (£)",
+    "amountInvalid": "Geben Sie einen positiven Betrag in Pfund mit höchstens zwei Nachkommastellen ein.",
+    "frequency": "Häufigkeit",
+    "frequencies": {
+      "monthly": "Monatlich",
+      "quarterly": "Vierteljährlich",
+      "annual": "Jährlich"
+    },
+    "source": "Quelle",
+    "sources": {
+      "personal_relief_at_source": "Persönlich (Steuerentlastung an der Quelle)",
+      "personal_gross": "Persönlich (brutto)",
+      "employer": "Arbeitgeber oder Gehaltsumwandlung",
+      "isa_subscription": "ISA-Einzahlung"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "Sie zahlen den Nettobetrag, und Ihr Anbieter schlägt die Steuerentlastung zum Basissatz auf; daher zählt Betrag ÷ 0,8 auf den jährlichen Rentenfreibetrag.",
+      "personal_gross": "Eine persönliche Einzahlung ohne Steuerentlastung an der Quelle; sie zählt zum Nennwert auf den jährlichen Rentenfreibetrag.",
+      "employer": "Vom Arbeitgeber oder per Gehaltsumwandlung gezahlt; zählt zum Nennwert auf den jährlichen Rentenfreibetrag.",
+      "isa_subscription": "Geld, das in ein ISA eingezahlt wird; zählt auf das ISA-Limit, nicht auf den Rentenfreibetrag. ISA-Konten akzeptieren nur diese Quelle."
+    },
+    "expectedDay": "Erwarteter Tag im Monat",
+    "startDate": "Startdatum",
+    "endDate": "Enddatum (optional)",
+    "label": "Bezeichnung (optional)",
+    "remove": "Einzahlung {{number}} entfernen",
+    "add": "Einzahlung hinzufügen",
+    "save": "Plan speichern",
+    "saving": "Wird gespeichert…",
+    "saved": "Plan gespeichert.",
+    "saveFailed": "Einzahlungsplan konnte nicht gespeichert werden",
+    "rejected": "Nicht gespeichert: {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Freibetrags-Tracker",
     "account": "Konto",
@@ -3224,9 +3290,9 @@
       "removeFavourite": "{{ticker}} aus Favoriten entfernen",
       "addFavourite": "{{ticker}} zu Favoriten hinzufügen",
       "today": "{{pct}} heute",
-      "noDataToday": "heute keine Daten"
+      "noDataToday": "heute keine Daten",
+      "shareOfPlot": "{{pct}} des Gartens"
     },
-    "stars": "{{filled}} von {{max}} Sternen",
     "data": {
       "ownersError": "Die Liste der Gärtner konnte nicht geladen werden.",
       "noOwners": "Für dieses Konto wurden keine Gärtner gefunden."
@@ -3306,7 +3372,7 @@
       "growthStages": "Wachstumsstadien",
       "growthStagesLabel": "Was bedeuten die Wachstumsstadien?",
       "growthStagesTip": "Das Stadium einer Pflanze ist ihr Gesamtgewinn seit dem Kauf, nicht die Tagesveränderung – Gesät/Keimend bedeutet kaum oder noch keinen Gewinn, Fruchtend und Rekordernte bedeuten einen hohen Gewinn.",
-      "stageNote": "Das Stadium ergibt sich aus dem Gesamtgewinn jeder Position, die Sternebewertung aus ihrem Anteil am Gartenwert.",
+      "stageNote": "Das Stadium ergibt sich aus dem Gesamtgewinn jeder Position; der Balken zeigt ihren Anteil am Gartenwert.",
       "title": "Pflanzenliste ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} Beet",
       "bedCount_other": "{{count}} Beete",
@@ -3386,7 +3452,11 @@
       "bedPriced": "bewertet {{date}}",
       "biggestCrops": "Größte Pflanzen",
       "nothingToShow": "Noch nichts anzuzeigen.",
-      "fullRoster": "Vollständige Pflanzenliste ansehen →"
+      "fullRoster": "Vollständige Pflanzenliste ansehen →",
+      "seedStore": "Saatgutvorrat",
+      "readyToSow": "{{amount}} Bargeld bereit zur Aussaat",
+      "inBeds_one": "in {{count}} Beet",
+      "inBeds_other": "in {{count}} Beeten"
     },
     "model": {
       "unnamedBed": "Unbenanntes Beet",
@@ -4302,7 +4372,9 @@
     "markets": "Märkte",
     "assumptions": "Annahmen",
     "dataRevision": "Datenkorrekturen",
-    "changed": "Seit dem letzten Lauf geändert: {{label}}"
+    "changed": "Seit dem letzten Lauf geändert: {{label}}",
+    "flagsLabel": "Hinweise",
+    "caveatsLabel": "Vorbehalte"
   },
   "admin": {
     "cacheWarming": "Wird nach einem Serverneustart noch geladen: {{count}} bisher gefunden. Die Liste vervollständigt sich automatisch."
@@ -4346,5 +4418,9 @@
       "failed": "(fehlgeschlagen)",
       "notes": "Notizen"
     }
+  },
+  "deleteSeries": {
+    "delete": "Reihe löschen",
+    "deleting": "Wird gelöscht…"
   }
 }

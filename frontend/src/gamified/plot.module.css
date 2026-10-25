@@ -824,22 +824,41 @@
   font-weight: 700;
 }
 
-/* ── Stars ──────────────────────────────────────────────────────────── */
+/* ── Share of plot (#7197: position size, not a star rating) ───────── */
 
-.stars {
-  display: inline-flex;
-  gap: 0.08rem;
-  font-size: 0.72rem;
-  line-height: 1;
+.shareBar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
 }
 
-.star {
-  color: rgba(255, 255, 255, 0.18);
+.shareChip {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--plot-ink-dim);
 }
 
-.starOn {
-  color: var(--plot-gold);
-  text-shadow: 0 0 6px rgba(242, 193, 78, 0.7);
+.shareTrack {
+  display: block;
+  width: 100%;
+  height: 0.25rem;
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.shareFill {
+  display: block;
+  height: 100%;
+  background: var(--plot-sky);
+  border-radius: 999px;
+}
+
+/* Root depth on the crop detail screen: the bar sits under its caption. */
+.abilityRow .shareTrack {
+  margin-top: 0.3rem;
 }
 
 /* ── Toolbar / filters ──────────────────────────────────────────────── */

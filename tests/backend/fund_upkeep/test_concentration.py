@@ -113,3 +113,15 @@ def test_stock_gone_since_last_run_keeps_its_name(exposure):
     assert gone["label"] == "Sold Example Plc"
     assert gone["pct"] == 0.0
     assert gone["message"] == "Sold Example Plc is no longer in the portfolio. It was 6.0% at the last run."
+
+
+def test_uncovered_other_bucket_is_not_an_exposure():
+    # The explicit "Other" remainder of a fund breakdown (#9979) is not a country or sector.
+    result = {
+        "total_value_gbp": 1000.0,
+        "countries": [{"label": "Other", "weight_pct": 80.0}, {"label": "Japan", "weight_pct": 20.0}],
+        "sectors": [{"label": "Other", "weight_pct": 80.0}, {"label": "Energy", "weight_pct": 20.0}],
+        "holdings": [],
+    }
+
+    assert concentration_alerts(result, {"country_pct": 50.0, "sector_pct": 50.0})["alerts"] == []

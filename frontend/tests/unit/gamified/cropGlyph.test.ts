@@ -37,6 +37,23 @@ describe('cropSpecies', () => {
     expect(fallback).toContain(cropSpecies('', undefined));
   });
 
+  it('has no dedicated cash pool, since cash is never drawn as a crop (#7201)', () => {
+    const fallback = [
+      'leek',
+      'carrot',
+      'tomato',
+      'beanpod',
+      'corn',
+      'peapod',
+      'beetroot',
+      'pumpkin',
+    ];
+    for (const ticker of ['CASH.GBP', 'A', 'BP.L', 'VWRL.L']) {
+      expect(cropSpecies(ticker, 'Cash')).toBe(cropSpecies(ticker, null));
+      expect(fallback).toContain(cropSpecies(ticker, 'Cash'));
+    }
+  });
+
   it('only ever names a species the glyph set can draw', () => {
     const sectors = [
       'Financials',

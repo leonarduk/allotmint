@@ -32,7 +32,8 @@ const SECTOR_POOLS: Record<string, readonly CropSpecies[]> = {
   'real estate': ['pumpkin', 'sunflower', 'corn', 'beetroot'],
   materials: ['beanpod', 'carrot', 'leek', 'sunflower'],
   'communication services': ['sunflower', 'strawberry', 'pear', 'tomato'],
-  cash: ['beanpod', 'peapod', 'pumpkin', 'apple'],
+  // No `cash` pool: cash is never planted as a crop (#7201), and the API
+  // sends it with an empty sector anyway, so such a pool was unreachable.
 };
 
 const DEFAULT_POOL: readonly CropSpecies[] = [

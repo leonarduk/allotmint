@@ -102,7 +102,9 @@
     "currencyMissingFx": "Aucun taux de change enregistré pour {{currencies}} : ces positions sont valorisées à un taux approximatif ou exclues, leur part peut donc être inexacte.",
     "currencyNote": "Exposition par devise de cotation : la devise dans laquelle chaque position est cotée, et non son exposition sous-jacente (un fonds mondial coté en GBP compte comme GBP). Couvre tous les comptes de ce groupe.",
     "instrumentTypes": "Types d'instruments",
-    "region": "Régions",
+    "region": "Régions d'exposition",
+    "regionNote": "Les régions indiquent où chaque fonds investit, et non où il est domicilié.",
+    "domiciledIn": "Domicilié en {{region}} : {{tickers}}",
     "sector": "Secteurs",
     "unknownCurrency": "Devise inconnue",
     "viewAllocation": "Voir la répartition par {{dimension}}",
@@ -434,9 +436,18 @@
     "alphaVsBenchmarkInfoLabel": "Que signifie Alpha vs Indice ?",
     "alphaVsBenchmarkInfo": "L'alpha mesure l'écart entre le rendement du portefeuille et celui de {{ticker}} sur la période sélectionnée.",
     "vsBenchmark": "vs {{ticker}}",
+    "returnBasisLabel": "Base de rendement : {{basis}}",
+    "returnBasisTotal": "rendement total (dividendes réinvestis)",
+    "returnBasisPrice": "cours uniquement (dividendes non inclus)",
+    "returnBasisMixed": "mixte : certaines positions sont au cours uniquement",
+    "returnBasisTotalShort": "rendement total",
+    "returnBasisPriceShort": "cours uniquement",
+    "returnBasisPriceShare": "{{share}} de la valeur au cours uniquement",
+    "returnBasisUnpriced": "Exclues faute de cours : {{holdings}}",
     "cumulativeReturnPortfolio": "Votre portefeuille",
     "cumulativeReturnBenchmark": "{{ticker}} (indice de référence)",
     "cumulativeReturnBasis": "Les deux courbes utilisent les dividendes réinvestis, les positions actuelles et les mêmes dates ({{from}} au {{to}}) que l'alpha vs {{ticker}}.",
+    "twrVsCumulative": "Le rendement pondéré dans le temps suit les positions réellement détenues chaque jour et neutralise le moment des dépôts et des retraits, tandis que ce graphique montre comment vos positions actuelles auraient évolué sur toute la période ; les deux chiffres peuvent donc beaucoup différer.",
     "benchmarkSeriesFailed": "Impossible de charger {{ticker}} pour la comparaison ; seul le rendement cumulé de votre portefeuille, basé sur sa valeur, est affiché.",
     "benchmarkSeriesEmpty": "Aucun cours de {{ticker}} ne couvre cette période ; seul le rendement cumulé de votre portefeuille, basé sur sa valeur, est affiché.",
     "trackingErrorInfoLabel": "Que signifie l'erreur de suivi ?",
@@ -665,6 +676,8 @@
   "instrumentDetail": {
     "bollingerBands": "Bandes de Bollinger",
     "tradeMarkers": "Marqueurs de transactions",
+    "tradeMarkersHidden_one": "{{count}} transaction masquée",
+    "tradeMarkersHidden_other": "{{count}} transactions masquées",
     "tradeSide": {
       "buy": "Achat",
       "sell": "Vente"
@@ -1685,6 +1698,7 @@
     "tickers": "Tickers",
     "title": "Filtre",
     "unavailableBody": "Ce déploiement n'inclut pas le filtre fondamental ; le filtrage par ratios financiers n'est donc pas possible ici.",
+    "temporarilyUnavailable": "Le filtre est temporairement indisponible. Veuillez réessayer.",
     "watchlist": "Liste de suivi :",
     "watchlistLabel": "Liste de suivi",
     "custom": "Personnalisée",
@@ -1709,7 +1723,8 @@
       "mktCap": "Cap. boursière",
       "wk52h": "Plus haut 52 s.",
       "wk52l": "Plus bas 52 s.",
-      "avgVol": "Vol. moyen"
+      "avgVol": "Vol. moyen",
+      "beta": "Beta"
     },
     "tips": {
       "infoLabel": "Que signifie {{column}} ?"
@@ -2061,6 +2076,7 @@
     "noSignalsDescription": "Aucun instrument suivi ne franchit actuellement les seuils actifs. Les signaux apparaissent lorsque les conditions RSI ou de moyenne mobile sont réunies et que les filtres d'évaluation et de risque activés sont également satisfaits.",
     "blockedTitle": "Signaux bloqués par la conformité",
     "blockedDescription": "Ces instruments ont franchi les seuils actifs, mais l'opération proposée déclencherait un nouvel avertissement de conformité ; aucun signal n'est donc affiché pour eux.",
+    "blockedBaselineFailed": "Référence de conformité indisponible — signaux bloqués jusqu'à ce qu'elle puisse être vérifiée",
     "checksSkippedBadge": "Contrôles ignorés",
     "checksSkippedTitle": "Contrôles ignorés : {{checks}}",
     "checksSkippedInfo": "Une vérification facultative nécessitant le module complémentaire allotmint-pro n'a pas pu être exécutée. « compliance » signifie que la transaction n'a pas été vérifiée par rapport à vos règles de conformité ; « fundamental_screen » signifie que les filtres de PER et de ratio dette/capitaux propres ci-dessus (selon leur configuration) n'ont pas été appliqués à ce candidat à l'achat.",
@@ -2517,6 +2533,15 @@
     "addCost": "Ajouter le coût",
     "showAll": "Tout afficher ({{count}})",
     "showTop": "Afficher seulement les {{count}} premières"
+  },
+  "portfolioSentence": {
+    "valueOnly": "Votre portefeuille vaut {{value}}.",
+    "withDay": "Votre portefeuille vaut {{value}} — {{day}} aujourd'hui.",
+    "withYear": "Votre portefeuille vaut {{value}} — {{year}} sur l'année écoulée.",
+    "withDayAndYear": "Votre portefeuille vaut {{value}} — {{day}} aujourd'hui, et {{year}} sur l'année écoulée.",
+    "up": "en hausse de {{amount}}",
+    "down": "en baisse de {{amount}}",
+    "unchanged": "inchangé"
   },
   "portfolioSummary": {
     "fxCause": "({{count}} sans taux de change)",
@@ -3124,6 +3149,47 @@
       "awaiting": "En attente"
     }
   },
+  "contributionSchedule": {
+    "title": "Versements prévus",
+    "intro": "Indiquez ce que vous prévoyez de verser sur chaque compte retraite ou ISA. Le gardien ci-dessus vérifie les arrivées et projette vos plafonds à partir de ce calendrier.",
+    "loadFailed": "Impossible de charger le calendrier des versements",
+    "empty": "Aucun versement enregistré. Ajoutez-en un pour commencer.",
+    "rowLegend": "Versement {{number}}",
+    "account": "Compte",
+    "chooseAccount": "Choisir un compte",
+    "amount": "Montant (£)",
+    "amountInvalid": "Saisissez un montant positif en livres avec au plus deux décimales.",
+    "frequency": "Fréquence",
+    "frequencies": {
+      "monthly": "Mensuel",
+      "quarterly": "Trimestriel",
+      "annual": "Annuel"
+    },
+    "source": "Origine",
+    "sources": {
+      "personal_relief_at_source": "Personnel (allègement à la source)",
+      "personal_gross": "Personnel (brut)",
+      "employer": "Employeur ou sacrifice salarial",
+      "isa_subscription": "Souscription ISA"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "Vous versez le montant net et votre fournisseur ajoute l'allègement fiscal au taux de base ; il compte donc pour montant ÷ 0,8 dans le plafond annuel de retraite.",
+      "personal_gross": "Un versement personnel sans allègement ajouté à la source ; il compte pour sa valeur nominale dans le plafond annuel de retraite.",
+      "employer": "Versé par votre employeur ou par sacrifice salarial ; il compte pour sa valeur nominale dans le plafond annuel de retraite.",
+      "isa_subscription": "Argent versé sur un ISA ; il compte dans la limite ISA, pas dans le plafond de retraite. Les comptes ISA n'acceptent que cette origine."
+    },
+    "expectedDay": "Jour du mois prévu",
+    "startDate": "Date de début",
+    "endDate": "Date de fin (facultatif)",
+    "label": "Libellé (facultatif)",
+    "remove": "Supprimer le versement {{number}}",
+    "add": "Ajouter un versement",
+    "save": "Enregistrer le calendrier",
+    "saving": "Enregistrement…",
+    "saved": "Calendrier enregistré.",
+    "saveFailed": "Impossible d'enregistrer le calendrier des versements",
+    "rejected": "Non enregistré : {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Suivi des plafonds",
     "account": "Compte",
@@ -3224,9 +3290,9 @@
       "removeFavourite": "Retirer {{ticker}} des favoris",
       "addFavourite": "Ajouter {{ticker}} aux favoris",
       "today": "{{pct}} aujourd'hui",
-      "noDataToday": "aucune donnée aujourd'hui"
+      "noDataToday": "aucune donnée aujourd'hui",
+      "shareOfPlot": "{{pct}} du potager"
     },
-    "stars": "{{filled}} étoiles sur {{max}}",
     "data": {
       "ownersError": "Impossible de charger la liste des jardiniers.",
       "noOwners": "Aucun jardinier trouvé pour ce compte."
@@ -3306,7 +3372,7 @@
       "growthStages": "Stades de croissance",
       "growthStagesLabel": "Que signifient les stades de croissance ?",
       "growthStagesTip": "Le stade d'une culture correspond à son gain total depuis l'achat, pas à sa variation du jour — Semé/Germination signifie peu ou pas de profit pour l'instant, Fructification et Récolte record signifient un gain important.",
-      "stageNote": "Le stade provient du gain total de chaque position, la note en étoiles de sa part dans la valeur du potager.",
+      "stageNote": "Le stade provient du gain total de chaque position ; la barre montre sa part dans la valeur du potager.",
       "title": "Liste des cultures ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} planche",
       "bedCount_other": "{{count}} planches",
@@ -3386,7 +3452,11 @@
       "bedPriced": "valorisé {{date}}",
       "biggestCrops": "Plus grosses cultures",
       "nothingToShow": "Rien à afficher pour l'instant.",
-      "fullRoster": "Voir la liste complète des cultures →"
+      "fullRoster": "Voir la liste complète des cultures →",
+      "seedStore": "Réserve de semences",
+      "readyToSow": "{{amount}} en espèces prêts à semer",
+      "inBeds_one": "dans {{count}} planche",
+      "inBeds_other": "dans {{count}} planches"
     },
     "model": {
       "unnamedBed": "Planche sans nom",
@@ -4302,7 +4372,9 @@
     "markets": "marchés",
     "assumptions": "hypothèses",
     "dataRevision": "révisions de données",
-    "changed": "Modifié depuis la dernière exécution : {{label}}"
+    "changed": "Modifié depuis la dernière exécution : {{label}}",
+    "flagsLabel": "Signalements",
+    "caveatsLabel": "Réserves"
   },
   "admin": {
     "cacheWarming": "Chargement en cours après un redémarrage du serveur : {{count}} trouvés pour l'instant. La liste se complète automatiquement."
@@ -4346,5 +4418,9 @@
       "failed": "(échec)",
       "notes": "Notes"
     }
+  },
+  "deleteSeries": {
+    "delete": "Supprimer la série",
+    "deleting": "Suppression…"
   }
 }

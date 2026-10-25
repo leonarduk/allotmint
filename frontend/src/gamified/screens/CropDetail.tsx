@@ -17,7 +17,7 @@ import {
   type Crop,
 } from '../plotModel';
 import Meter from '../components/Meter';
-import StarRating from '../components/StarRating';
+import ShareBar, { ShareTrack } from '../components/ShareBar';
 import CropGlyph from '../components/CropGlyph';
 
 /**
@@ -85,10 +85,11 @@ function abilitiesFor(crop: Crop, t: TFunction) {
       detail: t('plot.crop.rootDepthDetail', {
         pct: (crop.share * 100).toFixed(1),
       }),
-      // Root depth reuses the 7-star plot-share rating, so it needs its own
-      // scale rather than the 5 the other traits use.
-      level: crop.stars,
-      max: 7,
+      // Root depth is position size, not a quality level, so it is drawn
+      // as a proportional bar rather than a "Level N" score (#7197).
+      level: null,
+      max: 5,
+      share: crop.share,
     },
     {
       icon: '⏳',
@@ -196,15 +197,21 @@ export default function CropDetail({ basePath }: { basePath: string }) {
               </span>
               <div>
                 <div className={styles.abilityName}>
-                  {ability.name}{' '}
-                  <span className={styles.abilityLevel}>
-                    {t('plot.crop.level', {
-                      level: ability.level,
-                      max: ability.max,
-                    })}
-                  </span>
+                  {ability.name}
+                  {ability.level !== null && (
+                    <>
+                      {' '}
+                      <span className={styles.abilityLevel}>
+                        {t('plot.crop.level', {
+                          level: ability.level,
+                          max: ability.max,
+                        })}
+                      </span>
+                    </>
+                  )}
                 </div>
                 <div className={styles.abilityLevel}>{ability.detail}</div>
+                {'share' in ability && <ShareTrack share={ability.share} />}
               </div>
             </div>
           ))}
@@ -219,7 +226,7 @@ export default function CropDetail({ basePath }: { basePath: string }) {
             />
           </span>
           <span className={styles.cropStageChip}>{stage.label}</span>
-          <StarRating value={crop.stars} />
+          <ShareBar share={crop.share} />
           <div className={styles.radialLabel}>{t('plot.crop.plotValue')}</div>
           <div className={styles.radialValue}>{formatGbp(crop.valueGbp)}</div>
           <div className={(crop.gainPct ?? 0) >= 0 ? styles.gain : styles.loss}>

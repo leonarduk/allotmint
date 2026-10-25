@@ -109,6 +109,46 @@ describe("InstrumentDetail trade marker rendering", () => {
         SELL_MARKER_COLOR,
       ]);
     });
+    // Under the cap nothing is hidden, so no indicator.
+    expect(screen.queryByTestId("trade-markers-hidden")).not.toBeInTheDocument();
+  });
+
+  it("asks the server for this instrument's trades only, suffix-insensitively", async () => {
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(await screen.findByLabelText("Trade markers"));
+
+    await vi.waitFor(() => {
+      expect(mockGetTransactions).toHaveBeenCalledTimes(1);
+    });
+    expect(mockGetTransactions).toHaveBeenCalledWith({
+      ticker: "ABC.L",
+      ticker_match: "base",
+    });
+  });
+
+  it("does not refetch trades when the chart range changes", async () => {
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(await screen.findByLabelText("Trade markers"));
+    await vi.waitFor(() => {
+      expect(mockGetTransactions).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText(/Range/), "30");
+    await vi.waitFor(() => {
+      expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockGetTransactions).toHaveBeenCalledTimes(1);
   });
 
   it("draws nothing while the overlay is switched off", async () => {
@@ -205,7 +245,7 @@ describe("InstrumentDetail trade marker rendering", () => {
     expect(referenceLineStrokes(container)).toEqual([]);
   });
 
-  it("collapses a heavily traded instrument to the first and last line per side", async () => {
+  it("thins a heavily traded instrument to the cap and says how many trades are hidden (#7797)", async () => {
     // 20 trades across 4 charted dates: far past the marker cap.
     mockGetTransactions.mockResolvedValue(
       Array.from({ length: 20 }, (_, i) => ({
@@ -228,9 +268,12 @@ describe("InstrumentDetail trade marker rendering", () => {
 
     await vi.waitFor(() => {
       const strokes = referenceLineStrokes(container);
-      expect(strokes).toHaveLength(4);
-      expect(strokes.filter((s) => s === BUY_MARKER_COLOR)).toHaveLength(2);
-      expect(strokes.filter((s) => s === SELL_MARKER_COLOR)).toHaveLength(2);
+      expect(strokes).toHaveLength(12);
+      expect(strokes.filter((s) => s === BUY_MARKER_COLOR)).toHaveLength(6);
+      expect(strokes.filter((s) => s === SELL_MARKER_COLOR)).toHaveLength(6);
     });
+    expect(screen.getByTestId("trade-markers-hidden")).toHaveTextContent(
+      "8 trades hidden",
+    );
   });
 });

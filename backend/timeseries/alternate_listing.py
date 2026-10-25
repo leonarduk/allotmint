@@ -134,12 +134,11 @@ import pandas as pd
 import yfinance as yf
 
 from backend.common.instruments import get_instrument_meta
+from backend.common.yahoo_symbols import get_yahoo_suffix, yahoo_symbol_for
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.fetch_yahoo_timeseries import (
     YAHOO_HISTORY_KWARGS,
-    _build_full_ticker,
     _history_currency,
-    get_yahoo_suffix,
     normalize_history,
 )
 from backend.timeseries.source_basis import (
@@ -399,7 +398,7 @@ def fetch_alternate_listing(source: PriceSource, start: date, end: date) -> pd.D
     Empty when Yahoo has no rows. Raises ``ValueError`` when Yahoo reports a
     currency other than ``source.currency``.
     """
-    full_ticker = _build_full_ticker(source.ticker, source.exchange)
+    full_ticker = yahoo_symbol_for(source.ticker, source.exchange)
     stock = yf.Ticker(full_ticker)
     raw = stock.history(start=start, end=end + timedelta(days=1), interval="1d", **YAHOO_HISTORY_KWARGS)
     if raw.empty:

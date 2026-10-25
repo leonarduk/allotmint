@@ -223,6 +223,7 @@ function IssueFiltersBar({
           value={filters.ticker}
           onChange={(e) => onChange({ ...filters, ticker: e.target.value })}
           className="ml-2"
+          // eslint-disable-next-line i18next/no-literal-string -- ticker example, not prose
           placeholder="ABC.L"
         />
       </label>

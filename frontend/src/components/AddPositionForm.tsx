@@ -257,6 +257,7 @@ export function AddPositionForm({
             value={ticker}
             onChange={(e) => setTicker(e.target.value)}
             className={inputClass}
+            // eslint-disable-next-line i18next/no-literal-string -- ticker example, not prose
             placeholder="VWRL.L"
           />
         </label>

@@ -300,6 +300,24 @@ describe("TopMoversPage", () => {
     expect(await screen.findByText(/HTTP 401/)).toBeInTheDocument();
   });
 
+  it("offers a Retry that refetches movers after a failed load (#7115)", async () => {
+    mockGetOpportunities.mockRejectedValueOnce(
+      new Error("HTTP 500 – Internal Server Error"),
+    );
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/HTTP 500/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect((await screen.findAllByText("AAA")).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/HTTP 500/)).not.toBeInTheDocument();
+    expect(mockGetOpportunities).toHaveBeenCalledTimes(2);
+  });
+
   it("falls back to FTSE 100 and prompts login on 401", async () => {
     mockGetOpportunities.mockImplementationOnce(() => {
       const err = new Error("HTTP 401 – Unauthorized");

@@ -399,6 +399,19 @@ export default function Trading() {
                         {b.ticker} {formatSignalAction(b.action)}
                       </strong>
                       : {b.reasons.join('; ')}
+                      {b.baseline_failed && (
+                        <>
+                          {' '}
+                          <em>
+                            (
+                            {t(
+                              'trading.blockedBaselineFailed',
+                              'Compliance baseline unavailable — signals blocked until it can be checked'
+                            )}
+                            )
+                          </em>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

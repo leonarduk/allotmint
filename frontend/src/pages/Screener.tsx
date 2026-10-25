@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { checkScreenerAvailable, getScreener } from "../api";
+import {
+  checkScreenerAvailable,
+  getScreener,
+  type ScreenerAvailability,
+} from "../api";
 import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { InstrumentDetail } from "../components/InstrumentDetail";
@@ -210,15 +214,18 @@ export function Screener() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ScreenerResult | null>(null);
-  // Tri-state, not a boolean: `null` means "still checking" and must not
-  // render the form. Defaulting optimistically to `true` would flash the
-  // full 24-filter form (fully interactive) for one round-trip even to a
-  // gated user -- exactly the "unexplained work first" complaint this
-  // issue is about. A brief, correct loading state is the right trade
-  // for everyone, including deployments where the screener *is* enabled.
-  const [screenerAvailable, setScreenerAvailable] = useState<boolean | null>(
-    null,
-  );
+  // Not a boolean: `null` means "still checking" and must not render the
+  // form. Defaulting optimistically to available would flash the full
+  // 24-filter form (fully interactive) for one round-trip even to a gated
+  // user -- exactly the "unexplained work first" complaint of #7221. A
+  // brief, correct loading state is the right trade for everyone, including
+  // deployments where the screener *is* enabled. A probe that could not
+  // decide (network error, 5xx) lands on "temporarily-unavailable" with a
+  // Retry rather than showing a form that is bound to fail (#7349).
+  const [screenerAvailable, setScreenerAvailable] =
+    useState<ScreenerAvailability | null>(null);
+  // Bumped by the Retry button to re-run the capability probe.
+  const [probeAttempt, setProbeAttempt] = useState(0);
   const { t } = useTranslation();
   // Risk/return figures load alongside, never in front of, the fundamentals
   // (allotmint#10607); their filters apply client-side to the merged rows.
@@ -232,14 +239,19 @@ export function Screener() {
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    checkScreenerAvailable(controller.signal).then((available) => {
-      if (!cancelled) setScreenerAvailable(available);
+    checkScreenerAvailable(controller.signal).then((availability) => {
+      if (!cancelled) setScreenerAvailable(availability);
     });
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, []);
+  }, [probeAttempt]);
+
+  function retryProbe() {
+    setScreenerAvailable(null);
+    setProbeAttempt((n) => n + 1);
+  }
 
   const merged = useMemo(
     () => mergeRiskReturn(rows, risk.data, riskCurrency, riskPeriod),
@@ -299,11 +311,11 @@ export function Screener() {
         // Genuinely unavailable in this deployment -- never surface the raw
         // backend detail (it names an internal package and a repo URL).
         // Keep the technical detail in the console only (#7221). The
-        // `!screenerAvailable` banner below now owns this message, so no
+        // "unavailable" banner below now owns this message, so no
         // `setError` here -- that would only create a dead, unreachable
         // second copy of the same text.
         console.error("Screener request rejected (feature unavailable):", e);
-        setScreenerAvailable(false);
+        setScreenerAvailable("unavailable");
       } else {
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -318,11 +330,16 @@ export function Screener() {
   // first time, so the container has to already exist before its text is
   // set (a11y follow-up on #7221).
   const statusMessage =
-    screenerAvailable === false
+    screenerAvailable === "unavailable"
       ? t("screener.unavailableBody")
-      : screenerAvailable === null
-        ? t("screener.checking")
-        : "";
+      : screenerAvailable === "temporarily-unavailable"
+        ? t(
+            "screener.temporarilyUnavailable",
+            "The screener is temporarily unavailable. Please try again.",
+          )
+        : screenerAvailable === null
+          ? t("screener.checking")
+          : "";
 
   return (
     <div className="container mx-auto p-4">
@@ -345,8 +362,13 @@ export function Screener() {
       >
         {statusMessage}
       </p>
+      {screenerAvailable === "temporarily-unavailable" && (
+        <button type="button" onClick={retryProbe} className="mb-4">
+          {t("common.retry")}
+        </button>
+      )}
 
-      {screenerAvailable === true && (
+      {screenerAvailable === "available" && (
         <>
           <ScreenPresetButtons activeId={activePreset?.id} onPick={loadScreen} />
           <SavedScreensBar
@@ -357,7 +379,7 @@ export function Screener() {
         </>
       )}
 
-      {screenerAvailable === true && (
+      {screenerAvailable === "available" && (
         <form
           onSubmit={handleSubmit}
           className="mb-4 flex flex-wrap items-center gap-2"
@@ -436,7 +458,7 @@ export function Screener() {
         </form>
       )}
 
-      {screenerAvailable === true && error && (
+      {screenerAvailable === "available" && error && (
         <p style={{ color: "red" }}>{error}</p>
       )}
       {loading && <p>{t("screener.loading")}</p>}
@@ -449,7 +471,7 @@ export function Screener() {
         </p>
       )}
 
-      {screenerAvailable === true && showRisk && (
+      {screenerAvailable === "available" && showRisk && (
         <RiskReturnControls
           filters={riskFilters}
           onFilters={setRiskFilters}
@@ -587,7 +609,7 @@ export function Screener() {
                 <RatioHeaderInfoTip column="Payout" />
               </th>
               <th style={right} onClick={() => handleSort("beta")}>
-                Beta
+                {t("screener.col.beta", "Beta")}
                 <RatioHeaderInfoTip column="Beta" />
               </th>
               <th

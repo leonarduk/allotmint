@@ -101,3 +101,16 @@ def test_batch_cap_applies_after_dedupe(client, stub_batch):
 
 def test_batch_rejects_non_positive_days(client):
     assert client.get("/instrument/batch?tickers=AAA.L&days=0").status_code == 400
+
+
+@pytest.mark.parametrize("days", [1, 3650])
+def test_batch_accepts_days_at_bounds(client, stub_batch, days):
+    res = client.get(f"/instrument/batch?tickers=AAA.L&days={days}")
+
+    assert res.status_code == 200
+    assert stub_batch["days"] == days
+
+
+def test_batch_rejects_days_above_max(client, stub_batch):
+    assert client.get("/instrument/batch?tickers=AAA.L&days=3651").status_code == 400
+    assert "days" not in stub_batch

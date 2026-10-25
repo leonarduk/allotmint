@@ -631,9 +631,14 @@ export default function RiskReturn() {
       )}
 
       {points.error && (
-        <p role="alert" style={{ color: 'red' }}>
-          {points.error.message}
-        </p>
+        <div>
+          <p role="alert" style={{ color: 'red' }}>
+            {points.error.message}
+          </p>
+          <button type="button" onClick={points.refetch}>
+            {t('common.retry')}
+          </button>
+        </div>
       )}
       {points.loading && <p>{t('common.loading')}</p>}
       {!!points.data?.missing_members.length && (
@@ -825,6 +830,7 @@ export default function RiskReturn() {
             <input
               value={tickerInput}
               onChange={(e) => setTickerInput(e.target.value)}
+              // eslint-disable-next-line i18next/no-literal-string -- ticker examples, not prose
               placeholder="^FTSE, VWRL.L"
               aria-invalid={tickerError ? true : undefined}
             />

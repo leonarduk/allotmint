@@ -39,7 +39,8 @@ import {
 import {
   BUY_MARKER_COLOR,
   SELL_MARKER_COLOR,
-  buildTradeMarkers,
+  capMarkers,
+  collectTradeMarkers,
   type TradeMarker,
 } from "./instrumentTradeMarkers";
 
@@ -649,14 +650,13 @@ export function InstrumentDetail({
   // this panel never pay for the request.  No owner/account filter is applied —
   // the instrument may be held by several of them, and a fully exited position
   // has trades worth showing but no rows in `positions` to discover them from.
+  // The server filters to this instrument (suffix-insensitively, matching
+  // `matchesTicker`) but not by date: `snapToChartDate` already drops trades
+  // outside the charted range, so changing the range needs no refetch (#7791).
   useEffect(() => {
     if (!showTrades) return;
     let active = true;
-    const start =
-      days > 0
-        ? formatDateISO(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
-        : undefined;
-    getTransactions({ start })
+    getTransactions({ ticker, ticker_match: "base" })
       .then((rows) => {
         if (active) setTrades(rows);
       })
@@ -668,7 +668,7 @@ export function InstrumentDetail({
     return () => {
       active = false;
     };
-  }, [showTrades, ticker, days]);
+  }, [showTrades, ticker]);
 
   useEffect(() => {
     setShowTrades(false);
@@ -776,13 +776,16 @@ export function InstrumentDetail({
     };
   });
 
-  const tradeMarkers = showTrades
-    ? buildTradeMarkers(
+  const allTradeMarkers = showTrades
+    ? collectTradeMarkers(
         trades,
         ticker,
         prices.map((p) => p.date),
       )
     : [];
+  const tradeMarkers = capMarkers(allTradeMarkers);
+  // Surfaced beside the toggle so a thinned history isn't silently truncated (#7797).
+  const hiddenTradeCount = allTradeMarkers.length - tradeMarkers.length;
 
   // 7d / 30d change calculations
   const latestClose = rawPrices[rawPrices.length - 1]?.close ?? NaN;
@@ -1018,6 +1021,14 @@ export function InstrumentDetail({
               />{" "}
               {t("instrumentDetail.tradeMarkers")}
             </label>
+            {hiddenTradeCount > 0 && (
+              <span
+                data-testid="trade-markers-hidden"
+                style={{ fontSize: "0.75rem", marginLeft: "0.25rem", color: palette.muted }}
+              >
+                {t("instrumentDetail.tradeMarkersHidden", { count: hiddenTradeCount })}
+              </span>
+            )}
             <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
               <input
                 type="checkbox"

@@ -11,7 +11,9 @@ is a _crop_, an account is a _bed_, and the daily Trail tasks are _chores_.
 ## Screens
 
 - **`/plot` — The Plot (hub).** Best and worst crop on the stage, the three
-  resource meters, open chores, beds and biggest crops.
+  resource meters, open chores, beds and biggest crops. "Biggest crops"
+  shows one card per instrument: a ticker held in several beds is summed
+  and labelled "in N beds".
 - **`/plot/crops` — Crop roster.** Every holding as a card, sortable by plot
   share / growth / vigour / name and filterable by bed.
 - **`/plot/crops/:ticker` — Crop detail.** One holding's traits, portrait and
@@ -29,14 +31,20 @@ Nothing in Plot mode is invented; every figure traces back to an existing
 endpoint. The mapping lives in `frontend/src/gamified/plotModel.ts` and is
 unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
 
-- **Crop** — one card per `Holding` from `GET /portfolio/{owner}`.
+- **Crop** — one card per non-cash `Holding` from `GET /portfolio/{owner}`.
+- **Seed store** — cash holdings (`instrument_type` "Cash", the same
+  `isCashInstrument` rule the classic summary uses) are not crops: they are
+  summed into a "ready to sow" tile on the hub, still count toward plot
+  value, and stay out of crop counts, shares and the Sunlight meter.
 - **Bed** — one per `Account` in the same response; the account type gives
   the bed its name and icon.
 - **Growth stage** — from `gain_pct`: wilting ≤ −20%, sown ≤ 0%,
   sprouting ≤ 5%, leafing ≤ 15%, budding ≤ 30%, flowering ≤ 60%,
   fruiting ≤ 120%, bumper crop above that.
-- **Stars (1–7)** — from share of total plot value: 7★ at ≥ 20%, then
-  12%, 7%, 4%, 2%, 1%, and 1★ below.
+- **Share of plot** — each crop's share of total plot value, shown as a
+  "N% of plot" chip over a proportional bar (and as the Root depth bar on
+  the crop detail screen). It is position size, not a quality rating, so it
+  is deliberately not drawn as stars; ★ only ever marks a favourite.
 - **Vigour (0–100)** — today's move (`day_change_gbp`) mapped from ±5% onto
   the bar, minus 30 when `is_stale` is set.
 - **Water meter** — `trades_remaining` out of `trades_this_month` plus
@@ -63,7 +71,7 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
   reconstructed.
 - **Season** — the UK tax year from the allowances API's `tax_year`
   (`"YYYY-YYYY"`, ending 5 April of the second year). Milestone tiers are
-  driven by crop count, plot value, allowance usage, streak and grower level;
+  driven by crop count (distinct instruments, not holding rows), plot value, allowance usage, streak and grower level;
   a cleared tier shows the real current figure, not the target it beat.
 - **Favourite stars** — this browser's own marks, kept in `localStorage`
   under `allotmint:plot:favourites:<owner>`. They never reach the backend.

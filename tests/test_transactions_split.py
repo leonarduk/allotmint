@@ -66,6 +66,37 @@ def test_list_transactions_filters_by_ticker(tmp_path, monkeypatch):
     assert [t["ticker"] for t in resp.json()] == ["PFE"]
 
 
+def _seed_vod_variants(tmp_path):
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    txs = [
+        {"date": "2024-01-01", "type": "BUY", "ticker": ticker, "units": 1, "price_gbp": 1.0}
+        for ticker in ("VOD", "VOD.L", "VODX", "vod.l")
+    ]
+    # A ticker-less cash row must be skipped, not crash the base match.
+    txs.append({"date": "2024-01-02", "type": "DEPOSIT", "amount_minor": 1000})
+    (owner_dir / "ISA_transactions.json").write_text(
+        json.dumps({"owner": "alice", "account_type": "ISA", "transactions": txs})
+    )
+
+
+def test_list_transactions_base_ticker_match_ignores_exchange_suffix(tmp_path, monkeypatch):
+    _seed_vod_variants(tmp_path)
+    params = {"ticker": "VOD.L", "ticker_match": "base"}
+    resp = _client(tmp_path, monkeypatch).get("/transactions", params=params)
+    assert resp.status_code == 200
+    assert [t["ticker"] for t in resp.json()] == ["VOD", "VOD.L", "vod.l"]
+
+
+def test_list_transactions_ticker_match_defaults_to_exact(tmp_path, monkeypatch):
+    _seed_vod_variants(tmp_path)
+    client = _client(tmp_path, monkeypatch)
+    resp = client.get("/transactions", params={"ticker": "VOD.L"})
+    assert [t["ticker"] for t in resp.json()] == ["VOD.L", "vod.l"]
+    bad = client.get("/transactions", params={"ticker": "VOD.L", "ticker_match": "fuzzy"})
+    assert bad.status_code == 400
+
+
 def test_split_halves_sum_to_original_when_prorating_does_not_divide_evenly(tmp_path, monkeypatch):
     path = _seed(tmp_path)
     data = json.loads(path.read_text())

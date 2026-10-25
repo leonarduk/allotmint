@@ -93,6 +93,7 @@ export const holdingContractSchema = z
     // the holding is left unpriced); null for GBP/GBX holdings, and for a
     // holding with no metadata currency and an unparseable symbol (treated as GBP).
     fx_rate_source: nullableString,
+    price_status: nullableString,
     day_change_gbp: nullableNumber,
     day_change_currency: nullableString,
     change_1w_gbp: nullableNumber,

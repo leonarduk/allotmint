@@ -150,6 +150,8 @@ const mockAllFetches = (
     liveQuotes?: Record<string, any>;
     // Keyed by owner, or by "owner:days" for one window only.
     totalReturns?: Record<string, { total_return_gbp: number | null; total_return_pct: number | null }>;
+    // Group one-year TWR (#7826); unset falls through to the portfolio payload.
+    twr?: { time_weighted_return: number | null; partial?: boolean };
   } = {},
 ) => {
   const {
@@ -161,6 +163,7 @@ const mockAllFetches = (
     regionContributions = [],
     liveQuotes = {},
     totalReturns = {},
+    twr,
   } = options;
   const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
   const defaultInstrumentRows =
@@ -275,6 +278,9 @@ const mockAllFetches = (
         ok: true,
         json: async () => ({ owner, days, ...figures }),
       } as Response);
+    }
+    if (twr && url.includes("/performance-group/") && url.includes("/twr")) {
+      return Promise.resolve({ ok: true, json: async () => ({ group: "all", ...twr }) } as Response);
     }
     if (url.includes("/alpha")) {
       return Promise.resolve({
@@ -613,6 +619,55 @@ describe("GroupPortfolioView", () => {
       expect(
         screen.getByText("Pricing as of 2024-04-01", { exact: false }),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("portfolio sentence (#7826)", () => {
+    const sentencePortfolio = (dayChange: number | undefined) => ({
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 1000,
+          holdings: [
+            {
+              ticker: "AAA",
+              units: 1,
+              cost_basis_gbp: 900,
+              market_value_gbp: 1000,
+              day_change_gbp: dayChange,
+              instrument_type: "equity",
+            },
+          ],
+        },
+      ],
+    });
+
+    it("summarises value, day change and the one-year return above the cards", async () => {
+      mockAllFetches(sentencePortfolio(-10), { twr: { time_weighted_return: 0.154 } });
+
+      renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+      const sentence = await screen.findByTestId("portfolio-sentence");
+      expect(sentence).toHaveTextContent(/^Your portfolio is worth £1,000\.00 — down £10\.00 \(0\.99%\) today/);
+      await waitFor(() =>
+        expect(sentence).toHaveTextContent("and up 15.4% over the past year."),
+      );
+    });
+
+    it("leaves out clauses whose data is missing instead of printing zero", async () => {
+      mockAllFetches(sentencePortfolio(undefined), {
+        twr: { time_weighted_return: 0.2, partial: true },
+      });
+
+      renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+      const sentence = await screen.findByTestId("portfolio-sentence");
+      await waitFor(() =>
+        expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).includes("/twr"))).toBe(true),
+      );
+      expect(sentence).toHaveTextContent(/^Your portfolio is worth £1,000\.00\.$/);
+      expect(sentence).not.toHaveTextContent("0.00%");
     });
   });
 

@@ -60,7 +60,7 @@ def test_create_then_run_drafts_the_first_tranche(client):
     assert created["status"] == "active" and created["id"]
 
     run = client.get("/cash-deployment/alex", params={"as_of": "2026-01-15"}).json()
-    assert run["bot"] == "cash_deployment" and run["status"] == "ok"
+    assert run["bot"] == "cash-deployment" and run["status"] == "ok"
     [entry] = run["schedules"]
     assert len(entry["progress"]["tranches"]) == 12
     tranche = entry["tranche"]

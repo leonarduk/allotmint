@@ -51,6 +51,7 @@ import {
   TRACKING_ERROR_RANGE,
 } from "../lib/metricPlausibility";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
+import { buildPortfolioSentence } from "../lib/portfolioSentence";
 import FundChargesSummary from "./FundChargesSummary";
 import { computeFundCharges, selectAllInCost } from "../lib/fundCharges";
 import { CostBasisChecklist } from "./CostBasisChecklist";
@@ -93,6 +94,7 @@ import { PricingAsOf } from "./PricingAsOf";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
 import { useViewportWidth } from "../hooks/useViewportWidth";
+import { useOwnerSleeveControl } from "../hooks/useOwnerSleeveControl";
 
 const PIE_COLORS = [
   "#8884d8",
@@ -374,6 +376,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const [instrumentRefreshVersion, setInstrumentRefreshVersion] = useState(0);
   const activeOwner: string | null = routeScope.owner || null;
   const activeAccountType: string | null = routeScope.account || null;
+  // Per-owner tags only: a group view never offers one tag for a ticker several owners hold (#9839).
+  const sleeveControl = useOwnerSleeveControl(activeOwner);
 
   const fetchPortfolio = useCallback(
     () => getGroupPortfolio(slug, { asOf: asOfOverride ?? undefined }),
@@ -515,6 +519,29 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       cancelled = true;
     };
   }, [ownerSlugsKey, asOfOverride]);
+
+  // The group's one-year TWR for the summary sentence (#7826), fetched only
+  // once the portfolio has loaded so it never competes with that request.
+  // Null while loading, when unavailable, or when a member's ledger is missing.
+  const [oneYearTwr, setOneYearTwr] = useState<number | null>(null);
+  const portfolioLoaded = Boolean(portfolio);
+  useEffect(() => {
+    setOneYearTwr(null);
+    if (!slug || !portfolioLoaded) return;
+    let cancelled = false;
+    api
+      .getGroupTwr(slug, 365, { asOf: asOfOverride })
+      .then((result) => {
+        if (cancelled || result.partial) return;
+        setOneYearTwr(result.time_weighted_return ?? null);
+      })
+      .catch((e) => {
+        console.warn("One-year TWR unavailable for group", slug, e);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, asOfOverride, portfolioLoaded]);
 
   const handleOwnerChange = useCallback(
     (owner: string | null, options?: { replace?: boolean }) => {
@@ -770,6 +797,22 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     () => computePortfolioTotals(filteredAccounts),
     [filteredAccounts],
   );
+  // Whether the day change is known and complete, for the summary sentence:
+  // totals count a missing day change or price as 0, which is not "unchanged".
+  const { hasDayChange, hasUnpricedHoldings } = useMemo(() => {
+    const holdings = filteredAccounts.flatMap((acct) => acct.holdings ?? []);
+    return {
+      hasDayChange: holdings.some(
+        (h) => typeof h.day_change_gbp === "number" && Number.isFinite(h.day_change_gbp),
+      ),
+      // Counted whatever the cost basis, unlike totals.unpricedHoldingCount.
+      hasUnpricedHoldings: holdings.some(
+        (h) =>
+          (h.market_value_gbp === null || h.market_value_gbp === undefined) &&
+          !isCashInstrument({ instrument_type: h.instrument_type, ticker: h.ticker }),
+      ),
+    };
+  }, [filteredAccounts]);
   const fundCharges = useMemo(
     () => computeFundCharges(filteredAccounts),
     [filteredAccounts],
@@ -979,6 +1022,18 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   // `portfolioLoading`.
   const portfolioLoading = loading || !portfolio;
   const loadingLabel = t("group.loadingPortfolio");
+  const portfolioSentence = buildPortfolioSentence(
+    t,
+    {
+      totalValue: totals.totalValue,
+      totalDayChange: totals.totalDayChange,
+      hasDayChange,
+      hasUnpricedHoldings,
+      // The group TWR covers every member, so it only describes the unfiltered view.
+      oneYearTwr: isAllPositions ? oneYearTwr : null,
+    },
+    (value) => reporting.format(value),
+  );
 
   // alpha / tracking error / max drawdown are FRACTIONS from the group
   // routes; FractionMetric formats them directly and shows N/A for
@@ -1194,6 +1249,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
       {!portfolioLoading && !relativeViewEnabled && hasFilteredAccounts && (
         <>
+          {portfolioSentence && (
+            <p data-testid="portfolio-sentence" style={{ fontSize: "1.1rem", margin: "1rem 0 0" }}>
+              {portfolioSentence}
+            </p>
+          )}
           <PortfolioSummary totals={totals} />
           <CostBasisChecklist accounts={filteredAccounts} />
         </>
@@ -1723,6 +1783,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             onSelectInstrument={selectInstrument}
             selectedTicker={selectedInstrument?.ticker}
             liveQuotes={liveQuotes}
+            sleeveControl={displayMode === "flat" ? sleeveControl : undefined}
           />
           {displayMode !== "flat" && instrumentLoading && !instrumentRows && (
             <p style={{ marginTop: "0.5rem" }}>

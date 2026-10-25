@@ -729,6 +729,53 @@ describe("AllocationCharts page", () => {
     });
   });
 
+  describe("region view (#10250)", () => {
+    it("labels regions as exposure and lists funds domiciled elsewhere", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(
+        buildPortfolio([
+          { ...baseHolding, ticker: "VWRL", region: "Global", domicile_region: "Europe" },
+          { ...baseHolding, ticker: "ISF", region: "UK", domicile_region: "Europe" },
+          { ...baseHolding, ticker: "VUSA", region: "North America", domicile_region: "Europe" },
+          { ...baseHolding, ticker: "SAME", region: "UK", domicile_region: "UK" },
+        ]),
+      );
+
+      render(<AllocationCharts />);
+      await screen.findByText(/Instrument Types/);
+      expect(screen.queryByTestId("region-exposure-note")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Exposure regions" }));
+
+      const note = screen.getByTestId("region-exposure-note");
+      expect(note).toHaveTextContent("where each fund invests, not where it is domiciled");
+      await waitFor(() =>
+        expect(note).toHaveTextContent("Domiciled in Europe: ISF, VUSA, VWRL"),
+      );
+      expect(note).not.toHaveTextContent("SAME");
+      // Slices still group by exposure region, not domicile.
+      expect(within(screen.getByTestId("pie-slices")).getByText("UK: 200")).toBeInTheDocument();
+      expect(within(screen.getByTestId("pie-slices")).queryByText(/^Europe:/)).not.toBeInTheDocument();
+    });
+
+    it("renders the note without a domicile list when domicile is null or absent", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(
+        buildPortfolio([
+          { ...baseHolding, ticker: "NULLDOM", region: "UK", domicile_region: null },
+          { ...baseHolding, ticker: "NODOM", region: "Asia" },
+        ]),
+      );
+
+      render(<AllocationCharts />, "/allocation?view=region");
+
+      const note = await screen.findByTestId("region-exposure-note");
+      await waitFor(() =>
+        expect(within(screen.getByTestId("pie-slices")).getByText("UK: 100")).toBeInTheDocument(),
+      );
+      expect(note).toHaveTextContent("where each fund invests");
+      expect(note).not.toHaveTextContent(/Domiciled in/);
+    });
+  });
+
   it("offers no holdings ring for views not built from the portfolio's holdings", async () => {
     mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
     mockGetGroupCurrencies.mockResolvedValueOnce([]);
@@ -955,6 +1002,36 @@ describe("AllocationCharts page", () => {
       const rows = screen.getAllByTestId("slice-row").map((el) => el.textContent);
       // 11 largest kept; C11..C14 (89+88+87+86) folded together.
       expect(rows[11]).toBe("Other: 350");
+    });
+
+    it("merges the backend Other bucket into the folded tail (#9979)", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      const many = Array.from({ length: 15 }, (_, i) => bucket(`C${i}`, 100 - i));
+      mockGetGroupLookThrough.mockResolvedValueOnce(lookThrough([...many, bucket("Other", 200)]));
+
+      render(<AllocationCharts />, "/allocation?view=lt-country");
+
+      await waitFor(() => expect(screen.getAllByTestId("slice-row")).toHaveLength(12));
+      const rows = screen.getAllByTestId("slice-row").map((el) => el.textContent);
+      expect(rows.filter((r) => r?.startsWith("Other:"))).toEqual(["Other: 550"]);
+      expect(rows[0]).toBe("C0: 100");
+    });
+
+    it("keeps a backend Other bucket as one slice in a short breakdown", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupLookThrough.mockResolvedValueOnce(
+        lookThrough([bucket("United States", 500), bucket("Other", 200), bucket("Japan", 300)]),
+      );
+
+      render(<AllocationCharts />, "/allocation?view=lt-country");
+
+      await waitFor(() =>
+        expect(screen.getAllByTestId("slice-row").map((el) => el.textContent)).toEqual([
+          "United States: 500",
+          "Japan: 300",
+          "Other: 200",
+        ]),
+      );
     });
 
     it("lists combined holdings with direct and via-fund values", async () => {

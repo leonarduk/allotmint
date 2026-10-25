@@ -60,4 +60,5 @@ def test_trading_agent_signals_report_includes_blocked(monkeypatch):
         "ticker": "BBB",
         "action": "SELL",
         "reasons": ["alex: Sold BBB without approval"],
+        "baseline_failed": False,
     }

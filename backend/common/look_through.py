@@ -6,7 +6,8 @@ portfolio holds (the ``look_through`` block in instrument metadata, written by
 
 * a directly held share counts 100% to its own sector, country (``country``
   metadata, else its ISIN prefix) and holding;
-* a fund with look-through data is split by its country/sector weights, and
+* a fund with look-through data is split by its country/sector weights (any
+  part a breakdown does not cover counted as "Other", #9979), and
   its published top holdings are matched to direct holdings by ISIN, so a
   stock owned directly and inside several funds shows as one exposure;
 * the part of a fund outside its published top holdings is reported as one
@@ -26,7 +27,7 @@ from typing import Any, Dict, List, Optional
 from backend.common.country_codes import country_from_isin, country_name
 from backend.common.instrument_classification import COMMODITY, derive_asset_class, exposure_sector, is_fund
 from backend.common.instruments import get_instrument_meta, save_instrument_meta
-from backend.common.look_through_sources import fetch_look_through, source_page_url
+from backend.common.look_through_sources import OTHER_LABEL, fetch_look_through, source_page_url
 from backend.common.portfolio_utils import aggregate_by_ticker
 from backend.common.sector_labels import (
     CASH_SECTOR_LABEL,
@@ -41,6 +42,13 @@ COMMODITIES_COUNTRY = "Commodities"
 OTHER_FUND_HOLDINGS_KEY = "OTHER-IN-FUNDS"
 OTHER_FUND_HOLDINGS_NAME = "Other holdings in funds"
 DEFAULT_HOLDINGS_LIMIT = 50
+# Stored weights are % of the whole fund. A map totalling at most this much is
+# read as fractions (a hand-entered 0.6/0.4) and only rescaled; no percentage
+# breakdown plausibly covers so little of a fund.
+FRACTION_SCALE_MAX_TOTAL = 1.5
+# A percentage map within this many points of 100 is rounding, not a gap:
+# sources publish 2 dp and blocks are stored at 4 dp.
+COVERAGE_TOLERANCE_PCT = 0.5
 # Look-through blocks fetched within this many days are not refetched: neither
 # source is an official API, so refreshes are kept to roughly monthly.
 DEFAULT_MAX_AGE_DAYS = 25
@@ -129,6 +137,26 @@ def _weights(block: Dict[str, Any], key: str) -> Dict[str, float]:
     return {k: v / total for k, v in weights.items()} if total > 0 else {}
 
 
+def _fund_weights(block: Dict[str, Any], key: str) -> Dict[str, float]:
+    """``{label: share of the fund}`` with any uncovered part as an explicit ``Other`` (#9979).
+
+    A justETF top-N or hand-entered breakdown can cover less than the whole
+    fund; rescaling it to 100% would overstate every listed bucket, so the
+    remainder goes to ``Other`` instead. Fraction-scale maps and totals at or
+    over 100 are rescaled as before.
+    """
+    raw = block.get(key)
+    if not isinstance(raw, dict):
+        return {}
+    pct = {str(k): float(v) for k, v in raw.items() if isinstance(v, (int, float)) and v > 0}
+    total = sum(pct.values())
+    if not FRACTION_SCALE_MAX_TOTAL < total < 100.0 - COVERAGE_TOLERANCE_PCT:
+        return _weights(block, key)
+    shares = {k: v / 100.0 for k, v in pct.items()}
+    shares[OTHER_LABEL] = shares.get(OTHER_LABEL, 0.0) + (100.0 - total) / 100.0
+    return shares
+
+
 def usable_look_through(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """The metadata's ``look_through`` block if it carries country and sector weights."""
     block = meta.get("look_through")
@@ -164,9 +192,9 @@ def _add_fund_holdings(exp: _Exposure, ticker: str, value: float, block: Dict[st
 
 def _add_fund(exp: _Exposure, row: Dict[str, Any], value: float, block: Dict[str, Any]) -> None:
     ticker = row["ticker"]
-    for label, share in _weights(block, "countries").items():
+    for label, share in _fund_weights(block, "countries").items():
         exp.add_country(label, value * share)
-    for label, share in _weights(block, "sectors").items():
+    for label, share in _fund_weights(block, "sectors").items():
         exp.add_sector(label, value * share)
     if block.get("top_holdings"):
         _add_fund_holdings(exp, ticker, value, block)
@@ -303,8 +331,8 @@ def _fund_allocation(base: Dict[str, Any], block: Dict[str, Any], isin: Any) -> 
         "note": block.get("note"),
         "holdings_count": block.get("holdings_count"),
         "asset_mix": block.get("asset_mix"),
-        "countries": _pct_rows(_weights(block, "countries")),
-        "sectors": _pct_rows(_weights(block, "sectors")),
+        "countries": _pct_rows(_fund_weights(block, "countries")),
+        "sectors": _pct_rows(_fund_weights(block, "sectors")),
         "top_holdings": [h for h in block.get("top_holdings") or [] if isinstance(h, dict)],
     }
 

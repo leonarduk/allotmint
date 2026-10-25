@@ -14,7 +14,8 @@ Runs inside :func:`backend.auth.system_job_context`, like the pension report:
 a scheduled job has no request user (#8805). Per-owner failures are logged and
 reported through ``publish_sns_alert``; they do not stop other owners.
 
-The EventBridge rule and IAM for this handler are not wired in CDK yet (#10501).
+CDK deploys it as ``BotsDigestLambda`` with the daily ``BotsDigestRun`` rule
+(07:00 UTC, #10501).
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import AllowanceGuardianCard from "@/components/AllowanceGuardianCard";
 import { getAllowanceGuardian, type AllowanceGuardianReport } from "@/api";
@@ -108,5 +108,14 @@ describe("AllowanceGuardianCard", () => {
     );
     render(<AllowanceGuardianCard owner="alex" />);
     expect(await screen.findByText(/no contribution schedule recorded/i)).toBeInTheDocument();
+  });
+
+  it("reloads the report when refreshKey changes (schedule saved, #10496)", async () => {
+    mockGetGuardian.mockResolvedValue(report());
+    const { rerender } = render(<AllowanceGuardianCard owner="alex" refreshKey={0} />);
+    await screen.findByText("Projected over in 2027-02.");
+
+    rerender(<AllowanceGuardianCard owner="alex" refreshKey={1} />);
+    await waitFor(() => expect(mockGetGuardian).toHaveBeenCalledTimes(2));
   });
 });

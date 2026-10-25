@@ -25,6 +25,7 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
 from backend import config
+from backend.common.cash_tickers import is_cash_listing
 from backend.common.path_utils import safe_join
 from backend.logging_setup import sanitise_log_value
 
@@ -454,7 +455,7 @@ def fetch_meta_timeseries(
     start_date = _nearest_weekday(start_date, forward=False)
     end_date = _nearest_weekday(end_date, forward=True)
 
-    if ticker.upper() == "CASH" or exchange.upper() == "CASH":
+    if is_cash_listing(ticker, exchange):
         dates = pd.bdate_range(start_date, end_date)
         df = pd.DataFrame(
             {

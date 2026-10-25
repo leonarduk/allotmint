@@ -18,6 +18,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field, ValidationError
 
 from backend.common.account_scaffold import load_transactions
+from backend.common.cash_tickers import cash_ticker_currency, is_cash_ticker
 from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.common.path_utils import safe_join
 from backend.common.portfolio_loader import get_units_as_of, list_portfolios
@@ -140,10 +141,10 @@ def _gbp_price(ticker: str, holding: dict, on: date) -> float | None:
     """
     sym, _, suffix = ticker.partition(".")
     exch = (holding.get("exchange") or suffix or "L").upper()
-    if sym == "CASH":
+    if is_cash_ticker(ticker):
         # Cash is 1.0 per unit of its own currency; only sterling cash is 1.0
         # in GBP, so leave other currencies unvalued rather than wrong.
-        return 1.0 if exch == "GBP" else None
+        return 1.0 if (cash_ticker_currency(ticker) or exch) == "GBP" else None
     for back in range(_PRICE_LOOKBACK_DAYS + 1):
         price, _src = _get_price_for_date_scaled(sym, exch, on - timedelta(days=back))
         if price is not None:

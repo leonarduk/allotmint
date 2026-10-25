@@ -306,3 +306,83 @@ def test_registry_source_uses_the_newest_finished_run(fake_bot):
     _registry_run("fake-bot", "failed", minutes_ago=300)
     record = RegistryRunRecordSource().latest_run("fake-bot")
     assert (record.status, record.started_at) == ("ok", NOW - timedelta(minutes=10))
+
+
+# --- digest items from the existing jobs (#10502) ---------------------------
+
+
+def _job_items(bot_id):
+    from backend.bots import runner
+
+    record, _ = runner.execute(bot_id, "manual")
+    return record, RegistryRunRecordSource().latest_run(bot_id).digest_items
+
+
+def _keys(digest):
+    return {item.dedupe_key for item in digest.items}
+
+
+def test_price_refresh_reports_unpriced_tickers_as_a_system_item(monkeypatch):
+    from backend.lambda_api import price_refresh
+
+    tickers = [f"T{i}" for i in range(14)]
+    monkeypatch.setattr(
+        price_refresh, "_run_refresh", lambda: {"tickers": tickers, "snapshot": {}, "unpriced": tickers[:12]}
+    )
+
+    record, [item] = _job_items("price-refresh")
+
+    assert record.status == "partial"
+    assert (item.owner, item.severity, item.dedupe_key) == (None, Severity.MEDIUM, "price-refresh:unpriced")
+    assert item.title == "12 of 14 tickers have no price"
+    assert item.summary.endswith("T9 and 2 more.")
+    # System-wide: an admin's digest has it, a non-admin's does not.
+    source = RegistryRunRecordSource()
+    admin = compose_digest("alex", source, previous=None, now=NOW, include_system=True)
+    assert "price-refresh:unpriced" in _keys(admin)
+    assert "price-refresh:unpriced" not in _keys(compose_digest("alex", source, previous=None, now=NOW))
+
+
+def test_price_refresh_fully_priced_has_no_items(monkeypatch):
+    from backend.lambda_api import price_refresh
+
+    monkeypatch.setattr(price_refresh, "_run_refresh", lambda: {"tickers": ["A"], "snapshot": {}, "unpriced": []})
+
+    record, items = _job_items("price-refresh")
+
+    assert (record.status, items) == ("ok", [])
+
+
+def test_dividend_refresh_with_no_accounts_reports_an_item(monkeypatch):
+    monkeypatch.setattr(
+        "backend.common.dividends.refresh_dividends",
+        lambda: {"dividends_created": 0, "accounts_processed": 0, "skipped_tickers": []},
+    )
+
+    record, [item] = _job_items("dividend-refresh")
+
+    assert record.status == "partial"
+    assert (item.owner, item.dedupe_key) == (None, "dividend-refresh:no-accounts")
+
+
+def test_dividend_refresh_with_accounts_has_no_items(monkeypatch):
+    monkeypatch.setattr(
+        "backend.common.dividends.refresh_dividends",
+        lambda: {"dividends_created": 2, "accounts_processed": 3, "skipped_tickers": []},
+    )
+
+    assert _job_items("dividend-refresh")[1] == []
+
+
+@pytest.mark.parametrize("sent,severity", [(0, Severity.HIGH), (2, Severity.MEDIUM)])
+def test_pension_report_errors_report_a_count_only_item(monkeypatch, sent, severity):
+    from backend.lambda_api import pension_report
+
+    monkeypatch.setattr(pension_report, "_run_report", lambda: {"sent": sent, "errors": ["alex: boom"]})
+
+    _, [item] = _job_items("pension-report")
+
+    assert (item.owner, item.severity, item.dedupe_key) == (None, severity, "pension-report:errors")
+    assert item.title == "1 pension report not sent"
+    # The error lines name owners; the item only counts them.
+    assert "alex" not in item.title + item.summary

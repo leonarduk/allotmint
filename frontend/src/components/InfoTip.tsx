@@ -110,6 +110,7 @@ export default function InfoTip({ label, children, to }: InfoTipProps) {
           setOpen((current) => !current);
         }}
       >
+        {/* eslint-disable-next-line i18next/no-literal-string -- decorative icon, aria-hidden */}
         <span aria-hidden="true">i</span>
       </button>
       <span

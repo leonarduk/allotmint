@@ -389,6 +389,12 @@
                           "null"
                         ]
                       },
+                      "price_status": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "day_change_gbp": {
                         "type": [
                           "number",
@@ -818,6 +824,12 @@
                         ]
                       },
                       "fx_rate_source": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "price_status": {
                         "type": [
                           "string",
                           "null"

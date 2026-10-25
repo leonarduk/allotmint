@@ -21,7 +21,7 @@ import {
   getGroupTrackingError,
   getGroupMaxDrawdown,
 } from "../api";
-import type { PerformancePoint } from "../types";
+import type { PerformancePoint, PortfolioReturnBasisFields } from "../types";
 import { percent, wholeMoney } from "../lib/money";
 import { paddedDomain } from "../lib/chartDomain";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
@@ -30,6 +30,7 @@ import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 import InfoTip from "./InfoTip";
 import PortfolioFxAttribution from "./PortfolioFxAttribution";
 import FractionMetric from "./FractionMetric";
+import ReturnBasisNote from "./ReturnBasisNote";
 import LoadingStatus from "./skeletons/LoadingStatus";
 import PortfolioDashboardSkeleton from "./skeletons/PortfolioDashboardSkeleton";
 import {
@@ -67,6 +68,14 @@ const METRIC_LABEL_CLASS = "text-slate-600 dark:text-slate-400";
 const PORTFOLIO_LINE_COLOUR = "#82ca9d";
 const BENCHMARK_LINE_COLOUR = "#f59e0b";
 
+// "Open diagnostics" is developer surface, so it is a plain text link like
+// the page's other secondary actions, never a primary button (#7214).
+const SECONDARY_LINK_STYLE = {
+  alignSelf: "center",
+  fontSize: "0.85rem",
+  color: "#60a5fa",
+} as const;
+
 // The four metric requests, settled independently so one failing never blanks
 // the rest (#7228, #10083), and retried independently from the banner (#10755).
 type MetricKey = "alpha" | "trackingError" | "maxDrawdown" | "performance";
@@ -89,6 +98,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [days, setDays] = useState<number>(365);
   const [alpha, setAlpha] = useState<number | null>(null);
   const [comparison, setComparison] = useState<CumulativeComparisonPoint[]>([]);
+  const [returnBasis, setReturnBasis] = useState<PortfolioReturnBasisFields | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [drawdownSeries, setDrawdownSeries] = useState<DrawdownSeriesPoint[]>([]);
@@ -165,6 +175,11 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             (res) => {
               setAlpha(res.alpha_vs_benchmark);
               setComparison(buildCumulativeComparison(res.series));
+              setReturnBasis({
+                portfolio_return_basis: res.portfolio_return_basis,
+                portfolio_price_basis_share: res.portfolio_price_basis_share,
+                portfolio_unpriced_holdings: res.portfolio_unpriced_holdings,
+              });
             },
           ),
         trackingError: () =>
@@ -244,6 +259,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setShowDrawdownDetails(false);
     setAlpha(null);
     setComparison([]);
+    setReturnBasis(null);
     setTrackingError(null);
     setMaxDrawdown(null);
     setTimeWeightedReturn(null);
@@ -466,6 +482,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.75rem" }}>
             {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
           </div>
+          <ReturnBasisNote fields={returnBasis} className={METRIC_LABEL_CLASS} />
         </div>
         <div>
           <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
@@ -667,29 +684,11 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             }}
           >
             {activeOwner && (
-              <Link
-                to={diagnosticsHref}
-                style={{
-                  display: "inline-block",
-                  padding: "0.5rem 0.85rem",
-                  borderRadius: "0.5rem",
-                  backgroundColor: "#2563eb",
-                  color: "#fff",
-                  textDecoration: "none",
-                  fontSize: "0.85rem",
-                }}
-              >
+              <Link to={diagnosticsHref} style={SECONDARY_LINK_STYLE}>
                 {t("dashboard.openDiagnostics")}
               </Link>
             )}
-            <Link
-              to="/metrics-explained#max-drawdown"
-              style={{
-                alignSelf: "center",
-                fontSize: "0.85rem",
-                color: "#60a5fa",
-              }}
-            >
+            <Link to="/metrics-explained#max-drawdown" style={SECONDARY_LINK_STYLE}>
               {t("dashboard.viewMetricsExplanation")}
             </Link>
           </div>
@@ -727,6 +726,16 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           </ResponsiveContainer>
 
           <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
+          <p
+            data-testid="twr-vs-cumulative"
+            className={METRIC_LABEL_CLASS}
+            style={{ fontSize: "0.8rem", marginTop: 0 }}
+          >
+            {t(
+              "dashboard.twrVsCumulative",
+              "Time-weighted return follows the holdings you actually held each day and strips out the timing of deposits and withdrawals, while this chart shows how your current holdings would have performed over the whole period, so the two can differ widely.",
+            )}
+          </p>
           {comparison.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={240}>
@@ -792,17 +801,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
       )}
       {activeOwner && (
         <div style={{ marginTop: "1rem" }}>
-          <Link
-            to={diagnosticsHref}
-            style={{
-              display: "inline-block",
-              padding: "0.5rem 0.85rem",
-              borderRadius: "0.5rem",
-              backgroundColor: "#2563eb",
-              color: "#fff",
-              textDecoration: "none",
-            }}
-          >
+          <Link to={diagnosticsHref} style={SECONDARY_LINK_STYLE}>
             {t("dashboard.openDiagnostics")}
           </Link>
         </div>

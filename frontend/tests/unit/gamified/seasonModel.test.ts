@@ -248,6 +248,38 @@ describe('buildSeasonGoals', () => {
       all.filter((goal) => !goal.id.startsWith('feed-'))
     );
   });
+
+  it('counts distinct instruments for "Tend the plot", not holding rows or cash (#7212, #7201)', () => {
+    const [isa] = portfolio.accounts;
+    const spread = buildPlotSnapshot({
+      portfolio: {
+        ...portfolio,
+        accounts: [
+          {
+            ...isa,
+            holdings: [
+              ...isa.holdings,
+              {
+                ticker: 'CASH.GBP',
+                name: 'Cash (GBP)',
+                units: 500,
+                market_value_gbp: 500,
+                instrument_type: 'Cash',
+              },
+            ],
+          },
+          // The same two instruments again in a second bed.
+          { ...isa, account_type: 'sipp' },
+        ],
+      },
+    });
+    // Four holding rows across two beds, plus cash: two instruments.
+    expect(spread.crops).toHaveLength(4);
+    const tend5 = buildSeasonGoals(spread, null).find(
+      (goal) => goal.id === 'tend-5'
+    );
+    expect(tend5).toMatchObject({ current: 2, display: '2 crops' });
+  });
 });
 
 describe('buildSeasonGroups', () => {

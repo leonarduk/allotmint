@@ -168,6 +168,10 @@ class HoldingContract(SpaContractBase):
     # the holding is left unpriced); None for GBP/GBX holdings, and for a
     # holding with no metadata currency and an unparseable symbol (treated as GBP).
     fx_rate_source: str | None = None
+    # Why the holding has or lacks a GBP price (#10318): "priced", "unconverted"
+    # (a close exists but was never converted to GBP) or "no_data"; None for a
+    # holding with no units.
+    price_status: str | None = None
     day_change_gbp: float | None = None
     day_change_currency: str | None = None  # currency code e.g. "GBP"
     # Price change on current units over trailing 7/30/365/1095 days (#10746);

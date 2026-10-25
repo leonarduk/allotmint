@@ -25,6 +25,13 @@ import pandas as pd
 from backend.common import group_portfolio, ledger_performance, portfolio_cache
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
+from backend.common.cash_tickers import (
+    CASH_SYMBOL,
+    cash_price_key,
+    cash_ticker_currency,
+    is_cash_listing,
+    is_cash_ticker,
+)
 from backend.common.constants import PRICE_CHANGE_WINDOWS
 from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
@@ -1298,11 +1305,7 @@ UNKNOWN_CURRENCY_LABEL = "Unknown"
 
 def _cash_currency(ticker: str) -> str | None:
     """``USD`` for ``CASH.USD`` or legacy ``USD.CASH`` tickers, else None."""
-    parts = ticker.strip().upper().split(".")
-    if len(parts) != 2:
-        return None
-    code = parts[1] if parts[0] == "CASH" else parts[0] if parts[1] == "CASH" else None
-    return code if code and len(code) == 3 and code.isalpha() else None
+    return cash_ticker_currency(ticker)
 
 
 def _quote_currency_key(row: dict) -> str:
@@ -1479,7 +1482,7 @@ def compute_owner_performance(
             tkr = (h.get("ticker") or "").upper()
             if not tkr:
                 continue
-            if not include_cash and tkr.split(".")[0] == "CASH":
+            if not include_cash and is_cash_ticker(tkr):
                 continue
             units = _safe_num(h.get("units"))
             if not units:
@@ -1493,6 +1496,7 @@ def compute_owner_performance(
                 if not h.get("exchange"):
                     logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
             exch = (h.get("exchange") or inferred or "L").upper()
+            sym, exch = cash_price_key(tkr, sym, exch)
             full = f"{sym}.{exch}".upper()
             if not include_flagged and full in flagged:
                 logger.debug("Skipping flagged instrument %s", sanitise_log_value(full))
@@ -1513,34 +1517,14 @@ def compute_owner_performance(
         requested_pricing_date=pricing_date,
         reporting_date=calc.reporting_date,
     )
-    # Collect each holding's per-ticker value series *before* summing them.
-    # Each ticker's series is only indexed by the dates that ticker actually
-    # has a close price for -- e.g. an LSE-listed holding has no row on a UK
-    # bank holiday, even though a NYSE-listed holding in the same portfolio
-    # keeps trading that day. Summing directly with ``fill_value=0`` (the
-    # old behaviour) would treat that missing date as the LSE holding being
-    # worth £0 that day, producing a fake single-day crash that fully
-    # reverses the next trading day. Instead, build the union of dates
-    # across all holdings and forward-fill each series onto it so a missing
-    # date carries forward that ticker's last known price. A ticker with no
-    # price history yet at the start of the window still contributes 0
-    # (via ``fillna(0)`` after the forward-fill) rather than NaN.
     # Holdings are valued in GBP by the same path as the max-drawdown series
-    # (#9678): pence scaled, other currencies at the stored FX rate per date.
+    # (#9678): pence scaled, other currencies at the stored FX rate per date,
+    # and summed on the same carried-forward date grid (#9696, see
+    # :func:`_aligned_holding_frame`).
     window = _series_window(days, effective_days, calc.reporting_date)
     per_holding, unconverted, _unpriced = _gbp_holding_values(holdings, effective_days, window, total_return=False)
-    # Guard against duplicate dates (shouldn't happen, but a duplicated index
-    # breaks ``reindex`` below).
-    value_series = [values[~values.index.duplicated(keep="last")] for values, _basis in per_holding]
-
-    if value_series:
-        all_dates = pd.Index(sorted(set().union(*(s.index for s in value_series))), name="Date")
-        total = pd.Series(0.0, index=all_dates)
-        for values in value_series:
-            aligned = values.sort_index().reindex(all_dates).ffill().fillna(0.0)
-            total = total.add(aligned, fill_value=0)
-    else:
-        total = pd.Series(dtype=float)
+    total = _aligned_holding_frame([values for values, _basis in per_holding]).sum(axis=1, min_count=1)
+    total.index.name = "Date"
 
     if total.empty:
         return {
@@ -1642,6 +1626,7 @@ def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:
                 if not h.get("exchange"):
                     logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
             exch = (h.get("exchange") or inferred or "L").upper()
+            sym, exch = cash_price_key(tkr, sym, exch)
             key = f"{sym}.{exch}"
             row = holdings.setdefault(
                 key,
@@ -1687,6 +1672,7 @@ def _series_holdings(name: str, *, group: bool, reporting_date: date) -> List[tu
                 if not h.get("exchange"):
                     logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
             exch = (h.get("exchange") or inferred or "L").upper()
+            sym, exch = cash_price_key(tkr, sym, exch)
             full = f"{sym}.{exch}".upper()
             if full in flagged:
                 logger.debug("Skipping flagged instrument %s", sanitise_log_value(full))
@@ -1716,13 +1702,33 @@ def _holding_closes(ticker: str, exchange: str, effective_days: int) -> pd.Serie
     return valid_closes
 
 
+def _aligned_holding_frame(value_series: list[pd.Series]) -> pd.DataFrame:
+    """Each holding's values as a column on the union of their dates, missing prices carried forward.
+
+    A holding only has rows for the dates it has a close -- an LSE line has
+    none on a UK bank holiday a NYSE line trades through, a suspended line
+    none until it resumes. Counting a missing date as £0 would be a fake
+    crash that reverses when the price returns, so the last known value is
+    carried forward with no limit: the holding is still owned however stale
+    its price. Dates before a holding's first close stay NaN, which a sum
+    skips. Both valuation paths -- :func:`compute_owner_performance` and the
+    max-drawdown series via :func:`_sum_holding_values` -- sum this frame, so
+    they agree to the penny (#9696). FX gaps are a separate, bounded rule
+    (see :func:`_gbp_rates`).
+    """
+    if not value_series:
+        return pd.DataFrame(dtype=float)
+    # A duplicated date (shouldn't happen) would break the column alignment.
+    deduped = [values[~values.index.duplicated(keep="last")] for values in value_series]
+    return pd.concat(deduped, axis=1).sort_index().ffill()
+
+
 def _sum_holding_values(value_series: list[pd.Series], days: int, reporting_date: date) -> pd.Series:
-    """Daily portfolio value: the holdings' values summed (short gaps carried), last ``days`` rows."""
+    """Daily portfolio value: the holdings' values summed (gaps carried), last ``days`` rows."""
     if not value_series:
         return pd.Series(dtype=float)
 
-    value_frame = pd.concat(value_series, axis=1).sort_index()
-    total = value_frame.ffill(limit=_MAX_PRICE_GAP_FILL_DAYS).sum(axis=1, min_count=1)
+    total = _aligned_holding_frame(value_series).sum(axis=1, min_count=1)
 
     total = total.sort_index()
     total = total[total.index <= reporting_date]
@@ -1758,10 +1764,8 @@ def _holding_currency(ticker: str, exchange: str) -> CurrencyNormaliser:
     missing from ``EXCHANGE_TO_CCY``) counts as GBP there, and so here, so this
     series and ``ledger_performance.load_gbp_closes`` value it the same way.
     """
-    if ticker.upper() == "CASH":
-        return CurrencyNormaliser.from_raw(exchange)
-    if exchange.upper() == "CASH":
-        return CurrencyNormaliser.from_raw(ticker)
+    if is_cash_listing(ticker, exchange):
+        return CurrencyNormaliser.from_raw(exchange if ticker.upper() == CASH_SYMBOL else ticker)
     return CurrencyNormaliser.from_raw(instrument_currency(ticker, exchange))
 
 
@@ -2050,7 +2054,7 @@ def _portfolio_value_series(
 
 def _is_cash_holding(ticker: str, exchange: str) -> bool:
     """True for a ``CASH.<ccy>`` (or legacy ``<ccy>.CASH``) holding."""
-    return ticker.upper() == "CASH" or exchange.upper() == "CASH"
+    return is_cash_listing(ticker, exchange)
 
 
 def _portfolio_return_basis(
@@ -2453,10 +2457,6 @@ _CASH_FLOW_SIGNS = {
     "DIVIDENDS": 1,
     "INTEREST": 1,
 }
-
-# Carry prices across short data outages only; do not propagate stale prices
-# indefinitely when an instrument has a long missing-data window.
-_MAX_PRICE_GAP_FILL_DAYS = 5
 
 
 def _group_transactions(slug: str) -> tuple[List[Dict[str, Any]], List[str]]:
@@ -2952,7 +2952,7 @@ def _cash_value_series(owner: str, days: int = 365) -> pd.Series:
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
             tkr = (h.get("ticker") or "").upper()
-            if not tkr.startswith("CASH"):
+            if not is_cash_ticker(tkr):
                 continue
             units = _safe_num(h.get("units"))
             if not units:
@@ -2963,6 +2963,7 @@ def _cash_value_series(owner: str, days: int = 365) -> pd.Series:
             else:
                 sym, inferred = (tkr.split(".", 1) + [None])[:2]
             exch = (h.get("exchange") or inferred or "GBP").upper()
+            sym, exch = cash_price_key(tkr, sym, exch)
             holdings.append((sym, exch, units))
 
     total = pd.Series(dtype=float)

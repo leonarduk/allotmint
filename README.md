@@ -120,7 +120,7 @@ flowchart TD
     LocalChecks["Local checks<br/>cicaid run-ci-checks<br/>.cicaid-checks.toml"]
     PR["Pull request<br/>body has Closes #NNNN"]
     Board["project-status-in-review.yml<br/>linked issue to In review"]
-    Checks["Required checks on main<br/>CI tests + lint, CDK tests,<br/>require-issue-reference,<br/>merge-conflict check,<br/>DeepSeek AI code review"]
+    Checks["Required checks on main<br/>backend + frontend tests,<br/>integration tests,<br/>require-issue-reference,<br/>merge-conflict check,<br/>DeepSeek AI code review"]
     Merge["Merge to main"]
     PostMerge["Advisory post-merge reviews<br/>Claude PR Review, GPT PR Review"]
     ProTests["notify-allotmint-pro.yml<br/>runs allotmint-pro tests<br/>against new backend code"]
@@ -139,10 +139,14 @@ flowchart TD
 - Branch, worktree and PR rules: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#branch-and-pr-policy).
   Parallel agent sessions each get their own worktree, so they don't share a
   dirty checkout.
-- The required checks are listed in
-  `.github/rulesets/default-branch-protection.json`. `require-issue-reference`
-  is in `.github/workflows/pr-lint.yml`, and the DeepSeek review is
-  `.github/workflows/deepseek-pr-review.yml`.
+- The intended required checks are in
+  `.github/rulesets/default-branch-protection.json`, but the live branch
+  protection on `main` has drifted from it before (CDK tests and backend lint
+  were in the file but not enforced; see #10678). The repository's branch
+  protection settings are authoritative, and
+  `.github/workflows/branch-protection-drift.yml` reports drift between the
+  two daily. `require-issue-reference` is in `.github/workflows/pr-lint.yml`,
+  and the DeepSeek review is `.github/workflows/deepseek-pr-review.yml`.
 - The nightly **data steward** (`backend/data_steward/`) is an agent too. It
   triages data-quality issues through the MCP server's read-only tools and
   writes a ranked report, shown in the app's data-quality pages.

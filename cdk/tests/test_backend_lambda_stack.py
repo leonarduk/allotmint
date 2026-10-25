@@ -1549,3 +1549,47 @@ def test_pension_report_lambda_env_includes_snapshots_uri(template):
             }
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# BotsDigestLambda / BotsDigestRun (issue #10501)
+# ---------------------------------------------------------------------------
+
+
+def _bots_digest_function(template) -> dict:
+    functions = template.find_resources("AWS::Lambda::Function")
+    matches = [
+        res
+        for logical_id, res in functions.items()
+        if logical_id.startswith("BotsDigestLambda")
+    ]
+    assert len(matches) == 1, f"Expected one BotsDigestLambda, found {len(matches)}"
+    return matches[0]
+
+
+def test_bots_digest_lambda_runs_the_digest_handler(template):
+    props = _bots_digest_function(template)["Properties"]
+    assert props["ImageConfig"]["Command"] == ["backend.lambda_api.bots_digest.lambda_handler"]
+    env = props["Environment"]["Variables"]
+    assert env["BOTS_DIGEST_FROM"] == "no-reply@allotmint.com"
+    assert {"APP_ENV", "DATA_BUCKET", "JWT_SECRET", "TIMESERIES_CACHE_BASE"} <= set(env)
+    # s3://<bucket>/bots: run records, digest settings and digests sit under it.
+    assert env["BOTS_STORAGE_URI"]["Fn::Join"][1][-1] == "/bots"
+
+
+def test_bots_digest_rule_fires_daily_at_seven_utc(template):
+    template.has_resource_properties(
+        "AWS::Events::Rule",
+        {
+            "ScheduleExpression": "cron(0 7 * * ? *)",
+            "Targets": assertions.Match.array_with([
+                assertions.Match.object_like({
+                    "Arn": assertions.Match.object_like(
+                        {"Fn::GetAtt": assertions.Match.array_with([
+                            assertions.Match.string_like_regexp("BotsDigestLambda")
+                        ])}
+                    )
+                })
+            ]),
+        },
+    )

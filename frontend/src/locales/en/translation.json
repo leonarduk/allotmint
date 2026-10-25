@@ -102,7 +102,9 @@
     "currencyMissingFx": "No stored exchange rate for {{currencies}}: those holdings are valued at an approximate rate or left out, so their share may be off.",
     "currencyNote": "Exposure by quote currency: the currency each holding is listed in, not its underlying exposure (a GBP-listed global fund counts as GBP). Covers every account in this group.",
     "instrumentTypes": "Instrument Types",
-    "region": "Regions",
+    "region": "Exposure regions",
+    "regionNote": "Regions show where each fund invests, not where it is domiciled.",
+    "domiciledIn": "Domiciled in {{region}}: {{tickers}}",
     "sector": "Industries",
     "unknownCurrency": "Unknown currency",
     "viewAllocation": "View allocation by {{dimension}}",
@@ -428,9 +430,18 @@
     "alphaVsBenchmarkInfoLabel": "What does Alpha vs Benchmark mean?",
     "alphaVsBenchmarkInfo": "Alpha measures how much the portfolio's return differed from {{ticker}} over the selected period.",
     "vsBenchmark": "vs {{ticker}}",
+    "returnBasisLabel": "Return basis: {{basis}}",
+    "returnBasisTotal": "total return (dividends reinvested)",
+    "returnBasisPrice": "price only (dividends not included)",
+    "returnBasisMixed": "mixed: some holdings are price only",
+    "returnBasisTotalShort": "total return",
+    "returnBasisPriceShort": "price only",
+    "returnBasisPriceShare": "{{share}} of value on price only",
+    "returnBasisUnpriced": "Left out for want of prices: {{holdings}}",
     "cumulativeReturnPortfolio": "Your portfolio",
     "cumulativeReturnBenchmark": "{{ticker}} (benchmark)",
     "cumulativeReturnBasis": "Both lines use dividends reinvested, the current holdings and the same dates ({{from}} to {{to}}) as Alpha vs {{ticker}}.",
+    "twrVsCumulative": "Time-weighted return follows the holdings you actually held each day and strips out the timing of deposits and withdrawals, while this chart shows how your current holdings would have performed over the whole period, so the two can differ widely.",
     "benchmarkSeriesFailed": "Couldn't load {{ticker}} for comparison, so only your portfolio's value-based cumulative return is shown.",
     "benchmarkSeriesEmpty": "No {{ticker}} prices overlap this period, so only your portfolio's value-based cumulative return is shown.",
     "trackingErrorInfoLabel": "What does Tracking Error mean?",
@@ -659,6 +670,8 @@
   "instrumentDetail": {
     "bollingerBands": "Bollinger Bands",
     "tradeMarkers": "Trade markers",
+    "tradeMarkersHidden_one": "{{count}} trade hidden",
+    "tradeMarkersHidden_other": "{{count}} trades hidden",
     "tradeSide": {
       "buy": "Buy",
       "sell": "Sell"
@@ -1679,6 +1692,7 @@
     "tickers": "Tickers",
     "title": "Screener",
     "unavailableBody": "This deployment doesn't include the fundamentals screener, so filtering by financial ratios isn't possible here.",
+    "temporarilyUnavailable": "The screener is temporarily unavailable. Please try again.",
     "watchlist": "Watchlist:",
     "watchlistLabel": "Watchlist",
     "custom": "Custom",
@@ -1703,7 +1717,8 @@
       "mktCap": "MktCap",
       "wk52h": "52wH",
       "wk52l": "52wL",
-      "avgVol": "AvgVol"
+      "avgVol": "AvgVol",
+      "beta": "Beta"
     },
     "tips": {
       "infoLabel": "What does {{column}} mean?"
@@ -2055,6 +2070,7 @@
     "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass.",
     "blockedTitle": "Signals blocked by compliance",
     "blockedDescription": "These instruments crossed the active thresholds, but the proposed trade would raise a new compliance warning, so no signal is shown for them.",
+    "blockedBaselineFailed": "Compliance baseline unavailable — signals blocked until it can be checked",
     "checksSkippedBadge": "Checks skipped",
     "checksSkippedTitle": "Skipped checks: {{checks}}",
     "checksSkippedInfo": "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters above (whichever are configured) were not applied to this buy candidate.",
@@ -2510,6 +2526,15 @@
     "addCost": "Add cost",
     "showAll": "Show all {{count}}",
     "showTop": "Show top {{count}} only"
+  },
+  "portfolioSentence": {
+    "valueOnly": "Your portfolio is worth {{value}}.",
+    "withDay": "Your portfolio is worth {{value}} — {{day}} today.",
+    "withYear": "Your portfolio is worth {{value}} — {{year}} over the past year.",
+    "withDayAndYear": "Your portfolio is worth {{value}} — {{day}} today, and {{year}} over the past year.",
+    "up": "up {{amount}}",
+    "down": "down {{amount}}",
+    "unchanged": "unchanged"
   },
   "portfolioSummary": {
     "fxCause": "({{count}} with no FX rate)",
@@ -3117,6 +3142,47 @@
       "awaiting": "Awaiting"
     }
   },
+  "contributionSchedule": {
+    "title": "Expected contributions",
+    "intro": "Record what you expect to pay into each pension or ISA account. The guardian above checks arrivals and projects your allowances from this schedule.",
+    "loadFailed": "Failed to load the contribution schedule",
+    "empty": "No contributions recorded yet. Add one to start.",
+    "rowLegend": "Contribution {{number}}",
+    "account": "Account",
+    "chooseAccount": "Choose an account",
+    "amount": "Amount (£)",
+    "amountInvalid": "Enter a positive amount in pounds with up to two decimal places.",
+    "frequency": "Frequency",
+    "frequencies": {
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "annual": "Annual"
+    },
+    "source": "Source",
+    "sources": {
+      "personal_relief_at_source": "Personal (relief at source)",
+      "personal_gross": "Personal (gross)",
+      "employer": "Employer or salary sacrifice",
+      "isa_subscription": "ISA subscription"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "You pay the net amount and your provider adds basic-rate tax relief, so it counts as amount ÷ 0.8 towards the pension annual allowance.",
+      "personal_gross": "A personal contribution with no tax relief added at source; it counts at face value towards the pension annual allowance.",
+      "employer": "Paid by your employer or through salary sacrifice; it counts at face value towards the pension annual allowance.",
+      "isa_subscription": "Money paid into an ISA; it counts towards the ISA limit, not the pension allowance. ISA accounts accept only this source."
+    },
+    "expectedDay": "Expected day of month",
+    "startDate": "Start date",
+    "endDate": "End date (optional)",
+    "label": "Label (optional)",
+    "remove": "Remove contribution {{number}}",
+    "add": "Add contribution",
+    "save": "Save schedule",
+    "saving": "Saving…",
+    "saved": "Schedule saved.",
+    "saveFailed": "Failed to save the contribution schedule",
+    "rejected": "Not saved: {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Allowance Tracker",
     "account": "Account",
@@ -3217,9 +3283,9 @@
       "removeFavourite": "Remove {{ticker}} from favourites",
       "addFavourite": "Add {{ticker}} to favourites",
       "today": "{{pct}} today",
-      "noDataToday": "no data today"
+      "noDataToday": "no data today",
+      "shareOfPlot": "{{pct}} of plot"
     },
-    "stars": "{{filled}} of {{max}} stars",
     "data": {
       "ownersError": "Could not load the list of growers.",
       "noOwners": "No growers found for this account."
@@ -3299,7 +3365,7 @@
       "growthStages": "Growth stages",
       "growthStagesLabel": "What do growth stages mean?",
       "growthStagesTip": "A crop's stage is its total gain since purchase, not its day change — Sown/Sprouting means little or no profit yet, Fruiting and Bumper crop mean it has gained a lot.",
-      "stageNote": "Stage comes from each holding's total gain, star rating from its share of plot value.",
+      "stageNote": "Stage comes from each holding's total gain; the bar shows its share of plot value.",
       "title": "Crop roster ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} bed",
       "bedCount_other": "{{count}} beds",
@@ -3379,7 +3445,11 @@
       "bedPriced": "priced {{date}}",
       "biggestCrops": "Biggest crops",
       "nothingToShow": "Nothing to show yet.",
-      "fullRoster": "See the full roster →"
+      "fullRoster": "See the full roster →",
+      "seedStore": "Seed store",
+      "readyToSow": "{{amount}} cash ready to sow",
+      "inBeds_one": "in {{count}} bed",
+      "inBeds_other": "in {{count}} beds"
     },
     "model": {
       "unnamedBed": "Unnamed bed",
@@ -4295,7 +4365,9 @@
     "markets": "markets",
     "assumptions": "assumptions",
     "dataRevision": "data revisions",
-    "changed": "Changed since the last run: {{label}}"
+    "changed": "Changed since the last run: {{label}}",
+    "flagsLabel": "Flags",
+    "caveatsLabel": "Caveats"
   },
   "admin": {
     "cacheWarming": "Still loading after a server restart: showing the {{count}} found so far. This list fills in automatically."
@@ -4339,5 +4411,9 @@
       "failed": "(failed)",
       "notes": "Notes"
     }
+  },
+  "deleteSeries": {
+    "delete": "Delete Series",
+    "deleting": "Deleting…"
   }
 }

@@ -10,8 +10,10 @@ import {
   bedNameFor,
   clamp,
   compareGainPctDesc,
+  distinctInstruments,
   formatGbp,
   formatPct,
+  formatShare,
   growerRank,
   growthStageFor,
   growthStageMeta,
@@ -22,7 +24,6 @@ import {
   neediestCrop,
   portfolioAttentionReason,
   resourcesFromPlot,
-  starsFor,
   vigourFor,
   xpThresholdForLevel,
   yieldLevelFor,
@@ -119,17 +120,15 @@ describe('growthStageMeta', () => {
   });
 });
 
-describe('starsFor', () => {
-  it('awards more stars as a crop takes over the plot', () => {
-    expect(starsFor(0.3)).toBe(7);
-    expect(starsFor(0.2)).toBe(7);
-    expect(starsFor(0.13)).toBe(6);
-    expect(starsFor(0.08)).toBe(5);
-    expect(starsFor(0.05)).toBe(4);
-    expect(starsFor(0.03)).toBe(3);
-    expect(starsFor(0.015)).toBe(2);
-    expect(starsFor(0.001)).toBe(1);
-    expect(starsFor(Number.NaN)).toBe(1);
+describe('formatShare (#7197)', () => {
+  it('prints share of plot as a percentage, not a star count', () => {
+    expect(formatShare(0.8)).toBe('80%');
+    expect(formatShare(0.2)).toBe('20%');
+    expect(formatShare(0.034)).toBe('3.4%');
+    expect(formatShare(0.0005)).toBe('<0.1%');
+    expect(formatShare(0)).toBe('0%');
+    expect(formatShare(Number.NaN)).toBe('0%');
+    expect(formatShare(-0.1)).toBe('0%');
   });
 });
 
@@ -254,12 +253,12 @@ describe('buildPlotSnapshot', () => {
     expect(snapshot.streak).toBe(4);
   });
 
-  it('derives stage, stars and bed membership per crop', () => {
+  it('derives stage, share and bed membership per crop', () => {
     const snapshot = buildPlotSnapshot({ portfolio });
     const [best, worst] = snapshot.crops;
 
     expect(best.stage).toBe('flowering');
-    expect(best.stars).toBe(7);
+    expect(best).not.toHaveProperty('stars');
     expect(best.bedName).toBe('Stocks Isa');
     expect(best.share).toBeCloseTo(0.8);
     expect(best.dayChangePct).toBeCloseTo(1);
@@ -316,12 +315,13 @@ describe('buildPlotSnapshot', () => {
     expect(crops[0].lastPriceDate).toBeNull();
   });
 
-  it('is unknown, not stale, when is_stale is explicitly null (the live CASH.GBP shape) (#7186)', () => {
-    // The real backend sends `is_stale: null` for cash rows, not just
-    // `undefined` — `typeof null === 'object'`, so a naive simplification
-    // to `holding.is_stale !== undefined` would silently treat this as a
-    // *confirmed* stale price. It must land on 'unknown' like the
-    // undefined case above.
+  it('is unknown, not stale, when is_stale is explicitly null (#7186)', () => {
+    // The real backend sends `is_stale: null` (first seen on cash rows),
+    // not just `undefined` — `typeof null === 'object'`, so a naive
+    // simplification to `holding.is_stale !== undefined` would silently
+    // treat this as a *confirmed* stale price. It must land on 'unknown'
+    // like the undefined case above. Cash itself is no longer a crop
+    // (#7201), so a non-cash ticker carries the same shape here.
     const cashRow: Portfolio = {
       owner: 'alex',
       as_of: '2026-08-25',
@@ -336,8 +336,8 @@ describe('buildPlotSnapshot', () => {
           value_estimate_gbp: 100,
           holdings: [
             {
-              ticker: 'CASH.GBP',
-              name: 'Cash (GBP)',
+              ticker: 'MMF.L',
+              name: 'Money Market Fund',
               units: 100,
               market_value_gbp: 100,
               is_stale: null,
@@ -514,6 +514,76 @@ describe('buildPlotSnapshot', () => {
     expect(snapshot.plotValueGbp).toBe(0);
     expect(snapshot.grower.level).toBe(1);
     expect(snapshot.resources).toHaveLength(3);
+    expect(snapshot.cashGbp).toBe(0);
+  });
+
+  describe('cash (#7201)', () => {
+    const withCash: Portfolio = {
+      owner: 'alex',
+      as_of: '2026-08-25',
+      trades_this_month: 0,
+      trades_remaining: 5,
+      total_value_estimate_gbp: 1_500,
+      accounts: [
+        {
+          account_type: 'isa',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 1_200,
+          holdings: [
+            {
+              ticker: 'CASH.GBP',
+              name: 'Cash (GBP)',
+              units: 700,
+              market_value_gbp: 700,
+              sector: '',
+              instrument_type: 'Cash',
+              is_stale: null,
+            },
+            {
+              ticker: 'VWRL.L',
+              name: 'Vanguard FTSE All-World',
+              units: 5,
+              market_value_gbp: 500,
+              is_stale: false,
+            },
+          ],
+        },
+        {
+          account_type: 'sipp',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 300,
+          holdings: [
+            {
+              // Some deployments populate a sector on cash: instrument_type
+              // is what identifies it, not an empty sector.
+              ticker: 'GBP-SWEEP',
+              name: 'Sweep account',
+              units: 300,
+              market_value_gbp: 300,
+              sector: 'Cash',
+              instrument_type: 'cash',
+            },
+          ],
+        },
+      ],
+    };
+
+    it('holds cash back from the crops and totals it as ready-to-sow', () => {
+      const snapshot = buildPlotSnapshot({ portfolio: withCash });
+      expect(snapshot.crops.map((crop) => crop.ticker)).toEqual(['VWRL.L']);
+      expect(snapshot.cashGbp).toBe(1_000);
+      // Cash still counts toward the plot's total value.
+      expect(snapshot.plotValueGbp).toBe(1_500);
+    });
+
+    it('leaves cash out of bed crop counts and the SUNLIGHT denominator', () => {
+      const snapshot = buildPlotSnapshot({ portfolio: withCash });
+      expect(snapshot.beds.map((bed) => bed.cropCount)).toEqual([1, 0]);
+      const sun = snapshot.resources.find((resource) => resource.id === 'sun');
+      expect(sun).toMatchObject({ current: 1, max: 1, display: '1 / 1' });
+    });
   });
 
   it('threads an allowances fetch failure through to the HUD by omitting FEED (#7195)', () => {
@@ -828,6 +898,119 @@ describe('crop identity', () => {
     // A bare ticker still lands somewhere sensible for older/bookmarked links.
     expect(findCropByRouteId(crops, 'VWRL.L')?.ticker).toBe('VWRL.L');
     expect(findCropByRouteId(crops, 'NOPE.L')).toBeUndefined();
+  });
+});
+
+describe('distinctInstruments (#7212)', () => {
+  const crop = (over: Partial<Crop>): Crop =>
+    ({
+      id: 'x',
+      ticker: 'X.L',
+      bedId: 'steve:isa',
+      bedName: 'Isa',
+      units: 1,
+      valueGbp: 100,
+      costGbp: 100,
+      gainGbp: 0,
+      gainPct: 0,
+      share: 0.1,
+      dayChangePct: 0,
+      hasMove: false,
+      stage: 'seed',
+      ...over,
+    }) as Crop;
+
+  const erns = [
+    crop({
+      id: '1-0-ERNS.L',
+      ticker: 'ERNS.L',
+      bedId: 'alex:sipp',
+      bedName: 'Sipp',
+      units: 10,
+      valueGbp: 1_000,
+      costGbp: 800,
+      gainGbp: 200,
+      gainPct: 25,
+      share: 0.1,
+      dayChangePct: 1,
+      hasMove: true,
+    }),
+    crop({
+      id: '0-0-ERNS.L',
+      ticker: 'ERNS.L',
+      bedId: 'alex:isa',
+      bedName: 'Isa',
+      units: 30,
+      valueGbp: 3_000,
+      costGbp: 3_200,
+      gainGbp: -200,
+      gainPct: -6.25,
+      share: 0.3,
+      dayChangePct: 0,
+    }),
+  ];
+  const ievf = crop({
+    id: '0-1-IEFV.L',
+    ticker: 'IEFV.L',
+    valueGbp: 2_000,
+    share: 0.2,
+  });
+
+  it('folds one ticker across beds into a single group, summing value', () => {
+    const groups = distinctInstruments([...erns, ievf]);
+    expect(groups.map((group) => group.ticker)).toEqual(['ERNS.L', 'IEFV.L']);
+
+    const [ernsGroup] = groups;
+    expect(ernsGroup.bedNames).toEqual(['Isa', 'Sipp']);
+    expect(ernsGroup.crops.map((entry) => entry.id)).toEqual([
+      '0-0-ERNS.L',
+      '1-0-ERNS.L',
+    ]);
+    expect(ernsGroup.combined).toMatchObject({
+      // Largest holding's id, so the card still routes to a real holding.
+      id: '0-0-ERNS.L',
+      units: 40,
+      valueGbp: 4_000,
+      costGbp: 4_000,
+      gainGbp: 0,
+      gainPct: 0,
+      stage: 'seed',
+      hasMove: true,
+    });
+    expect(ernsGroup.combined.share).toBeCloseTo(0.4);
+    expect(ernsGroup.combined.dayChangePct).toBeCloseTo(0.25);
+  });
+
+  it('never changes total value under aggregation', () => {
+    const crops = [...erns, ievf];
+    const total = (values: number[]) => values.reduce((a, b) => a + b, 0);
+    expect(
+      total(distinctInstruments(crops).map((group) => group.combined.valueGbp))
+    ).toBe(total(crops.map((entry) => entry.valueGbp)));
+  });
+
+  it('passes a single holding through untouched', () => {
+    const [group] = distinctInstruments([ievf]);
+    expect(group.combined).toBe(ievf);
+    expect(group.bedNames).toEqual(['Isa']);
+  });
+
+  it('counts a ticker held twice in one bed as one bed', () => {
+    const [group] = distinctInstruments([
+      crop({ id: 'a', valueGbp: 50 }),
+      crop({ id: 'b', valueGbp: 70 }),
+    ]);
+    expect(group.bedNames).toEqual(['Isa']);
+    expect(group.combined.valueGbp).toBe(120);
+  });
+
+  it('keeps the combined gain unknown when any holding has no cost basis (#8471)', () => {
+    const [group] = distinctInstruments([
+      erns[0],
+      { ...erns[1], gainGbp: null, gainPct: null },
+    ]);
+    expect(group.combined.gainGbp).toBeNull();
+    expect(group.combined.gainPct).toBeNull();
   });
 });
 

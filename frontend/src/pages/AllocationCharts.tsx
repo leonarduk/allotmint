@@ -12,6 +12,7 @@ import {
 import type {
   CurrencyContribution,
   GroupPortfolio,
+  Holding,
   LookThroughBucket,
   LookThroughExposure,
   OwnerSummary,
@@ -116,6 +117,19 @@ const addToBreakdown = (
 
 const byValueDesc = (a: Slice, b: Slice) => b.value - a.value;
 
+/**
+ * Domicile region -> tickers of the funds domiciled there whose exposure
+ * ``region`` differs (#10250), e.g. a Europe-domiciled global tracker.
+ */
+type DomicileDifferences = Record<string, string[]>;
+
+const addDomicileDifference = (diffs: DomicileDifferences, h: Holding) => {
+  const domicile = h.domicile_region?.trim();
+  if (!domicile || domicile === h.region?.trim()) return;
+  const tickers = (diffs[domicile] ??= []);
+  if (!tickers.includes(h.ticker)) tickers.push(h.ticker);
+};
+
 /** One slice per group, largest first. */
 const groupSlices = (breakdown: Breakdown): Slice[] =>
   Object.entries(breakdown)
@@ -209,7 +223,14 @@ function useCurrencyExposure(slug: string, owner: string | null, enabled: boolea
   return { rows, error };
 }
 
-/** Pie slices for a look-through breakdown, largest first, the tail folded into ``otherLabel``. */
+/** Backend label for the part of a fund its published breakdown does not cover (#9979). */
+const LOOK_THROUGH_OTHER = "Other";
+
+/**
+ * Pie slices for a look-through breakdown, largest first, the tail folded into
+ * ``otherLabel``. The backend's own "Other" bucket joins that slice, so the
+ * chart never shows two "Other" slices.
+ */
 const toLookThroughSlices = (
   rows: LookThroughBucket[],
   otherLabel: string,
@@ -218,10 +239,16 @@ const toLookThroughSlices = (
     .map((row) => ({ name: row.label, value: toFiniteNumber(row.value_gbp) }))
     .filter((slice) => slice.value > 0)
     .sort((a, b) => b.value - a.value);
-  if (slices.length <= MAX_LOOK_THROUGH_SLICES) return slices;
-  const head = slices.slice(0, MAX_LOOK_THROUGH_SLICES - 1);
-  const rest = slices.slice(MAX_LOOK_THROUGH_SLICES - 1).reduce((sum, s) => sum + s.value, 0);
-  return [...head, { name: otherLabel, value: rest }];
+  const isOther = (s: Slice) => s.name === LOOK_THROUGH_OTHER || s.name === otherLabel;
+  const named = slices.filter((s) => !isOther(s));
+  const other = slices.filter(isOther).reduce((sum, s) => sum + s.value, 0);
+  const otherSlices = other > 0 ? [{ name: otherLabel, value: other }] : [];
+  if (named.length + otherSlices.length <= MAX_LOOK_THROUGH_SLICES) {
+    return [...named, ...otherSlices].sort(byValueDesc);
+  }
+  const head = named.slice(0, MAX_LOOK_THROUGH_SLICES - 1);
+  const rest = named.slice(MAX_LOOK_THROUGH_SLICES - 1).reduce((sum, s) => sum + s.value, 0);
+  return [...head, { name: otherLabel, value: rest + other }];
 };
 
 /**
@@ -318,6 +345,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
   const reporting = useReportingCurrency();
   const [view, setView] = useState<AllocationView>(initialView);
   const [breakdowns, setBreakdowns] = useState<Record<HoldingView, Breakdown>>(emptyBreakdowns);
+  const [domicileDiffs, setDomicileDiffs] = useState<DomicileDifferences>({});
   const [showHoldings, setShowHoldings] = useState(false);
   const activeOwner = searchParams.get("owner") || null;
   const activeAccountType = activeOwner ? searchParams.get("account") || null : null;
@@ -407,6 +435,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
     );
 
     const next = emptyBreakdowns();
+    const nextDomicileDiffs: DomicileDifferences = {};
     const coreLabel = t("sleeves.core");
 
     for (const acct of activeAccounts) {
@@ -456,10 +485,12 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         for (const dimension of HOLDING_VIEWS) {
           addToBreakdown(next[dimension], groups[dimension], key, label, mv);
         }
+        addDomicileDifference(nextDomicileDiffs, h);
       }
     }
 
     setBreakdowns(next);
+    setDomicileDiffs(nextDomicileDiffs);
   }, [portfolio, activeOwner, activeAccountType, ownerSleeves, ownerLookup, t]);
 
   if (loading && !portfolio) {
@@ -586,6 +617,21 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         <p className="mb-4 text-sm text-gray-600" data-testid="currency-exposure-note">
           {t("allocation.currencyNote")}
         </p>
+      )}
+      {view === "region" && (
+        <div className="mb-4 text-sm text-gray-600" data-testid="region-exposure-note">
+          <p>{t("allocation.regionNote")}</p>
+          {Object.entries(domicileDiffs)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([domicile, tickers]) => (
+              <p key={domicile}>
+                {t("allocation.domiciledIn", {
+                  region: domicile,
+                  tickers: [...tickers].sort().join(", "),
+                })}
+              </p>
+            ))}
+        </div>
       )}
       {view === "sleeve" && (
         <p className="mb-4 text-sm text-gray-600" data-testid="sleeve-note">

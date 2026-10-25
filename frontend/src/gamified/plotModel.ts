@@ -10,6 +10,7 @@
 
 import type { Account, Holding, Portfolio } from '../types';
 import { isCostBasisUnreliable } from '../lib/costBasis';
+import { isCashInstrument } from '../lib/instruments';
 import { pricingFreshness } from '../lib/pricingFreshness';
 import i18n from '../i18n';
 
@@ -128,18 +129,15 @@ export function growthStageFor(
 }
 
 /**
- * Star rating (1–7, like the arcade games this skin borrows from) from the
- * crop's share of total plot value: how much of the allotment it occupies.
+ * A crop's share of plot value as a compact percentage ("20%", "3.4%",
+ * "<0.1%"). Position size used to be a 1–7 star rating, which every
+ * amateur reads as a quality score (#7197); it is now shown as what it is.
  */
-export function starsFor(shareOfPlot: number): number {
-  const share = Number.isFinite(shareOfPlot) ? shareOfPlot : 0;
-  if (share >= 0.2) return 7;
-  if (share >= 0.12) return 6;
-  if (share >= 0.07) return 5;
-  if (share >= 0.04) return 4;
-  if (share >= 0.02) return 3;
-  if (share >= 0.01) return 2;
-  return 1;
+export function formatShare(shareOfPlot: number): string {
+  const pct = Number.isFinite(shareOfPlot) ? Math.max(0, shareOfPlot) * 100 : 0;
+  if (pct === 0) return '0%';
+  if (pct < 0.1) return '<0.1%';
+  return `${pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)}%`;
 }
 
 /**
@@ -286,7 +284,6 @@ export interface Crop {
   yieldPct: number | null;
   dayChangePct: number;
   stage: GrowthStage;
-  stars: number;
   vigour: number;
   /** Share of total plot value, 0–1. */
   share: number;
@@ -370,6 +367,7 @@ export interface Bed {
   icon: string;
   owner: string | null;
   valueGbp: number;
+  /** Non-cash holdings only: cash is unplanted resource, not a crop (#7201). */
   cropCount: number;
   currency: string;
   lastUpdated: string | null;
@@ -385,10 +383,21 @@ export function bedFromAccount(account: Account, index: number): Bed {
     icon: bedIconFor(type),
     owner: account.owner ?? null,
     valueGbp: account.value_estimate_gbp ?? 0,
-    cropCount: account.holdings?.length ?? 0,
+    cropCount: (account.holdings ?? []).filter((holding) => !isCash(holding))
+      .length,
     currency: account.currency ?? 'GBP',
     lastUpdated: account.last_updated ?? null,
   };
+}
+
+/**
+ * Cash is the resource a grower plants with, not something planted (#7201).
+ * Uses the same helper as the classic PortfolioSummary so both skins agree
+ * on what counts as cash: `instrument_type` first, so a deployment that
+ * reports cash with a populated sector is still caught.
+ */
+function isCash(holding: Pick<Holding, 'instrument_type' | 'ticker'>): boolean {
+  return isCashInstrument(holding);
 }
 
 /**
@@ -450,7 +459,6 @@ function cropFromHolding(
       : null,
     dayChangePct: valueGbp > 0 ? (dayChangeGbp / valueGbp) * 100 : 0,
     stage: growthStageFor(gainPct),
-    stars: starsFor(share),
     vigour: vigourFor(holding),
     share,
     sector: holding.sector || 'Unclassified',
@@ -605,7 +613,14 @@ export interface PlotSnapshot {
   totalGainGbp: number;
   dayChangeGbp: number;
   beds: Bed[];
+  /** Every non-cash holding; cash is held back in `cashGbp` (#7201). */
   crops: Crop[];
+  /**
+   * Cash across every bed — "ready to sow". Still part of `plotValueGbp`,
+   * but never a crop, so it stays out of stage counts, shares, the crop
+   * count milestone and the SUNLIGHT denominator.
+   */
+  cashGbp: number;
   resources: PlotResource[];
   grower: GrowerLevel;
   rank: string;
@@ -636,9 +651,14 @@ export function buildPlotSnapshot({
     beds.reduce((sum, bed) => sum + bed.valueGbp, 0);
 
   const crops: Crop[] = [];
+  let cashGbp = 0;
   accounts.forEach((account, bedIndex) => {
     const bed = beds[bedIndex];
     (account.holdings ?? []).forEach((holding, holdingIndex) => {
+      if (isCash(holding)) {
+        cashGbp += holding.market_value_gbp ?? 0;
+        return;
+      }
       crops.push(
         cropFromHolding(holding, bed, plotValue, bedIndex, holdingIndex)
       );
@@ -664,6 +684,7 @@ export function buildPlotSnapshot({
     dayChangeGbp,
     beds,
     crops,
+    cashGbp,
     resources: resourcesFromPlot(portfolio, crops, allowances, allowancesUnavailable),
     grower,
     rank: growerRank(grower.level),
@@ -932,6 +953,80 @@ export function germinatingCrops(crops: readonly Crop[]): GerminatingCrop[] {
       }
       return left.daysRemaining - right.daysRemaining;
     });
+}
+
+/**
+ * Every holding of one instrument across the plot (#7212). Crops stay keyed
+ * per holding row for routing and React keys; this is the display-side
+ * reconciliation, so ERNS.L in an ISA and a SIPP reads as one crop in two
+ * beds rather than two unrelated crops.
+ */
+export interface InstrumentGroup {
+  ticker: string;
+  /** Every holding of this ticker, largest first. */
+  crops: Crop[];
+  /** Distinct beds holding it, in the order of `crops`. */
+  bedNames: string[];
+  /**
+   * The holdings folded into one crop for display: values, cost and share
+   * summed, gain recomputed from the sums. Keeps the largest holding's `id`,
+   * so a link from it still routes to a real per-holding detail screen.
+   */
+  combined: Crop;
+}
+
+function combineCrops(crops: readonly Crop[]): Crop {
+  const [lead] = crops;
+  if (crops.length === 1) return lead;
+  const sum = (pick: (crop: Crop) => number) =>
+    crops.reduce((total, crop) => total + pick(crop), 0);
+  const valueGbp = sum((crop) => crop.valueGbp);
+  const costGbp = sum((crop) => crop.costGbp);
+  // One unknown cost basis makes the combined gain unknown too (#8471).
+  const gainGbp = crops.some((crop) => crop.gainGbp === null)
+    ? null
+    : sum((crop) => crop.gainGbp ?? 0);
+  const gainPct =
+    gainGbp !== null && costGbp > 0 ? (gainGbp / costGbp) * 100 : null;
+  return {
+    ...lead,
+    units: sum((crop) => crop.units),
+    valueGbp,
+    costGbp,
+    gainGbp,
+    gainPct,
+    stage: growthStageFor(gainPct),
+    share: sum((crop) => crop.share),
+    dayChangePct:
+      valueGbp > 0
+        ? sum((crop) => crop.valueGbp * crop.dayChangePct) / valueGbp
+        : 0,
+    hasMove: crops.some((crop) => crop.hasMove),
+  };
+}
+
+/** Crops grouped by ticker, biggest combined value first (#7212). */
+export function distinctInstruments(crops: readonly Crop[]): InstrumentGroup[] {
+  const byTicker = new Map<string, Crop[]>();
+  for (const crop of crops) {
+    const group = byTicker.get(crop.ticker);
+    if (group) group.push(crop);
+    else byTicker.set(crop.ticker, [crop]);
+  }
+  return [...byTicker.entries()]
+    .map(([ticker, holdings]) => {
+      const sorted = [...holdings].sort(
+        (left, right) => right.valueGbp - left.valueGbp
+      );
+      const beds = new Map(sorted.map((crop) => [crop.bedId, crop.bedName]));
+      return {
+        ticker,
+        crops: sorted,
+        bedNames: [...beds.values()],
+        combined: combineCrops(sorted),
+      };
+    })
+    .sort((left, right) => right.combined.valueGbp - left.combined.valueGbp);
 }
 
 /**

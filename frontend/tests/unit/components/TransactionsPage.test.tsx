@@ -105,6 +105,23 @@ describe('TransactionsPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('offers a Retry that refetches transactions after a failed load (#7115)', async () => {
+    getTransactionsMock.mockRejectedValueOnce(new Error('transactions down'));
+
+    render(
+      <TransactionsPage
+        owners={[{ owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] }]}
+      />
+    );
+
+    expect(await screen.findByText('transactions down')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByText('PFE')).toBeInTheDocument();
+    expect(screen.queryByText('transactions down')).not.toBeInTheDocument();
+    expect(getTransactionsMock).toHaveBeenCalledTimes(2);
+  });
+
   it('links the ticker to its instrument research page', async () => {
     render(
       <TransactionsPage

@@ -102,7 +102,9 @@
     "currencyMissingFx": "Nessun tasso di cambio memorizzato per {{currencies}}: queste posizioni sono valutate a un tasso approssimativo o escluse, quindi la loro quota potrebbe non essere esatta.",
     "currencyNote": "Esposizione per valuta di quotazione: la valuta in cui è quotata ogni posizione, non la sua esposizione sottostante (un fondo globale quotato in GBP conta come GBP). Include tutti i conti di questo gruppo.",
     "instrumentTypes": "Tipi di strumenti",
-    "region": "Regioni",
+    "region": "Regioni di esposizione",
+    "regionNote": "Le regioni indicano dove investe ogni fondo, non dove è domiciliato.",
+    "domiciledIn": "Domiciliato in {{region}}: {{tickers}}",
     "sector": "Industrie",
     "unknownCurrency": "Valuta sconosciuta",
     "viewAllocation": "Vedi allocazione per {{dimension}}",
@@ -434,9 +436,18 @@
     "alphaVsBenchmarkInfoLabel": "Cosa significa Alpha vs benchmark?",
     "alphaVsBenchmarkInfo": "L'alfa misura quanto il rendimento del portafoglio si è discostato da {{ticker}} nel periodo selezionato.",
     "vsBenchmark": "vs {{ticker}}",
+    "returnBasisLabel": "Base di rendimento: {{basis}}",
+    "returnBasisTotal": "rendimento totale (dividendi reinvestiti)",
+    "returnBasisPrice": "solo prezzo (dividendi esclusi)",
+    "returnBasisMixed": "mista: alcune posizioni sono solo a prezzo",
+    "returnBasisTotalShort": "rendimento totale",
+    "returnBasisPriceShort": "solo prezzo",
+    "returnBasisPriceShare": "{{share}} del valore solo a prezzo",
+    "returnBasisUnpriced": "Escluse per mancanza di prezzi: {{holdings}}",
     "cumulativeReturnPortfolio": "Il tuo portafoglio",
     "cumulativeReturnBenchmark": "{{ticker}} (benchmark)",
     "cumulativeReturnBasis": "Entrambe le linee usano dividendi reinvestiti, le posizioni attuali e le stesse date ({{from}} - {{to}}) dell'alpha vs {{ticker}}.",
+    "twrVsCumulative": "Il rendimento ponderato nel tempo segue le posizioni effettivamente detenute ogni giorno ed esclude l'effetto della tempistica di versamenti e prelievi, mentre questo grafico mostra come si sarebbero comportate le posizioni attuali nell'intero periodo, quindi i due valori possono differire molto.",
     "benchmarkSeriesFailed": "Impossibile caricare {{ticker}} per il confronto, quindi viene mostrato solo il rendimento cumulato del tuo portafoglio basato sul valore.",
     "benchmarkSeriesEmpty": "Nessun prezzo di {{ticker}} copre questo periodo, quindi viene mostrato solo il rendimento cumulato del tuo portafoglio basato sul valore.",
     "trackingErrorInfoLabel": "Cosa significa l'errore di tracciamento?",
@@ -665,6 +676,8 @@
   "instrumentDetail": {
     "bollingerBands": "Bande Bollinger",
     "tradeMarkers": "Indicatori di operazioni",
+    "tradeMarkersHidden_one": "{{count}} operazione nascosta",
+    "tradeMarkersHidden_other": "{{count}} operazioni nascoste",
     "tradeSide": {
       "buy": "Acquisto",
       "sell": "Vendita"
@@ -1685,6 +1698,7 @@
     "tickers": "Ticker",
     "title": "Screener",
     "unavailableBody": "Questa distribuzione non include lo screener sui fondamentali, quindi qui non è possibile filtrare in base ai rapporti finanziari.",
+    "temporarilyUnavailable": "Lo screener è temporaneamente non disponibile. Riprova.",
     "watchlist": "Watchlist:",
     "watchlistLabel": "Watchlist",
     "custom": "Personalizzata",
@@ -1709,7 +1723,8 @@
       "mktCap": "Cap. di mercato",
       "wk52h": "Max 52 sett.",
       "wk52l": "Min 52 sett.",
-      "avgVol": "Vol. medio"
+      "avgVol": "Vol. medio",
+      "beta": "Beta"
     },
     "tips": {
       "infoLabel": "Cosa significa {{column}}?"
@@ -2061,6 +2076,7 @@
     "noSignalsDescription": "Nessuno strumento monitorato supera attualmente le soglie attive. I segnali compaiono quando le condizioni RSI o di media mobile sono soddisfatte e passano anche i filtri di valutazione e rischio abilitati.",
     "blockedTitle": "Segnali bloccati dalla conformità",
     "blockedDescription": "Questi strumenti hanno superato le soglie attive, ma l'operazione proposta genererebbe un nuovo avviso di conformità, quindi non viene mostrato alcun segnale.",
+    "blockedBaselineFailed": "Base di conformità non disponibile — segnali bloccati finché non potrà essere verificata",
     "checksSkippedBadge": "Controlli saltati",
     "checksSkippedTitle": "Controlli saltati: {{checks}}",
     "checksSkippedInfo": "Un controllo opzionale che richiede il componente aggiuntivo allotmint-pro non ha potuto essere eseguito. «compliance» significa che l'operazione non è stata verificata rispetto alle tue regole di conformità; «fundamental_screen» significa che i filtri P/E e debito/patrimonio netto sopra indicati (quelli configurati) non sono stati applicati a questo candidato all'acquisto.",
@@ -2517,6 +2533,15 @@
     "addCost": "Aggiungi costo",
     "showAll": "Mostra tutte ({{count}})",
     "showTop": "Mostra solo le prime {{count}}"
+  },
+  "portfolioSentence": {
+    "valueOnly": "Il tuo portafoglio vale {{value}}.",
+    "withDay": "Il tuo portafoglio vale {{value}} — {{day}} oggi.",
+    "withYear": "Il tuo portafoglio vale {{value}} — {{year}} nell'ultimo anno.",
+    "withDayAndYear": "Il tuo portafoglio vale {{value}} — {{day}} oggi e {{year}} nell'ultimo anno.",
+    "up": "in rialzo di {{amount}}",
+    "down": "in calo di {{amount}}",
+    "unchanged": "invariato"
   },
   "portfolioSummary": {
     "fxCause": "({{count}} senza tasso di cambio)",
@@ -3124,6 +3149,47 @@
       "awaiting": "In attesa"
     }
   },
+  "contributionSchedule": {
+    "title": "Contributi previsti",
+    "intro": "Registra quanto prevedi di versare su ciascun conto pensionistico o ISA. Il guardiano qui sopra verifica gli accrediti e proietta i tuoi limiti da questo piano.",
+    "loadFailed": "Impossibile caricare il piano dei contributi",
+    "empty": "Nessun contributo registrato. Aggiungine uno per iniziare.",
+    "rowLegend": "Contributo {{number}}",
+    "account": "Conto",
+    "chooseAccount": "Scegli un conto",
+    "amount": "Importo (£)",
+    "amountInvalid": "Inserisci un importo positivo in sterline con al massimo due decimali.",
+    "frequency": "Frequenza",
+    "frequencies": {
+      "monthly": "Mensile",
+      "quarterly": "Trimestrale",
+      "annual": "Annuale"
+    },
+    "source": "Origine",
+    "sources": {
+      "personal_relief_at_source": "Personale (sgravio alla fonte)",
+      "personal_gross": "Personale (lordo)",
+      "employer": "Datore di lavoro o salary sacrifice",
+      "isa_subscription": "Sottoscrizione ISA"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "Paghi l'importo netto e il fornitore aggiunge lo sgravio fiscale all'aliquota base, quindi conta come importo ÷ 0,8 sul limite annuale pensionistico.",
+      "personal_gross": "Un contributo personale senza sgravio aggiunto alla fonte; conta al valore nominale sul limite annuale pensionistico.",
+      "employer": "Pagato dal datore di lavoro o tramite salary sacrifice; conta al valore nominale sul limite annuale pensionistico.",
+      "isa_subscription": "Denaro versato in un ISA; conta sul limite ISA, non su quello pensionistico. I conti ISA accettano solo questa origine."
+    },
+    "expectedDay": "Giorno del mese previsto",
+    "startDate": "Data di inizio",
+    "endDate": "Data di fine (facoltativa)",
+    "label": "Etichetta (facoltativa)",
+    "remove": "Rimuovi contributo {{number}}",
+    "add": "Aggiungi contributo",
+    "save": "Salva piano",
+    "saving": "Salvataggio…",
+    "saved": "Piano salvato.",
+    "saveFailed": "Impossibile salvare il piano dei contributi",
+    "rejected": "Non salvato: {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Monitoraggio dei limiti",
     "account": "Conto",
@@ -3224,9 +3290,9 @@
       "removeFavourite": "Rimuovi {{ticker}} dai preferiti",
       "addFavourite": "Aggiungi {{ticker}} ai preferiti",
       "today": "{{pct}} oggi",
-      "noDataToday": "nessun dato oggi"
+      "noDataToday": "nessun dato oggi",
+      "shareOfPlot": "{{pct}} dell'orto"
     },
-    "stars": "{{filled}} stelle su {{max}}",
     "data": {
       "ownersError": "Impossibile caricare l'elenco dei coltivatori.",
       "noOwners": "Nessun coltivatore trovato per questo account."
@@ -3306,7 +3372,7 @@
       "growthStages": "Fasi di crescita",
       "growthStagesLabel": "Cosa significano le fasi di crescita?",
       "growthStagesTip": "La fase di una coltura è il suo guadagno totale dall'acquisto, non la variazione giornaliera: Seminata/Germoglio significa poco o nessun profitto per ora, Fruttificazione e Raccolto record significano un grande guadagno.",
-      "stageNote": "La fase dipende dal guadagno totale di ogni posizione, le stelle dalla sua quota del valore dell'orto.",
+      "stageNote": "La fase dipende dal guadagno totale di ogni posizione; la barra mostra la sua quota del valore dell'orto.",
       "title": "Elenco delle colture ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} aiuola",
       "bedCount_other": "{{count}} aiuole",
@@ -3386,7 +3452,11 @@
       "bedPriced": "valutato {{date}}",
       "biggestCrops": "Colture più grandi",
       "nothingToShow": "Ancora nulla da mostrare.",
-      "fullRoster": "Vedi l'elenco completo delle colture →"
+      "fullRoster": "Vedi l'elenco completo delle colture →",
+      "seedStore": "Scorta di semi",
+      "readyToSow": "{{amount}} in contanti pronti da seminare",
+      "inBeds_one": "in {{count}} aiuola",
+      "inBeds_other": "in {{count}} aiuole"
     },
     "model": {
       "unnamedBed": "Aiuola senza nome",
@@ -4302,7 +4372,9 @@
     "markets": "mercati",
     "assumptions": "ipotesi",
     "dataRevision": "revisioni dei dati",
-    "changed": "Modificato dall'ultima esecuzione: {{label}}"
+    "changed": "Modificato dall'ultima esecuzione: {{label}}",
+    "flagsLabel": "Segnalazioni",
+    "caveatsLabel": "Avvertenze"
   },
   "admin": {
     "cacheWarming": "Caricamento in corso dopo il riavvio del server: mostrati i {{count}} trovati finora. L'elenco si completa automaticamente."
@@ -4346,5 +4418,9 @@
       "failed": "(non riuscita)",
       "notes": "Note"
     }
+  },
+  "deleteSeries": {
+    "delete": "Elimina serie",
+    "deleting": "Eliminazione…"
   }
 }

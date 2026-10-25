@@ -226,3 +226,76 @@ def test_direct_share_with_uk_region_joins_the_united_kingdom_bucket(portfolio, 
     result = portfolio(("SHEL.L", 100.0, "Energy", "UK"), ("WRLD.L", 100.0, None, None))
 
     assert _by_label(result["countries"]) == {"United Kingdom": 200.0}
+
+
+# A justETF-style top-N breakdown that covers only 80% of the fund (#9979).
+PARTIAL_BLOCK = {
+    "source": "justetf",
+    "countries": {"United States": 50.0, "Japan": 30.0},
+    "sectors": {"Information Technology": 60.0, "Financials": 20.0},
+}
+
+
+def _with_block(monkeypatch, block):
+    meta = {**META, "WRLD.L": {**META["WRLD.L"], "look_through": block}}
+    monkeypatch.setattr(look_through, "get_instrument_meta", lambda t: meta.get(t, {}))
+
+
+def test_partial_breakdown_reports_uncovered_part_as_other(portfolio, monkeypatch):
+    _with_block(monkeypatch, PARTIAL_BLOCK)
+    result = portfolio(("WRLD.L", 1000.0, None, None), ("CASH.GBP", 250.0, "Cash", None))
+
+    other = look_through.OTHER_LABEL
+    assert _by_label(result["countries"]) == {"United States": 500.0, "Japan": 300.0, other: 200.0, "Cash": 250.0}
+    assert _by_label(result["sectors"]) == {
+        "Information Technology": 600.0,
+        "Financials": 200.0,
+        other: 200.0,
+        "Cash": 250.0,
+    }
+    for key in ("countries", "sectors", "holdings"):
+        assert sum(b["value_gbp"] for b in result[key]) == pytest.approx(1250.0), key
+    assert result["total_value_gbp"] == 1250.0
+
+
+def test_partial_breakdown_merges_into_a_published_other_row(portfolio, monkeypatch):
+    _with_block(monkeypatch, {**PARTIAL_BLOCK, "countries": {"United States": 70.0, "Other": 10.0}})
+    result = portfolio(("WRLD.L", 1000.0, None, None))
+
+    assert _by_label(result["countries"]) == {"United States": 700.0, look_through.OTHER_LABEL: 300.0}
+
+
+def test_full_breakdown_has_no_other_bucket(portfolio):
+    result = portfolio(("WRLD.L", 1000.0, None, None))
+
+    assert look_through.OTHER_LABEL not in _by_label(result["countries"])
+    assert look_through.OTHER_LABEL not in _by_label(result["sectors"])
+
+
+def test_rounding_short_of_100_is_rescaled_not_other(portfolio, monkeypatch):
+    _with_block(monkeypatch, {**PARTIAL_BLOCK, "countries": {"United States": 59.99, "Japan": 39.99}})
+    result = portfolio(("WRLD.L", 1000.0, None, None))
+
+    assert set(_by_label(result["countries"])) == {"United States", "Japan"}
+    assert sum(_by_label(result["countries"]).values()) == pytest.approx(1000.0)
+
+
+def test_fraction_scale_breakdown_is_rescaled_unchanged(portfolio, monkeypatch):
+    _with_block(monkeypatch, {**PARTIAL_BLOCK, "countries": {"United States": 0.6, "Japan": 0.4}})
+    result = portfolio(("WRLD.L", 1000.0, None, None))
+
+    assert _by_label(result["countries"]) == {"United States": 600.0, "Japan": 400.0}
+
+
+def test_instrument_allocation_shows_uncovered_part_as_other(monkeypatch):
+    block = {"isin": "IE00B0000001", "look_through": PARTIAL_BLOCK}
+    monkeypatch.setattr(look_through, "get_instrument_meta", lambda t: block)
+
+    result = look_through.instrument_allocation("WRLD.L")
+
+    assert result["countries"] == [
+        {"label": "United States", "weight_pct": 50.0},
+        {"label": "Japan", "weight_pct": 30.0},
+        {"label": look_through.OTHER_LABEL, "weight_pct": 20.0},
+    ]
+    assert {r["label"]: r["weight_pct"] for r in result["sectors"]}[look_through.OTHER_LABEL] == 20.0

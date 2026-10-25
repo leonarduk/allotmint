@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import date
 from pathlib import Path
-from typing import Any, List, Mapping
+from typing import Any, List, Mapping, Optional
 
 from backend import importers
+from backend.common.accounts_store import LocalAccountsStore
 from backend.common.instruments import resolve_instrument_ticker
+from backend.common.ledger_transfers import (
+    CSV_IMPORT_REASON,
+    OPENING_BALANCE_REASON,
+    find_transactions_account,
+    offset_transaction,
+    replayed_units,
+)
 from backend.common.path_utils import safe_join
 from backend.common.ticker_utils import canonical_ticker
 from backend.config import config
@@ -18,6 +27,7 @@ from backend.logging_setup import sanitise_log_value
 logger = logging.getLogger(__name__)
 
 _CASH_TICKER = "CASH.GBP"
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _to_holding(tx: Any) -> dict[str, object]:
@@ -252,6 +262,96 @@ def _merge_holdings(stored: List[object], imported: List[dict[str, object]], pro
     return merged
 
 
+def _unit_changes(
+    grouped: Mapping[str, List[dict[str, Any]]], imported: List[dict[str, object]]
+) -> dict[str, tuple[float, float]]:
+    """``ticker -> (stored units, imported units)`` for each non-cash ticker whose units the import changes.
+
+    The same deltas :func:`reconcile_from_csv` previews: a ticker only in the
+    CSV goes from 0, one only in the stored holdings goes to 0 (the merge
+    drops it). Cash is skipped: it is a balance, not a units transfer.
+    """
+    imported_units = {str(holding["ticker"]): _number(holding.get("units")) for holding in imported}
+    changes: dict[str, tuple[float, float]] = {}
+    for ticker in sorted((grouped.keys() | imported_units.keys()) - {_CASH_TICKER}):
+        before = sum(_number(lot.get("units")) for lot in grouped.get(ticker, []))
+        after = imported_units.get(ticker, 0.0)
+        if abs(after - before) > 1e-9:
+            changes[ticker] = (before, after)
+    return changes
+
+
+def _earliest_acquired(lots: List[dict[str, Any]]) -> Optional[str]:
+    dates = sorted(str(lot.get("acquired_date") or "")[:10] for lot in lots)
+    return next((day for day in dates if _ISO_DATE.match(day)), None)
+
+
+def _import_transfers(
+    transactions: List[Mapping[str, Any]],
+    stored: List[Mapping[str, Any]],
+    grouped: Mapping[str, List[dict[str, Any]]],
+    changes: Mapping[str, tuple[float, float]],
+) -> List[dict[str, Any]]:
+    """The ledger transfers that record each ticker's CSV units change (#10917).
+
+    One TRANSFER_IN/TRANSFER_OUT per changed ticker, dated today, for the
+    stored -> imported delta. If the ledger does not already reproduce the
+    stored units (a holding entered by hand or imported earlier, which the
+    rebuild only carries forward while no transaction mentions it), an
+    opening balance dated at the holding's ``acquired_date`` comes first, so
+    the replay lands on the imported units rather than on the delta alone.
+    Transfers carry no price: their units have unknown cost, so the rebuild
+    keeps the CSV's ``cost_basis_gbp`` while the units agree.
+    """
+    ledger = list(transactions)
+    transfers: List[dict[str, Any]] = []
+    today = date.today().isoformat()
+    for ticker, (before, after) in changes.items():
+        lots = grouped.get(ticker, [])
+        opening_date = _earliest_acquired(lots) if before > replayed_units(ledger, stored, ticker) else None
+        steps = ((before, opening_date, OPENING_BALANCE_REASON), (after, today, CSV_IMPORT_REASON))
+        for units, tx_date, reason in steps:
+            tx = offset_transaction(ledger, stored, ticker, units, None, tx_date, reason=reason)
+            if tx is not None:
+                ledger.append(tx)
+                transfers.append(tx)
+    return transfers
+
+
+def _record_import_transfers(
+    owner: str,
+    account: str,
+    stored: List[Mapping[str, Any]],
+    grouped: Mapping[str, List[dict[str, Any]]],
+    imported: List[dict[str, object]],
+) -> None:
+    """Append the import's units transfers to the account's transactions file.
+
+    Written through the accounts store under its file lock, to the same root
+    as the holdings file. The holdings are deliberately not rebuilt here: the
+    merged CSV holdings are already what the ledger now replays to for every
+    changed ticker, and a rebuild would also pull in unrelated ledger
+    positions the CSV does not list (#6263).
+    """
+    changes = _unit_changes(grouped, imported)
+    if not changes:
+        return
+    store = LocalAccountsStore(root=Path(config.accounts_root))
+    tx_account = find_transactions_account(store, owner, account) or account.strip().lower()
+    default = {"owner": owner, "account_type": tx_account, "transactions": []}
+    with store.edit_document(owner, f"{tx_account}_transactions.json", default=default) as data:
+        if not isinstance(data.get("transactions"), list):
+            data["transactions"] = []
+        transfers = _import_transfers(data["transactions"], stored, grouped, changes)
+        data["transactions"].extend(transfers)
+    logger.info(
+        "Recorded %s ledger transfer(s) for CSV import into %s/%s",
+        sanitise_log_value(len(transfers)),
+        sanitise_log_value(owner),
+        sanitise_log_value(tx_account),
+    )
+
+
 def update_from_csv(
     owner: str,
     account: str,
@@ -263,6 +363,9 @@ def update_from_csv(
     Merges the parsed holdings into the existing stored document per ticker
     (see :func:`_merge_holdings`), preserving any other fields already on the
     document and on each holding, including ``account_type`` casing (#10906).
+    Each ticker whose units change also gets a ledger TRANSFER_IN/TRANSFER_OUT
+    (see :func:`_import_transfers`), so the change survives the rebuild that
+    follows the next transaction write (#10917).
     Returns a mapping containing the path to the written holdings file. A
     dictionary is returned instead of a plain string so callers (and tests)
     can easily extend the response with additional metadata in the future
@@ -289,17 +392,20 @@ def update_from_csv(
             if isinstance(loaded, dict):
                 existing = loaded
 
-    stored_holdings = existing.get("holdings")
+    raw_stored = existing.get("holdings")
+    stored_holdings = raw_stored if isinstance(raw_stored, list) else []
     payload = {
         **existing,
         "owner": owner,
         "account_type": existing.get("account_type") or account,
         "currency": existing.get("currency", "GBP"),
         "last_updated": date.today().isoformat(),
-        "holdings": _merge_holdings(stored_holdings if isinstance(stored_holdings, list) else [], imported, provider),
+        "holdings": _merge_holdings(stored_holdings, imported, provider),
     }
 
     base_dir.mkdir(parents=True, exist_ok=True)
     acct_path.write_text(json.dumps(payload, indent=2))
+    stored_mappings = [holding for holding in stored_holdings if isinstance(holding, Mapping)]
+    _record_import_transfers(owner, account, stored_mappings, _group_stored_lots(stored_mappings, provider), imported)
 
     return {"path": str(acct_path)}

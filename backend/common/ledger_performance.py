@@ -45,6 +45,7 @@ import numpy as np
 import pandas as pd
 
 from backend.common import holdings_rebuild
+from backend.common.cash_tickers import is_cash_ticker
 from backend.common.data_loader import resolve_paths
 from backend.common.holdings_rebuild import (
     CASH_TICKER,
@@ -597,7 +598,7 @@ def unreconciled_instruments(
     held: dict[str, float] = defaultdict(float)
     for holding in holding_list:
         ticker = str(holding.get("ticker") or "").upper()
-        if ticker and not ticker.startswith("CASH"):
+        if ticker and not is_cash_ticker(ticker):
             try:
                 held[ticker] += float(holding.get("units") or 0.0)
             except (TypeError, ValueError):

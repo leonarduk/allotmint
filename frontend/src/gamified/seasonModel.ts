@@ -11,6 +11,7 @@
 import i18n from '../i18n';
 import {
   clamp,
+  distinctInstruments,
   formatGbp,
   type AllowanceMap,
   type PlotSnapshot,
@@ -192,7 +193,9 @@ function buildGoalGroups(
       rewardIcon: '🌱',
       rewardLabel: i18n.t('plot.goals.tend.reward'),
       tiers: [5, 10, 25, 50],
-      current: snapshot.crops.length,
+      // Distinct instruments, not holding rows (#7212): ERNS.L in an ISA and
+      // a SIPP is one crop in two beds. Cash is never a crop (#7201).
+      current: distinctInstruments(snapshot.crops).length,
       title: (target) => i18n.t('plot.goals.tend.title', { target }),
       format: (value) => pluralize(value, 'crop'),
       chipFormat: (value) => String(Math.round(value)),

@@ -77,8 +77,16 @@ def _number(value: Any) -> float | None:
 
 
 def _iso_day(value: Any) -> str | None:
+    """The value's ``YYYY-MM-DD`` day, or None unless that is a real calendar date (#8363)."""
     day = str(value or "")[:10]
-    return day if _ISO_DATE.match(day) else None
+    if not _ISO_DATE.match(day):
+        return None
+    try:
+        date.fromisoformat(day)
+    except ValueError:
+        # Well-shaped but impossible (2021-02-30): let the caller's fallback apply.
+        return None
+    return day
 
 
 def opening_transfers(

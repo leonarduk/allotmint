@@ -133,9 +133,10 @@ function GuardianBody({ report }: { report: AllowanceGuardianReport }) {
 /**
  * Contribution & allowance guardian (#10479): expected-vs-actual contributions and the
  * pension/ISA allowance projected to 5 April. Facts only; the not-modelled list and
- * adviser note are always shown, whether or not the report loaded.
+ * adviser note are always shown, whether or not the report loaded. Bump `refreshKey`
+ * to reload the report (e.g. after the contribution schedule is saved).
  */
-export default function AllowanceGuardianCard({ owner }: { owner: string }) {
+export default function AllowanceGuardianCard({ owner, refreshKey = 0 }: { owner: string; refreshKey?: number }) {
   const { t } = useTranslation();
   const [report, setReport] = useState<AllowanceGuardianReport | null>(null);
   const [error, setError] = useState(false);
@@ -156,7 +157,7 @@ export default function AllowanceGuardianCard({ owner }: { owner: string }) {
     return () => {
       active = false;
     };
-  }, [owner]);
+  }, [owner, refreshKey]);
 
   return (
     <section className="mt-6 rounded border border-gray-300 p-4" aria-labelledby="allowance-guardian-title">

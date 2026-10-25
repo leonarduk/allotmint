@@ -3141,6 +3141,47 @@
       "awaiting": "Awaiting"
     }
   },
+  "contributionSchedule": {
+    "title": "Expected contributions",
+    "intro": "Record what you expect to pay into each pension or ISA account. The guardian above checks arrivals and projects your allowances from this schedule.",
+    "loadFailed": "Failed to load the contribution schedule",
+    "empty": "No contributions recorded yet. Add one to start.",
+    "rowLegend": "Contribution {{number}}",
+    "account": "Account",
+    "chooseAccount": "Choose an account",
+    "amount": "Amount (£)",
+    "amountInvalid": "Enter a positive amount in pounds with up to two decimal places.",
+    "frequency": "Frequency",
+    "frequencies": {
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "annual": "Annual"
+    },
+    "source": "Source",
+    "sources": {
+      "personal_relief_at_source": "Personal (relief at source)",
+      "personal_gross": "Personal (gross)",
+      "employer": "Employer or salary sacrifice",
+      "isa_subscription": "ISA subscription"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "You pay the net amount and your provider adds basic-rate tax relief, so it counts as amount ÷ 0.8 towards the pension annual allowance.",
+      "personal_gross": "A personal contribution with no tax relief added at source; it counts at face value towards the pension annual allowance.",
+      "employer": "Paid by your employer or through salary sacrifice; it counts at face value towards the pension annual allowance.",
+      "isa_subscription": "Money paid into an ISA; it counts towards the ISA limit, not the pension allowance. ISA accounts accept only this source."
+    },
+    "expectedDay": "Expected day of month",
+    "startDate": "Start date",
+    "endDate": "End date (optional)",
+    "label": "Label (optional)",
+    "remove": "Remove contribution {{number}}",
+    "add": "Add contribution",
+    "save": "Save schedule",
+    "saving": "Saving…",
+    "saved": "Schedule saved.",
+    "saveFailed": "Failed to save the contribution schedule",
+    "rejected": "Not saved: {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Allowance Tracker",
     "account": "Account",

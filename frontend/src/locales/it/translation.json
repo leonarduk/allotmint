@@ -3148,6 +3148,47 @@
       "awaiting": "In attesa"
     }
   },
+  "contributionSchedule": {
+    "title": "Contributi previsti",
+    "intro": "Registra quanto prevedi di versare su ciascun conto pensionistico o ISA. Il guardiano qui sopra verifica gli accrediti e proietta i tuoi limiti da questo piano.",
+    "loadFailed": "Impossibile caricare il piano dei contributi",
+    "empty": "Nessun contributo registrato. Aggiungine uno per iniziare.",
+    "rowLegend": "Contributo {{number}}",
+    "account": "Conto",
+    "chooseAccount": "Scegli un conto",
+    "amount": "Importo (£)",
+    "amountInvalid": "Inserisci un importo positivo in sterline con al massimo due decimali.",
+    "frequency": "Frequenza",
+    "frequencies": {
+      "monthly": "Mensile",
+      "quarterly": "Trimestrale",
+      "annual": "Annuale"
+    },
+    "source": "Origine",
+    "sources": {
+      "personal_relief_at_source": "Personale (sgravio alla fonte)",
+      "personal_gross": "Personale (lordo)",
+      "employer": "Datore di lavoro o salary sacrifice",
+      "isa_subscription": "Sottoscrizione ISA"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "Paghi l'importo netto e il fornitore aggiunge lo sgravio fiscale all'aliquota base, quindi conta come importo ÷ 0,8 sul limite annuale pensionistico.",
+      "personal_gross": "Un contributo personale senza sgravio aggiunto alla fonte; conta al valore nominale sul limite annuale pensionistico.",
+      "employer": "Pagato dal datore di lavoro o tramite salary sacrifice; conta al valore nominale sul limite annuale pensionistico.",
+      "isa_subscription": "Denaro versato in un ISA; conta sul limite ISA, non su quello pensionistico. I conti ISA accettano solo questa origine."
+    },
+    "expectedDay": "Giorno del mese previsto",
+    "startDate": "Data di inizio",
+    "endDate": "Data di fine (facoltativa)",
+    "label": "Etichetta (facoltativa)",
+    "remove": "Rimuovi contributo {{number}}",
+    "add": "Aggiungi contributo",
+    "save": "Salva piano",
+    "saving": "Salvataggio…",
+    "saved": "Piano salvato.",
+    "saveFailed": "Impossibile salvare il piano dei contributi",
+    "rejected": "Non salvato: {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Monitoraggio dei limiti",
     "account": "Conto",

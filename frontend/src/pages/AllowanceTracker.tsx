@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getAllowances } from "../api";
 import AllowanceGuardianCard from "../components/AllowanceGuardianCard";
+import ContributionScheduleEditor from "../components/ContributionScheduleEditor";
 import EmptyState from "../components/EmptyState";
 import TableSkeleton from "../components/skeletons/TableSkeleton";
 
@@ -17,6 +18,7 @@ export default function AllowanceTracker() {
   const [owner, setOwner] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [guardianRefresh, setGuardianRefresh] = useState(0);
 
   useEffect(() => {
     getAllowances()
@@ -54,7 +56,12 @@ export default function AllowanceTracker() {
           ))}
         </tbody>
       </table>
-      {owner && <AllowanceGuardianCard owner={owner} />}
+      {owner && (
+        <>
+          <AllowanceGuardianCard owner={owner} refreshKey={guardianRefresh} />
+          <ContributionScheduleEditor owner={owner} onSaved={() => setGuardianRefresh((n) => n + 1)} />
+        </>
+      )}
     </div>
   );
 }

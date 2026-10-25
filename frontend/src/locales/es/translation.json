@@ -3148,6 +3148,47 @@
       "awaiting": "Pendiente"
     }
   },
+  "contributionSchedule": {
+    "title": "Aportaciones previstas",
+    "intro": "Registra lo que prevés aportar a cada cuenta de pensión o ISA. El guardián de arriba comprueba las entradas y proyecta tus límites a partir de este calendario.",
+    "loadFailed": "No se pudo cargar el calendario de aportaciones",
+    "empty": "Aún no hay aportaciones registradas. Añade una para empezar.",
+    "rowLegend": "Aportación {{number}}",
+    "account": "Cuenta",
+    "chooseAccount": "Elige una cuenta",
+    "amount": "Importe (£)",
+    "amountInvalid": "Introduce un importe positivo en libras con un máximo de dos decimales.",
+    "frequency": "Frecuencia",
+    "frequencies": {
+      "monthly": "Mensual",
+      "quarterly": "Trimestral",
+      "annual": "Anual"
+    },
+    "source": "Origen",
+    "sources": {
+      "personal_relief_at_source": "Personal (desgravación en origen)",
+      "personal_gross": "Personal (bruto)",
+      "employer": "Empleador o sacrificio salarial",
+      "isa_subscription": "Suscripción ISA"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "Pagas el importe neto y tu proveedor añade la desgravación fiscal al tipo básico, así que cuenta como importe ÷ 0,8 para el límite anual de pensiones.",
+      "personal_gross": "Una aportación personal sin desgravación añadida en origen; cuenta por su valor nominal para el límite anual de pensiones.",
+      "employer": "Pagada por tu empleador o mediante sacrificio salarial; cuenta por su valor nominal para el límite anual de pensiones.",
+      "isa_subscription": "Dinero aportado a una ISA; cuenta para el límite ISA, no para el de pensiones. Las cuentas ISA solo aceptan este origen."
+    },
+    "expectedDay": "Día del mes previsto",
+    "startDate": "Fecha de inicio",
+    "endDate": "Fecha de fin (opcional)",
+    "label": "Etiqueta (opcional)",
+    "remove": "Eliminar aportación {{number}}",
+    "add": "Añadir aportación",
+    "save": "Guardar calendario",
+    "saving": "Guardando…",
+    "saved": "Calendario guardado.",
+    "saveFailed": "No se pudo guardar el calendario de aportaciones",
+    "rejected": "No guardado: {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Seguimiento de límites",
     "account": "Cuenta",

@@ -3148,6 +3148,47 @@
       "awaiting": "A aguardar"
     }
   },
+  "contributionSchedule": {
+    "title": "Contribuições previstas",
+    "intro": "Registe o que prevê pagar em cada conta de pensão ou ISA. O guardião acima verifica as entradas e projeta os seus limites a partir deste plano.",
+    "loadFailed": "Falha ao carregar o plano de contribuições",
+    "empty": "Ainda não há contribuições registadas. Adicione uma para começar.",
+    "rowLegend": "Contribuição {{number}}",
+    "account": "Conta",
+    "chooseAccount": "Escolha uma conta",
+    "amount": "Montante (£)",
+    "amountInvalid": "Introduza um montante positivo em libras com no máximo duas casas decimais.",
+    "frequency": "Frequência",
+    "frequencies": {
+      "monthly": "Mensal",
+      "quarterly": "Trimestral",
+      "annual": "Anual"
+    },
+    "source": "Origem",
+    "sources": {
+      "personal_relief_at_source": "Pessoal (alívio na fonte)",
+      "personal_gross": "Pessoal (bruto)",
+      "employer": "Empregador ou salary sacrifice",
+      "isa_subscription": "Subscrição ISA"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "Paga o montante líquido e o seu fornecedor acrescenta o alívio fiscal à taxa básica, por isso conta como montante ÷ 0,8 para o limite anual de pensões.",
+      "personal_gross": "Uma contribuição pessoal sem alívio fiscal acrescentado na fonte; conta pelo valor nominal para o limite anual de pensões.",
+      "employer": "Paga pelo empregador ou por salary sacrifice; conta pelo valor nominal para o limite anual de pensões.",
+      "isa_subscription": "Dinheiro pago numa ISA; conta para o limite ISA, não para o de pensões. As contas ISA só aceitam esta origem."
+    },
+    "expectedDay": "Dia do mês previsto",
+    "startDate": "Data de início",
+    "endDate": "Data de fim (opcional)",
+    "label": "Etiqueta (opcional)",
+    "remove": "Remover contribuição {{number}}",
+    "add": "Adicionar contribuição",
+    "save": "Guardar plano",
+    "saving": "A guardar…",
+    "saved": "Plano guardado.",
+    "saveFailed": "Falha ao guardar o plano de contribuições",
+    "rejected": "Não guardado: {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Acompanhamento de limites",
     "account": "Conta",

@@ -3432,6 +3432,45 @@ export interface AllowanceGuardianReport {
 export const getAllowanceGuardian = (owner: string) =>
   fetchJson<AllowanceGuardianReport>(`${API_BASE}/allowance-guardian/${encodeURIComponent(owner)}`);
 
+// Mirrors backend/allowance_guardian/schedule.py (#10496).
+export type ContributionFrequency = "monthly" | "quarterly" | "annual";
+export type ContributionSource =
+  | "personal_relief_at_source"
+  | "personal_gross"
+  | "employer"
+  | "isa_subscription";
+
+export interface ScheduledContribution {
+  account: string;
+  /** Pence paid in (net of relief at source). */
+  amount_minor: number;
+  frequency: ContributionFrequency;
+  source: ContributionSource;
+  expected_day: number;
+  start_date: string;
+  end_date?: string | null;
+  label?: string | null;
+}
+
+export interface ContributionSchedule {
+  owner: string;
+  contributions: ScheduledContribution[];
+}
+
+const scheduleUrl = (owner: string) =>
+  `${API_BASE}/allowance-guardian/${encodeURIComponent(owner)}/schedule`;
+
+export const getContributionSchedule = (owner: string) =>
+  fetchJson<ContributionSchedule>(scheduleUrl(owner));
+
+/** Replace the owner's schedule; a 400 rejects with the backend's validation detail as the message. */
+export const putContributionSchedule = (owner: string, schedule: ContributionSchedule) =>
+  fetchJson<ContributionSchedule>(scheduleUrl(owner), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(schedule),
+  });
+
 // ───────────── Pension Forecast ─────────────
 export interface PensionIncomeBreakdown {
   state_pension_annual?: number | null;

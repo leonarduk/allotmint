@@ -3148,6 +3148,47 @@
       "awaiting": "En attente"
     }
   },
+  "contributionSchedule": {
+    "title": "Versements prévus",
+    "intro": "Indiquez ce que vous prévoyez de verser sur chaque compte retraite ou ISA. Le gardien ci-dessus vérifie les arrivées et projette vos plafonds à partir de ce calendrier.",
+    "loadFailed": "Impossible de charger le calendrier des versements",
+    "empty": "Aucun versement enregistré. Ajoutez-en un pour commencer.",
+    "rowLegend": "Versement {{number}}",
+    "account": "Compte",
+    "chooseAccount": "Choisir un compte",
+    "amount": "Montant (£)",
+    "amountInvalid": "Saisissez un montant positif en livres avec au plus deux décimales.",
+    "frequency": "Fréquence",
+    "frequencies": {
+      "monthly": "Mensuel",
+      "quarterly": "Trimestriel",
+      "annual": "Annuel"
+    },
+    "source": "Origine",
+    "sources": {
+      "personal_relief_at_source": "Personnel (allègement à la source)",
+      "personal_gross": "Personnel (brut)",
+      "employer": "Employeur ou sacrifice salarial",
+      "isa_subscription": "Souscription ISA"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "Vous versez le montant net et votre fournisseur ajoute l'allègement fiscal au taux de base ; il compte donc pour montant ÷ 0,8 dans le plafond annuel de retraite.",
+      "personal_gross": "Un versement personnel sans allègement ajouté à la source ; il compte pour sa valeur nominale dans le plafond annuel de retraite.",
+      "employer": "Versé par votre employeur ou par sacrifice salarial ; il compte pour sa valeur nominale dans le plafond annuel de retraite.",
+      "isa_subscription": "Argent versé sur un ISA ; il compte dans la limite ISA, pas dans le plafond de retraite. Les comptes ISA n'acceptent que cette origine."
+    },
+    "expectedDay": "Jour du mois prévu",
+    "startDate": "Date de début",
+    "endDate": "Date de fin (facultatif)",
+    "label": "Libellé (facultatif)",
+    "remove": "Supprimer le versement {{number}}",
+    "add": "Ajouter un versement",
+    "save": "Enregistrer le calendrier",
+    "saving": "Enregistrement…",
+    "saved": "Calendrier enregistré.",
+    "saveFailed": "Impossible d'enregistrer le calendrier des versements",
+    "rejected": "Non enregistré : {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Suivi des plafonds",
     "account": "Compte",

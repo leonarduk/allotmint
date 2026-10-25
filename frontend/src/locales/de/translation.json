@@ -3148,6 +3148,47 @@
       "awaiting": "Ausstehend"
     }
   },
+  "contributionSchedule": {
+    "title": "Erwartete Einzahlungen",
+    "intro": "Erfassen Sie, was Sie voraussichtlich in jedes Renten- oder ISA-Konto einzahlen. Der Wächter oben prüft anhand dieses Plans die Eingänge und projiziert Ihre Freibeträge.",
+    "loadFailed": "Einzahlungsplan konnte nicht geladen werden",
+    "empty": "Noch keine Einzahlungen erfasst. Fügen Sie eine hinzu.",
+    "rowLegend": "Einzahlung {{number}}",
+    "account": "Konto",
+    "chooseAccount": "Konto wählen",
+    "amount": "Betrag (£)",
+    "amountInvalid": "Geben Sie einen positiven Betrag in Pfund mit höchstens zwei Nachkommastellen ein.",
+    "frequency": "Häufigkeit",
+    "frequencies": {
+      "monthly": "Monatlich",
+      "quarterly": "Vierteljährlich",
+      "annual": "Jährlich"
+    },
+    "source": "Quelle",
+    "sources": {
+      "personal_relief_at_source": "Persönlich (Steuerentlastung an der Quelle)",
+      "personal_gross": "Persönlich (brutto)",
+      "employer": "Arbeitgeber oder Gehaltsumwandlung",
+      "isa_subscription": "ISA-Einzahlung"
+    },
+    "sourceHelp": {
+      "personal_relief_at_source": "Sie zahlen den Nettobetrag, und Ihr Anbieter schlägt die Steuerentlastung zum Basissatz auf; daher zählt Betrag ÷ 0,8 auf den jährlichen Rentenfreibetrag.",
+      "personal_gross": "Eine persönliche Einzahlung ohne Steuerentlastung an der Quelle; sie zählt zum Nennwert auf den jährlichen Rentenfreibetrag.",
+      "employer": "Vom Arbeitgeber oder per Gehaltsumwandlung gezahlt; zählt zum Nennwert auf den jährlichen Rentenfreibetrag.",
+      "isa_subscription": "Geld, das in ein ISA eingezahlt wird; zählt auf das ISA-Limit, nicht auf den Rentenfreibetrag. ISA-Konten akzeptieren nur diese Quelle."
+    },
+    "expectedDay": "Erwarteter Tag im Monat",
+    "startDate": "Startdatum",
+    "endDate": "Enddatum (optional)",
+    "label": "Bezeichnung (optional)",
+    "remove": "Einzahlung {{number}} entfernen",
+    "add": "Einzahlung hinzufügen",
+    "save": "Plan speichern",
+    "saving": "Wird gespeichert…",
+    "saved": "Plan gespeichert.",
+    "saveFailed": "Einzahlungsplan konnte nicht gespeichert werden",
+    "rejected": "Nicht gespeichert: {{detail}}"
+  },
   "allowanceTracker": {
     "title": "Freibetrags-Tracker",
     "account": "Konto",

@@ -55,6 +55,11 @@ def _normalise_google_auth_flag(value: Any) -> bool | None | Any:
 
 router = APIRouter(prefix="/config", tags=["config"])
 
+# Mutating endpoints. Registered by backend/bootstrap/routers.py with the
+# ``protected`` auth dependency, while ``router`` (GET /config) stays public
+# because the SPA reads it before login (#11064).
+write_router = APIRouter(prefix="/config", tags=["config"])
+
 logger = logging.getLogger(__name__)
 
 
@@ -240,7 +245,7 @@ async def read_mcp_tools() -> Dict[str, Any]:
     }
 
 
-@router.put("")
+@write_router.put("")
 def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Update configuration values and persist them to ``config.yaml``."""
     path: Path = _project_config_path()

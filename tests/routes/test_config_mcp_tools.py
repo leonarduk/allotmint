@@ -16,6 +16,8 @@ from backend.routes import config as routes_config
 def config_path(monkeypatch, tmp_path):
     path = tmp_path / "config.yaml"
     path.write_text("auth:\n  google_auth_enabled: false\n")
+    # PUT /config is auth-protected unless auth is disabled (#11064).
+    monkeypatch.setenv("DISABLE_AUTH", "true")
     monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: path)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: path)
     reload_config()

@@ -9,10 +9,17 @@ from backend.config import reload_config
 from backend.routes import config as routes_config
 
 
-def _setup_config(monkeypatch, tmp_path, content: str = "auth:\n  google_auth_enabled: false\n"):
-    """Write ``content`` to a temporary config file and patch paths."""
+def _setup_config(
+    monkeypatch, tmp_path, content: str = "auth:\n  google_auth_enabled: false\n", *, disable_auth: bool = True
+):
+    """Write ``content`` to a temporary config file and patch paths.
+
+    ``PUT /config`` is auth-protected unless auth is disabled (#11064), so the
+    write-behaviour tests run with ``DISABLE_AUTH=true`` by default.
+    """
     config_path = tmp_path / "config.yaml"
     config_path.write_text(content)
+    monkeypatch.setenv("DISABLE_AUTH", "true" if disable_auth else "false")
     monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
     reload_config()
@@ -195,3 +202,50 @@ def test_route_flat_keys_into_sections_keeps_explicit_nested_value(incoming):
 
     assert routed == {"market_data": {"stooq_timeout": 99}}
     assert routed_keys == {"stooq_timeout"}
+
+
+def test_put_config_requires_auth_when_auth_enabled(monkeypatch, tmp_path):
+    """With auth on, an unauthenticated PUT /config is rejected (#11064)."""
+    config_path = _setup_config(monkeypatch, tmp_path, disable_auth=False)
+    original = config_path.read_text()
+    client = TestClient(create_app())
+
+    resp = client.put("/config", json={"auth": {"allowed_emails": ["attacker@example.com"]}})
+
+    assert resp.status_code == 401
+    assert config_path.read_text() == original
+
+    monkeypatch.undo()
+    reload_config()
+
+
+def test_put_config_succeeds_with_token_when_auth_enabled(monkeypatch, tmp_path):
+    config_path = _setup_config(monkeypatch, tmp_path, disable_auth=False)
+    client = TestClient(create_app())
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+
+    resp = client.put(
+        "/config",
+        json={"ui": {"tabs": {"research": True}}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200
+    assert yaml.safe_load(config_path.read_text())["ui"]["tabs"]["research"] is True
+
+    monkeypatch.undo()
+    reload_config()
+
+
+def test_get_config_stays_public_when_auth_enabled(monkeypatch, tmp_path):
+    """The SPA reads GET /config before login, so it must not require auth."""
+    _setup_config(monkeypatch, tmp_path, disable_auth=False)
+    client = TestClient(create_app())
+
+    resp = client.get("/config")
+
+    assert resp.status_code == 200
+    assert resp.json()["disable_auth"] is False
+
+    monkeypatch.undo()
+    reload_config()

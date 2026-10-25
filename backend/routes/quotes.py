@@ -51,7 +51,14 @@ def _yahoo_symbol(sym: str) -> str:
 
 @router.get("/quotes")
 def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
-    """Return quote data for the provided comma-separated ``symbols``."""
+    """Return quote data for the provided comma-separated ``symbols``.
+
+    A symbol that fails (missing from yfinance's response, or its live fetch
+    raising) is omitted from the list and logged at WARNING; the response
+    shape is unchanged so callers see a partial list (#8097). Only when every
+    requested symbol fails does the request raise a 502 ``ProviderFailure``
+    whose server-side ``extra`` names the failed symbols.
+    """
 
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not syms:
@@ -82,6 +89,10 @@ def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
     for sym in syms:
         ticker = tickers.get(yahoo_syms[sym])
         if ticker is None:
+            # yfinance omits malformed/unknown symbols from ``Tickers.tickers``;
+            # count that as a failure rather than dropping it silently (#8101).
+            logger.warning("No yfinance ticker returned for %s, skipping", sanitise_log_value(sym))
+            failures[sym] = "symbol missing from provider response"
             continue
         try:
             # Each symbol triggers its own live chart fetch; a single bad/rate
@@ -150,7 +161,7 @@ def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
             "Failed to fetch quotes",
             extra={
                 "provider": "yfinance",
-                "symbols": syms,
+                "symbols": list(failures),
                 "provider_errors": failures,
             },
         )

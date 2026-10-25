@@ -182,6 +182,8 @@ export type SectorContribution = {
   currency?: string | null;
   gain_pct?: number | null;
   contribution_pct?: number | null;
+  /** Share of total market value, in percentage points; null when the total is zero (#7660). */
+  weight_pct?: number | null;
   /** Market value of holdings left out of gain/cost (unreliable cost basis, #8488). */
   unknown_cost_market_value_gbp?: number;
 };
@@ -194,6 +196,8 @@ export type RegionContribution = {
   currency?: string | null;
   gain_pct?: number | null;
   contribution_pct?: number | null;
+  /** Share of total market value, in percentage points; null when the total is zero (#7660). */
+  weight_pct?: number | null;
   /** Market value of holdings left out of gain/cost (unreliable cost basis, #8488). */
   unknown_cost_market_value_gbp?: number;
 };

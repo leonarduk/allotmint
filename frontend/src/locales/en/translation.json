@@ -1633,6 +1633,8 @@
   },
   "screener": {
     "checking": "Checking screener availability…",
+    "provenanceSource": "Source: {{source}}",
+    "provenanceAsOf": "As of {{date}}",
     "clearFilters": "Clear filters",
     "description": "Filter a watchlist or a custom list of tickers by valuation, profitability, and risk ratios (P/E, debt levels, margins, returns, and more) to shortlist companies worth a closer look.",
     "fractionHint": "0.10 = 10%",

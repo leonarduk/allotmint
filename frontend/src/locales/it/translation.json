@@ -1639,6 +1639,8 @@
   },
   "screener": {
     "checking": "Verifica della disponibilità dello screener…",
+    "provenanceSource": "Fonte: {{source}}",
+    "provenanceAsOf": "Aggiornato al {{date}}",
     "clearFilters": "Cancella filtri",
     "description": "Filtra una watchlist o un elenco personalizzato di ticker in base a rapporti di valutazione, redditività e rischio (P/E, livelli di debito, margini, rendimenti e altro) per selezionare le società da approfondire.",
     "fractionHint": "0,10 = 10%",

@@ -1639,6 +1639,8 @@
   },
   "screener": {
     "checking": "Vérification de la disponibilité du filtre…",
+    "provenanceSource": "Source : {{source}}",
+    "provenanceAsOf": "Au {{date}}",
     "clearFilters": "Effacer les filtres",
     "description": "Filtrez une liste de suivi ou une liste personnalisée de tickers selon des ratios de valorisation, de rentabilité et de risque (P/E, niveau d'endettement, marges, rendements, etc.) pour présélectionner des sociétés à examiner de plus près.",
     "fractionHint": "0,10 = 10 %",

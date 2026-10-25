@@ -1639,6 +1639,8 @@
   },
   "screener": {
     "checking": "Prüfe Verfügbarkeit des Screeners…",
+    "provenanceSource": "Quelle: {{source}}",
+    "provenanceAsOf": "Stand: {{date}}",
     "clearFilters": "Filter zurücksetzen",
     "description": "Filtern Sie eine Watchlist oder eine eigene Tickerliste nach Bewertungs-, Rentabilitäts- und Risikokennzahlen (KGV, Verschuldung, Margen, Renditen u.a.), um Unternehmen für eine genauere Prüfung vorzuselektieren.",
     "fractionHint": "0,10 = 10 %",

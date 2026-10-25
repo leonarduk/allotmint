@@ -90,10 +90,23 @@ function twoDp(value: number | null | undefined): string {
   return value != null ? value.toFixed(2) : "—";
 }
 
-// Hover text for the ticker cell: "Name — Sector", or whichever is known.
+// Where the row's fundamentals came from and when, so a stale row can be
+// spotted (#10072). Either field may be missing.
+function provenance(r: ScreenerResult): string | undefined {
+  const parts = [
+    r.source ? i18n.t("screener.provenanceSource", { source: r.source }) : null,
+    r.as_of ? i18n.t("screener.provenanceAsOf", { date: r.as_of.slice(0, 10) }) : null,
+  ].filter((p): p is string => Boolean(p));
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
+// Hover text for the ticker cell: "Name — Sector", or whichever is known,
+// then the fundamentals' provenance on its own line.
 function tickerTooltip(r: ScreenerResult): string | undefined {
   const parts = [r.name, r.sector].filter((p): p is string => Boolean(p));
-  return parts.length ? parts.join(" — ") : undefined;
+  const lines = [parts.length ? parts.join(" — ") : null, provenance(r)];
+  const text = lines.filter((line): line is string => Boolean(line)).join("\n");
+  return text || undefined;
 }
 
 type ScreenerCriteria = NonNullable<Parameters<typeof getScreener>[1]>;

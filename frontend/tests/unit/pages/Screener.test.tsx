@@ -428,6 +428,23 @@ describe("Screener", () => {
     expect(screen.getByText("CCC")).not.toHaveAttribute("title");
   });
 
+  it("adds the fundamentals' source and date to the ticker hover text (#10072)", async () => {
+    mockGetScreener.mockResolvedValueOnce([
+      { rank: 1, ticker: "AAA", name: "AAA Corp", source: "Yahoo", as_of: "2026-10-01" },
+      { rank: 2, ticker: "BBB", name: null, source: null, as_of: "2026-09-30T12:00:00Z" },
+    ]);
+
+    renderScreener();
+    await enterCustomTickers("AAA,BBB");
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    expect(await screen.findByText("AAA")).toHaveAttribute(
+      "title",
+      "AAA Corp\nSource: Yahoo · As of 2026-10-01",
+    );
+    expect(screen.getByText("BBB")).toHaveAttribute("title", "As of 2026-09-30");
+  });
+
   it("links each ticker to its research page without opening the row's detail panel", async () => {
     mockGetScreener.mockResolvedValueOnce([{ rank: 1, ticker: "GLEN.L", name: "Glencore" }]);
 

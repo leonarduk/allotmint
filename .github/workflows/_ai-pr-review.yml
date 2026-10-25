@@ -69,6 +69,11 @@ jobs:
   ai-review:
     name: ${{ inputs.provider_name }} AI code review
     runs-on: ubuntu-latest
+    # Cap the job well below GitHub's 6-hour default (#7606): it is a required
+    # check, so a hung LLM API call or gh request would otherwise hold the PR
+    # (and a runner) for hours. A normal run, including the pip install and
+    # follow-up issue creation, finishes in a few minutes.
+    timeout-minutes: 30
     if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       pull-requests: write

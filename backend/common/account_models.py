@@ -21,6 +21,20 @@ ACCOUNT_METADATA_STEMS: frozenset[str] = frozenset(
     }
 )
 
+# ``<account>_transactions.json`` sits beside its account file and holds that
+# account's ledger, not another account (#10839).
+TRANSACTIONS_STEM_SUFFIX = "_transactions"
+
+
+def is_account_file_stem(stem: str) -> bool:
+    """True when an owner-directory JSON ``stem`` names an account file.
+
+    Metadata files and ``*_transactions`` ledgers are not accounts. The local
+    loader and the S3 provider share this so their account lists agree.
+    """
+    lowered = stem.lower()
+    return lowered not in ACCOUNT_METADATA_STEMS and not lowered.endswith(TRANSACTIONS_STEM_SUFFIX)
+
 
 class OwnerSummaryRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")

@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import BotoCoreError, ClientError
 
-from backend.common.account_models import ACCOUNT_METADATA_STEMS
+from backend.common.account_models import is_account_file_stem
 from backend.common.path_utils import safe_join
 
 logger = logging.getLogger(__name__)
@@ -153,7 +153,7 @@ class S3DataProvider:
                     continue
                 owner, filename = parts
                 stem = Path(filename).stem
-                if stem.lower() in ACCOUNT_METADATA_STEMS:
+                if not is_account_file_stem(stem):
                     continue
                 accounts = owners.setdefault(owner, [])
                 if all(existing.lower() != stem.lower() for existing in accounts):

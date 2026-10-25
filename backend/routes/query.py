@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
 import re
 from datetime import date, timedelta
@@ -22,7 +23,10 @@ from backend.common.path_utils import safe_join
 from backend.common.portfolio_loader import get_units_as_of, list_portfolios
 from backend.common.portfolio_utils import compute_var_with_basis, get_security_meta
 from backend.config import config, demo_identity
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import load_meta_timeseries_range
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/custom-query", tags=["query"])
 
@@ -452,14 +456,30 @@ def _query_rows(q: CustomQuery) -> List[dict]:
     return rows
 
 
-def _persist_query(slug: str, q: CustomQuery) -> None:
+S3_FALLBACK_WARNING = "Could not save to cloud storage; the query was saved on this server only and may be lost."
+
+
+def _persist_query(slug: str, q: CustomQuery) -> dict[str, str]:
+    """Save ``q`` and report where: ``{"storage": "s3" | "local"}``.
+
+    In AWS a failed S3 write still falls back to the local filesystem, but the
+    result then carries a ``warning`` (and the failure is logged) so the save
+    is not reported as an ordinary success (#9958).
+    """
     if config.app_env == "aws":
         try:
             _save_query_s3(slug, q)
-            return
-        except HTTPException:
-            pass
+            return {"storage": "s3"}
+        except HTTPException as exc:
+            logger.warning(
+                "S3 save of query %s failed (%s); saving locally",
+                sanitise_log_value(slug),
+                sanitise_log_value(exc.detail),
+            )
+            _save_query_local(slug, q)
+            return {"storage": "local", "warning": S3_FALLBACK_WARNING}
     _save_query_local(slug, q)
+    return {"storage": "local"}
 
 
 def _render(rows: List[dict], fmt: str | None):
@@ -485,7 +505,9 @@ def _render(rows: List[dict], fmt: str | None):
 def run_query(q: CustomQuery):
     rows = _query_rows(q)
     if q.name:
-        _persist_query(_slugify(q.name), q)
+        # The response is the query's results (possibly CSV/XLSX), with no
+        # room for a save status; an S3 fallback is still logged.
+        _ = _persist_query(_slugify(q.name), q)
     return _render(rows, q.format)
 
 
@@ -524,8 +546,7 @@ def save_named_query(q: CustomQuery):
     slug = _slugify(q.name or "")
     if not slug:
         raise HTTPException(400, "A query name is required")
-    _persist_query(slug, q)
-    return {"id": slug, "saved": slug}
+    return {"id": slug, "saved": slug, **_persist_query(slug, q)}
 
 
 def _format_saved_query(slug: str, payload: dict) -> dict:
@@ -590,5 +611,4 @@ def load_query(slug: str):
 
 @router.post("/{slug}")
 def save_query(slug: str, q: CustomQuery):
-    _persist_query(slug, q)
-    return {"saved": slug}
+    return {"saved": slug, **_persist_query(slug, q)}

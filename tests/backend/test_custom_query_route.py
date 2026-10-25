@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.config import config, demo_identity
+from backend.routes import query as query_routes
 
 
 @pytest.fixture
@@ -49,7 +50,11 @@ def test_custom_query_routes_fallback_to_local(monkeypatch):
 
             save_resp = client.post(f"/custom-query/{fallback_slug}", json=payload)
             assert save_resp.status_code == 200
-            assert save_resp.json() == {"saved": fallback_slug}
+            assert save_resp.json() == {
+                "saved": fallback_slug,
+                "storage": "local",
+                "warning": query_routes.S3_FALLBACK_WARNING,
+            }
             assert json.loads(fallback_path.read_text())["tickers"] == ["MSFT"]
 
             get_resp = client.get(f"/custom-query/{fallback_slug}")

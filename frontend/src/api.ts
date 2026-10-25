@@ -2732,11 +2732,15 @@ export const runCustomQuery = async (params: CustomQuery) => {
 
 /** Persist a query definition on the backend. */
 export const saveCustomQuery = (name: string, params: CustomQuery) =>
-  fetchJson<{ id: string }>(`${API_BASE}/custom-query/save`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, ...params }),
-  });
+  // ``warning`` is set when the save fell back from cloud storage (#9958).
+  fetchJson<{ id: string; storage?: string; warning?: string }>(
+    `${API_BASE}/custom-query/save`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, ...params }),
+    },
+  );
 
 /** List saved queries available on the backend. */
 export function listSavedQueries(opts?: { detailed?: true }): Promise<SavedQuery[]>;

@@ -417,7 +417,7 @@ def test_save_query_route_aws(monkeypatch):
     }
     resp = client.post("/custom-query/demo-save", json=body)
     assert resp.status_code == 200
-    assert resp.json() == {"saved": "demo-save"}
+    assert resp.json() == {"saved": "demo-save", "storage": "s3"}
     assert captured == {"slug": "demo-save", "ticker": "ABC.L"}
 
 
@@ -432,7 +432,7 @@ def test_save_query_route_local(monkeypatch, tmp_path):
     }
     resp = client.post("/custom-query/local", json=body)
     assert resp.status_code == 200
-    assert resp.json() == {"saved": "local"}
+    assert resp.json() == {"saved": "local", "storage": "local"}
     assert (tmp_path / "local.json").exists()
 
 
@@ -638,8 +638,31 @@ def test_save_route_slugifies_name(monkeypatch, tmp_path):
     body = {"name": "My ISA gains!", "start": "2020-01-01", "end": "2020-12-31", "metrics": ["gain_gbp"]}
     resp = make_client().post("/custom-query/save", json=body)
     assert resp.status_code == 200
-    assert resp.json() == {"id": "my-isa-gains", "saved": "my-isa-gains"}
+    assert resp.json() == {"id": "my-isa-gains", "saved": "my-isa-gains", "storage": "local"}
     assert json.loads((tmp_path / "my-isa-gains.json").read_text())["metrics"] == ["gain_gbp"]
+
+
+def test_save_route_reports_s3_fallback_to_local(monkeypatch, tmp_path, caplog):
+    """A failed S3 write still saves locally, but the response says so (#9958)."""
+
+    def failing_s3(slug: str, q: query.CustomQuery) -> None:
+        raise HTTPException(500, "Failed to write query to S3: boom")
+
+    monkeypatch.setattr(query.config, "app_env", "aws")
+    monkeypatch.setattr(query, "_save_query_s3", failing_s3)
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    body = {"name": "Fallback", "start": "2020-01-01", "end": "2020-12-31"}
+    with caplog.at_level("WARNING", logger=query.__name__):
+        resp = make_client().post("/custom-query/save", json=body)
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "id": "fallback",
+        "saved": "fallback",
+        "storage": "local",
+        "warning": query.S3_FALLBACK_WARNING,
+    }
+    assert (tmp_path / "fallback.json").exists()
+    assert "S3 save of query fallback failed" in caplog.text
 
 
 def test_save_route_requires_a_name(monkeypatch, tmp_path):

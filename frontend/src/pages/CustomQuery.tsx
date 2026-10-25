@@ -304,8 +304,9 @@ export function CustomQuery() {
       metrics,
     };
     try {
-      await saveCustomQuery(name, params);
-      setSaveStatus(t("query.saved", { name }));
+      const result = await saveCustomQuery(name, params);
+      const saved = t("query.saved", { name });
+      setSaveStatus(result?.warning ? `${saved} ${result.warning}` : saved);
       setSavedVersion((v) => v + 1);
     } catch (e) {
       setSaveStatus(

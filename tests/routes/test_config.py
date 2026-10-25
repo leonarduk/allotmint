@@ -1,5 +1,6 @@
 import sys
 
+import pytest
 import yaml
 from fastapi.testclient import TestClient
 
@@ -175,4 +176,22 @@ def test_route_flat_keys_into_sections_leaves_unknown_and_nested_keys():
         "base_currency": "USD",
         "server": {"uvicorn_port": 9000},
     }
+    assert routed_keys == {"stooq_timeout"}
+
+
+@pytest.mark.parametrize(
+    "incoming",
+    [
+        {"stooq_timeout": 3, "market_data": {"stooq_timeout": 99}},
+        {"market_data": {"stooq_timeout": 99}, "stooq_timeout": 3},
+    ],
+)
+def test_route_flat_keys_into_sections_keeps_explicit_nested_value(incoming):
+    # #7904: a flat key must not clobber the same key sent nested in its own
+    # section, whichever order the payload lists them in.
+    stored = {"market_data": {"stooq_timeout": 10}}
+
+    routed, routed_keys = routes_config._route_flat_keys_into_sections(incoming, stored)
+
+    assert routed == {"market_data": {"stooq_timeout": 99}}
     assert routed_keys == {"stooq_timeout"}

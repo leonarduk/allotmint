@@ -142,6 +142,11 @@ def _route_flat_keys_into_sections(incoming: Dict[str, Any], stored: Dict[str, A
     a dead copy and the edit was silently ignored (#7895). Keys no section
     defines (e.g. ``base_currency``) stay top-level.
 
+    If the same payload also sets the key inside that section explicitly
+    (``{"stooq_timeout": 3, "market_data": {"stooq_timeout": 99}}``), the
+    nested value wins whatever the key order, and the flat copy is dropped
+    (#7904).
+
     Returns the rewritten payload and the set of keys that were routed.
     """
 
@@ -154,7 +159,7 @@ def _route_flat_keys_into_sections(incoming: Dict[str, Any], stored: Dict[str, A
         if len(sections) != 1 or not isinstance(routed.get(sections[0], {}), dict):
             continue
         routed.pop(key)
-        routed.setdefault(sections[0], {})[key] = value
+        routed.setdefault(sections[0], {}).setdefault(key, value)
         routed_keys.add(key)
     return routed, routed_keys
 

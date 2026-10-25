@@ -235,8 +235,12 @@ def _cash_warning(extraction: StatementExtraction) -> Optional[str]:
     if opening is None or closing is None or not extraction.rows:
         return None
     flows = [_cash_flow_minor(row) for row in extraction.rows]
-    if any(flow is None for flow in flows):
-        return None
+    missing = [row.index + 1 for row, flow in zip(extraction.rows, flows) if flow is None]
+    if missing:
+        # Never guess a missing amount (that would fake a mismatch), but say
+        # the check did not run rather than implying the cash added up.
+        rows = ", ".join(str(number) for number in missing)
+        return f"Cash check skipped: row{'s' if len(missing) > 1 else ''} {rows} gave no cash amount"
     implied = opening + sum(flows)  # type: ignore[arg-type]
     if abs(implied - closing) <= _MIN_TOLERANCE_MINOR:
         return None

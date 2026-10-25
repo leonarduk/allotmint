@@ -561,7 +561,28 @@ export interface AlphaSeriesPoint {
   excess_cumulative_return: number;
 }
 
-export interface AlphaResponse {
+/** Return basis of the portfolio side of alpha / tracking error (#9571, #9606). */
+export type PortfolioReturnBasis = "total" | "price" | "mixed";
+
+/** A holding left out of the return series for want of closes, with the basis it would have had. */
+export interface UnpricedHolding {
+  ticker: string;
+  return_basis: "total" | "price";
+}
+
+/**
+ * Basis fields the alpha and tracking-error endpoints add beside their
+ * figures (backend `_portfolio_return_basis`). Optional: older backends and
+ * responses with no usable series omit them.
+ */
+export interface PortfolioReturnBasisFields {
+  portfolio_return_basis?: PortfolioReturnBasis;
+  /** Fraction (0-1) of the priced non-cash value whose returns are price only; null when nothing was priced. */
+  portfolio_price_basis_share?: number | null;
+  portfolio_unpriced_holdings?: UnpricedHolding[];
+}
+
+export interface AlphaResponse extends PortfolioReturnBasisFields {
   alpha_vs_benchmark: number | null;
   benchmark: string;
   portfolio_cumulative_return?: number | null;
@@ -577,7 +598,7 @@ export interface TrackingErrorPoint {
   active_return: number;
 }
 
-export interface TrackingErrorResponse {
+export interface TrackingErrorResponse extends PortfolioReturnBasisFields {
   tracking_error: number | null;
   benchmark: string;
   active_returns?: TrackingErrorPoint[];

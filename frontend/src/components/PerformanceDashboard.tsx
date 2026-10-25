@@ -21,7 +21,7 @@ import {
   getGroupTrackingError,
   getGroupMaxDrawdown,
 } from "../api";
-import type { PerformancePoint } from "../types";
+import type { PerformancePoint, PortfolioReturnBasisFields } from "../types";
 import { percent, wholeMoney } from "../lib/money";
 import { paddedDomain } from "../lib/chartDomain";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
@@ -30,6 +30,7 @@ import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 import InfoTip from "./InfoTip";
 import PortfolioFxAttribution from "./PortfolioFxAttribution";
 import FractionMetric from "./FractionMetric";
+import ReturnBasisNote from "./ReturnBasisNote";
 import LoadingStatus from "./skeletons/LoadingStatus";
 import PortfolioDashboardSkeleton from "./skeletons/PortfolioDashboardSkeleton";
 import {
@@ -97,6 +98,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [days, setDays] = useState<number>(365);
   const [alpha, setAlpha] = useState<number | null>(null);
   const [comparison, setComparison] = useState<CumulativeComparisonPoint[]>([]);
+  const [returnBasis, setReturnBasis] = useState<PortfolioReturnBasisFields | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [drawdownSeries, setDrawdownSeries] = useState<DrawdownSeriesPoint[]>([]);
@@ -173,6 +175,11 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             (res) => {
               setAlpha(res.alpha_vs_benchmark);
               setComparison(buildCumulativeComparison(res.series));
+              setReturnBasis({
+                portfolio_return_basis: res.portfolio_return_basis,
+                portfolio_price_basis_share: res.portfolio_price_basis_share,
+                portfolio_unpriced_holdings: res.portfolio_unpriced_holdings,
+              });
             },
           ),
         trackingError: () =>
@@ -252,6 +259,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setShowDrawdownDetails(false);
     setAlpha(null);
     setComparison([]);
+    setReturnBasis(null);
     setTrackingError(null);
     setMaxDrawdown(null);
     setTimeWeightedReturn(null);
@@ -474,6 +482,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.75rem" }}>
             {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
           </div>
+          <ReturnBasisNote fields={returnBasis} className={METRIC_LABEL_CLASS} />
         </div>
         <div>
           <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>

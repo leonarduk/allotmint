@@ -551,6 +551,95 @@ describe("PerformanceDashboard", () => {
     });
   });
 
+  describe("return basis under Alpha (#10339)", () => {
+    const renderWithAlpha = (extra: Record<string, unknown>) => {
+      vi.mocked(getAlphaVsBenchmark).mockResolvedValue({
+        alpha_vs_benchmark: 0.01,
+        benchmark: "VWRL.L",
+        ...extra,
+      });
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+    };
+
+    it("labels a total-return basis without the price share or a warning colour", async () => {
+      renderWithAlpha({
+        portfolio_return_basis: "total",
+        portfolio_price_basis_share: 0,
+        portfolio_unpriced_holdings: [],
+      });
+
+      const basis = await screen.findByTestId("alpha-return-basis");
+      expect(basis).toHaveTextContent("Return basis: total return (dividends reinvested)");
+      expect(basis).toHaveAttribute("data-basis", "total");
+      expect(basis.style.color).toBe("");
+      expect(screen.queryByTestId("alpha-price-basis-share")).toBeNull();
+      // An empty unpriced list renders nothing, not an empty heading.
+      expect(screen.queryByTestId("alpha-unpriced-holdings")).toBeNull();
+    });
+
+    it("labels a price basis with its share of value", async () => {
+      renderWithAlpha({
+        portfolio_return_basis: "price",
+        portfolio_price_basis_share: 1,
+        portfolio_unpriced_holdings: [],
+      });
+
+      expect(await screen.findByTestId("alpha-return-basis")).toHaveTextContent(
+        "Return basis: price only (dividends not included)",
+      );
+      expect(screen.getByTestId("alpha-price-basis-share")).toHaveTextContent(
+        "100% of value on price only",
+      );
+    });
+
+    it("flags a mixed basis and lists the holdings left out with their basis", async () => {
+      renderWithAlpha({
+        portfolio_return_basis: "mixed",
+        portfolio_price_basis_share: 0.25,
+        portfolio_unpriced_holdings: [
+          { ticker: "ABC.L", return_basis: "price" },
+          { ticker: "XYZ.N", return_basis: "total" },
+        ],
+      });
+
+      const basis = await screen.findByTestId("alpha-return-basis");
+      expect(basis).toHaveTextContent("Return basis: mixed: some holdings are price only");
+      expect(basis).toHaveAttribute("data-basis", "mixed");
+      expect(basis.style.color).not.toBe("");
+      expect(screen.getByTestId("alpha-price-basis-share")).toHaveTextContent(
+        "25% of value on price only",
+      );
+      expect(screen.getByTestId("alpha-unpriced-holdings")).toHaveTextContent(
+        "Left out for want of prices: ABC.L (price only), XYZ.N (total return)",
+      );
+    });
+
+    it("omits the price share when nothing was priced", async () => {
+      renderWithAlpha({
+        portfolio_return_basis: "price",
+        portfolio_price_basis_share: null,
+        portfolio_unpriced_holdings: [{ ticker: "ABC.L", return_basis: "price" }],
+      });
+
+      expect(await screen.findByTestId("alpha-return-basis")).toBeInTheDocument();
+      expect(screen.queryByTestId("alpha-price-basis-share")).toBeNull();
+      expect(screen.getByTestId("alpha-unpriced-holdings")).toHaveTextContent("ABC.L (price only)");
+    });
+
+    it("renders nothing extra for a response without the basis fields", async () => {
+      renderWithAlpha({});
+
+      expect(await screen.findByTestId("metric-alpha")).toBeInTheDocument();
+      expect(screen.queryByTestId("alpha-return-basis")).toBeNull();
+      expect(screen.queryByTestId("alpha-price-basis-share")).toBeNull();
+      expect(screen.queryByTestId("alpha-unpriced-holdings")).toBeNull();
+    });
+  });
+
   describe("group scope (#7228)", () => {
     beforeEach(() => {
       vi.mocked(getGroupAlphaVsBenchmark).mockResolvedValue({

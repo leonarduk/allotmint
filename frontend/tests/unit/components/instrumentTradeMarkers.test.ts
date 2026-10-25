@@ -123,24 +123,67 @@ describe("capMarkers", () => {
     expect(capMarkers(markers, 12)).toHaveLength(2);
   });
 
-  it("collapses a heavily traded instrument to the first and last of each side", () => {
-    const markers = [
-      ...Array.from({ length: 10 }, (_, i) => marker(i + 1, "buy")),
-      ...Array.from({ length: 10 }, (_, i) => marker(i + 11, "sell")),
-    ];
+  const buys = (n: number, from = 1) =>
+    Array.from({ length: n }, (_, i) => marker(i + from, "buy"));
+  const sells = (n: number, from = 1) =>
+    Array.from({ length: n }, (_, i) => marker(i + from, "sell"));
 
-    const capped = capMarkers(markers, 12);
-
-    expect(capped).toHaveLength(4);
-    expect(capped.map((m) => m.key)).toEqual(["k1", "k10", "k11", "k20"]);
+  it("leaves a history exactly at the cap untouched", () => {
+    const markers = buys(12);
+    expect(capMarkers(markers, 12)).toBe(markers);
   });
 
-  it("keeps the span of a single-sided history", () => {
-    const markers = Array.from({ length: 20 }, (_, i) => marker(i + 1, "buy"));
+  it("splits the budget evenly between balanced sides, thinning each evenly (#7797)", () => {
+    const capped = capMarkers([...buys(10), ...sells(10, 11)], 12);
 
-    const capped = capMarkers(markers, 12);
+    expect(capped.map((m) => m.key)).toEqual([
+      "k1", "k3", "k5", "k6", "k8", "k10",
+      "k11", "k13", "k15", "k16", "k18", "k20",
+    ]);
+  });
 
-    expect(capped.map((m) => m.key)).toEqual(["k1", "k20"]);
+  it("keeps all but one of 13 one-sided buys rather than just two (#7797)", () => {
+    const capped = capMarkers(buys(13), 12);
+
+    expect(capped).toHaveLength(12);
+    expect(capped[0].key).toBe("k1");
+    expect(capped[capped.length - 1].key).toBe("k13");
+  });
+
+  it("gives a one-sided history the whole budget and keeps its span", () => {
+    const capped = capMarkers(buys(20), 12);
+
+    expect(capped).toHaveLength(12);
+    expect(new Set(capped.map((m) => m.key)).size).toBe(12);
+    expect(capped[0].key).toBe("k1");
+    expect(capped[capped.length - 1].key).toBe("k20");
+  });
+
+  it("allocates in proportion to counts but never starves the smaller side", () => {
+    const capped = capMarkers([...buys(30), ...sells(3, 31)], 12);
+    const bySide = (side: string) => capped.filter((m) => m.side === side);
+
+    expect(capped).toHaveLength(12);
+    expect(bySide("sell").map((m) => m.key)).toEqual(["k31", "k33"]);
+    expect(bySide("buy")).toHaveLength(10);
+  });
+
+  it("hands budget a small side cannot use to the other side", () => {
+    const capped = capMarkers([...buys(20), ...sells(1, 21)], 12);
+
+    expect(capped.filter((m) => m.side === "sell")).toHaveLength(1);
+    expect(capped.filter((m) => m.side === "buy")).toHaveLength(11);
+  });
+
+  it("returns the merged result sorted by trade date", () => {
+    // Interleave sides so a naive buys-then-sells concat would be out of order.
+    const markers = Array.from({ length: 20 }, (_, i) =>
+      marker(i + 1, i % 2 === 0 ? "buy" : "sell"),
+    );
+
+    const dates = capMarkers(markers, 12).map((m) => m.tradeDate);
+
+    expect(dates).toEqual([...dates].sort());
   });
 });
 

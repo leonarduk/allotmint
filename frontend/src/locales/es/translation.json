@@ -674,6 +674,8 @@
   "instrumentDetail": {
     "bollingerBands": "Bandas de Bollinger",
     "tradeMarkers": "Marcadores de operaciones",
+    "tradeMarkersHidden_one": "{{count}} operación oculta",
+    "tradeMarkersHidden_other": "{{count}} operaciones ocultas",
     "tradeSide": {
       "buy": "Compra",
       "sell": "Venta"

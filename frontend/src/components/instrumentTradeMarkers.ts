@@ -1,7 +1,7 @@
 import { transactionUnits } from "../lib/transactionQuantity";
 import type { Transaction } from "../types";
 
-/** Maximum number of trade markers drawn before collapsing to first/last per side. */
+/** Maximum number of trade markers drawn before each side is thinned evenly. */
 export const MAX_TRADE_MARKERS = 12;
 
 export const BUY_MARKER_COLOR = "#22c55e";
@@ -148,13 +148,50 @@ export function snapToChartDate(
   return distanceAfter < distanceBefore ? atOrAfter : before;
 }
 
+/** Smallest share of the budget a side with trades is given (#7797). */
+const MIN_MARKERS_PER_SIDE = 2;
+
 /**
- * Reduce a crowded set of markers to the first and last of each side.
+ * Pick `count` evenly spaced markers from `markers`, always keeping the first
+ * and the last so the span of activity stays visible.
+ */
+function thinEvenly(markers: TradeMarker[], count: number): TradeMarker[] {
+  if (count >= markers.length) return markers;
+  if (count <= 0) return [];
+  if (count === 1) return [markers[0]];
+  // The step is >= 1 because count < markers.length, so the rounded indices
+  // are strictly increasing and never pick the same marker twice.
+  const step = (markers.length - 1) / (count - 1);
+  return Array.from({ length: count }, (_, i) => markers[Math.round(i * step)]);
+}
+
+/**
+ * Split the `max` budget between buys and sells in proportion to how many of
+ * each there are, giving every side that has trades at least
+ * MIN_MARKERS_PER_SIDE (or all of them, if it has fewer) and never more than
+ * it has.
+ */
+function sideBudgets(buys: number, sells: number, max: number): [number, number] {
+  const minBuys = Math.min(MIN_MARKERS_PER_SIDE, buys);
+  const minSells = Math.min(MIN_MARKERS_PER_SIDE, sells);
+  let buyBudget = Math.round((max * buys) / (buys + sells));
+  buyBudget = Math.min(Math.max(buyBudget, minBuys), buys, Math.max(max - minSells, 0));
+  const sellBudget = Math.min(sells, max - buyBudget);
+  // Hand any budget the sells could not use back to the buys.
+  buyBudget = Math.min(buys, max - sellBudget);
+  return [buyBudget, sellBudget];
+}
+
+/**
+ * Thin a crowded set of markers down to at most `max`.
  *
  * A heavily traded instrument can accumulate enough trades to paint the chart
  * solid, hiding the price line the markers are meant to be read against.  Past
- * the cap we keep the earliest and latest buy and the earliest and latest sell,
- * so the span of activity on each side stays visible.
+ * the cap the budget is shared between buys and sells in proportion to their
+ * counts, and each side is thinned to evenly spaced trades that keep its
+ * earliest and latest -- so a one-sided history keeps a representative spread
+ * rather than collapsing to its two endpoints (#7797).  Callers can surface
+ * `markers.length - result.length` as the number of hidden trades.
  */
 export function capMarkers(
   markers: TradeMarker[],
@@ -162,29 +199,27 @@ export function capMarkers(
 ): TradeMarker[] {
   if (markers.length <= max) return markers;
 
-  const kept = new Set<TradeMarker>();
-  for (const side of ["buy", "sell"] as const) {
-    const forSide = markers.filter((m) => m.side === side);
-    if (forSide.length === 0) continue;
-    kept.add(forSide[0]);
-    kept.add(forSide[forSide.length - 1]);
-  }
+  const buys = markers.filter((m) => m.side === "buy");
+  const sells = markers.filter((m) => m.side === "sell");
+  const [buyBudget, sellBudget] = sideBudgets(buys.length, sells.length, max);
 
-  return markers.filter((m) => kept.has(m));
+  return [...thinEvenly(buys, buyBudget), ...thinEvenly(sells, sellBudget)].sort(
+    (a, b) => a.tradeDate.localeCompare(b.tradeDate),
+  );
 }
 
 /**
- * Build the reference lines for an instrument's trade history.
+ * Collect every chartable trade marker for an instrument, sorted by trade
+ * date and not yet capped.
  *
  * Transactions for every owner and account holding the instrument are merged
  * onto the one chart; colour encodes buy vs sell only, and the owner/account is
  * carried on each marker for the tooltip.
  */
-export function buildTradeMarkers(
+export function collectTradeMarkers(
   transactions: Transaction[],
   chartTicker: string,
   chartDates: string[],
-  max: number = MAX_TRADE_MARKERS,
 ): TradeMarker[] {
   const markers: TradeMarker[] = [];
 
@@ -220,5 +255,15 @@ export function buildTradeMarkers(
 
   markers.sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
 
-  return capMarkers(markers, max);
+  return markers;
+}
+
+/** Build the (capped) reference lines for an instrument's trade history. */
+export function buildTradeMarkers(
+  transactions: Transaction[],
+  chartTicker: string,
+  chartDates: string[],
+  max: number = MAX_TRADE_MARKERS,
+): TradeMarker[] {
+  return capMarkers(collectTradeMarkers(transactions, chartTicker, chartDates), max);
 }

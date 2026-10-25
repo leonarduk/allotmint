@@ -674,6 +674,8 @@
   "instrumentDetail": {
     "bollingerBands": "Bollinger-Bänder",
     "tradeMarkers": "Handelsmarkierungen",
+    "tradeMarkersHidden_one": "{{count}} Transaktion ausgeblendet",
+    "tradeMarkersHidden_other": "{{count}} Transaktionen ausgeblendet",
     "tradeSide": {
       "buy": "Kauf",
       "sell": "Verkauf"

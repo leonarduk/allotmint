@@ -668,6 +668,8 @@
   "instrumentDetail": {
     "bollingerBands": "Bollinger Bands",
     "tradeMarkers": "Trade markers",
+    "tradeMarkersHidden_one": "{{count}} trade hidden",
+    "tradeMarkersHidden_other": "{{count}} trades hidden",
     "tradeSide": {
       "buy": "Buy",
       "sell": "Sell"

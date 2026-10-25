@@ -39,7 +39,8 @@ import {
 import {
   BUY_MARKER_COLOR,
   SELL_MARKER_COLOR,
-  buildTradeMarkers,
+  capMarkers,
+  collectTradeMarkers,
   type TradeMarker,
 } from "./instrumentTradeMarkers";
 
@@ -776,13 +777,16 @@ export function InstrumentDetail({
     };
   });
 
-  const tradeMarkers = showTrades
-    ? buildTradeMarkers(
+  const allTradeMarkers = showTrades
+    ? collectTradeMarkers(
         trades,
         ticker,
         prices.map((p) => p.date),
       )
     : [];
+  const tradeMarkers = capMarkers(allTradeMarkers);
+  // Surfaced beside the toggle so a thinned history isn't silently truncated (#7797).
+  const hiddenTradeCount = allTradeMarkers.length - tradeMarkers.length;
 
   // 7d / 30d change calculations
   const latestClose = rawPrices[rawPrices.length - 1]?.close ?? NaN;
@@ -1018,6 +1022,14 @@ export function InstrumentDetail({
               />{" "}
               {t("instrumentDetail.tradeMarkers")}
             </label>
+            {hiddenTradeCount > 0 && (
+              <span
+                data-testid="trade-markers-hidden"
+                style={{ fontSize: "0.75rem", marginLeft: "0.25rem", color: palette.muted }}
+              >
+                {t("instrumentDetail.tradeMarkersHidden", { count: hiddenTradeCount })}
+              </span>
+            )}
             <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
               <input
                 type="checkbox"

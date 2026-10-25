@@ -415,6 +415,21 @@ def _parse_non_negative(value: Any, *, key: str, default: float) -> float:
     return number
 
 
+def _parse_positive_int(value: Any, *, key: str, default: int) -> int:
+    """Return ``value`` as a positive integer (``default`` when unset).
+
+    Accepts an ``int`` or a string of digits (e.g. ``"72"`` from an env-style
+    override); rejects booleans, floats, non-numeric strings and values <= 0.
+    """
+    if value is None or value == "":
+        return default
+    if isinstance(value, str) and value.strip().isdigit():
+        value = int(value.strip())
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ConfigValidationError(f"'{key}' must be a positive integer, got {value!r}")
+    return value
+
+
 def _parse_str_list(val: Any) -> Optional[List[str]]:
     """Convert comma-separated strings or lists into list of strings."""
     if isinstance(val, list):
@@ -698,7 +713,11 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         key="demo_link_enabled",
         default=False,
     )
-    demo_link_ttl_hours = data.get("demo_link_ttl_hours", 72)
+    demo_link_ttl_hours = _parse_positive_int(
+        data.get("demo_link_ttl_hours"),
+        key="demo_link_ttl_hours",
+        default=72,
+    )
 
     cfg = Config(
         app_env=data.get("app_env"),

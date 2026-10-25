@@ -409,6 +409,38 @@ def test_demo_link_enabled_rejects_non_boolean(monkeypatch, tmp_path):
         reload_config()
 
 
+@pytest.mark.parametrize("raw", ["-1", "0", "'abc'", "72.5", "true", "'-5'"])
+def test_demo_link_ttl_hours_rejects_non_positive_integer(monkeypatch, tmp_path, raw):
+    """#7428: a zero/negative/non-integer TTL must fail at config load, not
+    when the first demo link is minted."""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(f"auth:\n  demo_link_ttl_hours: {raw}\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    try:
+        with pytest.raises(ConfigValidationError, match="demo_link_ttl_hours"):
+            reload_config()
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+@pytest.mark.parametrize("raw,expected", [("48", 48), ("'12'", 12), ("null", 72)])
+def test_demo_link_ttl_hours_accepts_positive_integer(monkeypatch, tmp_path, raw, expected):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(f"auth:\n  demo_link_ttl_hours: {raw}\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.demo_link_ttl_hours == expected
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
 def test_demo_link_does_not_affect_demo_identity(monkeypatch, tmp_path):
     """`demo_link_owner` must stay distinct from `demo_identity` -- the
     latter keeps its display/local-mode meaning (#7404)."""

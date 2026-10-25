@@ -86,6 +86,31 @@ def _default_period() -> tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
+def _sum_by_service(response: dict[str, Any]) -> tuple[dict[str, float], str]:
+    """Sum ``UnblendedCost`` per service; return ``(totals, unit)``.
+
+    All amounts are summed into one total under one unit, so a response
+    mixing units would produce a meaningless number. Fail loudly with a 502
+    instead of returning it (#8023); ``UnblendedCost`` is single-unit
+    (USD) in practice.
+    """
+    totals: dict[str, float] = {}
+    units: set[str] = set()
+    for period in response.get("ResultsByTime", []):
+        for group in period.get("Groups", []):
+            keys = group.get("Keys") or []
+            service = keys[0] if keys else "Unknown"
+            metric = group.get("Metrics", {}).get("UnblendedCost", {})
+            totals[service] = totals.get(service, 0.0) + float(metric.get("Amount", 0.0))
+            units.add(metric.get("Unit", "USD"))
+    if len(units) > 1:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Cost Explorer returned mixed cost units: {', '.join(sorted(units))}",
+        )
+    return totals, units.pop() if units else "USD"
+
+
 def _fetch_cost_by_service(start: str, end: str) -> dict[str, Any]:
     client = boto3.client("ce", region_name=_COST_EXPLORER_REGION)
     try:
@@ -98,17 +123,7 @@ def _fetch_cost_by_service(start: str, end: str) -> dict[str, Any]:
     except (ClientError, BotoCoreError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    totals: dict[str, float] = {}
-    unit = "USD"
-    for period in response.get("ResultsByTime", []):
-        for group in period.get("Groups", []):
-            keys = group.get("Keys") or []
-            service = keys[0] if keys else "Unknown"
-            metric = group.get("Metrics", {}).get("UnblendedCost", {})
-            amount = float(metric.get("Amount", 0.0))
-            unit = metric.get("Unit", unit)
-            totals[service] = totals.get(service, 0.0) + amount
-
+    totals, unit = _sum_by_service(response)
     services = [
         {"service": service, "amount": round(amount, 2), "unit": unit}
         for service, amount in sorted(totals.items(), key=lambda item: item[1], reverse=True)

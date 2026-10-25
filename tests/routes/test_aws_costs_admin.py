@@ -71,6 +71,32 @@ def test_second_call_within_ttl_does_not_hit_cost_explorer_again(client, monkeyp
     assert fake_client.get_cost_and_usage.call_count == 1
 
 
+def test_mixed_cost_units_return_502_instead_of_a_summed_total(client, monkeypatch):
+    """Amounts in different units can't be summed into one total (#8023)."""
+    response = _fake_response(("AWS Lambda", "3.25"), ("Amazon EC2", "1.00"))
+    response["ResultsByTime"][0]["Groups"][1]["Metrics"]["UnblendedCost"]["Unit"] = "EUR"
+    fake_client = MagicMock()
+    fake_client.get_cost_and_usage.return_value = response
+    monkeypatch.setattr(aws_costs_admin.boto3, "client", lambda *a, **k: fake_client)
+
+    resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "Cost Explorer returned mixed cost units: EUR, USD"
+
+
+def test_empty_response_defaults_to_usd(client, monkeypatch):
+    fake_client = MagicMock()
+    fake_client.get_cost_and_usage.return_value = {"ResultsByTime": [{"Groups": []}]}
+    monkeypatch.setattr(aws_costs_admin.boto3, "client", lambda *a, **k: fake_client)
+
+    resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == {"amount": 0.0, "unit": "USD"}
+    assert resp.json()["services"] == []
+
+
 def test_end_before_start_returns_400(client):
     resp = client.get("/admin/aws-costs", params={"start": "2026-09-27", "end": "2026-09-01"})
     assert resp.status_code == 400

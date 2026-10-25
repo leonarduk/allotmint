@@ -8,6 +8,10 @@
 //   npm run dev                                         (frontend, :2568)
 //
 // Usage: node frontend/scripts/capture-qa-screenshots.mjs
+// Set QA_FRONTEND_URL (default http://localhost:2568) to capture from a demo
+// stack on another port -- e.g. when your everyday app, possibly on private
+// data, already holds :2568. That backend needs CORS_ORIGINS set to the same
+// origin, or every page renders "Loading... retrying configuration.".
 // Not wired into CI -- run manually before a release / whenever the UI
 // changes enough that the docs screenshots look stale.
 //
@@ -49,7 +53,7 @@ function readLocalBackendPort() {
 }
 
 const BACKEND = `http://localhost:${readLocalBackendPort() ?? "6468"}`;
-const FRONTEND = "http://localhost:2568";
+const FRONTEND = (process.env.QA_FRONTEND_URL || "http://localhost:2568").replace(/\/+$/, "");
 const OWNER = "demo-owner";
 
 // Text that indicates the page didn't actually render its real content --
@@ -59,7 +63,42 @@ const OWNER = "demo-owner";
 const FAILURE_MARKERS = [
   "No local login override is configured",
   "This feature isn't enabled for this application",
+  "Loading... retrying configuration.",
 ];
+
+// The dashboard's first-run help banner (FirstRunHelpBanner.tsx) shows in
+// every fresh browser context and pushes the real content down; mark it
+// dismissed before any page script runs. Value is JSON, as saveJSON writes it.
+const FIRST_RUN_HELP_DISMISSED_KEY = "allotmint.firstRunHelpDismissed";
+
+async function newCaptureContext(browser, options) {
+  const context = await browser.newContext(options);
+  await context.addInitScript((key) => {
+    window.localStorage.setItem(key, "true");
+  }, FIRST_RUN_HELP_DISMISSED_KEY);
+  return context;
+}
+
+// PUT /config re-dumps config.yaml with yaml.safe_dump, which drops every
+// comment even when the values are put back. Keep the file's exact bytes so
+// the run can leave it untouched (#10679). Only meaningful when the backend
+// runs from this checkout, which is how the runbook starts it.
+const CONFIG_YAML = path.resolve(__dirname, "../..", "config.yaml");
+
+function snapshotConfigYaml() {
+  try {
+    return fs.readFileSync(CONFIG_YAML);
+  } catch (err) {
+    console.warn(`config.yaml not snapshotted (${err.message}); comments may be lost.`);
+    return null;
+  }
+}
+
+function restoreConfigYamlBytes(original) {
+  if (original === null) return;
+  const current = fs.readFileSync(CONFIG_YAML);
+  if (!current.equals(original)) fs.writeFileSync(CONFIG_YAML, original);
+}
 
 // routeSegment/mode names match frontend/src/routes/registry.ts. `reports`
 // is disabled by default in config.yaml -- toggled on for the duration of
@@ -156,8 +195,13 @@ async function setConfig(payload) {
 // owner (#8397). The restore runs at most once: a signal arriving while the
 // finally-block restore is in flight waits for that same write before exiting.
 async function withConfigRestore(restore, fn) {
+  const originalYaml = snapshotConfigYaml();
   let restoring = null;
-  const restoreOnce = () => (restoring ??= restore());
+  // The PUT restore puts the values back (and refreshes the backend's
+  // cached config); writing the original bytes afterwards puts the comments
+  // back too -- also if the PUT itself failed.
+  const restoreOnce = () =>
+    (restoring ??= restore().finally(() => restoreConfigYamlBytes(originalYaml)));
   const onSignal = (signal) => {
     console.warn(`\n${signal} received: restoring config.yaml before exiting...`);
     restoreOnce()
@@ -179,7 +223,7 @@ async function withConfigRestore(restore, fn) {
 }
 
 async function shot(browser, { name, url, waitFor, viewport = { width: 1440, height: 900 } }) {
-  const context = await browser.newContext({ viewport });
+  const context = await newCaptureContext(browser, { viewport });
   const page = await context.newPage();
   try {
     await page.goto(`${FRONTEND}${url}`, { waitUntil: "networkidle", timeout: 20000 });
@@ -225,7 +269,7 @@ function isHostedLoginUrl(rawUrl) {
 // wasn't reachable). Never throws -- a skipped step just drops out of the
 // walkthrough rather than failing the whole run.
 async function demoShot(browser, step) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await newCaptureContext(browser, { viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   try {
     if (step.kind === "login") {

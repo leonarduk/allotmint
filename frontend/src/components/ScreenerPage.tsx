@@ -21,13 +21,22 @@ export function ScreenerPage() {
     data: rows,
     loading,
     error,
+    refetch,
   } = useFetch<ScreenerResult[]>(fetchScreener, [watchlist]);
   const [selected, setSelected] = useState<ScreenerResult | null>(null);
 
   const { sorted, handleSort } = useSortableTable(rows ?? [], "peg_ratio");
 
   if (loading) return <p>{t("common.loading")}</p>;
-  if (error) return <p style={{ color: "red" }}>{error.message}</p>;
+  if (error)
+    return (
+      <div>
+        <p style={{ color: "red" }}>{error.message}</p>
+        <button type="button" onClick={refetch}>
+          {t("common.retry")}
+        </button>
+      </div>
+    );
 
   return (
     <>

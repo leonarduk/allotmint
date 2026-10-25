@@ -113,6 +113,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     data: fetchedTransactions,
     loading,
     error,
+    refetch,
   } = useFetch<Transaction[]>(fetchTransactions, [
     owner,
     account,
@@ -715,7 +716,14 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
 
           {formError && <p style={{ color: 'red' }}>{formError}</p>}
           {formSuccess && <p style={{ color: 'limegreen' }}>{formSuccess}</p>}
-          {error && <p style={{ color: 'red' }}>{error.message}</p>}
+          {error && (
+            <div>
+              <p style={{ color: 'red' }}>{error.message}</p>
+              <button type="button" onClick={refetch}>
+                {t('common.retry')}
+              </button>
+            </div>
+          )}
 
           {!loading && (transactions?.length ?? 0) > 0 && (
             <p data-testid="transactions-summary">

@@ -123,4 +123,21 @@ describe("ScreenerPage", () => {
       ),
     );
   });
+
+  it("offers a Retry that refetches after a failed load (#7115)", async () => {
+    mockGetScreener.mockClear();
+    mockGetScreener.mockRejectedValueOnce(new Error("screener down"));
+    mockGetScreener.mockResolvedValueOnce([
+      { rank: 1, ticker: "AAA.L" } as ScreenerResult,
+    ]);
+
+    render(<ScreenerPage />);
+
+    expect(await screen.findByText("screener down")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("AAA.L")).toBeInTheDocument();
+    expect(screen.queryByText("screener down")).not.toBeInTheDocument();
+    expect(mockGetScreener).toHaveBeenCalledTimes(2);
+  });
 });

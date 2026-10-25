@@ -411,6 +411,21 @@ describe('RiskReturn page', () => {
       )
     );
   });
+
+  it('offers a Retry that refetches the portfolio series after a failed load (#7115)', async () => {
+    groupMock.mockRejectedValueOnce(new Error('risk/return down'));
+
+    render(<RiskReturn />);
+
+    expect(await screen.findByText('risk/return down')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(
+      await screen.findByRole('checkbox', { name: 'Steve ISA' })
+    ).toBeChecked();
+    expect(screen.queryByText('risk/return down')).not.toBeInTheDocument();
+    expect(groupMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('RiskReturn benchmark retry', () => {

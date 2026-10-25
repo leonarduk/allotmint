@@ -631,9 +631,14 @@ export default function RiskReturn() {
       )}
 
       {points.error && (
-        <p role="alert" style={{ color: 'red' }}>
-          {points.error.message}
-        </p>
+        <div>
+          <p role="alert" style={{ color: 'red' }}>
+            {points.error.message}
+          </p>
+          <button type="button" onClick={points.refetch}>
+            {t('common.retry')}
+          </button>
+        </div>
       )}
       {points.loading && <p>{t('common.loading')}</p>}
       {!!points.data?.missing_members.length && (

@@ -117,9 +117,14 @@ export default function Dividends() {
       </div>
 
       {dividends.error && (
-        <p role="alert" style={{ color: 'red' }}>
-          {dividends.error.message}
-        </p>
+        <div>
+          <p role="alert" style={{ color: 'red' }}>
+            {dividends.error.message}
+          </p>
+          <button type="button" onClick={dividends.refetch}>
+            {t('common.retry')}
+          </button>
+        </div>
       )}
       {dividends.loading ? (
         <p>{t('common.loading')}</p>

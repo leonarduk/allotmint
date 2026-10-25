@@ -149,4 +149,19 @@ describe('Dividends page', () => {
     expect(portfolioMock).toHaveBeenCalledWith('joe');
     expect(await screen.findByText('ONLY.L')).toBeInTheDocument();
   });
+
+  it('offers a Retry that refetches after a failed load (#7115)', async () => {
+    dividendsMock.mockRejectedValueOnce(new Error('dividends down'));
+
+    render(<Dividends />);
+
+    expect(await screen.findByText('dividends down')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.retry') }));
+
+    expect(
+      await screen.findByTestId('dividends-trailing-12m')
+    ).toHaveTextContent('£12.50');
+    expect(screen.queryByText('dividends down')).not.toBeInTheDocument();
+    expect(dividendsMock).toHaveBeenCalledTimes(2);
+  });
 });

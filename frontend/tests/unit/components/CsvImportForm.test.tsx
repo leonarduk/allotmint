@@ -7,6 +7,8 @@ import {
   reconcileHoldingsCsv,
   type ReconcileHoldingsCsvResponse,
 } from '@/api';
+import { AuthContext } from '@/AuthContext';
+import { DEMO_READONLY_MESSAGE } from '@/hooks/useDemoReadOnly';
 
 vi.mock('@/api', () => ({
   importHoldingsCsv: vi.fn(),
@@ -36,6 +38,40 @@ describe('CsvImportForm', () => {
     await userEvent.upload(fileInput, csvFile);
     expect(submit).toBeEnabled();
     expect(reconcile).toBeEnabled();
+  });
+
+  // Issue #7411/#7518: the import (write) action must disable itself for a
+  // demo-scoped session so a visitor isn't shown a button that will 403;
+  // the reconcile preview is read-only and stays available.
+  it('disables Import but keeps Reconcile available when demoReadOnly is true', async () => {
+    render(
+      <AuthContext.Provider
+        value={{
+          user: null,
+          setUser: vi.fn(),
+          logout: null,
+          setLogout: vi.fn(),
+          demoReadOnly: true,
+          setDemoReadOnly: vi.fn(),
+        }}
+      >
+        <CsvImportForm owner="alice" accountTypes={['ISA']} />
+      </AuthContext.Provider>
+    );
+
+    await userEvent.selectOptions(
+      screen.getByLabelText('Provider'),
+      'hargreaves'
+    );
+    await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
+
+    const submit = screen.getByRole('button', { name: 'Import' });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute('title', DEMO_READONLY_MESSAGE);
+    expect(screen.getByRole('button', { name: /Reconcile/ })).toBeEnabled();
+
+    await userEvent.click(submit);
+    expect(importHoldingsCsv).not.toHaveBeenCalled();
   });
 
   it('renders duplicate account types without a React key warning', () => {

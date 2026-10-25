@@ -11,7 +11,7 @@ import fs from 'node:fs'
 // right backend without manual VITE_ALLOTMINT_API_BASE wiring (see #5760).
 // Only applies to the dev server — production builds are unaffected.
 function readLocalBackendPort(): string | null {
-  const portFile = path.resolve(__dirname, '..', '.local', 'ports', 'backend.port')
+  const portFile = path.resolve(import.meta.dirname, '..', '.local', 'ports', 'backend.port')
   try {
     const port = fs.readFileSync(portFile, 'utf-8').trim()
     return /^\d+$/.test(port) ? port : null
@@ -30,7 +30,7 @@ function ensureAppBaseUrl(mode: string): void {
   // loadEnv already folds in prefixed shell vars; the explicit check keeps
   // that guarantee obvious and independent of Vite's merge rules.
   if (process.env.VITE_APP_BASE_URL) return
-  if (loadEnv(mode, __dirname, 'VITE_APP_BASE_URL').VITE_APP_BASE_URL) return
+  if (loadEnv(mode, import.meta.dirname, 'VITE_APP_BASE_URL').VITE_APP_BASE_URL) return
   process.env.VITE_APP_BASE_URL = `http://localhost:${DEV_SERVER_PORT}`
 }
 
@@ -60,7 +60,7 @@ export default defineConfig(({ command, mode }) => {
     plugins,
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, 'src')
+        '@': path.resolve(import.meta.dirname, 'src')
       }
     },
     server: {

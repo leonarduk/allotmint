@@ -73,6 +73,8 @@ def _seed_vod_variants(tmp_path):
         {"date": "2024-01-01", "type": "BUY", "ticker": ticker, "units": 1, "price_gbp": 1.0}
         for ticker in ("VOD", "VOD.L", "VODX", "vod.l")
     ]
+    # A ticker-less cash row must be skipped, not crash the base match.
+    txs.append({"date": "2024-01-02", "type": "DEPOSIT", "amount_minor": 1000})
     (owner_dir / "ISA_transactions.json").write_text(
         json.dumps({"owner": "alice", "account_type": "ISA", "transactions": txs})
     )

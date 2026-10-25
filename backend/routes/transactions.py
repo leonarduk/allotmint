@@ -1626,7 +1626,8 @@ def list_transactions(
         if tx_type and (t.type or "").upper() != tx_type.upper():
             continue
         if base_symbol is not None:
-            if split_ticker(t.ticker)[0] != base_symbol:
+            # Ticker-less rows (cash movements, fees) split to  and never match.
+            if split_ticker(t.ticker or "")[0] != base_symbol:
                 continue
         elif ticker and (t.ticker or "").upper() != ticker.upper():
             continue

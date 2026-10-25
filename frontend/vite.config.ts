@@ -27,6 +27,9 @@ const DEV_SERVER_PORT = 2568
 // every load and served the literal placeholder (#7823). Default it to the
 // local dev origin unless an .env file or the shell already provides one.
 function ensureAppBaseUrl(mode: string): void {
+  // loadEnv already folds in prefixed shell vars; the explicit check keeps
+  // that guarantee obvious and independent of Vite's merge rules.
+  if (process.env.VITE_APP_BASE_URL) return
   if (loadEnv(mode, __dirname, 'VITE_APP_BASE_URL').VITE_APP_BASE_URL) return
   process.env.VITE_APP_BASE_URL = `http://localhost:${DEV_SERVER_PORT}`
 }

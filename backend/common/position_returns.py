@@ -36,6 +36,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 from backend.common.cash_tickers import is_cash_ticker
+from backend.common.dividend_attribution import is_estimated_dividend
 from backend.common.estimated_income import DividendLoader, UnitChanges, estimated_income_gbp, unit_changes
 from backend.common.holdings_rebuild import (
     CASH_TICKER,
@@ -109,6 +110,11 @@ def position_returns(
 
     for tx in rows:
         if str(tx.get("type") or "").upper() not in _INCOME_TYPES:
+            continue
+        if is_estimated_dividend(tx):
+            # Refresh-bot estimates cover only the months since it started;
+            # counted as recorded income they would suppress the full-history
+            # estimate below (#11086).
             continue
         key = _instrument_key(tx, aliases)
         amount = _amount_gbp(tx)

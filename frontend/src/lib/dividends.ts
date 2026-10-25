@@ -22,6 +22,8 @@ export interface DividendHoldingRow {
   lastPaid: string | null;
   total: CurrencyAmounts;
   trailing12m: CurrencyAmounts;
+  /** Some of this row is an estimate already counted in booked income (#11086). */
+  includesAttributionOnly: boolean;
 }
 
 export interface DividendSummary {
@@ -32,6 +34,11 @@ export interface DividendSummary {
   payments: number;
   /** Rows left out of every total because they carry no amount (#10062). */
   skippedNoAmount: number;
+  /**
+   * Estimated per-holding rows whose cash a booked income row (e.g. an HL
+   * income sweep) already holds: shown per holding, left out of the totals.
+   */
+  attributionOnly: number;
 }
 
 interface Payment {
@@ -41,6 +48,7 @@ interface Payment {
   name: string | null;
   currency: string;
   amount: number;
+  attributionOnly: boolean;
 }
 
 const add = (target: CurrencyAmounts, currency: string, amount: number) => {
@@ -63,6 +71,7 @@ const toPayment = (tx: Transaction): Payment | null => {
     name: tx.instrument_name ?? null,
     currency: normalizeDisplayCurrency(tx.currency || 'GBP'),
     amount: tx.amount_minor / 100,
+    attributionOnly: tx.attribution_only === true,
   };
 };
 
@@ -117,6 +126,7 @@ const emptyHoldingRow = (
   lastPaid: null,
   total: {},
   trailing12m: {},
+  includesAttributionOnly: false,
 });
 
 const sortHoldings = (rows: DividendHoldingRow[]) =>
@@ -147,6 +157,7 @@ export function summariseDividends(
   const holdings = new Map<string, DividendHoldingRow>();
   let payments = 0;
   let skippedNoAmount = 0;
+  let attributionOnly = 0;
 
   for (const tx of transactions) {
     const payment = toPayment(tx);
@@ -154,25 +165,33 @@ export function summariseDividends(
       skippedNoAmount += 1;
       continue;
     }
-    payments += 1;
     const inTrailing = payment.date !== null && payment.date > cutoff;
-    add(total, payment.currency, payment.amount);
-    if (inTrailing) add(trailing12m, payment.currency, payment.amount);
+    if (payment.attributionOnly) {
+      // Its cash is already in a booked (unlinked) row: attribute, don't add.
+      attributionOnly += 1;
+    } else {
+      payments += 1;
+      add(total, payment.currency, payment.amount);
+      if (inTrailing) add(trailing12m, payment.currency, payment.amount);
 
-    const label = payment.date ? periodLabel(payment.date, options.period) : '';
-    const periodRow = periods.get(label) ?? {
-      period: label,
-      amounts: {},
-      payments: 0,
-    };
-    add(periodRow.amounts, payment.currency, payment.amount);
-    periodRow.payments += 1;
-    periods.set(label, periodRow);
+      const label = payment.date
+        ? periodLabel(payment.date, options.period)
+        : '';
+      const periodRow = periods.get(label) ?? {
+        period: label,
+        amounts: {},
+        payments: 0,
+      };
+      add(periodRow.amounts, payment.currency, payment.amount);
+      periodRow.payments += 1;
+      periods.set(label, periodRow);
+    }
 
     const key = payment.ticker ?? '';
     const row =
       holdings.get(key) ?? emptyHoldingRow(payment.ticker, payment.name);
     row.payments += 1;
+    row.includesAttributionOnly ||= payment.attributionOnly;
     row.name = row.name ?? payment.name;
     add(row.total, payment.currency, payment.amount);
     if (inTrailing) add(row.trailing12m, payment.currency, payment.amount);
@@ -207,5 +226,6 @@ export function summariseDividends(
     holdings: sortHoldings([...holdings.values()]),
     payments,
     skippedNoAmount,
+    attributionOnly,
   };
 }

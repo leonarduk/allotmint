@@ -47,6 +47,7 @@ import pandas as pd
 from backend.common import holdings_rebuild
 from backend.common.cash_tickers import is_cash_ticker
 from backend.common.data_loader import resolve_paths
+from backend.common.dividend_attribution import is_attribution_only
 from backend.common.holdings_rebuild import (
     CASH_TICKER,
     TRADE_CASH_FLAG,
@@ -410,6 +411,9 @@ def _record_event(
     aliases: Mapping[str, str],
 ) -> None:
     tx_type = str(tx.get("type") or "").upper()
+    if is_attribution_only(tx):
+        # An estimate covered by booked income: neither income nor cash (#11086).
+        return
     if tx_type in _TRADES or tx_type in _TRANSFERS or tx_type in _UNIT_ONLY:
         key = _instrument_key(tx, aliases)
         if key is not None:

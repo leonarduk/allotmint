@@ -117,6 +117,41 @@ describe('Dividends page', () => {
     expect(screen.getByTestId('dividends-total')).toHaveTextContent('£5.00');
   });
 
+  it('keeps estimates booked income covers out of the totals and explains why (#11086)', async () => {
+    dividendsMock.mockResolvedValue([
+      {
+        owner: 'alex',
+        account: 'isa',
+        type: 'DIVIDEND',
+        date: '2020-10-12',
+        amount_minor: 500,
+        currency: 'GBP',
+      },
+      {
+        owner: 'alex',
+        account: 'isa',
+        type: 'DIVIDEND',
+        date: '2020-10-01',
+        amount_minor: 480,
+        currency: 'GBP',
+        ticker: 'PAY.L',
+        estimated: true,
+        attribution_only: true,
+      },
+    ]);
+    render(<Dividends />);
+
+    expect(await screen.findByTestId('dividends-total')).toHaveTextContent(
+      '£5.00'
+    );
+    expect(
+      screen.getByTestId('dividends-attribution-only')
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('dividends-estimated-marker')).toHaveTextContent(
+      i18n.t('dividends.estimatedMarker')
+    );
+  });
+
   it('marks held instruments with no dividend history instead of showing £0.00', async () => {
     render(<Dividends />);
 

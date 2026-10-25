@@ -860,6 +860,13 @@ export interface Transaction {
    * from this interface.
    */
   synthetic?: boolean;
+  /** A dividend refresh estimate rather than booked cash (#11086). */
+  estimated?: boolean;
+  /**
+   * An estimate the account's booked income (e.g. an HL income sweep) already
+   * covers: it attributes income to a holding but is never counted as income.
+   */
+  attribution_only?: boolean;
   /**
    * Derived by the backend for SELL rows using Section 104 average cost.
    * `realised_gain_gbp` is null when some units sold have no known cost

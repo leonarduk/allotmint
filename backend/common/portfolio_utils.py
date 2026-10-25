@@ -35,6 +35,7 @@ from backend.common.cash_tickers import (
 from backend.common.constants import PRICE_CHANGE_WINDOWS
 from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
+from backend.common.dividend_attribution import is_attribution_only
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
 from backend.common.instrument_classification import (
     canonical_asset_class,
@@ -2743,7 +2744,7 @@ def _series_time_weighted_return(
         if not d or d < start or d > end:
             continue
         typ = (t.get("type") or t.get("kind") or "").upper()
-        if typ in _CASH_FLOW_SIGNS:
+        if typ in _CASH_FLOW_SIGNS and not is_attribution_only(t):
             try:
                 amt = float(t.get("amount_minor") or 0.0) / 100.0
             except (TypeError, ValueError):
@@ -2869,7 +2870,7 @@ def _series_xirr_flows(
         if not d or d < start or d > end:
             continue
         typ = (t.get("type") or t.get("kind") or "").upper()
-        if typ in _CASH_FLOW_SIGNS:
+        if typ in _CASH_FLOW_SIGNS and not is_attribution_only(t):
             try:
                 amt = float(t.get("amount_minor") or 0.0) / 100.0
             except (TypeError, ValueError):

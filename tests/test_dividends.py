@@ -459,3 +459,41 @@ def test_refresh_dividends_reads_a_mixed_case_holdings_file_never_rebuilt(tmp_pa
 
     assert dividends.refresh_dividends()["dividends_created"] == 1
     assert [t["type"] for t in _read_transactions(tmp_path, "alice", "ISA")] == ["BUY", "DIVIDEND"]
+
+
+def test_refresh_dividends_marks_estimates_and_flags_those_booked_income_covers(tmp_path, monkeypatch):
+    """A booked income sweep holds the cash, so a covered estimate is attribution only (#11086)."""
+    _make_holding("alice", "isa", "AAA.L", 100, tmp_path)
+    path = tmp_path / "alice" / "isa_transactions.json"
+    data = json.loads(path.read_text())
+    sweep_day = (pd.Timestamp(RECENT_EX_DATE) + pd.Timedelta(days=1)).date().isoformat()
+    data["transactions"] += [
+        {"type": "DIVIDEND", "date": sweep_day, "amount_minor": 5100, "comments": "Transfer from Income Account"},
+        # An earlier estimate the sweep now covers, written before the flag existed.
+        {
+            "type": "DIVIDEND",
+            "ticker": "AAA.L",
+            "date": "2024-06-01",
+            "amount_minor": 10,
+            "reason": "Automated dividend import",
+        },
+    ]
+    path.write_text(json.dumps(data))
+    _store(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        dividends.yf,
+        "Ticker",
+        lambda ticker: SimpleNamespace(dividends=_dividends_series({RECENT_EX_DATE: 0.5})),
+    )
+    monkeypatch.setattr(dividends, "get_instrument_meta", lambda ticker: {"currency": "GBP"})
+
+    summary = dividends.refresh_dividends()
+
+    assert summary["dividends_created"] == 1
+    assert summary["attribution_only_changed"] == 2
+    estimates = {t["date"]: t for t in _read_transactions(tmp_path, "alice", "isa") if t.get("ticker")}
+    assert estimates[RECENT_EX_DATE]["estimated"] is True
+    assert estimates[RECENT_EX_DATE]["attribution_only"] is True
+    assert estimates["2024-06-01"]["attribution_only"] is True
+    sweep = next(t for t in _read_transactions(tmp_path, "alice", "isa") if t["date"] == sweep_day)
+    assert "attribution_only" not in sweep

@@ -3040,7 +3040,9 @@
     "unattributedHelp": "Versements de dividendes enregistrés sans ticker, par ex. transferts depuis un compte de revenus.",
     "noHistory": "Aucun dividende enregistré",
     "holdingsUnavailable": "Les positions actuelles n’ont pas pu être chargées ; les positions sans dividendes ne sont donc pas listées.",
-    "skippedNoAmount": "Lignes de dividendes exclues de ces totaux faute de montant : {{count}}."
+    "skippedNoAmount": "Lignes de dividendes exclues de ces totaux faute de montant : {{count}}.",
+    "attributionOnlyNote": "Les lignes marquées est. incluent des dividendes estimés dont le montant est déjà compté dans « Non rattaché à une position » (les virements de revenus de votre courtier) ; ils ne sont donc pas ajoutés deux fois aux totaux.",
+    "estimatedMarker": "est."
   },
   "dividendHistory": {
     "trendAria": "Évolution des dividendes",

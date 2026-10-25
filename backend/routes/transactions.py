@@ -102,6 +102,10 @@ def _get_moneyhub_client() -> MoneyhubClient:
     return _moneyhub_client_instance
 
 
+# Set only by the dividend refresh bot (#11086), never taken from a request body.
+_BOT_ONLY_FIELDS = frozenset({"estimated", "attribution_only"})
+
+
 class Transaction(BaseModel):
     """Simple representation of a transaction record."""
 
@@ -125,6 +129,10 @@ class Transaction(BaseModel):
     reason: str | None = None
     reason_to_buy: str | None = None
     synthetic: bool = False
+    # A dividend refresh estimate, and whether booked income covers it so it
+    # only attributes income to a holding (#11086).
+    estimated: bool = False
+    attribution_only: bool = False
     instrument_name: str | None = None
     # Derived on read for SELL transactions (Section 104 average cost); never stored.
     realised_gain_gbp: float | None = None
@@ -817,7 +825,7 @@ def create_transaction(request: Request, tx: TransactionCreate) -> dict:
 
     store = _require_writable_store(request)
 
-    tx_data = tx.model_dump(mode="json")
+    tx_data = tx.model_dump(mode="json", exclude=_BOT_ONLY_FIELDS)
     owner = _validate_component(tx_data.pop("owner"), "owner")
     account = _validate_component(tx_data.pop("account"), "account")
     if not tx_data.get("reason"):
@@ -1071,7 +1079,7 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     rate.
     """
 
-    tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id"})
+    tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id", *_BOT_ONLY_FIELDS})
     _coalesce_price_gbp(tx_data)
     if not tx_data.get("reason"):
         tx_data["reason"] = tx_data.get("reason_to_buy")

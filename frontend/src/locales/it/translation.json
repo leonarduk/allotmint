@@ -3040,7 +3040,9 @@
     "unattributedHelp": "Pagamenti di dividendi registrati senza ticker, ad es. trasferimenti da un conto proventi.",
     "noHistory": "Nessun dividendo registrato",
     "holdingsUnavailable": "Impossibile caricare le posizioni attuali, quindi le posizioni senza dividendi non sono elencate.",
-    "skippedNoAmount": "Righe di dividendi escluse da questi totali perché prive di importo: {{count}}."
+    "skippedNoAmount": "Righe di dividendi escluse da questi totali perché prive di importo: {{count}}.",
+    "attributionOnlyNote": "Le posizioni contrassegnate con stim. includono dividendi stimati il cui importo è già conteggiato in \"Non collegato a una posizione\" (i trasferimenti di reddito del tuo broker), quindi non vengono sommati due volte ai totali.",
+    "estimatedMarker": "stim."
   },
   "dividendHistory": {
     "trendAria": "Andamento dei dividendi",

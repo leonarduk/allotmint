@@ -758,6 +758,9 @@ class BackendLambdaStack(Stack):
             "mcp_server": ("accounts", "instruments", "prices", "timeseries/meta"),
             # plan_brief discovers owners the same way (#10475).
             "plan_brief": ("accounts",),
+            # bots_digest discovers owners the same way and reads run records,
+            # digest settings and saved digests under bots/ (#10501).
+            "bots_digest": ("accounts", BOTS_PREFIX),
         }
 
         image_code = _lambda.DockerImageCode.from_image_asset(
@@ -1735,6 +1738,82 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(pension_report_fn)],
         )
 
+        # Scheduled bots digest (#10485, #10501): runs daily so immediate alerts
+        # go out every day; each owner's digest is saved and emailed only on
+        # their digest day (backend/lambda_api/bots_digest.py::is_due).
+        bots_digest_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root),
+            file="backend/Dockerfile.lambda",
+            cmd=["backend.lambda_api.bots_digest.lambda_handler"],
+        )
+        bots_digest_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            # Run records (bots/runs/), digest settings (bots/digest_settings.json)
+            # and saved digests (bots/digests/) all default to paths under this
+            # base (backend/bots/store.py, digest_settings.py, digest_store.py).
+            "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
+            # SES sender for backend/emails/bots_digest.py, the same identity the
+            # ses:SendEmail grant below is scoped to.
+            "BOTS_DIGEST_FROM": ses_sender_email,
+            # Same backend.auth import-time SECRET_KEY check as pension_report.
+            "JWT_SECRET": jwt_secret,
+        }
+        if data_repo:
+            bots_digest_env["DATA_REPO"] = data_repo
+        # Admin owners (allowed_emails) also get system-wide items
+        # (bots_digest.py::_is_admin_email), as on the backend Lambda.
+        if allowed_emails:
+            bots_digest_env["ALLOWED_EMAILS"] = allowed_emails
+
+        bots_digest_log_group = self._lambda_log_group(self, "BotsDigestLambdaLogGroup")
+        bots_digest_fn = _lambda.DockerImageFunction(
+            self,
+            "BotsDigestLambda",
+            code=bots_digest_code,
+            environment=bots_digest_env,
+            log_group=bots_digest_log_group,
+            timeout=Duration.minutes(5),
+            memory_size=512,
+        )
+
+        # BotsDigestLambda: reads accounts/ (run_digest → list_portfolios()) and
+        # bots/ (run_records.py:RegistryRunRecordSource → runs.list_runs,
+        # digest_settings.py:load_settings, digest_store.py:load_latest,
+        # digest_delivery.py:_alerted_keys). ListBucket on bots/ makes a
+        # not-yet-written digest or settings document a 404, not a 403.
+        # PutObject only under bots/digests/ (digest_store.py:save_digest and
+        # digest_delivery.py:_save_alerted_keys), plus the alerts history.
+        self._grant_bucket_access(
+            bots_digest_fn,
+            bucket=data_bucket,
+            allow_read=True,
+            allow_put=True,
+            allow_list=True,
+            list_prefix=lambda_list_prefixes["bots_digest"],
+            put_prefix=f"{BOTS_PREFIX}/digests",
+        )
+        # Alerts history (#10831): digest_delivery.py:send_immediate_alerts →
+        # agent/trading_agent.py:send_trade_alert → common/alerts.py:publish_alert,
+        # and bots_digest.py:_report_failure → publish_sns_alert.
+        self._grant_alerts_history_write(bots_digest_fn, bucket=data_bucket)
+        # SES send for the digest email (emails/bots_digest.py), scoped as #5372.
+        bots_digest_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ses:SendEmail"],
+                resources=ses_send_email_resources,
+            )
+        )
+        events.Rule(
+            self,
+            "BotsDigestRun",
+            # Daily 07:00 UTC, after the 06:00 dividend refresh.
+            schedule=events.Schedule.cron(minute="0", hour="7"),
+            targets=[targets.LambdaFunction(bots_digest_fn)],
+        )
+
         # Scheduled function for the monthly plan-drift brief (issue #10475).
         plan_brief_code = _lambda.DockerImageCode.from_image_asset(
             str(project_root),
@@ -1986,6 +2065,11 @@ class BackendLambdaStack(Stack):
             self,
             "PensionReportLambdaLogGroupName",
             value=pension_report_log_group.log_group_name,
+        )
+        CfnOutput(
+            self,
+            "BotsDigestLambdaLogGroupName",
+            value=bots_digest_log_group.log_group_name,
         )
         CfnOutput(self, "BackendLambdaErrorAlarmName", value=backend_error_alarm.alarm_name)
         CfnOutput(

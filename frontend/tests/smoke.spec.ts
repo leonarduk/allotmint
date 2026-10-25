@@ -115,7 +115,12 @@ const ROUTES: RouteConfig[] = [
   { path: '/', assertion: { kind: 'mode', mode: 'group' } },
   { path: '/portfolio', assertion: { kind: 'mode', mode: 'group' } },
   { path: '/portfolio/demo-owner', assertion: { kind: 'mode', mode: 'group' } },
-  { path: '/performance', assertion: { kind: 'mode', mode: 'performance' } },
+  {
+    path: '/performance',
+    assertion: { kind: 'mode', mode: 'performance' },
+    // A bare /performance opens the household group view (#7214).
+    settledSearch: '?group=all',
+  },
   {
     path: '/performance/demo-owner',
     assertion: { kind: 'mode', mode: 'performance' },

@@ -536,7 +536,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         setOneYearTwr(result.time_weighted_return ?? null);
       })
       .catch((e) => {
-        console.warn(`One-year TWR unavailable for ${slug}`, e);
+        console.warn("One-year TWR unavailable for group", slug, e);
       });
     return () => {
       cancelled = true;

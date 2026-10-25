@@ -1035,3 +1035,45 @@ def test_refresh_prices_persists_snapshot_when_fred_refresh_fails(tmp_path, monk
 
     assert calls == ["boe"]
     assert json.loads((tmp_path / "prices.json").read_text()) == snapshot
+
+
+def test_refresh_prices_clears_progress_when_snapshot_raises(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failing snapshot must not leave the progress poll stuck on ``running`` (#8041)."""
+    from backend.common import refresh_progress
+
+    def failing_snapshot(_tickers):
+        assert refresh_progress.snapshot()["running"] is True
+        raise RuntimeError("snapshot failed")
+
+    _stub_refresh(monkeypatch, tmp_path, {"XYZ.L": {"last_price": 145.0}})
+    monkeypatch.setattr(prices, "get_price_snapshot", failing_snapshot)
+
+    with pytest.raises(RuntimeError, match="snapshot failed"):
+        prices.refresh_prices()
+
+    assert refresh_progress.snapshot()["running"] is False
+
+
+def test_refresh_prices_reports_running_until_persistence_finishes(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``running`` covers FX/reference data and persistence, not just the snapshot (#8056)."""
+    from backend.common import refresh_progress
+
+    seen: Dict[str, bool] = {}
+    snapshot = {"XYZ.L": {"last_price": 145.0, "last_price_date": "2024-04-01"}}
+    _stub_refresh(monkeypatch, tmp_path, snapshot)
+    monkeypatch.setattr(prices.config, "offline_mode", True)
+    monkeypatch.setattr(
+        prices,
+        "refresh_fx_cache_for_tickers",
+        lambda _ts: seen.setdefault("fx", refresh_progress.snapshot()["running"]),
+    )
+    monkeypatch.setattr(
+        prices,
+        "refresh_snapshot_in_memory",
+        lambda _merged: seen.setdefault("persist", refresh_progress.snapshot()["running"]),
+    )
+
+    prices.refresh_prices()
+
+    assert seen == {"fx": True, "persist": True}
+    assert refresh_progress.snapshot()["running"] is False

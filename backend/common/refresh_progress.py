@@ -62,18 +62,20 @@ def start(total: int) -> None:
 
 
 def update(current_ticker: str, completed: int) -> None:
-    """Record progress after processing one ticker.
+    """Record the ticker being fetched and how many have been attempted.
 
     ``completed`` counts tickers *attempted*, not tickers priced
     successfully — callers advance it whether or not that ticker's fetch
     succeeded, so the bar reliably reaches ``total`` rather than stalling on
-    a skipped/errored ticker.
+    a skipped/errored ticker. It is clamped to ``total`` so a caller
+    iterating a longer list than ``start`` was given can never push the bar
+    past 100% (#8046).
     """
     with _lock:
         if not _state["running"]:
             return
         _state["current_ticker"] = current_ticker
-        _state["completed"] = completed
+        _state["completed"] = min(completed, _state["total"])
 
 
 def finish() -> None:
@@ -84,4 +86,9 @@ def finish() -> None:
 
 def snapshot() -> RefreshProgress:
     with _lock:
-        return dict(_state)  # type: ignore[return-value]
+        return RefreshProgress(
+            running=_state["running"],
+            total=_state["total"],
+            completed=_state["completed"],
+            current_ticker=_state["current_ticker"],
+        )

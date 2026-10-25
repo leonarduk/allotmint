@@ -638,6 +638,64 @@ def test_rolling_cache_ignores_float_noise_and_source_only_changes(cache_store):
     assert result["Source"].tolist() == ["SRC"]
 
 
+def test_rolling_cache_correction_with_new_source_updates_provenance(cache_store):
+    """A value correction replaces the whole cached row, so the stored Source flips too (#8005)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    _run(cache, cache_path, _day_frame(cache, day, 10.01, source="Stooq"))
+
+    assert len(saves) == 1
+    stored = cache._load_parquet(cache_path)
+    assert list(stored["Date"].dt.date) == [day]
+    assert stored["Close"].tolist() == [10.01]
+    assert stored["Source"].tolist() == ["Stooq"]
+
+
+def test_rolling_cache_fetch_missing_a_value_column_merges(cache_store):
+    """A fetcher frame without ``Volume`` is NaN-filled before the merge, not a KeyError (#7989)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    partial = pd.DataFrame(
+        {
+            "Date": [pd.Timestamp(day)],
+            "Open": [11.0],
+            "High": [11.0],
+            "Low": [11.0],
+            "Close": [11.0],
+            "Ticker": ["ABC"],
+            "Source": ["SRC"],
+        }
+    )
+
+    result = _run(cache, cache_path, partial)
+
+    assert len(saves) == 1
+    assert result["Close"].tolist() == [11.0]
+    assert result["Volume"].isna().all()
+
+
+def test_rolling_cache_coerces_legacy_string_dates(monkeypatch, tmp_path):
+    """A parquet with string ``Date`` values is coerced on load before the merge (#7953)."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    cache_path = cache._cache_path("legacy.parquet")
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    day = window_end - timedelta(days=1)
+    legacy = _day_frame(cache, day, 10.0)
+    legacy["Date"] = legacy["Date"].dt.strftime("%Y-%m-%d")
+    cache._ensure_local_dir(cache_path)
+    legacy.to_parquet(cache_path, index=False)
+    assert not pd.api.types.is_datetime64_any_dtype(pd.read_parquet(cache_path)["Date"])
+
+    result = _run(cache, cache_path, _day_frame(cache, day, 11.0))
+
+    assert list(result["Date"].dt.date) == [day]
+    assert result["Close"].tolist() == [11.0]
+    assert cache._load_parquet(cache_path)["Close"].tolist() == [11.0]
+
+
 def test_rolling_cache_fetched_row_without_close_does_not_overwrite(cache_store):
     cache, cache_path, saves = cache_store
     day = _seed_close_10(cache, cache_path, saves)

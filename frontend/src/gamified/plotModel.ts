@@ -786,7 +786,11 @@ export function neediestCrop(crops: readonly Crop[]): Crop | undefined {
     // 'loss' crops always have a known gain. A 'not-sellable' or
     // 'stale-price' crop can have an unknown (null) gain (#8471); it ranks as
     // 0% only to break ties within its own kind, never to pick the kind.
-    return (left.crop.gainPct ?? 0) - (right.crop.gainPct ?? 0);
+    const byGain = (left.crop.gainPct ?? 0) - (right.crop.gainPct ?? 0);
+    if (byGain !== 0) return byGain;
+    // Equal gains: tie-break on ticker so the nominee depends on the crops
+    // themselves, not on the order the portfolio listed them (#8316).
+    return left.crop.ticker.localeCompare(right.crop.ticker);
   });
   return ranked[0].crop;
 }

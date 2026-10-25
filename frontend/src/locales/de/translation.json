@@ -2144,7 +2144,6 @@
     "fixErrors": "Korrigieren Sie die markierten Felder vor dem Speichern.",
     "approvalsSessionExpired": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um Genehmigungen zu verwalten.",
     "avatarAlt": "Benutzeravatar",
-    "complianceDocsLink": "Mehr zur Compliance erfahren",
     "dateColumn": "Datum",
     "loadApprovalsFailed": "Genehmigungen konnten nicht geladen werden",
     "removeApprovalFailed": "Genehmigung konnte nicht entfernt werden"
@@ -3031,6 +3030,7 @@
     "realisedGainLoss": "Realisierter Gewinn/Verlust:",
     "excludesUnknownSales_one": "(ohne {{count}} Verkauf mit unbekannten Kosten)",
     "excludesUnknownSales_other": "(ohne {{count}} Verkäufe mit unbekannten Kosten)",
+    "realisedGainCaveat": "Der realisierte Gewinn nutzt den Durchschnittskosten-Pool nach Section 104. Die HMRC-Zuordnungsregeln für denselben Tag und 30 Tage (Bed-and-Breakfast) werden nicht angewendet; der Wert ist daher eine Schätzung, keine Steuerberechnung.",
     "income": "Erträge:",
     "fees": "Gebühren:",
     "loadManualFailed": "Manuelle Bestände konnten nicht geladen werden.",

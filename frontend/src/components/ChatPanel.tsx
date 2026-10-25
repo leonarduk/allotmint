@@ -22,6 +22,7 @@ import {
   useChatSaveFailed,
 } from "../utils/chatSync";
 import { isDemoSession } from "../demoAuth";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { ChatHistoryList } from "./ChatHistoryList";
 import { ChatMessageItem } from "./ChatMessageItem";
 import { CHAT_INPUT_STYLE } from "./chatInputStyle";
@@ -123,6 +124,11 @@ export function ChatPanel({
   const [files, setFiles] = useState<Record<string, ChatFile[]>>({});
   const saveFailed = useChatSaveFailed();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // The drawer is modal (its backdrop closes it), so focus goes into it and
+  // stays there until it closes; a detached window is a whole page (#7962).
+  useFocusTrap(dialogRef, open && variant !== "window", inputRef);
 
   // Picks up the conversation saved on the server (#8870); a failure leaves
   // the local one in place and shows the "Not saved" hint.
@@ -283,7 +289,10 @@ export function ChatPanel({
         />
       )}
       <div
+        ref={dialogRef}
         role={isWindow ? "region" : "dialog"}
+        aria-modal={isWindow ? undefined : true}
+        tabIndex={isWindow ? undefined : -1}
         aria-label={t("chatPanel.chat")}
         style={{
           ...(isWindow ? WINDOW_STYLE : DRAWER_STYLE),
@@ -464,6 +473,7 @@ export function ChatPanel({
             </div>
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <input
+                ref={inputRef}
                 aria-label={t("chatPanel.messageInput")}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}

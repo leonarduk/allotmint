@@ -38,6 +38,56 @@ describe("ChatPanel", () => {
     expect(screen.queryByLabelText(/chat message/i)).not.toBeInTheDocument();
   });
 
+  describe("drawer focus (#7962)", () => {
+    const renderWithTrigger = (open: boolean) => (
+      <>
+        <button>Open chat</button>
+        <ChatPanel open={open} onClose={() => {}} />
+      </>
+    );
+
+    it("is announced as a modal dialog", () => {
+      render(<ChatPanel open onClose={() => {}} />);
+
+      expect(screen.getByRole("dialog", { name: /chat/i })).toHaveAttribute("aria-modal", "true");
+    });
+
+    it("moves focus to the message box on open and back to the trigger on close", () => {
+      const { rerender } = render(renderWithTrigger(false));
+      const trigger = screen.getByRole("button", { name: "Open chat" });
+      trigger.focus();
+
+      rerender(renderWithTrigger(true));
+      expect(screen.getByLabelText(/chat message/i)).toHaveFocus();
+
+      rerender(renderWithTrigger(false));
+      expect(trigger).toHaveFocus();
+    });
+
+    it("keeps Tab and Shift+Tab inside the drawer", async () => {
+      const user = userEvent.setup();
+      render(renderWithTrigger(true));
+      const dialog = screen.getByRole("dialog", { name: /chat/i });
+
+      for (let i = 0; i < 8; i += 1) {
+        await user.tab();
+        expect(dialog).toContainElement(document.activeElement as HTMLElement);
+      }
+      for (let i = 0; i < 8; i += 1) {
+        await user.tab({ shift: true });
+        expect(dialog).toContainElement(document.activeElement as HTMLElement);
+      }
+    });
+
+    it("leaves a detached chat window as a non-modal region", () => {
+      render(<ChatPanel open onClose={() => {}} variant="window" />);
+
+      const region = screen.getByRole("region", { name: /chat/i });
+      expect(region).not.toHaveAttribute("aria-modal");
+      expect(screen.getByLabelText(/chat message/i)).not.toHaveFocus();
+    });
+  });
+
   it("sends a message and shows the assistant's reply", async () => {
     (api.postChat as Mock).mockResolvedValueOnce({ reply: "VOD.L is 1.0" });
     const user = userEvent.setup();
@@ -222,6 +272,24 @@ describe("ChatPanel", () => {
     expect(container.querySelector("b")).toBeNull();
   });
 
+  it("opens markdown links in a new tab without exposing window.opener", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({
+      reply: "See [example](https://example.com) for details.",
+    });
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "hi");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    const link = await screen.findByRole("link", { name: "example" });
+    expect(link).toHaveAttribute("href", "https://example.com");
+    expect(link).toHaveAttribute("target", "_blank");
+    const rel = (link.getAttribute("rel") ?? "").split(/\s+/);
+    expect(rel).toEqual(expect.arrayContaining(["noopener", "noreferrer"]));
+  });
+
   it("shows an error message when the request fails", async () => {
     (api.postChat as Mock).mockRejectedValueOnce(new Error("network error"));
     const user = userEvent.setup();
@@ -235,6 +303,7 @@ describe("ChatPanel", () => {
   });
 
   it.each([
+    [400, /couldn't process that conversation/i],
     [503, /isn't available/i],
     [502, /couldn't reach its AI service/i],
     [429, /too quickly/i],

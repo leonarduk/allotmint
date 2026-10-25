@@ -2137,7 +2137,6 @@
     "fixErrors": "Fix the highlighted fields before saving.",
     "approvalsSessionExpired": "Your session has expired. Sign in again to manage approvals.",
     "avatarAlt": "user avatar",
-    "complianceDocsLink": "Learn more about compliance",
     "dateColumn": "Date",
     "loadApprovalsFailed": "Failed to load approvals",
     "removeApprovalFailed": "Failed to remove approval"
@@ -3024,6 +3023,7 @@
     "realisedGainLoss": "Realised gain/loss:",
     "excludesUnknownSales_one": "(excludes {{count}} sale with unknown cost)",
     "excludesUnknownSales_other": "(excludes {{count}} sales with unknown cost)",
+    "realisedGainCaveat": "Realised gain uses Section 104 average-cost pooling. HMRC's same-day and 30-day (bed-and-breakfast) matching rules are not applied, so treat it as an estimate, not a tax computation.",
     "income": "Income:",
     "fees": "Fees:",
     "loadManualFailed": "Failed to load manual holdings.",

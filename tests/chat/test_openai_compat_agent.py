@@ -234,6 +234,39 @@ async def test_run_chat_turn_marks_a_rejected_navigation_as_failed(monkeypatch):
     assert tool_message["content"].startswith("Tool call failed: Unknown page")
 
 
+async def test_run_chat_turn_reports_a_raising_local_tool_to_the_model_instead_of_raising(monkeypatch):
+    # Pins the behaviour the Bedrock path mirrors (#8201).
+    class BoomLocalTools(LocalTools):
+        def call(self, name, arguments):
+            raise RuntimeError("local tool exploded")
+
+    session = FakeSession(tools=[])
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    tool_call = _tool_call("call-1", NAVIGATE_TOOL_NAME, '{"path": "/transactions"}')
+    requests = _patch_http(
+        monkeypatch,
+        [
+            _completion({"role": "assistant", "content": None, "tool_calls": [tool_call]}),
+            _completion({"role": "assistant", "content": "Sorry, I couldn't open that."}),
+        ],
+    )
+    local = BoomLocalTools(pages=[ChatPage("/transactions", "Transactions")])
+
+    reply = await openai_compat_agent.run_chat_turn(
+        "go to transactions",
+        [],
+        mcp_server_url="http://localhost:8001/mcp",
+        base_url="http://x/v1",
+        model="m",
+        local_tools=local,
+    )
+
+    assert reply == "Sorry, I couldn't open that."
+    assert session.calls == []
+    tool_message = json.loads(requests[1].content)["messages"][-1]
+    assert tool_message["content"] == "Tool call failed: local tool exploded"
+
+
 async def test_run_chat_turn_reports_failed_tool_call_to_the_model_instead_of_raising(monkeypatch, caplog):
     class BoomSession(FakeSession):
         async def call_tool(self, name, arguments):

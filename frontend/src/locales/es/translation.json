@@ -2144,7 +2144,6 @@
     "fixErrors": "Corrige los campos resaltados antes de guardar.",
     "approvalsSessionExpired": "Tu sesión ha caducado. Inicia sesión de nuevo para gestionar las aprobaciones.",
     "avatarAlt": "avatar de usuario",
-    "complianceDocsLink": "Más información sobre cumplimiento",
     "dateColumn": "Fecha",
     "loadApprovalsFailed": "No se pudieron cargar las aprobaciones",
     "removeApprovalFailed": "No se pudo eliminar la aprobación"
@@ -3031,6 +3030,7 @@
     "realisedGainLoss": "Ganancia/pérdida realizada:",
     "excludesUnknownSales_one": "(excluye {{count}} venta con coste desconocido)",
     "excludesUnknownSales_other": "(excluye {{count}} ventas con coste desconocido)",
+    "realisedGainCaveat": "La ganancia realizada usa el pool de coste medio de la Section 104. No se aplican las reglas de emparejamiento de HMRC del mismo día y de 30 días (bed-and-breakfast), así que es una estimación, no un cálculo fiscal.",
     "income": "Ingresos:",
     "fees": "Comisiones:",
     "loadManualFailed": "No se pudieron cargar las posiciones manuales.",

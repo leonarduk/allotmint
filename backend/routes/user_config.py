@@ -11,7 +11,7 @@ router = APIRouter(prefix="/user-config", tags=["user-config"])
 
 
 @handle_owner_not_found
-async def get_user_config(owner: str, request: Request, identity: str | None = Depends(get_active_user)):
+def get_user_config(owner: str, request: Request, identity: str | None = Depends(get_active_user)):
     accounts_root = resolve_accounts_root(request, allow_missing=True)
     ensure_owner_access(identity, owner, accounts_root)
     try:

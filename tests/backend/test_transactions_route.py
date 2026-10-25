@@ -34,7 +34,6 @@ def _client(monkeypatch, tmp_path):
     # File locking now lives in the accounts_store module.
     monkeypatch.setattr(accounts_store, "_lock_file", lambda f: None)
     monkeypatch.setattr(accounts_store, "_unlock_file", lambda f: None)
-    transactions._POSTED_TRANSACTIONS.clear()
     return TestClient(app)
 
 

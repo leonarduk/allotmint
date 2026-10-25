@@ -67,6 +67,30 @@ def test_opening_transfers_covers_only_untracked_holdings():
     assert [ticker for ticker, _ in skipped] == ["CASH.GBP", "DDD"]
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2021-03-15", "2021-03-15"),
+        ("2021-03-15T12:00:00Z", "2021-03-15"),
+        ("2021-02-30", None),
+        ("2021-13-45", None),
+        ("15/03/2021", None),
+        (None, None),
+    ],
+)
+def test_iso_day_accepts_only_real_calendar_dates(value, expected):
+    assert convert._iso_day(value) == expected
+
+
+def test_impossible_acquired_date_falls_back_to_the_oldest_transaction():
+    transactions = [{"type": "BUY", "ticker": "BBB", "date": "2023-02-01", "units": 5, "price_gbp": 10.0}]
+    holdings = [{"ticker": "AAA", "units": 3, "acquired_date": "2021-02-30"}]
+
+    transfers, _ = convert.opening_transfers(transactions, holdings)
+
+    assert [t["date"] for t in transfers] == ["2023-02-01"]
+
+
 def test_write_records_the_transfer_rebuilds_and_is_idempotent(tmp_path, capsys):
     _seed(tmp_path)
 

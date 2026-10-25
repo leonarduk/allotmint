@@ -140,3 +140,68 @@ def test_quotes_maps_app_exchange_suffixes_to_yahoo(monkeypatch):
     assert resp.status_code == 200
     assert requested == ["ADBE UNH IWDA.AS"]
     assert [item["symbol"] for item in resp.json()] == ["ADBE.N", "UNH.US", "IWDA.AS"]
+
+
+def test_quotes_logs_and_skips_symbol_missing_from_provider(monkeypatch, caplog):
+    """A symbol missing from ``Tickers.tickers`` is logged, not silently dropped (#8101)."""
+
+    def fake_tickers(symbols):
+        return SimpleNamespace(tickers={"PFE": FakeChartTicker({"regularMarketPrice": 100.0})})
+
+    monkeypatch.setattr("backend.routes.quotes.yf.Tickers", fake_tickers)
+    monkeypatch.setattr(quotes_module.config, "offline_mode", False)
+    client = _make_client()
+
+    with caplog.at_level("WARNING", logger=quotes_module.logger.name):
+        resp = client.get("/api/quotes?symbols=GONE,PFE")
+
+    assert resp.status_code == 200
+    assert [item["symbol"] for item in resp.json()] == ["PFE"]
+    warnings = [r.getMessage() for r in caplog.records if r.name == quotes_module.logger.name]
+    assert warnings == ["No yfinance ticker returned for GONE, skipping"]
+
+
+def test_quotes_logs_each_partial_fetch_failure(monkeypatch, caplog):
+    """Partial failures keep the list shape but each failed symbol is logged at WARNING (#8097)."""
+
+    def fake_tickers(symbols):
+        return SimpleNamespace(
+            tickers={
+                "BOOM": FakeChartTicker(error=RuntimeError("rate limited")),
+                "PFE": FakeChartTicker({"regularMarketPrice": 100.0}),
+            }
+        )
+
+    monkeypatch.setattr("backend.routes.quotes.yf.Tickers", fake_tickers)
+    monkeypatch.setattr(quotes_module.config, "offline_mode", False)
+    client = _make_client()
+
+    with caplog.at_level("WARNING", logger=quotes_module.logger.name):
+        resp = client.get("/api/quotes?symbols=BOOM,PFE")
+
+    assert resp.status_code == 200
+    assert [item["symbol"] for item in resp.json()] == ["PFE"]
+    records = [r for r in caplog.records if r.name == quotes_module.logger.name]
+    assert [r.levelname for r in records] == ["WARNING"]
+    assert "BOOM" in records[0].getMessage()
+
+
+def test_quotes_all_fail_reports_only_failed_symbols(monkeypatch, caplog):
+    """The all-fail 502 names the failed subset; a symbol missing from the
+    provider response now counts as failed too (#8101, #8104)."""
+
+    def fake_tickers(symbols):
+        return SimpleNamespace(tickers={"BOOM": FakeChartTicker(error=RuntimeError("boom"))})
+
+    monkeypatch.setattr("backend.routes.quotes.yf.Tickers", fake_tickers)
+    monkeypatch.setattr(quotes_module.config, "offline_mode", False)
+    client = _make_client()
+
+    with caplog.at_level("ERROR", logger="backend.errors"):
+        resp = client.get("/api/quotes?symbols=BOOM,GONE")
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "Upstream provider failure"
+    record = caplog.records[-1]
+    assert record.symbols == ["BOOM", "GONE"]
+    assert set(record.provider_errors) == {"BOOM", "GONE"}

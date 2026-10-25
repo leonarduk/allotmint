@@ -21,6 +21,7 @@ from backend.routes.chat import create_router as create_chat_router
 from backend.routes.chat_history import router as chat_history_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
+from backend.routes.config import write_router as config_write_router
 from backend.routes.data_explorer import router as data_explorer_router
 from backend.routes.data_quality import router as data_quality_router
 from backend.routes.data_quality_admin import router as data_quality_admin_router
@@ -140,6 +141,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(decision_journal_router)
     app.include_router(plan_brief_router)
     app.include_router(config_router)
+    app.include_router(config_write_router, dependencies=protected)
     app.include_router(quotes_router)
     app.include_router(news_router)
     app.include_router(market_router)

@@ -511,6 +511,8 @@ def test_enrich_snapshot_price_from_before_reporting_date_is_stale(monkeypatch):
 
     assert result["latest_source"] == "snapshot"
     assert result["is_stale"] is True
+    # The served close's own date is exposed for the as-of badge (#8536).
+    assert result["last_price_date"] == "2026-09-24"
 
 
 @pytest.mark.parametrize(
@@ -536,6 +538,21 @@ def test_enrich_timeseries_price_staleness_follows_row_date(monkeypatch, row_dat
     assert result["price"] == pytest.approx(100.0)
     assert result["latest_source"] == "Yahoo"
     assert result["is_stale"] is expected_stale
+    assert result["last_price_date"] == row_date.isoformat()
+
+
+def test_enrich_previous_close_fallback_reports_no_price_date(monkeypatch):
+    """The previous-close lookup doesn't say which row it served, so no date is claimed (#8536)."""
+    _stub_enrich_env(monkeypatch, {})
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", lambda *a, **k: (None, None, None))
+    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *a, **k: (98.0, "Yahoo"))
+
+    holding = {TICKER: "FOO.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
+    result = hu.enrich_holding(holding, _TODAY, price_cache={})
+
+    assert result["latest_source"] == "previous_close"
+    assert result["is_stale"] is True
+    assert result["last_price_date"] is None
 
 
 def test_get_dated_price_reports_the_row_date_served(monkeypatch):

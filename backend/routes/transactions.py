@@ -131,8 +131,6 @@ class Transaction(BaseModel):
     model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
 
-_POSTED_TRANSACTIONS: List[dict] = []
-
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _ID_RE = re.compile(r"^(?P<owner>[A-Za-z0-9_-]+):(?P<account>[A-Za-z0-9_-]+):(?P<index>\d+)$")
 
@@ -735,28 +733,23 @@ def _persist_transaction(store: "AccountsStore", owner: str, account: str, tx_da
             data.setdefault("transactions", []).pop(new_index)
         raise
 
-    _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
-
     tx_id = _build_transaction_id(owner, account, new_index)
     return _format_transaction_response(owner, account, tx_data, tx_id)
 
 
 def _rollback_persisted_transaction(store: "AccountsStore", persisted: Mapping[str, Any]) -> Tuple[str, str]:
-    """Remove one transaction previously returned by ``_persist_transaction``."""
+    """Remove one transaction previously returned by ``_persist_transaction``.
+
+    The transaction log is the only record of what was posted: there is no
+    process-global copy to keep in step, which would be empty after a restart
+    and differ between workers (#8262).
+    """
     owner, account, index = _parse_transaction_id(str(persisted["id"]))
     with _locked_transactions_data(owner, account, store) as (data, _file):
         stored = data.setdefault("transactions", [])
         if index >= len(stored):
             raise RuntimeError(f"Cannot roll back missing transaction {persisted['id']}")
-        removed = stored.pop(index)
-
-    posted = {"owner": owner, "account": account, **removed}
-    for posted_index in range(len(_POSTED_TRANSACTIONS) - 1, -1, -1):
-        if _POSTED_TRANSACTIONS[posted_index] == posted:
-            _POSTED_TRANSACTIONS.pop(posted_index)
-            break
-    else:
-        raise RuntimeError(f"Cannot roll back untracked transaction {persisted['id']}")
+        stored.pop(index)
 
     return owner, account
 

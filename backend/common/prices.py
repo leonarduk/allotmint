@@ -623,12 +623,19 @@ def refresh_prices() -> Dict:
         logger.error("Price refresh universe is empty: no held or watched tickers found")
     logger.info("Updating price snapshot for: %s", [sanitise_log_value(t) for t in tickers])
 
+    # ``running`` spans the whole job -- snapshot, FX/reference data and
+    # persistence -- and is cleared even if any step raises (#8056).
     refresh_progress.start(len(tickers))
     try:
-        with _reporting_progress():
-            snapshot = get_price_snapshot(tickers)
+        return _snapshot_and_persist(tickers)
     finally:
         refresh_progress.finish()
+
+
+def _snapshot_and_persist(tickers: List[str]) -> Dict:
+    """Body of :func:`refresh_prices`: fetch, persist and publish the snapshot."""
+    with _reporting_progress():
+        snapshot = get_price_snapshot(tickers)
 
     _refresh_reference_data(tickers)
     log_large_move_suspects(tickers)

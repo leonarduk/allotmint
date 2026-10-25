@@ -1,4 +1,4 @@
-import { render, screen, within, act } from "@testing-library/react";
+import { render, screen, within, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +16,12 @@ const mockGetMcpTools = vi.hoisted(() => vi.fn());
 const mockGetAppUpdateStatus = vi.hoisted(() => vi.fn());
 const mockGetMcpServerStatus = vi.hoisted(() => vi.fn());
 const mockGetDataSyncStatus = vi.hoisted(() => vi.fn());
+const mockClearFetchCache = vi.hoisted(() => vi.fn());
+
+vi.mock("@/utils/fetchCache", async () => {
+  const actual = await vi.importActual<typeof import("@/utils/fetchCache")>("@/utils/fetchCache");
+  return { ...actual, clearFetchCache: mockClearFetchCache };
+});
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -443,6 +449,47 @@ describe("Support page", () => {
     expect(mockUpdateConfig).toHaveBeenCalledWith({ count: 7 });
   });
 
+  it("does not re-send local_login_email on Save after the override was changed (#7933)", async () => {
+    window.history.replaceState(null, "", "#local-login-override");
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", email: "alex@example.com", accounts: [] },
+      { owner: "steve", email: "steve@example.com", accounts: [] },
+    ]);
+    mockGetConfig.mockResolvedValue({
+      count: 5,
+      local_login_email: "alex@example.com",
+      theme: "system",
+      tabs: { group: true, owner: true },
+    });
+    mockUpdateConfig.mockResolvedValue(undefined);
+
+    render(<Support />, { wrapper: MemoryRouter });
+    const select = (await screen.findByLabelText(
+      en.support.localLogin.label,
+    )) as HTMLSelectElement;
+    await within(select).findByRole("option", { name: /steve@example\.com/ });
+    await act(async () => {
+      await userEvent.selectOptions(select, "steve@example.com");
+    });
+    await waitFor(() => expect(select).not.toBeDisabled());
+    expect(mockUpdateConfig).toHaveBeenCalledWith({
+      auth: { local_login_email: "steve@example.com" },
+    });
+
+    await expandSection(en.support.config.title);
+    const count = await screen.findByDisplayValue("5");
+    await act(async () => {
+      await userEvent.clear(count);
+      await userEvent.type(count, "7");
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.support.config.save }));
+    });
+
+    // The override saved itself already; Save must not send it again.
+    expect(mockUpdateConfig).toHaveBeenLastCalledWith({ count: 7 });
+  });
+
   it("lists MCP tools, all on, and saves a switched-off tool under the mcp section", async () => {
     mockUpdateConfig.mockResolvedValue(undefined);
     render(<Support />, { wrapper: MemoryRouter });
@@ -775,6 +822,37 @@ describe("Support page", () => {
     expect(
       await screen.findByRole("button", { name: en.app.refreshPrices }),
     ).toBeInTheDocument();
+  });
+
+  it("clears the fetch cache after a successful price refresh (#7679)", async () => {
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    expect(mockClearFetchCache).not.toHaveBeenCalled();
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    expect(
+      await screen.findByRole("button", { name: en.app.refreshPrices }),
+    ).toBeInTheDocument();
+    expect(mockRefreshPrices).toHaveBeenCalledTimes(1);
+    expect(mockClearFetchCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the fetch cache when the price refresh fails", async () => {
+    mockRefreshPrices.mockRejectedValue(new Error("refresh failed"));
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    expect(await screen.findByText(/refresh failed/)).toBeInTheDocument();
+    expect(mockClearFetchCache).not.toHaveBeenCalled();
   });
 
   it("falls back to the static refreshing label when progress polling fails", async () => {

@@ -270,6 +270,65 @@ def test_oversold_position_is_not_emitted_negative(caplog: pytest.LogCaptureFixt
     assert "exceeds units held" in caplog.text
 
 
+@pytest.mark.parametrize("amount_minor", [0, 50_000])
+def test_full_transfer_out_drops_the_position_without_moving_cash(amount_minor: int) -> None:
+    # Transfers settle no cash, even under the opt-in and even with an amount (#8112).
+    tx = {
+        "trade_cash_effects": True,
+        "transactions": [
+            _buy("ABC", 10, 400, "2024-01-10"),
+            {"type": "TRANSFER_OUT", "ticker": "ABC", "units": 10, "amount_minor": amount_minor, "date": "2024-02-10"},
+        ],
+    }
+
+    replay = replay_transactions(tx["transactions"], trade_cash=True)
+    doc = rebuild_holdings_document(tx, "a", "isa")
+
+    assert replay.cash == pytest.approx(-400.0)
+    # Only the BUY's debit remains; ABC is gone.
+    assert [(h["ticker"], h["units"]) for h in doc["holdings"]] == [("CASH.GBP", pytest.approx(-400.0))]
+
+
+def test_partial_removal_takes_cost_out_of_the_pool_pro_rata() -> None:
+    tx = {
+        "transactions": [
+            _buy("ABC", 100, 1_000, "2024-01-10"),
+            {"type": "REMOVAL", "ticker": "ABC", "units": 25, "date": "2024-02-10"},
+        ]
+    }
+
+    abc = _holdings(rebuild_holdings_document(tx, "a", "isa"))["ABC"]
+
+    assert abc["units"] == pytest.approx(75)
+    assert abc["cost_basis_gbp"] == pytest.approx(750.0)
+
+
+def test_full_removal_drops_the_position() -> None:
+    tx = {
+        "transactions": [
+            _buy("ABC", 10, 100, "2024-01-10"),
+            {"type": "REMOVAL", "ticker": "ABC", "units": 10, "date": "2024-02-10"},
+        ]
+    }
+
+    assert rebuild_holdings_document(tx, "a", "isa")["holdings"] == []
+
+
+def test_oversold_transfer_out_is_clamped_and_warned(caplog: pytest.LogCaptureFixture) -> None:
+    tx = {
+        "transactions": [
+            _buy("ABC", 10, 100, "2024-01-10"),
+            {"type": "TRANSFER_OUT", "ticker": "ABC", "units": 15, "date": "2024-02-10"},
+        ]
+    }
+    caplog.set_level(logging.WARNING, logger="backend.common.holdings_rebuild")
+
+    doc = rebuild_holdings_document(tx, "a", "isa")
+
+    assert doc["holdings"] == []
+    assert "TRANSFER_OUT of 15.0 ABC exceeds units held" in caplog.text
+
+
 def test_trade_cash_ignored_without_opt_in() -> None:
     tx = {
         "transactions": [
@@ -322,6 +381,26 @@ def test_ticker_less_trades_move_cash_with_opt_in() -> None:
     replay = replay_transactions(tx["transactions"], trade_cash=True)
 
     assert replay.cash == pytest.approx(-50.0)
+
+
+@pytest.mark.parametrize("trade_cash_effects", [False, True])
+def test_cash_gbp_trade_rows_move_cash_whatever_the_opt_in(trade_cash_effects: bool) -> None:
+    # CASH.GBP BUY/SELL rows are cash movements of ``units`` pounds, not trades
+    # in a CASH.GBP instrument, so they move cash with or without the opt-in
+    # and never settle a second time against their amount_minor (#8108).
+    tx = {
+        "trade_cash_effects": trade_cash_effects,
+        "transactions": [
+            _buy("CASH.GBP", 100, 100, "2024-01-01"),
+            _sell("CASH.GBP", 30, 30, "2024-02-01"),
+        ],
+    }
+
+    doc = rebuild_holdings_document(tx, "a", "isa")
+
+    assert [h["ticker"] for h in doc["holdings"]] == ["CASH.GBP"]
+    assert doc["holdings"][0]["units"] == pytest.approx(70.0)
+    assert doc["holdings"][0]["cost_basis_gbp"] == pytest.approx(70.0)
 
 
 def test_sold_out_holding_is_dropped() -> None:

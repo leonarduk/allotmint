@@ -637,6 +637,8 @@ def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
     monkeypatch.delenv("GOOGLE_AUTH_ENABLED", raising=False)
 
     reload_config()
+    # PUT /config is auth-protected unless auth is disabled (#11064).
+    monkeypatch.setenv("DISABLE_AUTH", "true")
 
     client = TestClient(create_app())
 
@@ -659,6 +661,8 @@ def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
 def test_update_config_merges_ui_section(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("tabs:\n  instrument: true\n")
+    # PUT /config is auth-protected unless auth is disabled (#11064).
+    monkeypatch.setenv("DISABLE_AUTH", "true")
 
     monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)

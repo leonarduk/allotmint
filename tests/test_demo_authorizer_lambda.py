@@ -94,12 +94,20 @@ def test_lambda_handler_rejects_missing_bearer_token(monkeypatch, caplog):
     assert "no bearer token present" in caplog.text
 
 
-def test_lambda_handler_fails_closed_on_unexpected_exception(monkeypatch):
+def test_lambda_handler_fails_closed_on_unexpected_exception(monkeypatch, caplog):
     def _boom(token):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(mod, "decode_demo_token", _boom)
 
-    result = mod.lambda_handler(_event("anything"), {})
+    with caplog.at_level("INFO", logger=mod.logger.name):
+        result = mod.lambda_handler(_event("secret-token-value"), {})
 
     assert result == {"isAuthorized": False}
+    # The fail-closed path must log via logger.exception (ERROR + traceback) so
+    # the cause is diagnosable, without echoing the bearer token (#7704).
+    errors = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert len(errors) == 1
+    assert "failed while evaluating bearer token" in errors[0].getMessage()
+    assert errors[0].exc_info is not None and isinstance(errors[0].exc_info[1], RuntimeError)
+    assert "secret-token-value" not in caplog.text

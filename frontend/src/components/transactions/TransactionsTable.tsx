@@ -141,7 +141,12 @@ export function TransactionsTable({
             <th className={tableStyles.cell}>{t("transactionsTable.type")}</th>
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("transactionsTable.amount")}</th>
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("transactionsTable.shares")}</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("transactionsTable.gainLoss")}</th>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right}`}
+              title={t("transactionsPage.realisedGainCaveat")}
+            >
+              {t("transactionsTable.gainLoss")}
+            </th>
             <th className={tableStyles.cell}>{t("transactionsTable.actions")}</th>
           </tr>
         </thead>

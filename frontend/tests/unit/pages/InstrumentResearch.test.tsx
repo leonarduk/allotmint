@@ -363,6 +363,10 @@ describe("InstrumentResearch page", () => {
     expect(
       await screen.findByText("Choose a ticker from search to open research."),
     ).toBeInTheDocument();
+    // The empty state still carries the page's landmark heading (#7822).
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Research" }),
+    ).toBeInTheDocument();
 
     // The empty state must offer an actual way to pick a ticker, not just
     // describe one (#7223) — the search input is embedded directly on the page.

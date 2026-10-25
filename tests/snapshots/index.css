@@ -298,7 +298,10 @@ h1 {
 .chat-message:focus-within .chat-message-actions {
     opacity: 1;
 }
-@media (hover: none) {
+/* Touch screens get no hover, so the actions are always shown there. A
+   hybrid device (touchscreen laptop, tablet with a mouse) reports
+   `hover: hover` for its mouse, so `any-pointer: coarse` covers it too (#8675). */
+@media (hover: none), (any-pointer: coarse) {
     .chat-message-actions {
         opacity: 1;
     }

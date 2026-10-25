@@ -229,6 +229,39 @@ async def test_run_chat_turn_runs_navigate_locally_without_calling_mcp(monkeypat
     assert tool_result["status"] == "success"
 
 
+async def test_run_chat_turn_reports_a_raising_local_tool_to_the_model_instead_of_raising(monkeypatch):
+    # Local and MCP calls share one error boundary, as in the OpenAI path (#8201).
+    class BoomLocalTools(LocalTools):
+        def call(self, name, arguments):
+            raise RuntimeError("local tool exploded")
+
+    session = FakeSession(tools=[])
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    responses = [
+        _assistant_tool_use("tool-1", NAVIGATE_TOOL_NAME, {"path": "/transactions"}),
+        _assistant_text("Sorry, I couldn't open that."),
+    ]
+    seen_requests = []
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            seen_requests.append(copy.deepcopy(kwargs))
+            return responses[len(seen_requests) - 1]
+
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+    local = BoomLocalTools(pages=[ChatPage("/transactions", "Transactions")])
+
+    reply = await bedrock_agent.run_chat_turn(
+        "go to transactions", [], mcp_server_url="https://example.com/mcp", bedrock_model_id="m", local_tools=local
+    )
+
+    assert reply == "Sorry, I couldn't open that."
+    assert session.calls == []
+    tool_result = seen_requests[1]["messages"][-1]["content"][0]["toolResult"]
+    assert tool_result["status"] == "error"
+    assert tool_result["content"] == [{"text": "Tool call failed: local tool exploded"}]
+
+
 async def test_run_chat_turn_reports_failed_tool_call_to_the_model_instead_of_raising(monkeypatch):
     class BoomSession(FakeSession):
         async def call_tool(self, name, arguments):

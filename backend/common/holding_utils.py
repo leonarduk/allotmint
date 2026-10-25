@@ -242,6 +242,11 @@ def load_latest_closes(
             ticker = full.split(".", 1)[0]
             exchange = "L"
             logger.debug("Could not resolve exchange for %s; defaulting to L", full)
+        # Progress names the resolved ticker being fetched now (e.g. ``HFEL.L``
+        # for input ``HFEL``), with ``completed`` counting the ones before it;
+        # the ``finally`` below advances the count once it's done (#8038, #8047).
+        if report_progress:
+            refresh_progress.update(f"{ticker}.{exchange}", i)
 
         try:
             df = load_meta_timeseries_range(
@@ -267,7 +272,7 @@ def load_latest_closes(
             if len(result) == priced_before:
                 unpriced.append(full)
             if report_progress:
-                refresh_progress.update(full, i + 1)
+                refresh_progress.update(f"{ticker}.{exchange}", i + 1)
 
     logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
     if unpriced:
@@ -1123,6 +1128,9 @@ def enrich_holding(
 
     px = px_source = prev_px = None
     last_price_time = None
+    # Date of the close/quote actually served, so the UI and the chat
+    # assistant can say which day's price is shown (#8536).
+    last_price_date: Optional[dt.date] = None
     is_stale = True
     out["forward_7d_change_pct"] = None
     out["forward_30d_change_pct"] = None
@@ -1134,6 +1142,7 @@ def enrich_holding(
         if _snapshot_usable(snap, calc):
             px = float(snap["last_price"])
             last_price_time = snap.get("last_price_time")
+            last_price_date = _parse_date(snap.get("last_price_date"))
             is_stale = _snapshot_is_stale(snap, calc.reporting_date)
             px_source = "snapshot"
             prev_date = calc.previous_pricing_date
@@ -1143,6 +1152,7 @@ def enrich_holding(
             # The range loader may have walked back to an earlier close; only a
             # row for the reporting date itself is fresh (#7919).
             is_stale = px_date is None or px_date < asof_date
+            last_price_date = _parse_date(px_date) if px is not None else None
             prev_date = calc.previous_pricing_date
 
         prev_px, _ = _get_price_for_date_scaled(ticker, exchange, prev_date, field="Close_gbp")
@@ -1153,6 +1163,8 @@ def enrich_holding(
             # the holding unpriced.
             px = prev_px
             px_source = "previous_close"
+            # The lookup may walk back past prev_date; the served row's date is unknown.
+            last_price_date = None
             is_stale = True
 
         if px is None and calc.has_explicit_reporting_date:
@@ -1161,6 +1173,7 @@ def enrich_holding(
             px, proxy_source = _proxied_price_for_date(full, calc.reporting_date)
             if px is not None:
                 px_source = proxy_source
+                last_price_date = None
                 is_stale = True
 
         if px is not None:
@@ -1193,10 +1206,12 @@ def enrich_holding(
             sanitise_log_value(full),
         )
         px = prev_px = px_source = None
+        last_price_date = None
 
     out["price"] = px
     out["current_price_gbp"] = px
     out["latest_source"] = px_source
+    out["last_price_date"] = last_price_date.isoformat() if last_price_date else None
     out["last_price_time"] = last_price_time
     out["is_stale"] = is_stale
 

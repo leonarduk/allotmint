@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -138,12 +139,24 @@ def repair_file(path: Path, *, refill: bool) -> Repair | None:
         dropped = df.loc[sources.isin(list(report.dropped)).to_numpy()]
         extra = refill_from_yahoo(kept, dropped, path, report.primary)
         report.refilled = len(extra)
-        kept = pd.concat([kept, extra[df.columns]], ignore_index=True)
+        # A fetched frame lacks any extra column the cached file carries
+        # (e.g. Close_gbp); fill those with NaN instead of raising KeyError.
+        kept = pd.concat([kept, extra.reindex(columns=df.columns)], ignore_index=True)
     repaired = kept.sort_values("Date").reset_index(drop=True)[df.columns]
     report.rows_after = len(repaired)
     report.jumps_after = count_jumps(repaired)
     report.frame = repaired
     return report
+
+
+def write_atomically(frame: pd.DataFrame, path: Path) -> None:
+    """Write ``frame`` to ``path`` via a sibling temp file so an interrupted run never truncates it."""
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        frame.to_parquet(tmp, index=False)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def format_report(r: Repair) -> str:
@@ -174,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         print(format_report(report))
         if args.apply and (report.dropped or report.refilled):
-            report.frame.to_parquet(path, index=False)
+            write_atomically(report.frame, path)
     return 0
 
 

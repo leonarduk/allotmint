@@ -11,6 +11,7 @@ import { TransactionsPage } from '@/components/TransactionsPage';
 import { AuthContext } from '@/AuthContext';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import surface from '@/styles/surface.module.css';
 
 // The input-only variant renders a <Link> to /transactions, so every render
 // needs a router context.
@@ -143,6 +144,20 @@ describe('TransactionsPage', () => {
     expect(
       msft.compareDocumentPosition(pfe) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+  });
+
+  it('caveats the realised gain as Section 104 without same-day/30-day matching (#7921)', async () => {
+    render(
+      <TransactionsPage
+        owners={[{ owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] }]}
+      />
+    );
+    const caveat = await screen.findByTestId('realised-gain-caveat');
+    expect(caveat).toHaveTextContent(/Section 104 average-cost pooling/);
+    expect(caveat).toHaveTextContent(/30-day \(bed-and-breakfast\)/);
+    expect(
+      screen.getByRole('columnheader', { name: /^gain\/loss$/i })
+    ).toHaveAttribute('title', caveat.textContent);
   });
 
   it('filters the list to sells with the Type filter', async () => {
@@ -597,6 +612,31 @@ describe('TransactionsPage', () => {
       'price_gbp'
     );
     expect(screen.getByText('Holding saved.')).toBeInTheDocument();
+  });
+
+  // Issue #8155: the input card must use the theme-aware surface tokens, not
+  // the light-only slate classes that were unreadable in dark mode (#8151).
+  it('styles the input-only card with the theme-aware surface classes', async () => {
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+        ]}
+        inputOnly
+      />
+    );
+
+    const title = await screen.findByRole('heading', {
+      name: 'Account + Holdings Input',
+    });
+    const card = title.closest('section');
+    expect(card).toHaveClass(surface.surfaceCard);
+    expect(title).toHaveClass(surface.surfaceCardTitle);
+    const intro = screen
+      .getByRole('link', { name: 'Transactions' })
+      .closest('p');
+    expect(intro).toHaveClass(surface.surfaceMuted);
+    expect(card?.outerHTML).not.toMatch(/bg-slate-50|text-slate-[567]00/);
   });
 
   it("defaults the manual owner input to the logged-in user's owner", async () => {

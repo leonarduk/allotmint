@@ -24,6 +24,7 @@ def test_put_config_with_env_missing_client_id_preserves_config(monkeypatch, tmp
 
     app = FastAPI()
     app.include_router(routes_config.router)
+    app.include_router(routes_config.write_router)
     client = TestClient(app)
 
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
@@ -48,6 +49,7 @@ def test_put_config_with_env_missing_client_id_preserves_config(monkeypatch, tmp
 def _client() -> TestClient:
     app = FastAPI()
     app.include_router(routes_config.router)
+    app.include_router(routes_config.write_router)
     return TestClient(app)
 
 

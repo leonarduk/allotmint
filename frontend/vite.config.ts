@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config'
-import type { PluginOption } from 'vite'
+import { loadEnv, type PluginOption } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -20,14 +20,32 @@ function readLocalBackendPort(): string | null {
   }
 }
 
+const DEV_SERVER_PORT = 2568
+
+// index.html interpolates %VITE_APP_BASE_URL% into its canonical/og:url and
+// JSON-LD tags. Only .env.production sets it, so the dev server warned on
+// every load and served the literal placeholder (#7823). Default it to the
+// local dev origin unless an .env file or the shell already provides one.
+function ensureAppBaseUrl(mode: string): void {
+  // loadEnv already folds in prefixed shell vars; the explicit check keeps
+  // that guarantee obvious and independent of Vite's merge rules.
+  if (process.env.VITE_APP_BASE_URL) return
+  if (loadEnv(mode, __dirname, 'VITE_APP_BASE_URL').VITE_APP_BASE_URL) return
+  process.env.VITE_APP_BASE_URL = `http://localhost:${DEV_SERVER_PORT}`
+}
+
 // https://vite.dev/config/
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
   const plugins: PluginOption[] = [
     ...react()
   ]
 
   // Prerender/PWA plugins were intentionally removed because this app now ships
   // as a standard SPA and infrastructure does not consume prerendered artifacts.
+
+  if (command === 'serve') {
+    ensureAppBaseUrl(mode)
+  }
 
   if (command === 'serve' && !process.env.VITE_ALLOTMINT_API_BASE) {
     const backendPort = readLocalBackendPort()
@@ -50,7 +68,7 @@ export default defineConfig(({ command }) => {
       // ALOT -> 2568 (this server), MINT -> 6468 (the backend). See #7811.
       // strictPort is deliberately left off, so a busy 2568 still walks to
       // 2569+ exactly as the Vite default did.
-      port: 2568,
+      port: DEV_SERVER_PORT,
       proxy: {
         '/api': {
           target: 'http://backend:6468', // Docker internal hostname
@@ -60,7 +78,7 @@ export default defineConfig(({ command }) => {
       }
     },
     preview: {
-      port: 2568
+      port: DEV_SERVER_PORT
     },
     build: {
       // One stylesheet, emitted with Vite's default content-hashed name under

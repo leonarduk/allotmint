@@ -3,9 +3,11 @@ import sys
 import pytest
 import yaml
 from fastapi.testclient import TestClient
+from mcp.types import Tool
 
 from backend import config_module
 from backend.app import create_app
+from backend.chat.local_tools import ChatPage, LocalTools, local_tool_summaries
 from backend.config import ConfigValidationError, reload_config, validate_config_data
 from backend.routes import config as routes_config
 
@@ -14,6 +16,8 @@ from backend.routes import config as routes_config
 def config_path(monkeypatch, tmp_path):
     path = tmp_path / "config.yaml"
     path.write_text("auth:\n  google_auth_enabled: false\n")
+    # PUT /config is auth-protected unless auth is disabled (#11064).
+    monkeypatch.setenv("DISABLE_AUTH", "true")
     monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: path)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: path)
     reload_config()
@@ -154,6 +158,25 @@ def test_get_mcp_tools_without_a_server_url(config_path, monkeypatch):
     body = TestClient(create_app()).get("/config/mcp-tools").json()
 
     assert "MCP_SERVER_URL" in body["mcp_error"]
+
+
+def test_get_mcp_tools_lists_every_local_tool(config_path, monkeypatch):
+    """#8504: a tool added to LocalTools gets an admin switch without editing the route."""
+    monkeypatch.delenv("MCP_SERVER_URL", raising=False)
+    reload_config()
+    every = LocalTools(pages=(ChatPage(path="/", label="Home"),), data_tools=True, file_exports=True).tools()
+
+    body = TestClient(create_app()).get("/config/mcp-tools").json()
+
+    listed = {tool["name"] for tool in body["tools"]}
+    assert {tool.name for tool in every} <= listed
+
+
+def test_local_tool_summaries_fall_back_to_the_model_description(monkeypatch):
+    extra = Tool(name="new_local_tool", description="Does a new thing.", input_schema={"type": "object"})
+    monkeypatch.setattr(LocalTools, "tools", lambda self: [extra])
+
+    assert local_tool_summaries() == [{"name": "new_local_tool", "description": "Does a new thing."}]
 
 
 def test_get_mcp_tools_passes_through_the_servers_not_configured_reason(config_path, monkeypatch):

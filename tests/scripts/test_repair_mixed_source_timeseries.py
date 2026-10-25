@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
+import pytest
 
 from scripts import repair_mixed_source_timeseries as repair
 
@@ -133,3 +136,48 @@ def test_main_dry_run_leaves_file_untouched_and_apply_rewrites(tmp_path, capsys)
 
     repair.main([str(tmp_path), "--ticker", "ADM_L", "--apply"])
     assert pd.read_parquet(path)["Source"].unique().tolist() == ["Yahoo"]
+
+
+def test_refill_tolerates_a_fetch_missing_a_cached_column(tmp_path, monkeypatch):
+    """A cached file can carry columns Yahoo never returns (e.g. Close_gbp); they become NaN (#8793)."""
+    path = tmp_path / "ADM_L.parquet"
+    _mixed(path)
+    cached = pd.read_parquet(path)
+    cached["Close_gbp"] = cached["Close"] / 100
+    cached.to_parquet(path, index=False)
+    import backend.timeseries.fetch_yahoo_timeseries as yahoo
+
+    monkeypatch.setattr(
+        yahoo,
+        "fetch_yahoo_timeseries_range",
+        lambda *_a: _rows(
+            ["2015-03-02", "2015-03-03", "2015-03-04", "2015-03-05", "2015-03-06"],
+            [1465.41, 1452.51, 1448.53, 1503.14, 1504.13],
+            "Yahoo",
+        ),
+    )
+
+    report = repair.repair_file(path, refill=True)
+
+    assert report.refilled == 2
+    assert report.frame.columns.tolist() == cached.columns.tolist()
+    assert report.frame["Close_gbp"].isna().sum() == 2
+
+
+def test_failed_apply_write_leaves_the_original_file_intact(tmp_path, monkeypatch):
+    path = tmp_path / "ADM_L.parquet"
+    _mixed(path)
+    original = pd.read_parquet(path)
+
+    def boom(self, target, *args, **kwargs):
+        Path(target).write_bytes(b"partial")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pd.DataFrame, "to_parquet", boom)
+
+    with pytest.raises(OSError, match="disk full"):
+        repair.main([str(tmp_path), "--apply"])
+
+    monkeypatch.undo()
+    pd.testing.assert_frame_equal(pd.read_parquet(path), original)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["ADM_L.parquet"]

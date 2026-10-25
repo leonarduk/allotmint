@@ -46,3 +46,34 @@ def test_update_is_a_noop_when_not_running():
     snap = refresh_progress.snapshot()
     assert snap["running"] is False
     assert snap["current_ticker"] is None
+
+
+def test_update_clamps_completed_to_total():
+    """The bar can never report more than 100% (#8046)."""
+    refresh_progress.start(2)
+    refresh_progress.update("ABC.L", 5)
+    snap = refresh_progress.snapshot()
+    assert snap["completed"] == 2
+    assert snap["total"] == 2
+
+
+def test_second_start_overwrites_the_single_slot():
+    """Documented single-slot tradeoff: a concurrent second refresh replaces
+    the first's progress rather than being tracked separately (#8074)."""
+    refresh_progress.start(3)
+    refresh_progress.update("FIRST.L", 2)
+    refresh_progress.start(5)
+    refresh_progress.update("SECOND.L", 1)
+    assert refresh_progress.snapshot() == {
+        "running": True,
+        "total": 5,
+        "completed": 1,
+        "current_ticker": "SECOND.L",
+    }
+
+
+def test_snapshot_is_a_copy():
+    refresh_progress.start(1)
+    snap = refresh_progress.snapshot()
+    snap["completed"] = 99
+    assert refresh_progress.snapshot()["completed"] == 0

@@ -128,6 +128,42 @@ def _held_base_counts(holdings: List[Any]) -> Dict[str, int]:
     return counts
 
 
+def _cost_pool_matches(
+    holdings: List[Any], transactions: List[Dict[str, Any]]
+) -> tuple[Dict[str, Any], List[tuple[Dict[str, Any], str, Optional[str]]]]:
+    """Cost hints plus each zero-cost, non-cash holding with the pool key it takes (``None``: no match)."""
+    needy = [h for h in holdings if isinstance(h, dict) and not _has_booked_cost(h)]
+    hints = transaction_cost_hints(transactions)
+    hint_keys = [k for k in hints if not k.startswith(("name:", "ref:"))]
+    # A holding with a booked cost never takes a fill, so it must not make a
+    # zero-cost sibling's base symbol look ambiguous (#8480).  But its own
+    # (canonically keyed) pool still belongs to it: a zero-cost sibling may
+    # only take that pool on an exact/canonical match, never via the
+    # suffix-only guess -- before #8480 the ambiguity guard blocked that guess,
+    # and dropping the booked holding from ``held_bases`` must not unblock it.
+    held_bases = _held_base_counts(needy)
+    booked_keys = {canonical_ticker(str(h.get("ticker") or "")) for h in holdings if _has_booked_cost(h)}
+    matches: List[tuple[Dict[str, Any], str, Optional[str]]] = []
+    for h in needy:
+        ticker = str(h.get("ticker") or "").strip().upper()
+        if not ticker or _strip_suffix(ticker) == "CASH":  # cash has no transaction pool
+            continue
+        key = _match_hint_key(ticker, hint_keys, held_bases)
+        if key in booked_keys and key not in (ticker, canonical_ticker(ticker)):
+            key = None
+        matches.append((h, ticker, key))
+    return hints, matches
+
+
+def _needy_transactions(
+    owner: str, account: str, holdings: List[Any], accounts_root: Optional[Path]
+) -> Optional[List[Dict[str, Any]]]:
+    """The account's transactions when some holding lacks a booked cost, else ``None``."""
+    if not any(isinstance(h, dict) and not _has_booked_cost(h) for h in holdings):
+        return None
+    return _read_account_transactions(owner, account, accounts_root)
+
+
 def fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_root: Optional[Path] = None) -> None:
     """Cost zero-cost holdings from their transactions (in memory only).
 
@@ -142,29 +178,11 @@ def fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_r
     so ``enrich_holding`` derives the cost from the price on that date.  A
     non-zero booked cost always wins.  Never writes to the data files.
     """
-    needy = [h for h in holdings if isinstance(h, dict) and not _has_booked_cost(h)]
-    if not needy:
-        return
-    transactions = _read_account_transactions(owner, account, accounts_root)
+    transactions = _needy_transactions(owner, account, holdings, accounts_root)
     if transactions is None:
         return
-    hints = transaction_cost_hints(transactions)
-    hint_keys = [k for k in hints if not k.startswith(("name:", "ref:"))]
-    # A holding with a booked cost never takes a fill, so it must not make a
-    # zero-cost sibling's base symbol look ambiguous (#8480).  But its own
-    # (canonically keyed) pool still belongs to it: a zero-cost sibling may
-    # only take that pool on an exact/canonical match, never via the
-    # suffix-only guess -- before #8480 the ambiguity guard blocked that guess,
-    # and dropping the booked holding from ``held_bases`` must not unblock it.
-    held_bases = _held_base_counts(needy)
-    booked_keys = {canonical_ticker(str(h.get("ticker") or "")) for h in holdings if _has_booked_cost(h)}
-    for h in needy:
-        ticker = str(h.get("ticker") or "").strip().upper()
-        if not ticker or _strip_suffix(ticker) == "CASH":  # cash has no transaction pool
-            continue
-        key = _match_hint_key(ticker, hint_keys, held_bases)
-        if key in booked_keys and key not in (ticker, canonical_ticker(ticker)):
-            key = None
+    hints, matches = _cost_pool_matches(holdings, transactions)
+    for h, ticker, key in matches:
         if key is None:
             _warn_unmatched(owner, account, ticker)
             continue
@@ -173,6 +191,22 @@ def fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_r
             h["cost_basis_gbp"] = cost
         elif since and not h.get("acquired_date"):
             h["acquired_date"] = since
+
+
+def unmatched_cost_tickers(
+    owner: str, account: str, holdings: List[Any], accounts_root: Optional[Path] = None
+) -> List[str]:
+    """Tickers of zero-cost holdings that no transaction pool matches (#8479).
+
+    The holdings ``fill_missing_costs`` cannot cost, so their cost stays
+    unknown; the data-quality page lists them.  Read-only: ``holdings`` is not
+    modified and nothing is logged for a miss.
+    """
+    transactions = _needy_transactions(owner, account, holdings, accounts_root)
+    if transactions is None:
+        return []
+    _, matches = _cost_pool_matches(holdings, transactions)
+    return [ticker for _, ticker, key in matches if key is None]
 
 
 def add_total_returns(owner: str, account: str, holdings: List[Any], accounts_root: Optional[Path] = None) -> None:

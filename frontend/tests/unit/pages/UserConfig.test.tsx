@@ -223,18 +223,23 @@ describe("UserConfig page", () => {
     ).toBeInTheDocument();
   });
 
-  it("links the subtitle to the compliance documentation", async () => {
+  it("shows the subtitle without a dead placeholder docs link (#8350)", async () => {
     mockGetOwners.mockResolvedValue([]);
     mockGetApprovals.mockResolvedValue({ approvals: [] });
 
     render(<UserConfig />);
 
-    const link = await screen.findByRole("link", {
-      name: /learn more about compliance/i,
-    });
-    expect(link).toHaveAttribute("href", "https://docs.example.com/compliance");
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(
+      await screen.findByText(
+        "The compliance rules that govern how this account can trade, and the tickers pre-approved to bypass them.",
+      ),
+    ).toBeInTheDocument();
+    // There is no published compliance documentation, so no external
+    // "learn more" link (it previously pointed at docs.example.com).
+    expect(
+      screen.queryByRole("link", { name: /learn more about compliance/i }),
+    ).not.toBeInTheDocument();
+    expect(document.querySelector('a[href*="example.com"]')).toBeNull();
   });
 
   it("hides the owner prompt once an owner is selected and labels fields with units (#7224)", async () => {

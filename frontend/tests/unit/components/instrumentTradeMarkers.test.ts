@@ -60,6 +60,14 @@ describe("matchesTicker", () => {
     expect(matchesTicker(null, "AAPL.N")).toBe(false);
     expect(matchesTicker("", "AAPL.N")).toBe(false);
   });
+
+  it("keeps share-class and unknown suffixes distinct (#7798)", () => {
+    expect(matchesTicker("BRK.A", "BRK.B")).toBe(false);
+    expect(matchesTicker("BRK.B", "BRK.B")).toBe(true);
+    expect(matchesTicker("brk.b", "BRK.B.N")).toBe(true);
+    expect(matchesTicker("FOO.XYZ", "FOO")).toBe(false);
+    expect(matchesTicker("FOO.XYZ", "FOO.XYZ")).toBe(true);
+  });
 });
 
 describe("snapToChartDate", () => {

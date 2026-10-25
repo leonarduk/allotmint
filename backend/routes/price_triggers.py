@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, NoReturn, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend import price_triggers as triggers
 from backend.auth import get_active_user
@@ -14,13 +14,22 @@ from backend.routes.alert_settings import _resolve_identity, _validate_owner
 router = APIRouter(prefix="/price-triggers", tags=["alerts"])
 
 
+def _reject_bool_price(value: Any) -> Any:
+    """Pydantic would coerce a JSON ``true`` to ``1.0``; a boolean is never a price (#8426)."""
+    if isinstance(value, bool):
+        raise ValueError("price must be a number")
+    return value
+
+
 class TriggerCreate(BaseModel):
     ticker: str
     condition: Literal["above", "below"]
     price: float = Field(gt=0)
     mode: Literal["once", "continuous"] = "once"
-    note: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=triggers.MAX_NOTE_LENGTH)
     enabled: bool = True
+
+    _price_not_bool = field_validator("price", mode="before")(_reject_bool_price)
 
 
 class TriggerUpdate(BaseModel):
@@ -28,8 +37,10 @@ class TriggerUpdate(BaseModel):
     condition: Optional[Literal["above", "below"]] = None
     price: Optional[float] = Field(default=None, gt=0)
     mode: Optional[Literal["once", "continuous"]] = None
-    note: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=triggers.MAX_NOTE_LENGTH)
     enabled: Optional[bool] = None
+
+    _price_not_bool = field_validator("price", mode="before")(_reject_bool_price)
 
 
 async def _identity(user: str, request: Request, current_user: str | None) -> str:

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.common import holdings_rebuild
 from backend.common import transaction_reconciliation as tr
 
 
@@ -209,6 +210,78 @@ def test_reconcile_corrects_cash_the_replay_cannot_explain(tmp_path: Path, monke
     assert injected[0]["ticker"] == "CASH.GBP"
     assert injected[0]["type"] == "SELL"
     assert injected[0]["units"] == pytest.approx(95.0)
+
+
+_OPENING_ROWS = [
+    {"date": "2024-01-01", "type": "TRANSFER_IN", "ticker": "CASH.GBP", "units": 1000.0},
+    {"date": "2024-01-02", "type": "BUY", "ticker": "ABC", "units": 10},
+]
+
+
+@pytest.mark.parametrize(
+    "row_type, expected_cash",
+    [("DIVIDEND", 1050.0), ("INTEREST", 1050.0), ("WITHDRAWAL", 950.0)],
+)
+@pytest.mark.parametrize("drift", [0.0, -30.0])
+def test_reconcile_replays_ticker_less_cash_movers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, row_type: str, expected_cash: float, drift: float
+):
+    # The issue behind #8209 lists dividends, interest and withdrawals as cash
+    # movers too (#8214). Major units: amount_minor 5000 moves CASH.GBP by 50.
+    monkeypatch.setattr(tr, "date", FixedDate)
+    rows = [*_OPENING_ROWS, {"date": "2024-01-03", "type": row_type, "amount_minor": 5000}]
+    assert holdings_rebuild.replay_transactions(rows).cash == pytest.approx(expected_cash)
+    tx_file = _write_account(tmp_path / "alice", expected_cash + drift, rows)
+
+    tr.reconcile_transactions_with_holdings(accounts_root=tmp_path)
+
+    injected = json.loads(tx_file.read_text())["transactions"][len(rows) :]
+    if not drift:
+        assert injected == []
+    else:
+        assert [(tx["ticker"], tx["type"]) for tx in injected] == [("CASH.GBP", "SELL")]
+        assert injected[0]["units"] == pytest.approx(-drift)
+
+
+def test_reconcile_trusts_replayed_cash_when_ticker_less_rows_net_to_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # cash_seen means "a cash-moving row was replayed", not "cash is non-zero":
+    # rows the per-ticker ledger cannot see still decide CASH.GBP (#8210).
+    monkeypatch.setattr(tr, "date", FixedDate)
+    rows = [
+        {"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 50000},
+        {"date": "2024-01-02", "type": "WITHDRAWAL", "amount_minor": 50000},
+    ]
+    replay = holdings_rebuild.replay_transactions(rows)
+    assert replay.cash_seen is True
+    assert replay.cash == pytest.approx(0.0)
+    assert tr._ledger_for({}, rows) == {"CASH.GBP": pytest.approx(0.0)}
+
+    tx_file = _write_account(
+        tmp_path / "alice", 25.0, [*rows, {"date": "2024-01-03", "type": "BUY", "ticker": "ABC", "units": 10}]
+    )
+    tr.reconcile_transactions_with_holdings(accounts_root=tmp_path)
+
+    injected = json.loads(tx_file.read_text())["transactions"][3:]
+    assert [(tx["ticker"], tx["type"], tx["units"]) for tx in injected] == [("CASH.GBP", "BUY", pytest.approx(25.0))]
+
+
+def test_reconcile_falls_back_to_the_per_ticker_ledger_without_cash_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # No cash-moving rows: the replay has no cash figure, so CASH.GBP comes from
+    # the per-ticker ledger, which has none either (#8215).
+    monkeypatch.setattr(tr, "date", FixedDate)
+    rows = [{"date": "2024-01-02", "type": "BUY", "ticker": "ABC", "units": 10, "amount_minor": 20000}]
+    assert holdings_rebuild.replay_transactions(rows).cash_seen is False
+    assert tr._ledger_for({}, rows) == {"ABC": pytest.approx(10.0)}
+
+    tx_file = _write_account(tmp_path / "alice", 0.0, rows)
+    before = tx_file.read_text()
+    tr.reconcile_transactions_with_holdings(accounts_root=tmp_path)
+
+    assert tx_file.read_text() == before
 
 
 def test_reconcile_skips_owner_metadata_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

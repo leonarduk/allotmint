@@ -2144,7 +2144,6 @@
     "fixErrors": "Correggi i campi evidenziati prima di salvare.",
     "approvalsSessionExpired": "La tua sessione è scaduta. Accedi di nuovo per gestire le approvazioni.",
     "avatarAlt": "avatar utente",
-    "complianceDocsLink": "Scopri di più sulla conformità",
     "dateColumn": "Data",
     "loadApprovalsFailed": "Impossibile caricare le approvazioni",
     "removeApprovalFailed": "Impossibile rimuovere l'approvazione"
@@ -3031,6 +3030,7 @@
     "realisedGainLoss": "Utile/perdita realizzati:",
     "excludesUnknownSales_one": "(esclude {{count}} vendita con costo sconosciuto)",
     "excludesUnknownSales_other": "(esclude {{count}} vendite con costo sconosciuto)",
+    "realisedGainCaveat": "La plusvalenza realizzata usa il pool a costo medio della Section 104. Le regole di abbinamento HMRC dello stesso giorno e dei 30 giorni (bed-and-breakfast) non sono applicate, quindi è una stima, non un calcolo fiscale.",
     "income": "Reddito:",
     "fees": "Commissioni:",
     "loadManualFailed": "Impossibile caricare le posizioni manuali.",

@@ -33,6 +33,7 @@ import logging
 import os
 import re
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,6 +60,8 @@ MAX_TITLE_CHARS = 120
 _DERIVED_TITLE_CHARS = 60
 # The most archived conversations listed, newest first.
 MAX_LISTED = 100
+# Concurrent reads when listing; below boto3's default pool of 10 connections.
+_LIST_READ_WORKERS = 8
 
 
 class ChatHistoryUnavailable(Exception):
@@ -498,8 +501,12 @@ def list_conversations(email: str, store: Optional[ChatStore] = None) -> List[Di
         summaries.append(_summary(CURRENT_ID, current))
     prefix = f"{user}/{ARCHIVE_DIR}/"
     names = (key[len(prefix) :].removesuffix(".json") for key in store.list_keys(prefix))
-    for chat_id in sorted((n for n in names if _ARCHIVE_ID.fullmatch(n)), reverse=True)[:MAX_LISTED]:
-        stored = store.read(_key_for(user, chat_id))
+    chat_ids = sorted((n for n in names if _ARCHIVE_ID.fullmatch(n)), reverse=True)[:MAX_LISTED]
+    # Read concurrently: up to MAX_LISTED sequential S3 GETs made History slow
+    # (#9023). map() keeps the order, and a failed read still fails the list.
+    with ThreadPoolExecutor(max_workers=_LIST_READ_WORKERS) as pool:
+        stored_docs = list(pool.map(lambda chat_id: store.read(_key_for(user, chat_id)), chat_ids))
+    for chat_id, stored in zip(chat_ids, stored_docs):
         if stored is not None:  # None: deleted since it was listed
             summaries.append(_summary(chat_id, _decode(stored)))
     return summaries

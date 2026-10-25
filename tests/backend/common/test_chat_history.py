@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import threading
 from pathlib import Path
 
 import boto3
@@ -370,6 +371,45 @@ def test_list_shows_current_then_archived_newest_first(store) -> None:
     ]
     assert all(c["updated_at"] for c in chats)
     assert ch.list_conversations(BOB, store) == []
+
+
+def test_list_reads_archived_conversations_concurrently_and_keeps_the_order(store, monkeypatch) -> None:
+    """#9023: archived reads overlap instead of running one after another."""
+    for revision, text in ((0, "a"), (2, "b"), (4, "c")):
+        ch.save_conversation(ALICE, _conversation(text), revision, store)
+        ch.archive_conversation(ALICE, store)
+    real_read = store.read
+    # Every archived read waits for the others, so sequential reads would time out.
+    all_in_flight = threading.Barrier(3, timeout=5)
+
+    def overlapping_read(key):
+        if "/archive/" in key:
+            all_in_flight.wait()
+        return real_read(key)
+
+    monkeypatch.setattr(store, "read", overlapping_read)
+
+    assert [(c["id"], c["title"]) for c in ch.list_conversations(ALICE, store)] == [
+        ("r00000005", "c"),
+        ("r00000003", "b"),
+        ("r00000001", "a"),
+    ]
+
+
+def test_list_fails_when_an_archived_read_fails(store, monkeypatch) -> None:
+    ch.save_conversation(ALICE, _conversation("a"), 0, store)
+    ch.archive_conversation(ALICE, store)
+    real_read = store.read
+
+    def failing_read(key):
+        if "/archive/" in key:
+            raise ch.ChatHistoryUnavailable("S3 read failed")
+        return real_read(key)
+
+    monkeypatch.setattr(store, "read", failing_read)
+
+    with pytest.raises(ch.ChatHistoryUnavailable):
+        ch.list_conversations(ALICE, store)
 
 
 def test_list_leaves_out_an_empty_current_conversation(store) -> None:

@@ -49,6 +49,14 @@ def _meta(name, instrument_type=None, sector=None, **extra):
         (_meta("Some Bond Fund", "MUTUALFUND", "Municipal"), "bond", None),
         # "High Dividend Yield" names an equity income fund, not high-yield bonds.
         (_meta("Vanguard FTSE All-World High Dividend Yield UCITS ETF", "ETF", "Financials"), "equity", "Multi-sector"),
+        # Nor do "High Yield Dividend" / "High Yield Equity" names (#11073).
+        (
+            _meta("SPDR S&P US High Yield Dividend Aristocrats UCITS ETF", "ETF", "Financials"),
+            "equity",
+            "Multi-sector",
+        ),
+        (_meta("Some High Yield Equity Fund", "MUTUALFUND", None), "equity", "Multi-sector"),
+        (_meta("Some Global High Yield Fund", "MUTUALFUND", None), "bond", "Fixed Income"),
         (_meta("WisdomTree Physical Gold (GBP)", "Equity", "Materials"), "commodity", "Commodities"),
         (_meta("WisdomTree Energy", "ETF", "Commodities - Energy"), "commodity", None),
         (

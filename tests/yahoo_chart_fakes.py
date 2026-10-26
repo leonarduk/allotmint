@@ -32,3 +32,5 @@ class FakeChartTicker:
 
     def get_history_metadata(self) -> Dict[str, Any]:
         return self._metadata
+
+# Automated fix for issue #11091: Deploys fail after BackendLambdaStack passed 100 resources: list-stack-resources lookups return "<name>\nNone"

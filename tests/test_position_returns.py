@@ -405,3 +405,48 @@ def test_yield_pct_unknown_without_market_value():
     holding = {"ticker": "KO.N", "market_value_gbp": None, "gain_gbp": None}
     apply_total_return(holding, position_returns(TXS, as_of=date(2023, 3, 1))["KO.N"])
     assert holding["yield_pct"] is None
+
+
+def test_bot_estimates_never_cut_the_full_history_estimate_short(gbx):
+    """An estimate the HL sweep doesn't cover yet still reaches the holding's income (#11086).
+
+    The bot's row is skipped as recorded income; the full-history estimate
+    over the same stored ex-dates includes it, plus every earlier dividend
+    the bot never recorded.
+    """
+    series = _dividends(("2025-07-03", 2.5), ("2025-11-20", 2.15))
+    uncovered_estimate = {
+        "date": "2025-11-20",
+        "ticker": "REC.L",
+        "type": "DIVIDEND",
+        "amount_minor": 12900,
+        "reason": "Automated dividend import",
+        "estimated": True,
+    }
+    holding = _attach(
+        {"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0},
+        [*HL_TXS, uncovered_estimate],
+        series,
+    )
+    # Not just the bot's £129: the July dividend before it too.
+    assert holding["income_gbp"] == pytest.approx(125.0 + 129.0)
+    assert holding["income_estimated"] is True
+
+
+def test_bot_estimates_are_the_income_when_no_dividend_history_is_stored(gbx):
+    """With nothing to estimate from, the bot's rows are the only record (#11086)."""
+    estimate = {
+        "date": "2025-11-20",
+        "ticker": "REC.L",
+        "type": "DIVIDEND",
+        "amount_minor": 12900,
+        "reason": "Automated dividend import",
+        "estimated": True,
+    }
+    holding = {"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}
+    attach_total_returns(
+        [holding], [*HL_TXS, estimate], lambda ticker, keys: ticker if ticker in keys else None, lambda s, e: None
+    )
+
+    assert holding["income_gbp"] == pytest.approx(129.0)
+    assert holding["income_estimated"] is True

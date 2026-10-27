@@ -278,3 +278,26 @@ def test_matching_is_deterministic():
 
     assert first == second
     assert [d.date for d in first[1]] == sorted(d.date for d in first[1])
+
+
+def test_refresh_bot_dividend_estimates_are_not_broker_rows():
+    """No statement lists the bot's estimates: neither missing rows nor cash (#11086)."""
+    ledger = [
+        DEPOSIT,
+        {**BUY_NO_FEE, "fees": 11.95},
+        {"id": "alice:isa:2", "date": "2026-03-31", "type": "INTEREST", "amount_minor": 250},
+        {
+            "id": "alice:isa:3",
+            "date": "2026-02-12",
+            "type": "DIVIDEND",
+            "ticker": "BP.L",
+            "amount_minor": 1234,
+            "reason": "Automated dividend import",
+            "estimated": True,
+        },
+    ]
+
+    matched, diffs, _ = _reconcile(_extraction(), ledger, trade_cash=True)
+
+    assert diffs == []
+    assert len(matched) == 3

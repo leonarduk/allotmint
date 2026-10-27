@@ -34,6 +34,7 @@ from backend import report_periodic
 from backend.common import ledger_performance, portfolio_utils
 from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX
 from backend.common.data_providers import PLOTS_PREFIX
+from backend.common.dividend_attribution import is_attribution_only
 from backend.common.instrument_classification import ASSET_CLASS_LABELS, canonical_asset_class
 from backend.common.realised_gains import compute_disposal_gains
 from backend.logging_setup import sanitise_log_value
@@ -1972,7 +1973,7 @@ def _compile_summary(
                 realized += float(gain)
             else:
                 unknown_cost_sells += 1
-        elif typ in {"DIVIDEND", "INTEREST"}:
+        elif typ in {"DIVIDEND", "INTEREST"} and not is_attribution_only(t):
             income += float(t.get("amount_minor") or 0.0) / 100.0
 
     perf = portfolio_utils.compute_owner_performance(owner)

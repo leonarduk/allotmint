@@ -3040,7 +3040,9 @@
     "unattributedHelp": "Pagos de dividendos registrados sin ticker, p. ej. transferencias desde una cuenta de rentas.",
     "noHistory": "Sin dividendos registrados",
     "holdingsUnavailable": "No se pudieron cargar las posiciones actuales, así que no se muestran las posiciones sin dividendos.",
-    "skippedNoAmount": "Filas de dividendos excluidas de estos totales por no tener importe: {{count}}."
+    "skippedNoAmount": "Filas de dividendos excluidas de estos totales por no tener importe: {{count}}.",
+    "attributionOnlyNote": "Las posiciones marcadas como est. incluyen dividendos estimados cuyo efectivo ya se cuenta en \"Sin posición asociada\" (las transferencias de ingresos de su bróker), por lo que no se suman dos veces a los totales.",
+    "estimatedMarker": "est."
   },
   "dividendHistory": {
     "trendAria": "Tendencia de dividendos",

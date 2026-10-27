@@ -3033,7 +3033,9 @@
     "unattributedHelp": "Dividend payments recorded without a ticker, e.g. transfers from an income account.",
     "noHistory": "No dividends recorded",
     "holdingsUnavailable": "Current holdings could not be loaded, so holdings without dividends are not listed.",
-    "skippedNoAmount": "Dividend rows left out of these totals because they have no amount: {{count}}."
+    "skippedNoAmount": "Dividend rows left out of these totals because they have no amount: {{count}}.",
+    "attributionOnlyNote": "Holdings marked est. include estimated dividends whose cash is already counted in \"Not linked to a holding\" (your broker's income transfers), so they are not added to the totals twice.",
+    "estimatedMarker": "est."
   },
   "dividendHistory": {
     "trendAria": "Dividend trend",

@@ -103,7 +103,7 @@ describe("InstrumentDetail", () => {
     const separator = await screen.findByRole("separator", {
       name: "Resize instrument details",
     });
-    expect(separator.parentElement).toHaveStyle({ zIndex: "1000", background: "#111" });
+    expect(separator.parentElement).toHaveStyle({ zIndex: "1000", backgroundColor: "#111" });
   });
 
   it.each([

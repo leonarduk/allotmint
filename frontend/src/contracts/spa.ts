@@ -159,6 +159,8 @@ export const transactionContractSchema = z
     reason: nullableString,
     reason_to_buy: nullableString,
     synthetic: z.boolean().optional().default(false),
+    estimated: z.boolean().optional().default(false),
+    attribution_only: z.boolean().optional().default(false),
     instrument_name: nullableString,
     realised_gain_gbp: nullableNumber,
     cost_basis_gbp: nullableNumber,

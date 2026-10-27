@@ -1592,3 +1592,43 @@ def test_app_env_aws_does_not_leak(
     # After the test exits monkeypatch reverts.  Other tests that rely on
     # the default ``app_env`` act as a regression guard.
     assert original is not None or original is None  # any value is fine
+
+
+def test_dividends_endpoint_returns_attribution_flags(tmp_path, monkeypatch):
+    """The Dividends page needs the flags to keep covered estimates out of totals (#11086)."""
+    client = _make_client(tmp_path, monkeypatch)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    rows = [
+        {"date": "2026-08-10", "type": "DIVIDEND", "amount_minor": 160815, "comments": "Transfer from Income Account"},
+        {
+            "date": "2026-07-16",
+            "type": "DIVIDEND",
+            "ticker": "SEGA.L",
+            "amount_minor": 49497,
+            "reason": "Automated dividend import",
+            "estimated": True,
+            "attribution_only": True,
+        },
+    ]
+    (owner_dir / "ISA_transactions.json").write_text(
+        json.dumps({"owner": "alice", "account_type": "ISA", "transactions": rows})
+    )
+
+    divs = {d["date"]: d for d in client.get("/dividends").json()}
+
+    assert divs["2026-07-16"]["attribution_only"] is True
+    assert divs["2026-07-16"]["estimated"] is True
+    assert divs["2026-08-10"]["attribution_only"] is False
+
+
+def test_create_transaction_ignores_bot_only_flags(tmp_path, monkeypatch):
+    """Only the dividend refresh bot sets estimated/attribution_only (#11086)."""
+    client = _make_client(tmp_path, monkeypatch)
+    payload = {**_valid_payload(type="DIVIDEND"), "amount_minor": 500, "estimated": True, "attribution_only": True}
+
+    assert client.post("/transactions", json=payload).status_code == 201
+
+    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"][0]
+    assert "estimated" not in stored
+    assert "attribution_only" not in stored

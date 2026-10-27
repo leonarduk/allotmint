@@ -1130,6 +1130,12 @@
               "default": false,
               "type": "boolean"
             },
+            "estimated": {
+              "type": "boolean"
+            },
+            "attribution_only": {
+              "type": "boolean"
+            },
             "instrument_name": {
               "type": [
                 "string",

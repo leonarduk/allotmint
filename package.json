@@ -3,9 +3,9 @@
   "version": "0.0.2",
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",
-    "aws-cdk": "2.1145.0",
+    "aws-cdk": "2.1146.1",
     "concurrently": "^10.0.6",
-    "postcss": "^8.5.30",
+    "postcss": "^8.5.31",
     "tsx": "^4.23.15"
   },
   "dependencies": {

@@ -234,6 +234,9 @@ class TransactionContract(SpaContractBase):
     reason: str | None = None
     reason_to_buy: str | None = None
     synthetic: bool = False
+    # Dividend refresh estimate / covered by booked income (#11086).
+    estimated: bool = False
+    attribution_only: bool = False
     instrument_name: str | None = None
     realised_gain_gbp: float | None = None
     cost_basis_gbp: float | None = None

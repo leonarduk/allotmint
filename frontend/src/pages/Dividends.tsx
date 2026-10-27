@@ -158,6 +158,15 @@ export default function Dividends() {
             </p>
           )}
 
+          {summary.attributionOnly > 0 && (
+            <p role="note" data-testid="dividends-attribution-only">
+              {t(
+                'dividends.attributionOnlyNote',
+                'Holdings marked est. include estimated dividends whose cash is already counted in "Not linked to a holding" (your broker\'s income transfers), so they are not added to the totals twice.'
+              )}
+            </p>
+          )}
+
           {summary.payments === 0 ? (
             <p>{t('dividends.empty')}</p>
           ) : (
@@ -227,6 +236,15 @@ export default function Dividends() {
                         {row.ticker}
                         {row.name && (
                           <span style={{ opacity: 0.7 }}> — {row.name}</span>
+                        )}
+                        {row.includesAttributionOnly && (
+                          <span
+                            data-testid="dividends-estimated-marker"
+                            style={{ opacity: 0.7 }}
+                          >
+                            {' '}
+                            {t('dividends.estimatedMarker', 'est.')}
+                          </span>
                         )}
                       </>
                     ) : (

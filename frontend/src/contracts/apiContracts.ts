@@ -192,6 +192,10 @@ export const transactionContractSchema = z.object({
   // breaking the transactions view.  The .default(false) keeps callers
   // receiving a boolean without needing to handle undefined.
   synthetic: z.boolean().default(false),
+  // A dividend refresh estimate, and whether booked income covers it (#11086);
+  // stripped by Zod without these, so the Dividends page would double count.
+  estimated: z.boolean().optional(),
+  attribution_only: z.boolean().optional(),
   instrument_name: nullableString.optional(),
   // Realised-gain fields the backend attaches to SELL rows.  They must be
   // declared here or Zod strips them, and the transactions summary then

@@ -36,6 +36,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 from backend.common.cash_tickers import is_cash_ticker
+from backend.common.dividend_attribution import is_estimated_dividend
 from backend.common.estimated_income import DividendLoader, UnitChanges, estimated_income_gbp, unit_changes
 from backend.common.holdings_rebuild import (
     CASH_TICKER,
@@ -67,6 +68,11 @@ class PositionReturn:
     income_rows: int = 0
     income_estimated: bool = False
     trailing_income_gbp: float = 0.0
+    # Dividend refresh estimates (#11086): kept apart from recorded income and
+    # used only when no full-history estimate can be made.
+    bot_income_gbp: float = 0.0
+    bot_trailing_income_gbp: float = 0.0
+    bot_rows: int = 0
     realised_gain_gbp: float = 0.0
     disposed_cost_gbp: float = 0.0
     realised_known: bool = True
@@ -115,10 +121,21 @@ def position_returns(
         if key is None or key == CASH_TICKER or amount is None:
             continue
         entry = results.setdefault(key, PositionReturn())
+        paid = _tx_date(tx)
+        in_window = paid is not None and window_start < paid <= as_of
+        if is_estimated_dividend(tx):
+            # Refresh-bot estimates cover only the months since it started;
+            # counted as recorded income they would suppress the full-history
+            # estimate in attach_total_returns, so they are only its fallback
+            # (#11086).
+            entry.bot_income_gbp += amount
+            entry.bot_rows += 1
+            if in_window:
+                entry.bot_trailing_income_gbp += amount
+            continue
         entry.income_gbp += amount
         entry.income_rows += 1
-        paid = _tx_date(tx)
-        if paid is not None and window_start < paid <= as_of:
+        if in_window:
             entry.trailing_income_gbp += amount
 
     def record(disposal: Disposal) -> None:
@@ -193,16 +210,35 @@ def _with_estimated_income(
 
     Uses the same ``as_of`` and trailing window as :func:`position_returns`.
     """
-    if (entry is not None and entry.income_rows) or not changes:
+    if entry is not None and entry.income_rows:
         return entry
-    since = as_of - timedelta(days=TRAILING_YIELD_DAYS)
-    estimate = estimated_income_gbp(ticker, changes, load_dividends=load_dividends, today=as_of, trailing_since=since)
+    estimate = None
+    if changes:
+        since = as_of - timedelta(days=TRAILING_YIELD_DAYS)
+        estimate = estimated_income_gbp(
+            ticker, changes, load_dividends=load_dividends, today=as_of, trailing_since=since
+        )
     if estimate is None or not estimate.total_gbp:
-        return entry
+        return _with_bot_income(entry)
     entry = replace(entry) if entry is not None else PositionReturn()
     entry.income_gbp = estimate.total_gbp
     # The trailing yield (#7019) comes from the same estimate, over its window.
     entry.trailing_income_gbp = estimate.trailing_gbp
+    entry.income_estimated = True
+    return entry
+
+
+def _with_bot_income(entry: Optional[PositionReturn]) -> Optional[PositionReturn]:
+    """``entry`` with the dividend refresh estimates as its (estimated) income, if it has any.
+
+    The fallback when no stored dividend history can estimate the position:
+    the bot's rows are then the only record of its dividends (#11086).
+    """
+    if entry is None or not entry.bot_rows:
+        return entry
+    entry = replace(entry)
+    entry.income_gbp = entry.bot_income_gbp
+    entry.trailing_income_gbp = entry.bot_trailing_income_gbp
     entry.income_estimated = True
     return entry
 

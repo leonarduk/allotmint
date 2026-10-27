@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, get_args
 
 from backend.common import holdings_rebuild
+from backend.common.dividend_attribution import is_estimated_dividend
 from backend.common.ticker_utils import canonical_ticker
 from backend.common.transaction_reconciliation import _transactions_to_positions
 from backend.reconciliation.models import (
@@ -509,6 +510,9 @@ def reconcile(
     """
     ctx = _Context(owner, account, dict(isin_to_ticker or {}), timedelta(days=date_tolerance_days))
     warnings: List[str] = []
+    # Refresh-bot dividend estimates are not broker records: no statement lists
+    # them, so they would only show as missing rows and skew the cash (#11086).
+    ledger_transactions = [tx for tx in ledger_transactions if not is_estimated_dividend(tx)]
     ledger = [LedgerRow.from_tx(tx) for tx in ledger_transactions]
     matched, diffs, used = _pair_rows(extraction, ledger, ctx)
 

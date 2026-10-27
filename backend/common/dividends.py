@@ -26,6 +26,11 @@ Design notes / known v1 limitations
   ticker, only dividends declared within the last ``_DEFAULT_LOOKBACK_DAYS``
   days are imported (not full history), to avoid surprise historical backfill
   on the first scheduled run for an existing holding.
+* Booked income wins: an account whose broker books dividends as ticker-less
+  sweeps (HL's "Transfer from Income Account") already holds this cash, so
+  rows written here are marked ``estimated`` and, once a booked row covers
+  their date, ``attribution_only`` (:mod:`backend.common.dividend_attribution`,
+  #11086). They then only attribute income to holdings.
 * Provider: v1 uses yfinance only. The issue's Alpha Vantage fallback is
   deferred — Alpha Vantage's free tier is heavily rate-limited per-key, which
   doesn't suit a job that queries every held ticker on a schedule, and
@@ -46,6 +51,7 @@ import yfinance as yf
 from backend.common.accounts_store import LocalAccountsStore, S3AccountsStore
 from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
+from backend.common.dividend_attribution import ESTIMATED_DIVIDEND_REASON, ESTIMATED_KEY, mark_attribution_only
 from backend.common.instruments import get_instrument_meta
 from backend.common.portfolio_loader import get_units_as_of
 from backend.config import config
@@ -191,6 +197,7 @@ def refresh_dividends() -> Dict[str, Any]:
         "tickers_processed": 0,
         "dividends_created": 0,
         "skipped_tickers": [],
+        "attribution_only_changed": 0,
     }
 
     accounts = [(owner, account) for owner, account, _ in store.iter_transaction_documents()]
@@ -249,7 +256,8 @@ def refresh_dividends() -> Dict[str, Any]:
                             "date": decl["ex_date"],
                             "amount_minor": amount_minor,
                             "currency": "GBP",
-                            "reason": "Automated dividend import",
+                            "reason": ESTIMATED_DIVIDEND_REASON,
+                            ESTIMATED_KEY: True,
                             "comments": (
                                 f"{ticker} dividend {decl['amount_per_share']:.4f}/share "
                                 f"x {units_as_of_ex_date:g} units"
@@ -258,6 +266,10 @@ def refresh_dividends() -> Dict[str, Any]:
                     )
                     existing_keys.add(key)
                     summary["dividends_created"] += 1
+
+            # An estimate the account's booked income already covers must not
+            # count twice (#11086); this also picks up booked rows added by hand.
+            summary["attribution_only_changed"] += mark_attribution_only(transactions)
 
         store.rebuild_portfolio(owner, account)
 

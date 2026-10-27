@@ -123,6 +123,8 @@ def test_compile_report_filters_and_totals(monkeypatch):
         {"date": "2024-01-02", "type": "SELL", "amount_minor": 50000, "realised_gain_gbp": -4.5},
         {"date": "2024-01-03", "type": "SELL", "amount_minor": 70000, "realised_gain_gbp": None},
         {"date": "2024-01-03", "type": "DIVIDEND", "amount_minor": 500},
+        # An estimate the booked dividend above already covers: not income (#11086).
+        {"date": "2024-01-03", "type": "DIVIDEND", "ticker": "X.L", "amount_minor": 480, "attribution_only": True},
         {"date": "2024-01-04", "type": "INTEREST", "amount_minor": 300},
     ]
 

@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Callable, Mapping, Sequence
 
+from backend.common.dividend_attribution import is_attribution_only
 from backend.common.ticker_utils import canonical_ticker
 from backend.logging_setup import sanitise_log_value
 
@@ -358,7 +359,8 @@ def replay_transactions(
                     logger.warning("Skipping %s with neither ticker nor instrument_name", sanitise_log_value(tx_type))
                 continue
             _apply_trade(replay, idx, tx, tx_type, key, trade_cash)
-        elif tx_type in cash_signs:
+        elif tx_type in cash_signs and not is_attribution_only(tx):
+            # An estimate covered by booked income is not cash (#11086).
             _apply_cash(replay, tx, cash_signs[tx_type])
     return replay
 

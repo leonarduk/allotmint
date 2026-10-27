@@ -269,6 +269,26 @@ def test_compute_time_weighted_return_without_ledger_uses_holdings_series(monkey
     assert pu.compute_time_weighted_return("owner") == pytest.approx(0.10)
 
 
+def test_series_fallback_ignores_attribution_only_dividends(monkeypatch, ledger_owner, portfolio_series):
+    """A covered estimate is neither a return nor a flow on the fallback path (#11086)."""
+    ledger_owner([], {})
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda owner, days=365, *, pricing_date=None, **_: portfolio_series,
+    )
+    estimate = {
+        "date": "2024-01-02",
+        "type": "DIVIDEND",
+        "ticker": "X.L",
+        "amount_minor": 2000,
+        "attribution_only": True,
+    }
+    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: [estimate])
+
+    assert pu.compute_time_weighted_return("owner") == pytest.approx(0.10)
+
+
 @pytest.fixture
 def one_year_series():
     start = date(2024, 1, 1)

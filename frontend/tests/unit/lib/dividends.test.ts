@@ -141,6 +141,48 @@ describe('summariseDividends', () => {
   });
 });
 
+describe('summariseDividends with booked income sweeps (#11086)', () => {
+  const rows = [
+    div({ date: '2026-08-10', amount_minor: 160815 }),
+    div({
+      date: '2026-07-16',
+      ticker: 'SEGA.L',
+      amount_minor: 49497,
+      estimated: true,
+      attribution_only: true,
+    }),
+    div({
+      date: '2026-09-17',
+      ticker: 'VHYL.L',
+      amount_minor: 16444,
+      estimated: true,
+    }),
+  ];
+
+  it('keeps covered estimates out of every total, period and payment count', () => {
+    const summary = summariseDividends(rows, { period: 'month', now: NOW });
+
+    expect(summary.total).toEqual({ GBP: 1608.15 + 164.44 });
+    expect(summary.trailing12m).toEqual({ GBP: 1608.15 + 164.44 });
+    expect(summary.payments).toBe(2);
+    expect(summary.attributionOnly).toBe(1);
+    expect(summary.periods.map((p) => p.period)).toEqual([
+      '2026-09',
+      '2026-08',
+    ]);
+  });
+
+  it('still attributes a covered estimate to its holding, marked as such', () => {
+    const summary = summariseDividends(rows, { period: 'month', now: NOW });
+    const sega = summary.holdings.find((h) => h.ticker === 'SEGA.L');
+    const vhyl = summary.holdings.find((h) => h.ticker === 'VHYL.L');
+
+    expect(sega?.total).toEqual({ GBP: 494.97 });
+    expect(sega?.includesAttributionOnly).toBe(true);
+    expect(vhyl?.includesAttributionOnly).toBe(false);
+  });
+});
+
 describe('holdingsFromAccounts', () => {
   it('collects distinct upper-cased tickers across accounts, skipping cash', () => {
     const accounts = [

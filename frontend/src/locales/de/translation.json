@@ -3040,7 +3040,9 @@
     "unattributedHelp": "Dividendenzahlungen ohne Ticker, z. B. Überträge von einem Ertragskonto.",
     "noHistory": "Keine Dividenden erfasst",
     "holdingsUnavailable": "Aktuelle Positionen konnten nicht geladen werden, daher fehlen Positionen ohne Dividenden.",
-    "skippedNoAmount": "Dividendenzeilen ohne Betrag, die in diesen Summen fehlen: {{count}}."
+    "skippedNoAmount": "Dividendenzeilen ohne Betrag, die in diesen Summen fehlen: {{count}}.",
+    "attributionOnlyNote": "Mit „gesch.“ markierte Positionen enthalten geschätzte Dividenden, deren Geldbetrag bereits unter „Keiner Position zugeordnet“ (Ertragsüberträge Ihres Brokers) erfasst ist; sie werden daher nicht doppelt in die Summen eingerechnet.",
+    "estimatedMarker": "gesch."
   },
   "dividendHistory": {
     "trendAria": "Dividendentrend",

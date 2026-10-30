@@ -339,6 +339,16 @@ def test_restart_stops_server_found_by_windows_lookup(env, calls, monkeypatch):
     assert calls.started == [8001]
 
 
+def test_port_listening_is_a_connect_probe():
+    with socket.socket() as listener, socket.socket() as bound_only:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        bound_only.bind(("127.0.0.1", 0))
+
+        assert mcp_process.port_listening(listener.getsockname()[1]) is True
+        assert mcp_process.port_listening(bound_only.getsockname()[1]) is False
+
+
 @pytest.mark.skipif(not mcp_process._IS_WINDOWS, reason="Get-NetTCPConnection is Windows-only")
 def test_windows_lookup_finds_real_listener_but_not_bound_socket():
     with socket.socket() as listener, socket.socket() as bound_only:

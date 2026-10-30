@@ -320,6 +320,23 @@ def test_status_reports_server_found_by_windows_lookup(env, calls, monkeypatch):
     assert body["can_restart"] is True
 
 
+def test_restart_stops_server_found_by_windows_lookup(env, calls, monkeypatch):
+    rows = [
+        {"pid": 200, "ppid": 100, "command_line": MCP_COMMAND, "started": STARTED},
+        {"pid": 100, "ppid": 50, "command_line": MCP_COMMAND, "started": STARTED},
+    ]
+    _fake_powershell(monkeypatch, json.dumps({"listeners": 200, "processes": rows}))
+    monkeypatch.setattr(mcp_process, "find_port_owners", mcp_process._windows_owners)
+    _set_launcher(monkeypatch, calls, FakeLauncher())
+
+    body = _client().post("/support/mcp-server/restart").json()
+
+    assert body["restarted"] is True, body
+    assert body["stopped_pids"] == [100, 200]
+    assert calls.stopped == [([100, 200], 8001)]
+    assert calls.started == [8001]
+
+
 @pytest.mark.skipif(not mcp_process._IS_WINDOWS, reason="Get-NetTCPConnection is Windows-only")
 def test_windows_lookup_finds_real_listener_but_not_bound_socket():
     with socket.socket() as listener, socket.socket() as bound_only:

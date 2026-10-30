@@ -301,10 +301,12 @@ def test_windows_lookup_selects_sockets_with_no_remote_end_not_by_state(monkeypa
 
 
 def test_windows_lookup_ignores_rows_when_nothing_accepts_connections(monkeypatch):
-    monkeypatch.setattr(mcp_process, "port_listening", lambda port: False)
+    probed: list[int] = []
+    monkeypatch.setattr(mcp_process, "port_listening", lambda port: probed.append(port) or False)
     spawned = _fake_powershell(monkeypatch, json.dumps({"listeners": [200], "processes": []}))
 
     assert mcp_process._windows_owners(8001) == []
+    assert probed == [8001]
     assert spawned == []
 
 
@@ -349,6 +351,15 @@ def test_windows_lookup_finds_real_listener_but_not_bound_socket():
 
     assert [owner.process.pid for owner in owners] == [os.getpid()]
     assert not_listening == []
+
+
+@pytest.mark.skipif(not mcp_process._IS_WINDOWS, reason="Get-NetTCPConnection is Windows-only")
+def test_windows_lookup_ignores_outbound_connections_ephemeral_port():
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        with socket.create_connection(listener.getsockname()) as outbound:
+            assert mcp_process._windows_owners(outbound.getsockname()[1]) == []
 
 
 @pytest.mark.parametrize(("value", "seconds"), [("05:03", 303), ("01:00:00", 3600), ("2-00:00:01", 172801)])

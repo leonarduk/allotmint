@@ -6,7 +6,9 @@ mocked: these tests must never stop or start a real MCP server.
 
 from __future__ import annotations
 
+import json
 import os
+import socket
 import time
 from pathlib import Path
 
@@ -270,6 +272,66 @@ def test_windows_lookup_rows_pair_listener_with_parent():
     assert len(owners) == 1
     assert owners[0].process.started_at == 1_700_000_000
     assert owners[0].pids_to_stop() == [100, 200]
+
+
+def _fake_powershell(monkeypatch: pytest.MonkeyPatch, stdout: str) -> list[list[str]]:
+    spawned: list[list[str]] = []
+
+    def fake_run(args: list[str]):
+        spawned.append(args)
+        return mcp_process.subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(mcp_process.shutil, "which", lambda name: f"C:/bin/{name}.exe")
+    monkeypatch.setattr(mcp_process, "_run", fake_run)
+    return spawned
+
+
+def test_windows_lookup_selects_sockets_with_no_remote_end_not_by_state(monkeypatch):
+    monkeypatch.setattr(mcp_process, "port_listening", lambda port: True)
+    row = {"pid": 200, "ppid": 50, "command_line": MCP_COMMAND, "started": 1_700_000_000}
+    spawned = _fake_powershell(monkeypatch, json.dumps({"listeners": [200], "processes": [row]}))
+
+    owners = mcp_process._windows_owners(8001)
+
+    assert [owner.process.pid for owner in owners] == [200]
+    script = spawned[0][-1]
+    assert "$_.RemotePort -eq 0" in script
+    assert "-LocalPort 8001" in script
+    assert "-State" not in script
+
+
+def test_windows_lookup_ignores_rows_when_nothing_accepts_connections(monkeypatch):
+    monkeypatch.setattr(mcp_process, "port_listening", lambda port: False)
+    spawned = _fake_powershell(monkeypatch, json.dumps({"listeners": [200], "processes": []}))
+
+    assert mcp_process._windows_owners(8001) == []
+    assert spawned == []
+
+
+def test_status_reports_server_found_by_windows_lookup(env, calls, monkeypatch):
+    row = {"pid": 200, "ppid": 50, "command_line": MCP_COMMAND, "started": STARTED}
+    _fake_powershell(monkeypatch, json.dumps({"listeners": 200, "processes": [row]}))
+    monkeypatch.setattr(mcp_process, "find_port_owners", mcp_process._windows_owners)
+
+    body = _client().get("/support/mcp-server/status").json()
+
+    assert body["running"] is True
+    assert body["pid"] == 200
+    assert body["can_restart"] is True
+
+
+@pytest.mark.skipif(not mcp_process._IS_WINDOWS, reason="Get-NetTCPConnection is Windows-only")
+def test_windows_lookup_finds_real_listener_but_not_bound_socket():
+    with socket.socket() as listener, socket.socket() as bound_only:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        bound_only.bind(("127.0.0.1", 0))
+
+        owners = mcp_process._windows_owners(listener.getsockname()[1])
+        not_listening = mcp_process._windows_owners(bound_only.getsockname()[1])
+
+    assert [owner.process.pid for owner in owners] == [os.getpid()]
+    assert not_listening == []
 
 
 @pytest.mark.parametrize(("value", "seconds"), [("05:03", 303), ("01:00:00", 3600), ("2-00:00:01", 172801)])

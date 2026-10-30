@@ -36,10 +36,13 @@ _LOOKUP_TIMEOUT_SECONDS = 30
 _IS_WINDOWS = sys.platform == "win32"
 
 # One PowerShell call returns the listening PIDs plus each one's process and
-# parent process, so a status check costs a single spawn.
+# parent process, so a status check costs a single spawn. Listeners are the
+# sockets with no remote end, not ``-State Listen``: some machines report blank
+# or wrong states in the TCP table, so a live listener can show no state at all.
 _WINDOWS_INSPECT_SCRIPT = """
 $ErrorActionPreference = 'Stop'
-$owners = @(Get-NetTCPConnection -State Listen -LocalPort {port} -ErrorAction SilentlyContinue |
+$owners = @(Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue |
+  Where-Object {{ $_.RemotePort -eq 0 }} |
   Select-Object -ExpandProperty OwningProcess -Unique)
 $procs = foreach ($id in $owners) {{
   $p = Get-CimInstance Win32_Process -Filter "ProcessId=$id"
@@ -103,6 +106,10 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
 
 
 def _windows_owners(port: int) -> list[PortOwner]:
+    # Bound-only sockets and outbound connections' ephemeral ports also have
+    # rows with no remote end, so a row alone doesn't prove anything listens.
+    if not port_listening(port):
+        return []
     powershell = shutil.which("powershell") or shutil.which("pwsh")
     if not powershell:
         raise McpProcessError("PowerShell not found; cannot see which process holds the port.")

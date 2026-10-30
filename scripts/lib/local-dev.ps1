@@ -123,3 +123,29 @@ function Get-PortStopPlan([int[]]$Listeners, [object[]]$Processes, [string]$Mark
   }
   return [pscustomobject]@{ Pids = @($pids); Foreign = @($foreign) }
 }
+
+# PIDs of a service that may hold no socket: its launcher, still installing or
+# left open after a crash, and its server, which can still be in startup (the
+# MCP server binds its port only once that finishes). Matched on how they were
+# started, not on a mention of the path, so an editor or search that names the
+# script is left alone. $ServerPattern is a regex for the uvicorn app, if any.
+function Get-UnboundProcesses([object[]]$Processes, [string]$ScriptPath, [string]$ServerPattern, [int]$Port) {
+  $pattern = "-File\s+`"?$([regex]::Escape($ScriptPath))"
+  if ($ServerPattern) { $pattern += "|-m\s+uvicorn\s+$ServerPattern\s.*--port\s+$Port\b" }
+  return @($Processes | Where-Object { $_.CommandLine -match $pattern } | ForEach-Object { [int]$_.ProcessId })
+}
+
+# $Id and every process above it in the snapshot, which must survive a restart:
+# stopping the shell that started the script would take the script down with it.
+function Get-SelfAndAncestors([int]$Id, [object[]]$Processes) {
+  $byId = @{}
+  foreach ($process in $Processes) { $byId[[int]$process.ProcessId] = $process }
+  $chain = [System.Collections.Generic.List[int]]::new()
+  $current = $Id
+  while (-not $chain.Contains($current)) {
+    $chain.Add($current)
+    if (-not $byId.ContainsKey($current)) { break }
+    $current = [int]$byId[$current].ParentProcessId
+  }
+  return @($chain)
+}

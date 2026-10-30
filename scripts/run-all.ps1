@@ -33,7 +33,10 @@ function Get-McpPort {
   }
   $port = if ($env:MCP_SERVER_PORT) { $env:MCP_SERVER_PORT } else { '8001' }
   if ($env:MCP_SERVER_URL) {
-    if ($env:MCP_SERVER_URL -notmatch '^http://(localhost|127\.0\.0\.1)(:(\d+))?(/|$)') { return $null }
+    if ($env:MCP_SERVER_URL -notmatch '^http://(localhost|127\.0\.0\.1)(:(\d+))?(/|$)') {
+      Write-Host "MCP_SERVER_URL ($env:MCP_SERVER_URL) is not plain-HTTP localhost; skipping the MCP server." -ForegroundColor Yellow
+      return $null
+    }
     $port = if ($matches[3]) { $matches[3] } else { '80' }
   }
   if (-not (Test-ValidPort $port)) { throw "Invalid MCP server port '$port' (from MCP_SERVER_PORT or MCP_SERVER_URL; expected 1-65535)." }
@@ -47,15 +50,6 @@ function Get-Listeners([int]$Port) {
   return @(Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
     Where-Object { $_.RemotePort -eq 0 } |
     Select-Object -ExpandProperty OwningProcess -Unique)
-}
-
-# Processes of $Service that hold no socket yet or no longer do: a launcher from
-# this checkout still installing, or left open after a crash, and a server still
-# in startup (the MCP server binds its port only once that finishes).
-function Get-UnboundProcesses([object]$Service, [object[]]$Processes) {
-  $scriptPath = [regex]::Escape((Join-Path $SCRIPT_DIR $Service.Script))
-  $pattern = "$scriptPath|(?:$($Service.Marker)).*--port\s+$($Service.Port)\b"
-  return @($Processes | Where-Object { $_.CommandLine -match $pattern } | ForEach-Object { [int]$_.ProcessId })
 }
 
 function Wait-ForPort([int]$Port, [bool]$Listening, [int]$TimeoutSeconds) {
@@ -76,6 +70,7 @@ if ($mcpPort) {
   $services += [pscustomobject]@{
     Name = 'MCP server'; Port = $mcpPort; Url = "http://localhost:$mcpPort/mcp"
     Script = 'run-mcp-server.ps1'; Arguments = @('-Port', $mcpPort); TimeoutSeconds = 300
+    Server = 'allotmint_pro\.mcp_server\.app:app'
     Marker = 'allotmint_pro\.mcp_server\.app:app|run-mcp-server\.(ps1|sh)|--multiprocessing-fork'
   }
 }
@@ -83,27 +78,31 @@ $backendPort = Get-BackendPort
 $services += [pscustomobject]@{
   Name = 'Backend'; Port = $backendPort; Url = "http://localhost:$backendPort"
   Script = 'run-backend.ps1'; Arguments = @(); TimeoutSeconds = 600
+  Server = 'backend\.local_api\.main:app'
   Marker = 'backend\.local_api\.main:app|run-backend\.ps1|run-local-api\.sh|--multiprocessing-fork'
 }
 $services += [pscustomobject]@{
   Name = 'Frontend'; Port = 2568; Url = 'http://localhost:2568'
   Script = 'run-frontend.ps1'; Arguments = @(); TimeoutSeconds = 300
+  Server = $null
   Marker = '\bvite\b|\brun dev\b|run-frontend\.(ps1|sh)'
 }
 
 # Check every port before stopping anything, so a foreign process cannot leave
 # the stack half stopped.
 $processes = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, CommandLine)
+$protected = Get-SelfAndAncestors $PID $processes
 $toStop = @()
 $blocked = $false
 foreach ($service in $services) {
-  $found = @(Get-Listeners $service.Port) + @(Get-UnboundProcesses $service $processes)
+  $unbound = Get-UnboundProcesses $processes (Join-Path $SCRIPT_DIR $service.Script) $service.Server $service.Port
+  $found = @(Get-Listeners $service.Port) + @($unbound)
   $plan = Get-PortStopPlan -Listeners $found -Processes $processes -Marker $service.Marker
   foreach ($process in $plan.Foreign) {
     Write-Host "Port $($service.Port) ($($service.Name)) is held by something else, pid $($process.ProcessId): $($process.CommandLine)" -ForegroundColor Red
     $blocked = $true
   }
-  $toStop += @($plan.Pids | Where-Object { $_ -ne $PID })
+  $toStop += @($plan.Pids | Where-Object { $protected -notcontains $_ })
 }
 if ($blocked) {
   Write-Host 'Nothing was stopped or started. Stop that process and run this again.' -ForegroundColor Red

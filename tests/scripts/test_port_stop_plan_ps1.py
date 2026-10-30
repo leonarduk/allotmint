@@ -1,8 +1,8 @@
-"""Tests for Get-PortStopPlan in scripts/lib/local-dev.ps1 (run-all.ps1).
+"""Tests for the process selection helpers in scripts/lib/local-dev.ps1 (run-all.ps1).
 
-The plan decides which processes run-all.ps1 kills, so these pin that an
-unrelated listener or shell is never in it. Skipped where no launchable
-PowerShell is available.
+These decide which processes run-all.ps1 kills, so they pin that an unrelated
+listener or shell is never selected. Skipped where no launchable PowerShell is
+available.
 """
 
 import json
@@ -57,3 +57,54 @@ def test_dead_listener_is_judged_by_the_child_holding_its_socket():
 
 def test_dead_listener_with_no_children_is_foreign():
     assert _plan([99], ALL) == {"pids": [], "foreign": [99]}
+
+
+LAUNCHER_PATH = r"D:\repo\scripts\run-backend.ps1"
+SERVER = r"backend\.local_api\.main:app"
+
+
+def _unbound(command_line: str) -> list[int]:
+    script = (
+        f". '{LIB}'; "
+        "$processes = @($env:TEST_PROCESSES | ConvertFrom-Json) | ForEach-Object { $_ }; "
+        f"ConvertTo-Json -Compress @(Get-UnboundProcesses $processes '{LAUNCHER_PATH}' '{SERVER}' 6468)"
+    )
+    process = {"ProcessId": 7, "ParentProcessId": 1, "CommandLine": command_line}
+    env = {**os.environ, "TEST_PROCESSES": json.dumps([process])}
+    return json.loads(_run_powershell(script, env=env).stdout)
+
+
+@pytest.mark.parametrize(
+    "command_line",
+    [
+        rf'pwsh.exe -NoExit -NoProfile -ExecutionPolicy Bypass -File "{LAUNCHER_PATH}"',
+        rf"powershell -File {LAUNCHER_PATH}",
+        "python.exe -m uvicorn backend.local_api.main:app --reload-dir backend --port 6468 --app-dir .",
+    ],
+)
+def test_launcher_and_server_are_found_without_a_socket(command_line):
+    assert _unbound(command_line) == [7]
+
+
+@pytest.mark.parametrize(
+    "command_line",
+    [
+        rf'code.exe "{LAUNCHER_PATH}"',
+        rf'pwsh.exe -Command "Get-Content {LAUNCHER_PATH}"',
+        "python.exe -m uvicorn backend.local_api.main:app --port 6500",
+        "python.exe -m uvicorn other.app:app --port 6468",
+        "python.exe -c spawn_main() --multiprocessing-fork --port 6468",
+    ],
+)
+def test_a_mention_or_another_server_is_not_found(command_line):
+    assert _unbound(command_line) == []
+
+
+def test_self_and_ancestors_covers_the_calling_shell():
+    script = (
+        f". '{LIB}'; "
+        "$processes = @($env:TEST_PROCESSES | ConvertFrom-Json) | ForEach-Object { $_ }; "
+        "ConvertTo-Json -Compress @(Get-SelfAndAncestors 4 $processes)"
+    )
+    env = {**os.environ, "TEST_PROCESSES": json.dumps(ALL)}
+    assert json.loads(_run_powershell(script, env=env).stdout) == [4, 3, 2, 1, 0]

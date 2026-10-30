@@ -81,7 +81,9 @@
   non-localhost `MCP_SERVER_URL`, refuses the restart.
 - **Platform differences**: the port owner is found with `Get-NetTCPConnection`
   / `Win32_Process` on Windows and `lsof` / `ps` elsewhere (`lsof` must be
-  installed). Windows stops with `TerminateProcess`; elsewhere SIGTERM, then
+  installed). The Windows lookup selects sockets with no remote end rather
+  than `-State Listen`, because some machines report blank or wrong TCP states.
+  Windows stops with `TerminateProcess`; elsewhere SIGTERM, then
   SIGKILL if the port is still held after 15 s.
 - **Foreground terminals**: if the server was started with `run-mcp-server`
   in a terminal, restarting ends that terminal's server; the new one runs in

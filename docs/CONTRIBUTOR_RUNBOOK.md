@@ -371,6 +371,12 @@ Under the timeseries cache base (`paths.timeseries_cache_base`, normally `{data_
 
 This path is preferred over outdated docs that still mention `uvicorn app:app`.
 
+On Windows, `.\scripts\run-all.ps1` does all of this in one step: it stops
+whatever backend, frontend and MCP server are running on their usual ports, then
+starts `run-mcp-server.ps1`, `run-backend.ps1` and `run-frontend.ps1` from that
+checkout, each in its own window. If anything else holds one of those ports, it
+reports the process and leaves everything as it was.
+
 ### Running multiple local instances side by side
 
 `scripts/bash/run-local-api.sh` and `scripts/run-backend.ps1` pick the first

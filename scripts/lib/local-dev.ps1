@@ -79,3 +79,73 @@ function Test-PortFree([int]$Port) {
     $listener.Stop()
   }
 }
+
+# What must be stopped to free a port, given its listening PIDs and a snapshot
+# of the running processes (ProcessId, ParentProcessId, CommandLine). Returns
+# Pids, parents first so a uvicorn reloader cannot respawn a worker, and
+# Foreign, the listeners whose command line does not match $Marker and which
+# must be left alone. A listener is stopped along with the unbroken chain of
+# ancestors that also match (venv launcher, reloader, npm, the run-*.ps1 shell)
+# and all their descendants, so an unrelated shell above them is never touched.
+# Windows can report a dead PID as the owner of a socket a child inherited; the
+# children are judged in its place.
+function Get-PortStopPlan([int[]]$Listeners, [object[]]$Processes, [string]$Marker) {
+  $byId = @{}
+  foreach ($process in $Processes) { $byId[[int]$process.ProcessId] = $process }
+  $pids = [System.Collections.Generic.List[int]]::new()
+  $foreign = [System.Collections.Generic.List[object]]::new()
+
+  foreach ($id in $Listeners) {
+    $owners = if ($byId.ContainsKey($id)) { @($byId[$id]) } else { @($Processes | Where-Object { [int]$_.ParentProcessId -eq $id }) }
+    if ($owners.Count -eq 0) { $foreign.Add([pscustomobject]@{ ProcessId = $id; CommandLine = '' }) }
+    foreach ($owner in $owners) {
+      if ($owner.CommandLine -notmatch $Marker) { $foreign.Add($owner); continue }
+
+      $top = $owner
+      $seen = @{ ([int]$top.ProcessId) = $true }
+      while ($true) {
+        $parentId = [int]$top.ParentProcessId
+        if ($seen.ContainsKey($parentId) -or -not $byId.ContainsKey($parentId)) { break }
+        if ($byId[$parentId].CommandLine -notmatch $Marker) { break }
+        $top = $byId[$parentId]
+        $seen[$parentId] = $true
+      }
+
+      $queue = [System.Collections.Generic.Queue[object]]::new()
+      $queue.Enqueue($top)
+      while ($queue.Count -gt 0) {
+        $current = $queue.Dequeue()
+        if ($pids.Contains([int]$current.ProcessId)) { continue }
+        $pids.Add([int]$current.ProcessId)
+        foreach ($child in @($Processes | Where-Object { [int]$_.ParentProcessId -eq [int]$current.ProcessId })) { $queue.Enqueue($child) }
+      }
+    }
+  }
+  return [pscustomobject]@{ Pids = @($pids); Foreign = @($foreign) }
+}
+
+# PIDs of a service that may hold no socket: its launcher, still installing or
+# left open after a crash, and its server, which can still be in startup (the
+# MCP server binds its port only once that finishes). Matched on how they were
+# started, not on a mention of the path, so an editor or search that names the
+# script is left alone. $ServerPattern is a regex for the uvicorn app, if any.
+function Get-UnboundProcesses([object[]]$Processes, [string]$ScriptPath, [string]$ServerPattern, [int]$Port) {
+  $pattern = "-File\s+`"?$([regex]::Escape($ScriptPath))"
+  if ($ServerPattern) { $pattern += "|-m\s+uvicorn\s+$ServerPattern\s.*--port\s+$Port\b" }
+  return @($Processes | Where-Object { $_.CommandLine -match $pattern } | ForEach-Object { [int]$_.ProcessId })
+}
+
+# $Id and every process above it in the snapshot, which must survive a restart:
+# stopping the shell that started the script would take the script down with it.
+function Get-SelfAndAncestors([int]$Id, [object[]]$Processes) {
+  $byId = @{}
+  foreach ($process in $Processes) { $byId[[int]$process.ProcessId] = $process }
+  $chain = [System.Collections.Generic.List[int]]::new()
+  $current = $Id
+  while (-not $chain.Contains($current)) {
+    $chain.Add($current)
+    if (-not $byId.ContainsKey($current)) { break }
+    $current = [int]$byId[$current].ParentProcessId
+  }
+  return @($chain)
+}

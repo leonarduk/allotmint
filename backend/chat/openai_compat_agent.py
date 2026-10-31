@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from mcp.types import Tool
@@ -22,6 +22,7 @@ from backend.chat.bedrock_agent import (
     MAX_TOOL_ITERATIONS,
     _tool_result_to_bedrock_content,
     _validate_message_alternation,
+    iteration_cap_reply,
 )
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import log_tool_call, mcp_session
@@ -141,6 +142,7 @@ async def run_chat_turn(
                 messages.append({"role": "user", "content": reminder})
                 continue
 
+            last_results: List[Tuple[str, str]] = []
             for tool_call in tool_calls:
                 name = tool_call["function"]["name"]
                 plan_guard.saw_call(name)
@@ -155,6 +157,7 @@ async def run_chat_turn(
                     if limits is not None:
                         limits.record_call(name, raw_arguments, content, True)
                     log_tool_call(name, "refused", started)
+                    last_results.append((name, content))
                     messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": content})
                     continue
                 arguments: Any = raw_arguments
@@ -190,6 +193,8 @@ async def run_chat_turn(
                     tool_policy.record(name, parsed, content, failed)
                 if limits is not None:
                     limits.record_call(name, arguments, content, failed)
+                last_results.append((name, content))
                 messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": content})
 
-    raise RuntimeError(f"Tool-calling loop did not converge after {max_iterations} iterations")
+    # Only reachable after a tool round, as in bedrock_agent.run_chat_turn.
+    return iteration_cap_reply(max_iterations, last_results, limits)

@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 # so a model stuck re-calling tools can't run away with the Lambda's timeout.
 MAX_TOOL_ITERATIONS = 5
 
+# Bounds on the tool output put into the reply when a turn hits the cap (#7623),
+# so one oversized result can't flood the chat window.
+CAP_REPLY_MAX_RESULTS = 5
+CAP_REPLY_MAX_CHARS_PER_RESULT = 1000
+
 # Retry policy for transient converse() failures (#7611): up to 3 retries with
 # exponential backoff (1s, 2s, 4s) plus jitter. This is the only retry layer --
 # botocore's own retries are disabled on the client below so attempts don't
@@ -157,6 +162,33 @@ async def _call_tool(
         return [{"text": f"Tool call failed: {exc}"}], "error"
 
 
+def iteration_cap_reply(
+    max_iterations: int, results: List[Tuple[str, str]], limits: Optional[TurnLimits] = None
+) -> str:
+    """Reply for a turn that used up its tool-call cap without a final answer.
+
+    ``results`` is ``[(tool name, result text), ...]`` from the last round of
+    tool calls. They are shown, bounded, instead of raising, so the work
+    already done reaches the user rather than a bare 500 (#7623). Still
+    raises ``RuntimeError`` when ``limits.raise_at_cap`` is set. Shared by
+    both provider loops (``openai_compat_agent`` too).
+    """
+
+    if limits is not None and limits.raise_at_cap:
+        raise RuntimeError(f"Tool-calling loop did not converge after {max_iterations} iterations")
+    lines = [
+        f"I reached the tool-call limit for this turn ({max_iterations} steps) before finishing my answer. "
+        "Here are the latest tool results; try asking again or narrowing the question."
+    ]
+    for name, text in results[:CAP_REPLY_MAX_RESULTS]:
+        if len(text) > CAP_REPLY_MAX_CHARS_PER_RESULT:
+            text = text[:CAP_REPLY_MAX_CHARS_PER_RESULT] + " ... (truncated)"
+        lines.append(f"{name}:\n{text}")
+    if len(results) > CAP_REPLY_MAX_RESULTS:
+        lines.append(f"(and {len(results) - CAP_REPLY_MAX_RESULTS} more tool results not shown)")
+    return "\n\n".join(lines)
+
+
 def _validate_message_alternation(messages: List[Dict[str, Any]]) -> None:
     """Raise ``ValueError`` unless the messages start with ``user`` and alternate roles.
 
@@ -243,6 +275,7 @@ async def run_chat_turn(
                 continue
 
             tool_result_content = []
+            last_results: List[Tuple[str, str]] = []
             for tool_use in tool_uses:
                 plan_guard.saw_call(tool_use["name"])
                 started = time.perf_counter()
@@ -254,6 +287,7 @@ async def run_chat_turn(
                     if limits is not None:
                         limits.record_call(tool_use["name"], tool_use.get("input") or {}, refusal, True)
                     log_tool_call(tool_use["name"], "refused", started)
+                    last_results.append((tool_use["name"], refusal))
                     tool_result_content.append(
                         {
                             "toolResult": {
@@ -270,8 +304,9 @@ async def run_chat_turn(
                     tool_policy.record(
                         tool_use["name"], tool_use.get("input") or {}, content[0]["text"], status == "error"
                     )
+                text = "\n".join(block.get("text", "") for block in content)
+                last_results.append((tool_use["name"], text))
                 if limits is not None:
-                    text = "\n".join(block.get("text", "") for block in content)
                     limits.record_call(tool_use["name"], tool_use.get("input") or {}, text, status == "error")
                 tool_result_content.append(
                     {
@@ -284,4 +319,6 @@ async def run_chat_turn(
                 )
             messages.append({"role": "user", "content": tool_result_content})
 
-    raise RuntimeError(f"Tool-calling loop did not converge after {max_iterations} iterations")
+    # Only reachable after a tool round: a text-only reply on the last
+    # iteration returns above (the plan guard never reminds at the cap).
+    return iteration_cap_reply(max_iterations, last_results, limits)

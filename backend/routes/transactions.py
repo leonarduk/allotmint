@@ -108,6 +108,10 @@ def _get_moneyhub_client() -> MoneyhubClient:
 # Set only by the dividend refresh bot (#11086), never taken from a request body.
 # Every write route excludes these: create, import, and the PUT update, which
 # keeps whatever the stored row already has (#11097).
+# A body that sends them gets a normal response with the fields dropped, not a
+# 4xx (#11143). The body models ignore every unknown key, and GET returns rows
+# that carry these flags, so a client that edits a row it just read must not be
+# rejected for sending them back.
 _BOT_ONLY_FIELDS = frozenset({"estimated", "attribution_only"})
 
 

@@ -43,7 +43,7 @@ function Evidence({ item }: { item: DataStewardItem }) {
               {ev.tool}({JSON.stringify(ev.arguments)})
             </code>
             {ev.is_error && <span className="ml-2 text-red-700">{t("dataQuality.admin.steward.toolError")}</span>}
-            <pre className="max-h-48 overflow-auto rounded bg-gray-100 p-2 text-slate-900">
+            <pre className="max-h-48 overflow-auto rounded bg-[var(--surface-card-bg)] p-2 text-[var(--surface-card-color)]">
               {ev.truncated ? `${ev.result}\n…` : ev.result}
             </pre>
           </li>
@@ -94,7 +94,7 @@ function ItemCard({
   const { t } = useTranslation();
   const label = entityLabel(item.entity);
   return (
-    <li className="mb-3 rounded border border-slate-300 p-3" data-testid={`steward-item-${item.issue_id}`}>
+    <li className="mb-3 rounded border border-[var(--surface-card-border)] p-3" data-testid={`steward-item-${item.issue_id}`}>
       <div className="flex flex-wrap items-baseline gap-2">
         <strong>
           <ResearchLink symbol={researchSymbol(item.entity)}>{label}</ResearchLink>
@@ -219,7 +219,7 @@ function ConfirmFix({
 }) {
   const { t } = useTranslation();
   return (
-    <Modal onClose={onCancel} labelledBy="dq-steward-confirm-title" className="w-full max-w-md rounded-lg bg-white p-6 text-slate-900">
+    <Modal onClose={onCancel} labelledBy="dq-steward-confirm-title" className="w-full max-w-md rounded-lg bg-[var(--surface-card-bg)] p-6 text-[var(--surface-card-color)]">
       <h3 id="dq-steward-confirm-title" className="mb-2 text-lg font-semibold">
         {t("dataQuality.admin.issues.actions.confirmTitle")}
       </h3>
@@ -228,7 +228,7 @@ function ConfirmFix({
       <div className="flex justify-end gap-2">
         <button
           type="button"
-          className="rounded border border-slate-300 bg-white px-4 py-2 text-slate-900 hover:bg-slate-100"
+          className="rounded border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] px-4 py-2 text-[var(--surface-card-color)] hover:bg-[var(--menu-hover-bg)]"
           onClick={onCancel}
         >
           {t("dataQuality.admin.issues.actions.cancel")}

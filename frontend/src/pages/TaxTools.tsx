@@ -379,7 +379,7 @@ function TaxHarvestSection() {
         <h2 id="tax-harvest-heading" className="text-xl md:text-2xl">
           {t("taxTools.harvest.title")}
         </h2>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-[var(--surface-muted-color)]">
           {t("taxTools.harvest.description")}
         </p>
       </div>
@@ -390,7 +390,7 @@ function TaxHarvestSection() {
         <>
           <div className="flex flex-col gap-3">
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-sm font-medium text-[var(--surface-muted-color)]">
                 {t("taxTools.harvest.minLossThreshold", { threshold })}
               </span>
               <input
@@ -407,8 +407,8 @@ function TaxHarvestSection() {
             <div data-testid="candidate-loading">{t("taxTools.harvest.loadingCandidates")}</div>
           ) : candidates.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse border border-gray-300 text-sm">
-                <thead className="bg-gray-100">
+              <table className="min-w-full border-collapse border border-[var(--surface-card-border)] text-sm">
+                <thead className="bg-[var(--surface-card-bg)]">
                   <tr>
                     <th className="border p-2 text-left">{t("taxTools.harvest.col.holding")}</th>
                     <th className="border p-2 text-right">{t("taxTools.harvest.col.units")}</th>
@@ -434,7 +434,7 @@ function TaxHarvestSection() {
                               />
                               <span className="font-medium">{candidate.ticker}</span>
                             </span>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-[var(--surface-muted-color)]">
                               {candidate.name} · {candidate.account.toUpperCase()}
                             </span>
                           </label>
@@ -508,7 +508,7 @@ function TaxHarvestSection() {
       )}
       {error && <p className="text-red-500">{error}</p>}
       {trades && trades.length > 0 && (
-        <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm" data-testid="harvest-results">
+        <div className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 text-sm" data-testid="harvest-results">
           <p className="font-medium">{t("taxTools.harvest.modeledTrades")}</p>
           <ul className="mt-2 list-disc pl-5">
             {trades.map(({ ticker, loss }, index) => (
@@ -517,14 +517,14 @@ function TaxHarvestSection() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-gray-700">
+          <p className="mt-3 text-[var(--surface-muted-color)]">
             {t("taxTools.harvest.totalModeledLoss", { total: currencyFormatter.format(totalLoss) })}
           </p>
         </div>
       )}
       {trades && trades.length === 0 && <p>{t("taxTools.harvest.noTrades")}</p>}
       {!anySelection && selectedOwner && !isLoading && !candidateError && (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-[var(--surface-muted-color)]">
           {t("taxTools.harvest.tip")}
         </p>
       )}
@@ -589,7 +589,7 @@ function TaxAllowancesSection() {
           <h2 id="tax-allowances-heading" className="text-xl md:text-2xl">
             {t("taxTools.allowances.title")}
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-[var(--surface-muted-color)]">
             {t("taxTools.allowances.description")}
           </p>
         </div>
@@ -625,11 +625,11 @@ function TaxAllowancesSection() {
         <h2 id="tax-allowances-heading" className="text-xl md:text-2xl">
           {t("taxTools.allowances.title")}
         </h2>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-[var(--surface-muted-color)]">
           {t("taxTools.allowances.description")}
         </p>
       </div>
-      <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+      <div className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 text-sm text-[var(--surface-muted-color)]">
         <div className="flex flex-wrap gap-3">
           <span>{t("taxTools.allowances.taxYear", { year: data.tax_year })}</span>
           <span>
@@ -644,7 +644,7 @@ function TaxAllowancesSection() {
           </span>
         </div>
       </div>
-      <table className="min-w-full border-collapse border border-gray-300">
+      <table className="min-w-full border-collapse border border-[var(--surface-card-border)]">
         <thead>
           <tr>
             <th className="border p-2 text-left">{t("taxTools.allowances.col.account")}</th>
@@ -677,7 +677,7 @@ function TaxAllowancesSection() {
                 <td className="border p-2 text-right">{formatAllowanceValue(info.remaining)}</td>
                 <td className="border p-2 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <div className="h-2 w-24 rounded-full bg-gray-200" aria-hidden="true">
+                    <div className="h-2 w-24 rounded-full bg-[var(--surface-card-border)]" aria-hidden="true">
                       <div
                         className={`h-2 rounded-full ${progressColor}`}
                         style={{ width: `${clampedPercent}%` }}
@@ -737,19 +737,19 @@ export default function TaxTools() {
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="mb-2 text-2xl md:text-4xl">{t("taxTools.title")}</h1>
-          <p className="text-gray-600">
+          <p className="text-[var(--surface-muted-color)]">
             {t("taxTools.subtitle")}
           </p>
         </div>
         <div className="md:w-64">
           <label
             htmlFor="tax-owner-select"
-            className="flex flex-col gap-1 text-sm font-medium text-gray-700"
+            className="flex flex-col gap-1 text-sm font-medium text-[var(--surface-muted-color)]"
           >
             {t("taxTools.portfolioOwner")}
             <select
               id="tax-owner-select"
-              className="rounded border border-gray-300 px-3 py-2 text-base"
+              className="rounded border border-[var(--surface-card-border)] px-3 py-2 text-base"
               value={ownerSelectValue}
               onChange={handleOwnerChange}
               disabled={ownerSelectDisabled}
@@ -766,13 +766,13 @@ export default function TaxTools() {
             </select>
           </label>
           {ownersLoading && (
-            <p className="mt-1 text-xs text-gray-500">{t("taxTools.loadingOwners")}</p>
+            <p className="mt-1 text-xs text-[var(--surface-muted-color)]">{t("taxTools.loadingOwners")}</p>
           )}
           {!ownersLoading && ownersError && (
             <p className="mt-1 text-xs text-red-500">{ownersError}</p>
           )}
           {!ownersLoading && !ownersError && owners.length === 0 && (
-            <p className="mt-1 text-xs text-gray-500">{t("taxTools.noOwners")}</p>
+            <p className="mt-1 text-xs text-[var(--surface-muted-color)]">{t("taxTools.noOwners")}</p>
           )}
         </div>
       </header>

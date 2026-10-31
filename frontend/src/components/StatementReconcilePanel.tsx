@@ -104,7 +104,7 @@ function DiffActions({
       );
     case 'dismissed':
       return (
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-[var(--surface-muted-color)]">
           {t('statementReconcile.dismissedWith', { reason: state.reason })}
         </span>
       );

@@ -52,7 +52,7 @@ function DriftTable({ brief }: { brief: PlanBrief }) {
       : '';
   return (
     <table className="mb-3 w-full text-sm">
-      <caption className="text-left text-xs text-slate-500 dark:text-slate-400">
+      <caption className="text-left text-xs text-[var(--surface-muted-color)]">
         {t('planBrief.driftCaption', { band: brief.drift.tolerance_pct })}
       </caption>
       <thead>
@@ -107,13 +107,13 @@ function TriggerList({ triggers }: { triggers: PlanBriefTrigger[] }) {
             {': '}
             {trigger.trigger}
             {trigger.reason && (
-              <span className="text-slate-600 dark:text-slate-300">
+              <span className="text-[var(--surface-muted-color)]">
                 {' — '}
                 {trigger.reason}
               </span>
             )}
             {trigger.evidence.length > 0 && (
-              <span className="block text-xs text-slate-500 dark:text-slate-400">
+              <span className="block text-xs text-[var(--surface-muted-color)]">
                 {trigger.evidence
                   .map((e) =>
                     [
@@ -139,7 +139,7 @@ function BriefBody({ brief }: { brief: PlanBrief }) {
   const idleCash = brief.cash.filter((row) => row.days_uninvested != null);
   return (
     <>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('planBrief.asOf', { date: brief.as_of })} ·{' '}
         {t('planBrief.total', {
           value: gbp.format(brief.drift.total_value_gbp),
@@ -172,7 +172,7 @@ function BriefBody({ brief }: { brief: PlanBrief }) {
         </ul>
       )}
       {brief.stale_evidence.length > 0 && (
-        <p className="mb-2 text-xs text-slate-600 dark:text-slate-300">
+        <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
           {t('planBrief.staleEvidence', {
             items: brief.stale_evidence
               .map((e) => `${e.metric} (${e.as_of})`)
@@ -180,7 +180,7 @@ function BriefBody({ brief }: { brief: PlanBrief }) {
           })}
         </p>
       )}
-      <p className="text-xs italic text-slate-500 dark:text-slate-400">
+      <p className="text-xs italic text-[var(--surface-muted-color)]">
         {brief.disclaimer}
       </p>
     </>
@@ -230,7 +230,7 @@ function EarlierBriefs({
               >
                 {b.as_of}
               </button>{' '}
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-xs text-[var(--surface-muted-color)]">
                 {/* HH:MM UTC tells apart briefs run on the same day. */}
                 {b.generated_at && `${b.generated_at.slice(11, 16)} UTC · `}
                 {t('planBrief.summaryLine', {
@@ -314,7 +314,7 @@ export default function PlanBriefCard({ owner }: { owner: string }) {
           type="button"
           onClick={() => void run()}
           disabled={running}
-          className="rounded bg-gray-200 px-2 py-1 text-sm text-slate-900 disabled:opacity-60"
+          className="rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)] disabled:opacity-60"
         >
           {running ? t('planBrief.running') : t('planBrief.runNow')}
         </button>
@@ -325,10 +325,14 @@ export default function PlanBriefCard({ owner }: { owner: string }) {
         </p>
       )}
       {state.kind === 'loading' && (
-        <p className="text-sm text-slate-500">{t('planBrief.loading')}</p>
+        <p className="text-sm text-[var(--surface-muted-color)]">
+          {t('planBrief.loading')}
+        </p>
       )}
       {state.kind === 'none' && (
-        <p className="text-sm text-slate-500">{t('planBrief.none')}</p>
+        <p className="text-sm text-[var(--surface-muted-color)]">
+          {t('planBrief.none')}
+        </p>
       )}
       {state.kind === 'error' && (
         <p className="break-words text-sm text-red-600">

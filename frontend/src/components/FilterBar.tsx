@@ -68,7 +68,7 @@ export function FilterBar({
         <button
           key={key}
           type="button"
-          className="flex items-center gap-1 rounded bg-gray-200 px-2 py-1 text-sm"
+          className="flex items-center gap-1 rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm"
           onClick={() => dispatch({ type: "clear", key: key as keyof FilterState })}
           onKeyDown={(e) => {
             if (e.key === "Backspace" || e.key === "Delete") {

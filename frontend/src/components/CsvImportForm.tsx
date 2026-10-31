@@ -58,7 +58,9 @@ function DiffSection({ title, emptyMessage, rows }: DiffSectionProps) {
         {title}
       </h4>
       {rows.length === 0 ? (
-        <p className="mt-1 text-sm text-gray-500">{emptyMessage}</p>
+        <p className="mt-1 text-sm text-[var(--surface-muted-color)]">
+          {emptyMessage}
+        </p>
       ) : (
         <ul className="mt-1 divide-y divide-gray-800 rounded border border-gray-800">
           {rows.map(({ ticker, detail }, index) => (

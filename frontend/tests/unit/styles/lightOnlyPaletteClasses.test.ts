@@ -1,0 +1,48 @@
+import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Guards #8168 (follow-up to #8151): Tailwind's slate/gray palette classes are
+// not themed, so light-only backgrounds, borders and dark text render as
+// white-on-white or dark-on-dark in the app's dark theme. Use the surface
+// tokens instead (`bg-[var(--surface-card-bg)]`, `text-[var(--surface-muted-color)]`,
+// `text-[var(--surface-card-color)]`, `border-[var(--surface-card-border)]`, or
+// `surface.module.css`). `dark:` slate/gray variants are also banned: they follow
+// the OS colour scheme, not the app's `data-theme` toggle.
+//
+// Intentionally fixed dark colours (e.g. `bg-slate-900 text-white` buttons,
+// `bg-gray-800` inputs, skeleton `bg-gray-700`) stay readable in both themes and
+// are not matched here.
+const SRC = path.resolve(__dirname, '../../../src');
+
+const LIGHT_ONLY = [
+  /(?<![\w-])(?:[a-z-]+:)*bg-(?:slate|gray)-(?:50|100|200)(?![\w/-])/g,
+  /(?<![\w-])(?:[a-z-]+:)*bg-white(?![\w/-])/g,
+  /(?<![\w-])text-(?:slate|gray)-(?:500|600|700|800|900)(?![\w/-])/g,
+  /(?<![\w-])(?:border|divide)-(?:slate|gray)-(?:100|200|300)(?![\w/-])/g,
+  /(?<![\w-])dark:[\w:-]*(?:slate|gray)-\d+/g,
+];
+
+function sourceFiles(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFiles(full);
+    return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)
+      ? [full]
+      : [];
+  });
+}
+
+describe('light-only palette classes', () => {
+  it('uses theme surface tokens instead of light-only slate/gray classes', () => {
+    const offenders = sourceFiles(SRC).flatMap((file) => {
+      const text = fs.readFileSync(file, 'utf-8');
+      return LIGHT_ONLY.flatMap((pattern) =>
+        [...text.matchAll(pattern)].map(
+          (m) => `${path.relative(SRC, file)}: ${m[0]}`
+        )
+      );
+    });
+    expect(offenders).toEqual([]);
+  });
+});

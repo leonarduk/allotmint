@@ -22,7 +22,8 @@ const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 const INPUT = 'rounded border p-1';
-const SMALL_BUTTON = 'rounded bg-gray-200 px-2 py-1 text-sm text-slate-900';
+const SMALL_BUTTON =
+  'rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
 
 function OrderTable({ tranche }: { tranche: CashDeploymentTranche }) {
   const { t } = useTranslation();
@@ -77,7 +78,7 @@ function OrderList({ tranche }: { tranche: CashDeploymentTranche }) {
           date: tranche.due_date,
         })}
       </p>
-      <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-1 text-xs text-[var(--surface-muted-color)]">
         {t('cashDeployment.orderLabel')}
       </p>
       <OrderTable tranche={tranche} />
@@ -198,7 +199,7 @@ function ScheduleView({
       {progress && (
         <>
           <p className="text-sm">{progress.summary}</p>
-          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
             {t('cashDeployment.progress', {
               deployed: pounds(progress.deployed_minor),
               total: pounds(progress.total_amount_minor),
@@ -432,7 +433,9 @@ function Messages({
         </p>
       )}
       {!run && !error && (
-        <p className="text-sm text-slate-500">{t('cashDeployment.loading')}</p>
+        <p className="text-sm text-[var(--surface-muted-color)]">
+          {t('cashDeployment.loading')}
+        </p>
       )}
       {run?.warnings.map((w) => (
         <p key={w} className="text-sm text-amber-700">
@@ -479,7 +482,7 @@ export default function CashDeploymentCard({
       aria-label={t('cashDeployment.title')}
     >
       <h2 className="text-xl">{t('cashDeployment.title')}</h2>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('cashDeployment.help')}
       </p>
       <Messages run={run} error={error} actionError={actionError} />

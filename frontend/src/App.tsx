@@ -717,7 +717,7 @@ export default function App({ onLogout }: AppProps) {
               <>
                 <InstrumentTable rows={visibleInstruments} />
                 {instruments.length > MAX_INSTRUMENT_CATALOGUE_ROWS && (
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-[var(--surface-muted-color)]">
                     {t('app.instrumentCatalogueTruncated', {
                       shown: MAX_INSTRUMENT_CATALOGUE_ROWS.toLocaleString(),
                       total: instruments.length.toLocaleString(),

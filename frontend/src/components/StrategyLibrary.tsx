@@ -32,7 +32,7 @@ function Badge({ children, tone }: { children: string; tone: string }) {
 }
 
 const TONES = {
-  builtin: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
+  builtin: 'bg-[var(--surface-card-border)] text-[var(--surface-card-color)]',
   custom: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100',
   active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100',
   modified: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100',
@@ -186,7 +186,7 @@ function StrategyEditor({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded bg-gray-200 px-3 py-1 text-slate-900"
+          className="rounded bg-[var(--surface-card-border)] px-3 py-1 text-[var(--surface-card-color)]"
         >
           {t('strategyLibrary.editor.cancel')}
         </button>
@@ -220,7 +220,7 @@ function OwnedAction({
         disabled={strategy.builtin}
         onClick={onClick}
         aria-label={`${label} ${strategy.name}`}
-        className="rounded bg-gray-200 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {label}
       </button>
@@ -262,7 +262,7 @@ function StrategyRow({
           {isActive && (
             <Badge tone={TONES.active}>{t('strategyLibrary.row.active')}</Badge>
           )}
-          <p className="text-xs text-slate-600 dark:text-slate-300">
+          <p className="text-xs text-[var(--surface-muted-color)]">
             {formatStrategyTargets(strategy.targets)}
           </p>
         </div>
@@ -285,7 +285,7 @@ function StrategyRow({
             aria-label={t('strategyLibrary.row.duplicateAria', {
               name: strategy.name,
             })}
-            className="rounded bg-gray-200 px-2 py-1 text-sm text-slate-900 disabled:opacity-50"
+            className="rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)] disabled:opacity-50"
           >
             {t('strategyLibrary.row.duplicate')}
           </button>
@@ -302,7 +302,7 @@ function StrategyRow({
         </div>
       </div>
       {(strategy.description || strategy.source || strategy.uk_mapping) && (
-        <details className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+        <details className="mt-1 text-xs text-[var(--surface-muted-color)]">
           <summary className="cursor-pointer">
             {t('strategyLibrary.row.about')}
           </summary>
@@ -419,13 +419,13 @@ export default function StrategyLibrary({
         <button
           type="button"
           onClick={() => setEditing({ strategy: null })}
-          className="rounded bg-gray-200 px-3 py-1 text-sm text-slate-900"
+          className="rounded bg-[var(--surface-card-border)] px-3 py-1 text-sm text-[var(--surface-card-color)]"
         >
           {t('strategyLibrary.new')}
         </button>
       </div>
       <ActiveStrategyStatus active={data.active} hasTargets={hasTargets} />
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('strategyLibrary.help')}
       </p>
       {editing && (

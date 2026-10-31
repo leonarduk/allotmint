@@ -73,7 +73,9 @@ function StatusSummary({ status }: { status: McpServerStatus }) {
           </ul>
         </div>
       )}
-      {status.reason && <p className="text-gray-600">{status.reason}</p>}
+      {status.reason && (
+        <p className="text-[var(--surface-muted-color)]">{status.reason}</p>
+      )}
     </div>
   );
 }
@@ -128,7 +130,7 @@ function RestartConfirmation({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded bg-gray-200 px-3 py-1"
+          className="rounded bg-[var(--surface-card-border)] px-3 py-1"
         >
           {t('common.cancel', 'Cancel')}
         </button>

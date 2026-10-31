@@ -27,7 +27,9 @@ function ReturnsRow({ returns }: { returns: SectorDetail['returns'] }) {
     <dl className="mb-4 grid grid-cols-4 gap-2 text-center">
       {RETURN_PERIODS.map((period) => (
         <div key={period}>
-          <dt className="text-xs uppercase text-gray-500">{period}</dt>
+          <dt className="text-xs uppercase text-[var(--surface-muted-color)]">
+            {period}
+          </dt>
           <dd className={changeClass(returns[period])}>
             {formatPct(returns[period])}
           </dd>
@@ -67,7 +69,7 @@ function BasisNote({ detail }: { detail: SectorDetail }) {
   const { t } = useTranslation();
   if (detail.proxy) {
     return (
-      <p className="mb-2 text-sm text-gray-500">
+      <p className="mb-2 text-sm text-[var(--surface-muted-color)]">
         {t('market.sectorProxy', {
           defaultValue:
             'Tracked via {{ticker}} ({{name}}). Chart shows its closing price.',
@@ -78,7 +80,7 @@ function BasisNote({ detail }: { detail: SectorDetail }) {
     );
   }
   return (
-    <p className="mb-2 text-sm text-gray-500">
+    <p className="mb-2 text-sm text-[var(--surface-muted-color)]">
       {t('market.sectorBasket', {
         defaultValue:
           'No sector ETF for this market: performance is an equal-weighted basket of the constituents below. Chart is rebased to 100.',
@@ -152,7 +154,7 @@ export default function SectorDetailPanel({
   return (
     <section
       aria-label={t('market.sectorDetail', { defaultValue: 'Sector detail' })}
-      className="mt-4 rounded border border-gray-300 p-4"
+      className="mt-4 rounded border border-[var(--surface-card-border)] p-4"
     >
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-lg font-semibold">{sector}</h3>

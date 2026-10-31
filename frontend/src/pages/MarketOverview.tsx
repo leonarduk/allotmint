@@ -39,7 +39,7 @@ export const IndexTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const { value, change } = payload[0].payload;
     return (
-      <div className="rounded border bg-white p-2 text-sm shadow text-gray-900">
+      <div className="rounded border bg-[var(--surface-card-bg)] p-2 text-sm shadow text-[var(--surface-card-color)]">
         <p className="font-semibold">{label}</p>
         <p>{t('market.tooltipLevel', { value: formatIndexLevel(value) })}</p>
         <p>
@@ -73,7 +73,7 @@ function IndexChart({
   return (
     <>
       {asOf && (
-        <p className="mb-2 text-sm text-gray-500">
+        <p className="mb-2 text-sm text-[var(--surface-muted-color)]">
           {t('market.asOf', { date: asOf, defaultValue: 'As of {{date}}' })}
         </p>
       )}
@@ -90,7 +90,7 @@ function IndexChart({
         </BarChart>
       </ResponsiveContainer>
       {missingChange.length > 0 && (
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-[var(--surface-muted-color)]">
           {t('market.noChangeData', {
             names: missingChange.join(', '),
             defaultValue: 'No % change data for: {{names}}',
@@ -232,7 +232,7 @@ export default function MarketOverview() {
       <PeriodToggle value={period} onChange={selectPeriod} />
       {/* Sector ETFs/baskets reinvest dividends; Yahoo's index tickers are
           price indices, so the two charts are on different bases. */}
-      <p className="mb-4 text-sm text-gray-500">
+      <p className="mb-4 text-sm text-[var(--surface-muted-color)]">
         {t('market.returnBasisNote', {
           defaultValue:
             'Sector changes include reinvested dividends (total return); index changes are price only.',
@@ -275,7 +275,7 @@ export default function MarketOverview() {
                   </a>
                   {age && (
                     <span
-                      className="ml-2 text-sm text-gray-500"
+                      className="ml-2 text-sm text-[var(--surface-muted-color)]"
                       title={h.published_at ?? undefined}
                     >
                       — {age}

@@ -286,7 +286,7 @@ function AppliedStrategyPrompt({
         <button
           type="button"
           onClick={onDismiss}
-          className="mt-2 rounded bg-gray-200 px-3 py-1 text-slate-900"
+          className="mt-2 rounded bg-[var(--surface-card-border)] px-3 py-1 text-[var(--surface-card-color)]"
         >
           {t('planPanel.notNow')}
         </button>
@@ -422,14 +422,14 @@ function RebalanceComparison({
           <button
             type="button"
             onClick={onDismiss}
-            className="mt-2 rounded bg-gray-200 px-3 py-1 text-slate-900"
+            className="mt-2 rounded bg-[var(--surface-card-border)] px-3 py-1 text-[var(--surface-card-color)]"
           >
             {t('planPanel.notNow')}
           </button>
         )}
       </div>
       {!comparison.copy_supported && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-[var(--surface-muted-color)]">
           {t('planPanel.perAssetClassNote')}
         </p>
       )}
@@ -495,7 +495,7 @@ function GoalTable({ data }: { data: InvestmentPlanResponse }) {
             <td className="px-2 py-1">
               {goal.name}
               {goal.note && (
-                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                <span className="block text-xs text-[var(--surface-muted-color)]">
                   {goal.note}
                 </span>
               )}
@@ -529,7 +529,7 @@ function ProfileSection({ data }: { data: InvestmentPlanResponse }) {
       role="group"
     >
       <h3 className="font-medium">{t('planPanel.profileAndGoals')}</h3>
-      <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-1 text-xs text-[var(--surface-muted-color)]">
         {t('planPanel.profileNote')}
       </p>
       <ul className="mb-2 text-sm">
@@ -617,7 +617,7 @@ function PlanBody({
   const { plan } = data;
   return (
     <>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {plan.status} · {t('planPanel.version', { version: plan.version })} ·{' '}
         {t('planPanel.updated', { date: plan.updated })}
       </p>
@@ -650,7 +650,7 @@ function PlanBody({
       )}
       <PlanBriefCard owner={owner} />
       <PlanDetails plan={plan} />
-      <p className="mt-3 text-xs italic text-slate-500 dark:text-slate-400">
+      <p className="mt-3 text-xs italic text-[var(--surface-muted-color)]">
         {plan.disclaimer}
       </p>
     </>
@@ -717,13 +717,13 @@ export default function PlanPanel({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="rounded bg-gray-200 px-2 py-1 text-sm text-slate-900"
+            className="rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)]"
           >
             {t('planPanel.editPlan')}
           </button>
         )}
       </div>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('planPanel.subtitle')}
       </p>
       {editing ? (
@@ -742,7 +742,9 @@ export default function PlanPanel({
       ) : (
         <>
           {state.kind === 'loading' && (
-            <p className="text-sm text-slate-500">{t('planPanel.loading')}</p>
+            <p className="text-sm text-[var(--surface-muted-color)]">
+              {t('planPanel.loading')}
+            </p>
           )}
           {state.kind === 'error' && (
             <p className="break-words text-sm text-red-600">

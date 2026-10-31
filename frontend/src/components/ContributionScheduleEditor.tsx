@@ -79,7 +79,7 @@ function toPayload(rows: DraftRow[]): ScheduledContribution[] | { badAmount: num
   return out;
 }
 
-const inputClass = "w-full rounded border border-gray-300 bg-transparent p-1";
+const inputClass = "w-full rounded border border-[var(--surface-card-border)] bg-transparent p-1";
 const buttonClass = "rounded border border-gray-400 px-3 py-1 text-sm disabled:opacity-50";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -173,7 +173,7 @@ function ScheduleRow({ row, index, accounts, disabled, amountInvalid, onChange, 
   const text = (field: "startDate" | "endDate" | "label") => (e: { target: { value: string } }) =>
     onChange({ [field]: e.target.value });
   return (
-    <fieldset className="mb-3 rounded border border-gray-300 p-3" disabled={disabled}>
+    <fieldset className="mb-3 rounded border border-[var(--surface-card-border)] p-3" disabled={disabled}>
       <legend className="px-1 text-sm font-semibold">{t("contributionSchedule.rowLegend", { number: index + 1 })}</legend>
       <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <Field label={t("contributionSchedule.account")}>
@@ -290,7 +290,7 @@ export default function ContributionScheduleEditor({ owner, onSaved }: { owner: 
   };
 
   return (
-    <section className="mt-6 rounded border border-gray-300 p-4" aria-labelledby="contribution-schedule-title">
+    <section className="mt-6 rounded border border-[var(--surface-card-border)] p-4" aria-labelledby="contribution-schedule-title">
       <h2 id="contribution-schedule-title" className="mb-1 text-xl">
         {t("contributionSchedule.title")}
       </h2>

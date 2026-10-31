@@ -528,7 +528,7 @@ export default function Support() {
           title={t("support.localLogin.title", "Local login override")}
           defaultOpen={window.location.hash === "#local-login-override"}
         >
-        <p className="mb-2 text-sm text-gray-600">
+        <p className="mb-2 text-sm text-[var(--surface-muted-color)]">
           {t(
             "support.localLogin.description",
             "Select which user email should be assumed when authentication is disabled.",
@@ -548,7 +548,7 @@ export default function Support() {
             disabled={
               localLoginStatus === "saving" || localLoginOptions.length === 0
             }
-            className="w-full rounded border border-gray-300 p-2 text-sm sm:w-auto"
+            className="w-full rounded border border-[var(--surface-card-border)] p-2 text-sm sm:w-auto"
           >
             <option value="">
               {t("support.localLogin.none", "No override configured")}
@@ -561,7 +561,7 @@ export default function Support() {
           </select>
         </div>
         {localLoginOptions.length === 0 && (
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-[var(--surface-muted-color)]">
             {t(
               "support.localLogin.noOwners",
               "No owners available to assume.",
@@ -571,7 +571,7 @@ export default function Support() {
         {localLoginStatus !== "idle" && (
           <p
             className={`mt-2 text-sm ${
-              localLoginStatus === "error" ? "text-red-600" : "text-gray-600"
+              localLoginStatus === "error" ? "text-red-600" : "text-[var(--surface-muted-color)]"
             }`}
           >
             {localLoginStatus === "saving"
@@ -589,7 +589,7 @@ export default function Support() {
       <DataSyncSection />
 
       <SectionCard title={t("support.dataExplorer.title", "Data Explorer")}>
-        <p className="mb-2 text-sm text-gray-600">
+        <p className="mb-2 text-sm text-[var(--surface-muted-color)]">
           {t(
             "support.dataExplorer.description",
             "Browse the backend data area (local files, or S3 in the AWS deployment) to inspect account, price, and timeseries data.",
@@ -682,7 +682,7 @@ export default function Support() {
               max={refreshProgress.total}
             />
             {refreshProgress.currentTicker && (
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-[var(--surface-muted-color)]">
                 {t("app.refreshingTicker", { ticker: refreshProgress.currentTicker })}
               </div>
             )}
@@ -690,12 +690,12 @@ export default function Support() {
         )}
         {/* Also shown under a bar whose last-known count has gone stale. */}
         {refreshing && refreshProgressUnavailable && (
-          <div className="mt-2 text-sm text-gray-600" role="status">
+          <div className="mt-2 text-sm text-[var(--surface-muted-color)]" role="status">
             {t("app.refreshingDetailUnavailable")}
           </div>
         )}
         {lastRefresh && (
-          <span className="ml-2 text-sm text-gray-600">
+          <span className="ml-2 text-sm text-[var(--surface-muted-color)]">
             {t("app.last")} {new Date(lastRefresh).toLocaleString()}
           </span>
         )}
@@ -738,7 +738,7 @@ export default function Support() {
             <button
               type="button"
               onClick={copyReport}
-              className="rounded bg-gray-200 px-2 py-1"
+              className="rounded bg-[var(--surface-card-border)] px-2 py-1"
             >
               {t("support.health.copyReport")}
             </button>

@@ -341,9 +341,23 @@ def test_restart_stops_server_found_by_windows_lookup(env, calls, monkeypatch):
     assert calls.started == [8001]
 
 
-def test_port_listening_is_a_connect_probe():
+def test_port_listening_is_a_connect_probe(monkeypatch):
     # Real sockets, no mocks: fails if port_listening ever switches to a TCP-table
     # state check, which misses live listeners on some Windows machines (#11124, #11128).
+    # Spawning a process is also a failure, so a refactor onto Get-NetTCPConnection,
+    # netstat or ss can't pass just by returning the same booleans here (#11147).
+    spawned = []
+
+    def no_spawn(*args, **kwargs):
+        spawned.append(args)
+        raise AssertionError(f"port_listening must not spawn a process: {args!r}")
+
+    for name in ("Popen", "run", "check_output"):
+        monkeypatch.setattr(mcp_process.subprocess, name, no_spawn)
+
+    # Both sockets bind 127.0.0.1, the address port_listening probes, not a
+    # wildcard, so the False assertion can't depend on how a platform treats a
+    # connect to 127.0.0.1 against a bound-only 0.0.0.0/:: socket (#11146).
     with socket.socket() as listener, socket.socket() as bound_only:
         listener.bind(("127.0.0.1", 0))
         listener.listen()
@@ -351,6 +365,7 @@ def test_port_listening_is_a_connect_probe():
 
         assert mcp_process.port_listening(listener.getsockname()[1]) is True
         assert mcp_process.port_listening(bound_only.getsockname()[1]) is False
+    assert spawned == []
 
 
 @pytest.mark.skipif(not mcp_process._IS_WINDOWS, reason="Get-NetTCPConnection is Windows-only")

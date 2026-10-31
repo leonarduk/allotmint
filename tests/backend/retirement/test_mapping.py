@@ -85,3 +85,19 @@ def test_year_ranges():
     assert _year_ranges([]) == ""
     assert _year_ranges([1990]) == "1990"
     assert _year_ranges([1993, 1990, 1991]) == "1990-1991, 1993"
+
+
+def test_fee_is_subtracted_from_each_available_real_year(synthetic_history):
+    gross = plan_real_returns({"cash": 100}, synthetic_history)
+    net = plan_real_returns({"cash": 100}, synthetic_history, fee_pct=0.5)
+    assert net.fee_pct == 0.5 and gross.fee_pct == 0.0
+    for year, value in gross.real_returns.items():
+        if value is None:
+            assert net.real_returns[year] is None
+        else:
+            assert net.real_returns[year] == pytest.approx(value - 0.005)
+
+
+def test_negative_fee_rejected(synthetic_history):
+    with pytest.raises(ValueError, match="fee_pct"):
+        plan_real_returns({"cash": 100}, synthetic_history, fee_pct=-0.1)

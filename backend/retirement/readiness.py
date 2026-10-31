@@ -15,22 +15,29 @@ One run:
    deterministic results, and stores the run.
 
 Settings not passed in are taken from the previous run, then the defaults
-below, so a scheduled run repeats the owner's last choices. Nothing in the
-owner's plan, profile or account data is written.
+below, so a scheduled run repeats the owner's last choices. A
+``contribution_annual`` or ``fee_pct`` still unset after that comes from the
+owner's recorded contribution schedule and all-in costs
+(:mod:`backend.retirement.defaults`, #10510); those defaults are reported in
+``inputs`` but never stored as settings, so they never override an explicit
+choice and are re-read on every run. Nothing in the owner's plan, profile or
+account data is written.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import logging
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping, Optional
 
 from backend.common.investment_plan import PlanNotFoundError, load_plan
 from backend.common.pension import DEFINED_CONTRIBUTION_ACCOUNT_MARKERS, _age_from_dob, forecast_pension
 from backend.logging_setup import sanitise_log_value
-from backend.retirement import agent, history
+from backend.retirement import agent, defaults, history
 from backend.retirement.drawdown import DrawdownInputs, simulate
 from backend.retirement.long_history import LONG_HISTORY_PARTS, LongHistory, LongHistoryError, load_long_history
 from backend.retirement.mapping import data_notes, plan_real_returns
@@ -63,6 +70,7 @@ class ReadinessSettings:
     contribution_annual: Optional[float] = None
     investment_growth_pct: float = 5.0
     assumed_inflation_pct: float = 2.0
+    fee_pct: Optional[float] = None
 
     @classmethod
     def resolve(cls, overrides: Mapping[str, Any], previous: Optional[Mapping[str, Any]]) -> "ReadinessSettings":
@@ -74,6 +82,8 @@ class ReadinessSettings:
         settings = cls(**merged)
         if not settings.survival_levels or any(not 0 < p <= 100 for p in settings.survival_levels):
             raise ValueError("survival_levels must be one or more percentages in (0, 100]")
+        if settings.fee_pct is not None and not 0 <= settings.fee_pct <= 10:
+            raise ValueError("fee_pct must be between 0 and 10")
         return settings
 
 
@@ -106,8 +116,18 @@ def run_forecast(owner: str, settings: ReadinessSettings, request: Any = None) -
         raise ReadinessError(f"pension forecast failed: {exc.detail}") from exc
 
 
-def build_inputs(forecast: Mapping[str, Any], settings: ReadinessSettings, weights: Mapping[str, float]) -> dict:
-    """The run's inputs: everything :func:`evaluate` needs besides the dob and the long history."""
+def build_inputs(
+    forecast: Mapping[str, Any],
+    settings: ReadinessSettings,
+    weights: Mapping[str, float],
+    sources: Optional[Mapping[str, Optional[str]]] = None,
+) -> dict:
+    """The run's inputs: everything :func:`evaluate` needs besides the dob and the long history.
+
+    ``settings`` are the effective ones (defaults filled in); ``sources`` says
+    where ``contribution_annual`` and ``fee_pct`` came from.
+    """
+    sources = sources or {}
     return {
         "pot_gbp": round(float(forecast["pension_pot_gbp"]), 2),
         "retirement_age": int(forecast["retirement_age"]),
@@ -115,6 +135,9 @@ def build_inputs(forecast: Mapping[str, Any], settings: ReadinessSettings, weigh
         "state_pension_age": int(forecast["state_pension_age"]),
         "state_pension_annual": float(settings.state_pension_annual or 0.0),
         "contribution_annual": float(forecast.get("contribution_annual") or 0.0),
+        "contribution_source": sources.get("contribution_annual"),
+        "fee_pct": None if settings.fee_pct is None else float(settings.fee_pct),
+        "fee_source": sources.get("fee_pct"),
         "investment_growth_pct": float(settings.investment_growth_pct),
         "assumed_inflation_pct": float(settings.assumed_inflation_pct),
         "survival_levels": [float(p) for p in settings.survival_levels],
@@ -153,7 +176,7 @@ def project_real_pot(inputs: Mapping[str, Any], dob: str, run_date: dt.date) -> 
 def evaluate(inputs: Mapping[str, Any], dob: str, run_date: dt.date, long_history: LongHistory) -> dict:
     """Deterministic results for ``inputs``: projection, plan returns and the drawdown simulation."""
     projection = project_real_pot(inputs, dob, run_date)
-    returns = plan_real_returns(inputs["weights_pct"], long_history)
+    returns = plan_real_returns(inputs["weights_pct"], long_history, float(inputs.get("fee_pct") or 0.0))
     drawdown_inputs = DrawdownInputs(
         start_pot=projection["start_pot_real_gbp"],
         years=inputs["death_age"] - inputs["retirement_age"],
@@ -226,6 +249,7 @@ _TRACKED_INPUTS = {
     "assumed_inflation_pct": "assumed inflation",
     "investment_growth_pct": "forecast growth assumption",
     "contribution_annual": "annual contribution",
+    "fee_pct": "all-in fees",
     "survival_levels": "survival levels",
 }
 
@@ -280,7 +304,16 @@ def market_facts(long_history: LongHistory, inputs: Mapping[str, Any]) -> dict:
     return {"uk_cpi": cpi, "gilt_10y_yield": _latest_gilt_yield(), "flags": flags}
 
 
-def caveats(results: Mapping[str, Any], long_history: LongHistory) -> list[str]:
+def _fee_caveat(fee_pct: Optional[float]) -> str:
+    if fee_pct is None:
+        return "Fees, charges and taxes are not modelled; returns are gross."
+    return (
+        f"All-in fees of {fee_pct}% a year are deducted from each year's real return in the drawdown; the "
+        "growth assumption before retirement is the forecast's own. Taxes are not modelled."
+    )
+
+
+def caveats(results: Mapping[str, Any], long_history: LongHistory, fee_pct: Optional[float] = None) -> list[str]:
     mapping = results["mapping"]
     proxy_text = "; ".join(f"{p['class']} ({p['weight_pct']}%): {p['proxy']}" for p in mapping["proxies"]) or "none"
     first, last = long_history.years[0], long_history.years[-1]
@@ -289,7 +322,7 @@ def caveats(results: Mapping[str, Any], long_history: LongHistory) -> list[str]:
         f"{mapping['proxy_share_pct']}% of the plan is replayed through proxy series ({proxy_text}).",
         f"Return basis: long-history figures are total returns (income reinvested), {first}-{last}; some daily "
         "price series elsewhere in the app are price-only (#9370).",
-        "Fees, charges and taxes are not modelled; returns are gross.",
+        _fee_caveat(fee_pct),
         "The starting pot is the forecast's projected pot at retirement, converted to today's money at the "
         "assumed inflation rate; incomes are in today's money and rise with inflation.",
         ADVISER_NOTE,
@@ -316,10 +349,13 @@ def digest_items(report: Mapping[str, Any]) -> list[dict]:
     return items
 
 
-def _plan_weights(owner: str, request: Any) -> dict[str, float]:
+def _accounts_root(request: Any) -> Path:
     from backend.routes._accounts import resolve_accounts_root
 
-    accounts_root = resolve_accounts_root(request or _stub_request())
+    return Path(resolve_accounts_root(request or _stub_request()))
+
+
+def _plan_weights(owner: str, accounts_root: Path) -> dict[str, float]:
     try:
         return load_plan(owner, accounts_root.parent).target_weights()
     except PlanNotFoundError as exc:
@@ -345,6 +381,38 @@ def _attribution(
     return history.attribute_change(previous, inputs, float(income), flows, compute)
 
 
+def fill_defaults(
+    owner: str,
+    settings: ReadinessSettings,
+    *,
+    accounts_root: Path,
+    run_date: dt.date,
+    load_transactions: Any,
+) -> tuple[ReadinessSettings, dict[str, Optional[str]], list[str]]:
+    """``settings`` with an unset contribution/fee filled from the owner's records; sources and notes.
+
+    An explicit setting (including 0) always wins: the records are only read
+    for a value that is still ``None``.
+    """
+    sources: dict[str, Optional[str]] = {
+        "contribution_annual": None if settings.contribution_annual is None else "settings",
+        "fee_pct": None if settings.fee_pct is None else "settings",
+    }
+    notes: list[str] = []
+    filled = settings
+    if settings.contribution_annual is None:
+        found = defaults.scheduled_contribution(owner, accounts_root.parent, run_date)
+        notes += found.notes
+        if found.value is not None:
+            filled, sources["contribution_annual"] = replace(filled, contribution_annual=found.value), found.source
+    if settings.fee_pct is None:
+        found = defaults.pension_fee(owner, accounts_root, load_transactions, run_date)
+        notes += found.notes
+        if found.value is not None:
+            filled, sources["fee_pct"] = replace(filled, fee_pct=found.value), found.source
+    return filled, sources, notes
+
+
 #: The parts of the ``/pension/forecast`` result kept in the report.
 _FORECAST_KEYS = ("pension_pot_gbp", "projected_pot_gbp", "current_age", "retirement_age", "state_pension_age")
 
@@ -368,16 +436,18 @@ def run(
         long_history = long_history or load_long_history()
     except LongHistoryError as exc:
         raise ReadinessError(str(exc)) from exc
-    forecast = run_forecast(owner, settings, request)
-    inputs = build_inputs(forecast, settings, _plan_weights(owner, request))
+    accounts_root = _accounts_root(request)
+    weights = _plan_weights(owner, accounts_root)
+    transactions = functools.cache(load_transactions or _load_transactions)
+    effective, sources, default_notes = fill_defaults(
+        owner, settings, accounts_root=accounts_root, run_date=run_date, load_transactions=transactions
+    )
+    forecast = run_forecast(owner, effective, request)
+    inputs = build_inputs(forecast, effective, weights, sources)
     dob = str(forecast["dob"])
-    context = {
-        "dob": dob,
-        "run_date": run_date,
-        "long_history": long_history,
-        "load_transactions": load_transactions or _load_transactions,
-    }
+    context = {"dob": dob, "run_date": run_date, "long_history": long_history, "load_transactions": transactions}
     results = evaluate(inputs, dob, run_date, long_history)
+    results["data_notes"].extend(default_notes)
     if not inputs["state_pension_annual"]:
         results["data_notes"].append(NO_STATE_PENSION_NOTE)
     if abs(results["projection"]["projected_pot_nominal_gbp"] - float(forecast["projected_pot_gbp"])) > 1.0:
@@ -393,7 +463,7 @@ def run(
         "attribution": _attribution(previous, inputs, results, owner, context),
         "assumption_changes": assumption_changes(previous, inputs),
         "market": market_facts(long_history, inputs),
-        "caveats": caveats(results, long_history),
+        "caveats": caveats(results, long_history, inputs["fee_pct"]),
         "data_source": {
             "long_history": "/".join(LONG_HISTORY_PARTS),
             "years": [long_history.years[0], long_history.years[-1]] if long_history.years else [],
@@ -419,4 +489,4 @@ def _store(owner: str, report: Mapping[str, Any]) -> dict:
     return {"stored": True, "reason": None}
 
 
-__all__ = ["ReadinessError", "ReadinessSettings", "evaluate", "run"]
+__all__ = ["ReadinessError", "ReadinessSettings", "evaluate", "fill_defaults", "run"]

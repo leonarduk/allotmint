@@ -8,9 +8,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from backend.allowance_guardian.schedule import ContributionSchedule, ScheduledContribution, save_schedule
 from backend.common import investment_plan as plan_mod
 from backend.common import pension as pension_common
-from backend.retirement import agent, history, readiness
+from backend.retirement import agent, defaults, history, readiness
 from backend.routes import pension as pension_route
 
 DOB = "1975-06-15"
@@ -37,7 +38,14 @@ def env(monkeypatch, tmp_path, synthetic_history):
     monkeypatch.setenv(history.STORE_ENV, str(tmp_path / "store"))
     monkeypatch.setattr(agent, "_default_llm", lambda: None)
     monkeypatch.setattr(readiness, "_latest_gilt_yield", lambda: {"date": "2030-01-14", "pct": 4.1})
-    state = {"pot": 100000.0, "transactions": []}
+    # No all-in cost unless a test sets one (the portfolio/fee path is covered in test_defaults.py).
+    fees = {"value": None}
+    monkeypatch.setattr(
+        defaults,
+        "pension_fee",
+        lambda owner, root, txs, on: defaults.Resolved(fees["value"], fees["value"] and "all_in_cost"),
+    )
+    state = {"pot": 100000.0, "transactions": [], "fees": fees}
     monkeypatch.setattr(
         pension_route,
         "build_owner_portfolio",
@@ -65,7 +73,7 @@ def env(monkeypatch, tmp_path, synthetic_history):
             load_transactions=lambda: state["transactions"],
         )
 
-    return SimpleNamespace(state=state, run=go, store=tmp_path / "store")
+    return SimpleNamespace(state=state, run=go, store=tmp_path / "store", data_root=tmp_path)
 
 
 def test_run_reuses_forecast_and_stores_report(env):
@@ -236,3 +244,70 @@ def test_undated_pension_rows_are_logged(caplog):
         total = readiness.pension_flows_between(rows, "alex", dt.date(2030, 1, 31), dt.date(2030, 2, 28))
     assert total == 100.0
     assert "Skipped 2 pension cash-flow rows" in caplog.text
+
+
+def _save_schedule(data_root, monthly_pence: int) -> None:
+    item = ScheduledContribution(
+        account="SIPP", amount_minor=monthly_pence, source="employer", expected_day=1, start_date="2029-01-01"
+    )
+    save_schedule(ContributionSchedule(owner="alex", contributions=[item]), data_root)
+
+
+def test_recorded_schedule_is_the_default_contribution(env):
+    _save_schedule(env.data_root, 50_000)
+    report = env.run(dt.date(2030, 1, 15))
+    assert report["inputs"]["contribution_annual"] == 6000.0
+    assert report["inputs"]["contribution_source"] == "schedule"
+    assert any("recorded contribution schedule" in note for note in report["results"]["data_notes"])
+    # The default is not frozen into the stored settings, so the next run re-reads the schedule.
+    assert report["settings"]["contribution_annual"] is None
+    _save_schedule(env.data_root, 100_000)
+    assert env.run(dt.date(2030, 4, 15))["inputs"]["contribution_annual"] == 12000.0
+
+
+def test_explicit_contribution_overrides_the_schedule(env):
+    _save_schedule(env.data_root, 50_000)
+    report = env.run(dt.date(2030, 1, 15), contribution_annual=0.0)
+    assert report["inputs"]["contribution_annual"] == 0.0
+    assert report["inputs"]["contribution_source"] == "settings"
+    # An explicit choice carries over to the next run and still wins.
+    again = readiness.ReadinessSettings.resolve({}, history.latest_run("alex"))
+    assert again.contribution_annual == 0.0
+
+
+def test_no_schedule_keeps_zero_contribution(env):
+    report = env.run(dt.date(2030, 1, 15))
+    assert report["inputs"]["contribution_annual"] == 0.0
+    assert report["inputs"]["contribution_source"] is None
+
+
+def test_all_in_fees_lower_the_sustainable_income(env):
+    gross = env.run(dt.date(2030, 1, 15))
+    assert gross["inputs"]["fee_pct"] is None
+    assert "Fees, charges and taxes are not modelled; returns are gross." in gross["caveats"]
+    env.state["fees"]["value"] = 1.0
+    net = env.run(dt.date(2030, 1, 15))
+    assert (net["inputs"]["fee_pct"], net["inputs"]["fee_source"]) == (1.0, "all_in_cost")
+    assert net["headline"]["income_gbp"] < gross["headline"]["income_gbp"]
+    assert not any("not modelled; returns are gross" in c for c in net["caveats"])
+    assert any("All-in fees of 1.0% a year" in c and "Taxes are not modelled" in c for c in net["caveats"])
+    assert net["settings"]["fee_pct"] is None
+
+
+def test_explicit_fee_setting_wins_over_all_in_cost(env):
+    env.state["fees"]["value"] = 1.0
+    report = env.run(dt.date(2030, 1, 15), fee_pct=0.0)
+    assert (report["inputs"]["fee_pct"], report["inputs"]["fee_source"]) == (0.0, "settings")
+
+
+def test_fee_change_is_flagged_and_attributed_to_assumptions(env):
+    env.run(dt.date(2030, 1, 15), fee_pct=0.0)
+    second = env.run(dt.date(2030, 4, 15), fee_pct=0.5)
+    assert "all-in fees" in [c["label"] for c in second["assumption_changes"]]
+    parts = second["attribution"]["parts_gbp"]
+    assert parts["assumptions"] == second["attribution"]["change_gbp"] < 0
+
+
+def test_fee_setting_out_of_range_rejected():
+    with pytest.raises(ValueError, match="fee_pct"):
+        readiness.ReadinessSettings.resolve({"fee_pct": 11.0}, None)

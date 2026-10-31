@@ -187,6 +187,11 @@ def _trade_flags(row: RawStatementRow, price_gbp: Optional[float], fees_minor: i
 
 def _normalise_row(index: int, row: RawStatementRow) -> StatementRow:
     price_gbp = _price_gbp(row)
+    # ``fees_minor`` is the total *including* stamp duty, and both inputs are
+    # validated ``>= 0`` by RawStatementRow, so ``stamp_duty_minor <=
+    # fees_minor`` holds by construction, even with no dealing commission.
+    # match._add_stamp_duty relies on this: a create/update with a stamp duty
+    # larger than its fees would be rejected with a 422 (#11168).
     fees_minor = (pounds_to_minor(row.fees) or 0) + (pounds_to_minor(row.stamp_duty) or 0)
     consideration = pounds_to_minor(row.consideration)
     if consideration is None and row.units is not None and price_gbp is not None:

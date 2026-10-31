@@ -37,6 +37,7 @@ from backend.decision_journal.entries import (
     set_lesson,
     set_threshold,
 )
+from backend.decision_journal.patterns import build_patterns
 from backend.decision_journal.store import load_journal
 from backend.routes.investment_plan import _data_root, _resolve_owner, _validation_detail
 
@@ -98,7 +99,12 @@ def get_journal(owner: str, request: Request, identity: Optional[str] = Depends(
         until=until,
     )
     body = journal.model_dump(mode="json", exclude_none=True)
-    return {"settings": body["settings"], "entries": body["entries"], "unlogged": unlogged}
+    return {
+        "settings": body["settings"],
+        "entries": body["entries"],
+        "unlogged": unlogged,
+        "patterns": build_patterns(journal.entries).model_dump(mode="json", exclude_none=True),
+    }
 
 
 @router.post("/decision-journal/{owner}/drafts")

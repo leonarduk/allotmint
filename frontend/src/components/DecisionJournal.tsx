@@ -18,6 +18,7 @@ import type {
   InvestmentPlanDecision,
   UnloggedChange,
 } from '../types';
+import DecisionPatterns from './DecisionPatterns';
 
 const INPUT = 'w-full border p-1 text-sm';
 const BUTTON = 'rounded bg-gray-200 px-2 py-1 text-sm text-slate-900';
@@ -574,6 +575,7 @@ export default function DecisionJournal({
         />
       )}
       {error && <p className="break-words text-sm text-red-600">{error}</p>}
+      {data?.patterns && <DecisionPatterns patterns={data.patterns} />}
       {data && data.entries.length > 0 && (
         <ul className="text-sm" aria-label={t('decisionJournal.entries')}>
           {data.entries.map((entry) => (

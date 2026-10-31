@@ -342,6 +342,8 @@ def test_restart_stops_server_found_by_windows_lookup(env, calls, monkeypatch):
 
 
 def test_port_listening_is_a_connect_probe():
+    # Real sockets, no mocks: fails if port_listening ever switches to a TCP-table
+    # state check, which misses live listeners on some Windows machines (#11124, #11128).
     with socket.socket() as listener, socket.socket() as bound_only:
         listener.bind(("127.0.0.1", 0))
         listener.listen()

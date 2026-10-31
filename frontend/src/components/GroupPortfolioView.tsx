@@ -1255,7 +1255,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             </p>
           )}
           <PortfolioSummary totals={totals} />
-          <CostBasisChecklist accounts={filteredAccounts} />
+          <CostBasisChecklist accounts={filteredAccounts} onImported={refetchPortfolio} />
         </>
       )}
 

@@ -2532,7 +2532,17 @@
     "suspect": "Erfasste Kosten wirken falsch",
     "addCost": "Kosten erfassen",
     "showAll": "Alle {{count}} anzeigen",
-    "showTop": "Nur die größten {{count}} anzeigen"
+    "showTop": "Nur die größten {{count}} anzeigen",
+    "importHelp": "Viele auszufüllen? Laden Sie die Liste als CSV herunter, tragen Sie für jede Position das Kaufdatum und den gezahlten Preis pro Einheit (GBP) ein und laden Sie sie hoch. Eine in mehreren Tranchen gekaufte Position teilen Sie in eine Zeile pro Tranche auf; ihre Zeilen müssen zusammen die gehaltenen Einheiten ergeben.",
+    "downloadTemplate": "CSV-Vorlage herunterladen",
+    "uploadLabel": "CSV mit Kaufpreisen hochladen",
+    "importing": "Kaufpreise werden importiert…",
+    "importFailed": "Import fehlgeschlagen: {{message}}",
+    "importUpdated_one": "Einstandskosten für {{count}} Position erfasst.",
+    "importUpdated_other": "Einstandskosten für {{count}} Positionen erfasst.",
+    "importSkipped_one": "{{count}} Zeile übersprungen.",
+    "importSkipped_other": "{{count}} Zeilen übersprungen.",
+    "importSkippedRow": "Zeile {{line}} ({{ticker}}): {{reason}}"
   },
   "portfolioSentence": {
     "valueOnly": "Ihr Portfolio ist {{value}} wert.",

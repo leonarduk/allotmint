@@ -2532,7 +2532,17 @@
     "suspect": "O custo registado parece errado",
     "addCost": "Adicionar custo",
     "showAll": "Mostrar todas ({{count}})",
-    "showTop": "Mostrar só as {{count}} primeiras"
+    "showTop": "Mostrar só as {{count}} primeiras",
+    "importHelp": "Muitas por preencher? Descarregue a lista em CSV, adicione a data de compra e o preço pago por unidade (GBP) de cada uma e carregue-a. Divida uma posição comprada em vários lotes numa linha por lote; as suas linhas devem somar as unidades detidas.",
+    "downloadTemplate": "Descarregar modelo CSV",
+    "uploadLabel": "Carregar CSV de preços de compra",
+    "importing": "A importar preços de compra…",
+    "importFailed": "A importação falhou: {{message}}",
+    "importUpdated_one": "Custo registado para {{count}} posição.",
+    "importUpdated_other": "Custo registado para {{count}} posições.",
+    "importSkipped_one": "{{count}} linha ignorada.",
+    "importSkipped_other": "{{count}} linhas ignoradas.",
+    "importSkippedRow": "Linha {{line}} ({{ticker}}): {{reason}}"
   },
   "portfolioSentence": {
     "valueOnly": "A sua carteira vale {{value}}.",

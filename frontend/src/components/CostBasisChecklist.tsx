@@ -10,6 +10,7 @@ import {
   topValueShare,
 } from '../lib/costBasisChecklist';
 import { useReportingCurrency } from '../hooks/useReportingCurrency';
+import { CostBasisCsvImport } from './CostBasisCsvImport';
 import tableStyles from '../styles/table.module.css';
 
 /** Rows shown before "Show all": enough to recover most of the value (#7825). */
@@ -17,14 +18,17 @@ export const CHECKLIST_TOP_COUNT = 10;
 
 type Props = {
   accounts: Account[];
+  /** Reload the portfolio after a purchase-price CSV import recorded costs (#10095). */
+  onImported?: () => void;
 };
 
 /**
  * Actionable companion to the dashboard's "Excludes N holdings with no
  * reliable cost basis" note (#7825): the excluded holdings, largest market
- * value first, each linking to the set-holding form prefilled for it.
+ * value first, each linking to the set-holding form prefilled for it, plus a
+ * purchase-price CSV import to fill many at once (#10095).
  */
-export function CostBasisChecklist({ accounts }: Props) {
+export function CostBasisChecklist({ accounts, onImported }: Props) {
   const { t } = useTranslation();
   const reporting = useReportingCurrency();
   const [showAll, setShowAll] = useState(false);
@@ -114,6 +118,7 @@ export function CostBasisChecklist({ accounts }: Props) {
             : t('costBasisChecklist.showAll', { count: gaps.length })}
         </button>
       )}
+      <CostBasisCsvImport gaps={gaps} onImported={onImported} />
     </details>
   );
 }

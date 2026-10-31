@@ -4038,6 +4038,7 @@
       "title": "Affecter les positions aux poches",
       "help": "Choisissez la poche de chaque position. L'affectation s'applique au ticker dans tous vos comptes.",
       "sleeveFor": "Poche pour {{ticker}}",
+      "sleeveForOwner": "Poche pour {{ticker}} ({{owner}})",
       "col": {
         "holding": "Position",
         "sector": "Secteur",

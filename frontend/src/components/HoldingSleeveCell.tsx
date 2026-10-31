@@ -13,6 +13,8 @@ export type SleeveControl = {
   /** Upper-cased ticker -> sleeve id; untagged tickers are in the core. */
   assignments: Record<string, string>;
   onAssign: (ticker: string, sleeveId: string) => Promise<void>;
+  /** Upper-cased tickers the owner holds, when known; the instrument page offers the picker only for these. */
+  heldTickers?: ReadonlySet<string>;
 };
 
 /** The sleeve a ticker is in; untagged or dangling tags fall back to the core, as on the backend. */
@@ -24,8 +26,17 @@ const sleeveOf = (control: SleeveControl, ticker: string): string => {
 // The row itself selects the instrument; changing the sleeve must not.
 const stop = (event: MouseEvent) => event.stopPropagation();
 
-/** Table cell with a sleeve picker for one holding; reuses the Sleeves panel's option labels. */
-export function HoldingSleeveCell({ control, ticker }: { control: SleeveControl; ticker: string }) {
+/** Sleeve picker for one holding plus its error; reuses the Sleeves panel's option labels. */
+export function SleeveSelect({
+  control,
+  ticker,
+  label,
+}: {
+  control: SleeveControl;
+  ticker: string;
+  /** Accessible name; defaults to "Sleeve for <ticker>". */
+  label?: string;
+}) {
   const { t } = useTranslation();
   const { demoReadOnly, reason } = useDemoReadOnly();
   const [busy, setBusy] = useState(false);
@@ -44,10 +55,10 @@ export function HoldingSleeveCell({ control, ticker }: { control: SleeveControl;
   };
 
   return (
-    <td className={tableStyles.cell} onClick={stop}>
+    <>
       <select
         className="rounded border p-1"
-        aria-label={t("sleeves.assign.sleeveFor", { ticker })}
+        aria-label={label ?? t("sleeves.assign.sleeveFor", { ticker })}
         value={sleeveOf(control, ticker)}
         disabled={busy || demoReadOnly}
         title={reason()}
@@ -64,6 +75,15 @@ export function HoldingSleeveCell({ control, ticker }: { control: SleeveControl;
           {error}
         </span>
       )}
+    </>
+  );
+}
+
+/** Table cell with a sleeve picker for one holding. */
+export function HoldingSleeveCell({ control, ticker }: { control: SleeveControl; ticker: string }) {
+  return (
+    <td className={tableStyles.cell} onClick={stop}>
+      <SleeveSelect control={control} ticker={ticker} />
     </td>
   );
 }

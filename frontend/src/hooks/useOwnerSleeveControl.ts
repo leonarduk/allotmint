@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { assignSleeve, getSleeves } from "../api";
 import type { SleeveList } from "../types";
 import type { SleeveControl } from "../components/HoldingSleeveCell";
@@ -39,6 +39,11 @@ export function useOwnerSleeveControl(owner: string | null): SleeveControl | und
     [owner],
   );
 
+  const heldTickers = useMemo(
+    () => new Set((Array.isArray(list?.holdings) ? list.holdings : []).map((h) => h.ticker.trim().toUpperCase())),
+    [list],
+  );
+
   if (!owner || !Array.isArray(list?.sleeves) || list.sleeves.length <= 1) return undefined;
-  return { sleeves: list.sleeves, assignments: list.assignments ?? {}, onAssign };
+  return { sleeves: list.sleeves, assignments: list.assignments ?? {}, onAssign, heldTickers };
 }

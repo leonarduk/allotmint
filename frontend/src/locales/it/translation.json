@@ -4038,6 +4038,7 @@
       "title": "Assegna le posizioni ai comparti",
       "help": "Scegli il comparto per ogni posizione. L'assegnazione vale per il ticker in tutti i tuoi conti.",
       "sleeveFor": "Comparto per {{ticker}}",
+      "sleeveForOwner": "Comparto per {{ticker}} ({{owner}})",
       "col": {
         "holding": "Posizione",
         "sector": "Settore",

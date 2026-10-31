@@ -4038,6 +4038,7 @@
       "title": "Positionen Segmenten zuordnen",
       "help": "Wählen Sie das Segment für jede Position. Die Zuordnung gilt für den Ticker in allen Ihren Konten.",
       "sleeveFor": "Segment für {{ticker}}",
+      "sleeveForOwner": "Segment für {{ticker}} ({{owner}})",
       "col": {
         "holding": "Position",
         "sector": "Sektor",

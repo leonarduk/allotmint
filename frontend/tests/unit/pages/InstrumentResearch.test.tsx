@@ -33,6 +33,8 @@ vi.mock("@/api", () => ({
   getInstrumentNotes: vi.fn(() => Promise.resolve([])),
   createInstrumentNote: vi.fn(),
   deleteInstrumentNote: vi.fn(),
+  getSleeves: vi.fn(),
+  assignSleeve: vi.fn(),
 }));
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -845,6 +847,36 @@ describe("InstrumentResearch page", () => {
     const newsTab = screen.getByRole("button", { name: /News/i });
     await userEvent.click(newsTab);
     expect(await screen.findByText("news fail")).toBeInTheDocument();
+  });
+
+  it("lets an owner holding the instrument move it into a sleeve from the positions tab (#9839)", async () => {
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [{ owner: "alice", account: "isa", units: 3 }],
+        ticker: "AAA",
+        prices: [],
+        base_currency: "GBP",
+      },
+      loading: false,
+      error: null,
+    } as any);
+    const sleeves = [
+      { id: "core", name: "Core", size_pct: 90, targets: {}, strategy: null },
+      { id: "sleeve-spec", name: "Speculative", size_pct: 10, targets: {}, strategy: null },
+    ];
+    const holdings = [{ ticker: "AAA", name: null, value: 1, sleeve_id: "core" }];
+    vi.mocked(api.getSleeves).mockResolvedValue({ sleeves, assignments: {}, holdings });
+    vi.mocked(api.assignSleeve).mockResolvedValue({ sleeves, assignments: { AAA: "sleeve-spec" }, holdings });
+
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: /Positions/i }));
+
+    const select = await screen.findByRole("combobox", { name: "Sleeve for AAA (alice)" });
+    expect(select).toHaveValue("core");
+    await userEvent.selectOptions(select, "sleeve-spec");
+    expect(api.assignSleeve).toHaveBeenCalledWith("alice", "AAA", "sleeve-spec");
+    await waitFor(() => expect(select).toHaveValue("sleeve-spec"));
   });
 
   it("shows a message when no news is available", async () => {

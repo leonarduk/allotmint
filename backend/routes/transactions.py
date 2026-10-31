@@ -103,6 +103,8 @@ def _get_moneyhub_client() -> MoneyhubClient:
 
 
 # Set only by the dividend refresh bot (#11086), never taken from a request body.
+# Every write route excludes these: create, import, and the PUT update, which
+# keeps whatever the stored row already has (#11097).
 _BOT_ONLY_FIELDS = frozenset({"estimated", "attribution_only"})
 
 
@@ -845,7 +847,9 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
     original_owner = _validate_component(original_owner, "owner")
     original_account = _validate_component(original_account_raw, "account")
 
-    tx_data = tx.model_dump(mode="json")
+    # TransactionUpdate has no bot-only fields today (extras are ignored); the
+    # exclude keeps that true if they are ever added to the model.
+    tx_data = tx.model_dump(mode="json", exclude=_BOT_ONLY_FIELDS)
     new_owner = _validate_component(tx_data.pop("owner"), "owner")
     new_account = _validate_component(tx_data.pop("account"), "account")
     if not tx_data.get("reason"):

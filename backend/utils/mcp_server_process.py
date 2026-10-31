@@ -36,7 +36,8 @@ _LOOKUP_TIMEOUT_SECONDS = 30
 _IS_WINDOWS = sys.platform == "win32"
 
 # One PowerShell call returns the listening PIDs plus each one's process and
-# parent process, so a status check costs a single spawn. Listeners are the
+# parent process, so a status check costs one TCP probe (``port_listening``,
+# which ``_windows_owners`` runs first) plus a single spawn. Listeners are the
 # sockets with no remote end, not ``-State Listen``: some machines report blank
 # or wrong states in the TCP table, so a live listener can show no state at all.
 _WINDOWS_INSPECT_SCRIPT = """
@@ -108,6 +109,9 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
 def _windows_owners(port: int) -> list[PortOwner]:
     # Bound-only sockets and outbound connections' ephemeral ports also have
     # rows with no remote end, so a row alone doesn't prove anything listens.
+    # This gate must run before the PowerShell spawn: without it such a socket
+    # would be returned as an owner, and restart would refuse with "held by
+    # another program" although nothing is serving the port.
     if not port_listening(port):
         return []
     powershell = shutil.which("powershell") or shutil.which("pwsh")
@@ -193,7 +197,12 @@ def find_port_owners(port: int) -> list[PortOwner]:
 
 
 def port_listening(port: int) -> bool:
-    """True if something accepts connections on 127.0.0.1:``port``."""
+    """True if something accepts connections on 127.0.0.1:``port``.
+
+    A connect probe on every platform, never a TCP-table state check: the
+    Windows lookup relies on this because some machines report blank or wrong
+    states there (#11124), so a state check would miss live listeners.
+    """
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.5)

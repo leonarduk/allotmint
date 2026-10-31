@@ -552,6 +552,11 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
     ``stamp_duty``/``fx_charge`` are not managed like ``fees``: the trade
     editors do not show them, so an omitted part is kept while ``fees`` is
     unchanged and dropped (back to unknown) when ``fees`` changes (#10493).
+
+    So a caller that changes ``fees`` must resend every breakdown part it
+    wants to keep: ``fees=3.0`` alone drops both stored parts, and
+    ``fees=3.0, stamp_duty=1.0`` keeps the new stamp duty but drops a stored
+    ``fx_charge``.
     """
     managed_fields = {"ticker", "date", "price_gbp", "units", "fees", "comments", "reason"}
     updated = dict(existing)
@@ -559,6 +564,7 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
     for field in managed_fields:
         if field not in update or update.get(field) is None:
             updated.pop(field, None)
+    # A new ``fees`` drops each part not resent; see the docstring.
     for field in FEE_BREAKDOWN_FIELDS:
         if fees_changed and update.get(field) is None:
             updated.pop(field, None)

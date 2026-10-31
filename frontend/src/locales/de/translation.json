@@ -4256,6 +4256,8 @@
     "title": "Bots",
     "intro": "Alle automatischen Jobs und KI-Agenten der App: wann sie zuletzt liefen, was passiert ist und ihre Einstellungen.",
     "loadError": "Bots konnten nicht geladen werden.",
+    "digestOwnersError": "Die Inhaber für die Zusammenfassung konnten nicht geladen werden.",
+    "digestNoOwners": "Es gibt keinen Inhaber, für den eine Zusammenfassung angezeigt werden kann.",
     "disabled": "deaktiviert",
     "columns": {
       "bot": "Bot",

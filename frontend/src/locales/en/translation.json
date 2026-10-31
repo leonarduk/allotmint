@@ -4249,6 +4249,8 @@
     "title": "Bots",
     "intro": "Every automated job and AI agent the app runs: when it last ran, what happened, and its settings.",
     "loadError": "Could not load bots.",
+    "digestOwnersError": "Could not load owners for the digest.",
+    "digestNoOwners": "There is no owner to show a digest for.",
     "disabled": "disabled",
     "columns": {
       "bot": "Bot",

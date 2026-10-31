@@ -4256,6 +4256,8 @@
     "title": "Bots",
     "intro": "Toutes les tâches automatiques et tous les agents IA de l’application : dernière exécution, résultat et paramètres.",
     "loadError": "Impossible de charger les bots.",
+    "digestOwnersError": "Impossible de charger les titulaires pour la synthèse.",
+    "digestNoOwners": "Aucun titulaire pour lequel afficher une synthèse.",
     "disabled": "désactivé",
     "columns": {
       "bot": "Bot",

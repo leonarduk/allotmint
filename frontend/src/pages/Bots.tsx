@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type FormEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   getBot,
   getBotRun,
   getBotRuns,
   getBots,
+  getOwners,
   runBotNow,
   updateBotSettings,
   type BotDetail,
@@ -13,7 +20,13 @@ import {
   type BotSettingsSchemaProperty,
   type BotSummary,
 } from '../api';
+import { BotsDigest } from '../components/BotsDigest';
+import { OwnerSelector } from '../components/OwnerSelector';
+import { RouteContext } from '../contexts/route';
+import { useDefaultOwner } from '../hooks/useDefaultOwner';
 import tableStyles from '../styles/table.module.css';
+import type { OwnerSummary } from '../types';
+import { sanitizeOwners } from '../utils/owners';
 
 const POLL_INTERVAL_MS = 2000;
 // Stop polling after this long; the longest bot timeout is 15 minutes, so a
@@ -503,6 +516,61 @@ function BotDetailPanel({
   );
 }
 
+type OwnersLoad =
+  | { kind: 'loading' }
+  | { kind: 'error' }
+  | { kind: 'ready'; owners: OwnerSummary[] };
+
+/**
+ * The bots digest for one owner (#10502): the selected/route owner, else the
+ * signed-in user's own owner, with a picker when more than one is visible.
+ */
+function DigestSection() {
+  const { t } = useTranslation();
+  // Read optionally: there is no RouteProvider in isolated renders. A pick
+  // updates the app-level owner, as on Reports.
+  const route = useContext(RouteContext);
+  const [localOwner, setLocalOwner] = useState('');
+  const setOwner = route ? route.setSelectedOwner : setLocalOwner;
+  const [load, setLoad] = useState<OwnersLoad>({ kind: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    getOwners()
+      .then(
+        (owners) =>
+          !cancelled &&
+          setLoad({ kind: 'ready', owners: sanitizeOwners(owners) })
+      )
+      .catch(() => !cancelled && setLoad({ kind: 'error' }));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const owners = load.kind === 'ready' ? load.owners : [];
+  const owner = useDefaultOwner(
+    owners,
+    route ? route.selectedOwner : localOwner
+  );
+
+  return (
+    <div className="mb-6 rounded border p-4" data-testid="bots-digest-section">
+      {load.kind === 'loading' && <p>{t('common.loading')}</p>}
+      {load.kind === 'error' && (
+        <p role="alert" className="text-red-600">
+          {t('bots.digestOwnersError')}
+        </p>
+      )}
+      {load.kind === 'ready' && !owner && <p>{t('bots.digestNoOwners')}</p>}
+      {owners.length > 1 && owner && (
+        <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
+      )}
+      {owner && <BotsDigest key={owner} owner={owner} />}
+    </div>
+  );
+}
+
 export default function Bots() {
   const { t } = useTranslation();
   const [bots, setBots] = useState<BotSummary[] | null>(null);
@@ -527,6 +595,7 @@ export default function Bots() {
     <div className="container mx-auto max-w-5xl p-4">
       <h2 className="mb-2 text-xl md:text-2xl">{t('bots.title')}</h2>
       <p className="mb-4 text-sm opacity-80">{t('bots.intro')}</p>
+      <DigestSection />
       {error && (
         <p role="alert" className="text-red-600">
           {t('bots.loadError')} {error}

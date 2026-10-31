@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createDecisionDraft, getDecisionJournal } from '../api';
 import { qualifyingTrades } from '../lib/decisionJournalPrompt';
@@ -21,13 +21,22 @@ function useQualifying(owner: string, trades: Transaction[]) {
   const [changes, setChanges] = useState<UnloggedChange[]>([]);
   const [threshold, setThreshold] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Keyed on the saved rows' ids, not the array's identity, so a parent that
+  // rebuilds the same list on re-render does not refetch the journal.
+  const tradesKey = trades.map((tx) => tx.id ?? '').join('|');
+  const tradesRef = useRef(trades);
+  useEffect(() => {
+    tradesRef.current = trades;
+  });
   useEffect(() => {
     let active = true;
     getDecisionJournal(owner)
       .then((journal) => {
         if (!active) return;
         setThreshold(journal.settings.threshold_gbp);
-        setChanges(qualifyingTrades(trades, journal.settings.threshold_gbp));
+        setChanges(
+          qualifyingTrades(tradesRef.current, journal.settings.threshold_gbp)
+        );
       })
       .catch((err: unknown) => {
         if (active) setError(errorText(err));
@@ -35,7 +44,7 @@ function useQualifying(owner: string, trades: Transaction[]) {
     return () => {
       active = false;
     };
-  }, [owner, trades]);
+  }, [owner, tradesKey]);
   return { changes, setChanges, threshold, error, setError };
 }
 

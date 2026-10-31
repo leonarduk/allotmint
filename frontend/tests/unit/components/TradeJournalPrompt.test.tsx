@@ -50,6 +50,26 @@ describe('TradeJournalPrompt', () => {
     });
   });
 
+  it('does not refetch the journal when re-rendered with the same rows', async () => {
+    const { rerender } = render(
+      <TradeJournalPrompt
+        owner="alex"
+        trades={[...IMPORTED]}
+        onClose={vi.fn()}
+      />
+    );
+    await screen.findByRole('region', { name: 'Log trade decisions' });
+    rerender(
+      <TradeJournalPrompt
+        owner="alex"
+        trades={[...IMPORTED]}
+        onClose={vi.fn()}
+      />
+    );
+    await screen.findByRole('region', { name: 'Log trade decisions' });
+    expect(api.getDecisionJournal).toHaveBeenCalledTimes(1);
+  });
+
   it('lists every qualifying imported row in one prompt', async () => {
     render(
       <TradeJournalPrompt owner="alex" trades={IMPORTED} onClose={vi.fn()} />

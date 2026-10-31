@@ -320,6 +320,94 @@ def test_ensure_schema_still_reindexes_columns_out_of_order():
     assert list(result.columns) == cache.EXPECTED_COLS
 
 
+def _conforming_frame():
+    return pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[ms]"),
+            "Open": [1.0, 2.0],
+            "High": [1.5, 2.5],
+            "Low": [0.5, 1.5],
+            "Close": [1.2, 2.2],
+            "Volume": [100, 200],
+            "Ticker": ["ABC", "ABC"],
+            "Source": ["SRC", "SRC"],
+        }
+    )
+
+
+def test_ensure_schema_does_not_rewrite_an_unchanged_date_column(monkeypatch):
+    """#8105: a conforming frame's Date column must not be re-assigned.
+
+    ``df["Date"]`` returns a new Series on every access under pandas
+    copy-on-write, so comparing the coerced column against a fresh
+    ``df["Date"]`` always looked "changed" and every warm-cache slice paid a
+    redundant column write.
+    """
+    cache = import_cache()
+    df = _conforming_frame()
+
+    setitem_keys = []
+    real_setitem = pd.DataFrame.__setitem__
+
+    def spy_setitem(self, key, value):
+        setitem_keys.append(key)
+        return real_setitem(self, key, value)
+
+    monkeypatch.setattr(pd.DataFrame, "__setitem__", spy_setitem)
+
+    result = cache._ensure_schema(df)
+
+    assert setitem_keys == []
+    assert result is df
+
+
+def test_ensure_schema_still_writes_a_coerced_date_column():
+    """String dates are still parsed and written back as datetime64[ms] (#8105)."""
+    cache = import_cache()
+    df = _conforming_frame()
+    df["Date"] = ["2024-01-01", "2024-01-02"]
+
+    result = cache._ensure_schema(df)
+
+    assert result["Date"].dtype == "datetime64[ms]"
+    assert result["Date"].tolist() == [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-02")]
+
+
+@pytest.mark.parametrize(
+    "dates",
+    [
+        pd.to_datetime(["1969-12-31", "1970-01-01", "1970-01-02", "2024-05-01"]).astype("datetime64[ms]"),
+        pd.to_datetime(["1969-12-31", "1970-01-01", "1970-01-02", "2024-05-01"]),
+        ["1969-12-31", "1970-01-01", "1970-01-02", "2024-05-01"],
+        [date(1969, 12, 31), date(1970, 1, 1), date(1970, 1, 2), date(2024, 5, 1)],
+    ],
+    ids=["datetime64-ms", "datetime64-ns", "str", "date-objects"],
+)
+def test_pre_epoch_mask_matches_to_datetime_reference(dates):
+    """#8105: skipping pd.to_datetime for datetime64 columns changes no result."""
+    cache = import_cache()
+    df = pd.DataFrame({"Date": dates})
+
+    reference = (pd.to_datetime(df["Date"], errors="coerce") <= cache._EPOCH_DATE).to_numpy()
+
+    assert cache._pre_epoch_mask(df).tolist() == reference.tolist() == [True, True, False, False]
+
+
+def test_pre_epoch_mask_skips_to_datetime_for_datetime64_column(monkeypatch):
+    """#8105: pd.to_datetime iterates every row of an already-datetime64 column
+    in its should_cache heuristic, which was the largest single cost of a
+    warm-cache fill on long histories. It must not run for such a column."""
+    cache = import_cache()
+    df = pd.DataFrame({"Date": pd.bdate_range("2000-01-03", periods=50).astype("datetime64[ms]")})
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("pd.to_datetime must not run on a datetime64 column")
+
+    monkeypatch.setattr(cache.pd, "to_datetime", fail)
+
+    assert not cache._pre_epoch_mask(df).any()
+
+
 def test_rolling_cache_serves_cached_slice_on_fetch_failure(monkeypatch, tmp_path):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     cache = import_cache()

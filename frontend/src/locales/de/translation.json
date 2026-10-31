@@ -4105,6 +4105,7 @@
     "allInCost": "Jährliche Gesamtkosten",
     "allInBreakdown": "{{funds}} Fondskosten + {{fees}} gezahlte Gebühren (letzte 12 Monate)",
     "allInBreakdownUnknownFunds": "Unbekannte Fondskosten + {{fees}} gezahlte Gebühren (letzte 12 Monate)",
+    "allInFeesSplit": "Gezahlte Gebühren: {{dealing}} Handelsgebühren, {{stampDuty}} Stempelsteuer, {{fx}} Devisengebühren, {{account}} Kontogebühren",
     "allInNotIncluded": "Nicht enthalten: {{items}}",
     "allInUnknownValue": "{{value}} in {{holdings}} Positionen ohne Kostendaten",
     "allInUnknownTrades_one": "{{trades}} Trade ohne erfasste Gebühr",

@@ -230,6 +230,9 @@ class TransactionContract(SpaContractBase):
     shares: float | None = None
     units: float | None = None
     fees: float | None = None
+    # Parts of ``fees``, not added to it (#10493).
+    stamp_duty: float | None = None
+    fx_charge: float | None = None
     comments: str | None = None
     reason: str | None = None
     reason_to_buy: str | None = None

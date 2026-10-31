@@ -103,6 +103,9 @@ class StatementRow(BaseModel):
     price_gbp: Optional[float] = None
     consideration_minor: Optional[int] = None
     fees_minor: int = 0
+    # The stamp duty included in ``fees_minor``, when the statement shows it
+    # (#10493); ``None`` is unknown, not 0.
+    stamp_duty_minor: Optional[int] = None
     amount_minor: Optional[int] = None
     flags: List[str] = Field(default_factory=list)
 

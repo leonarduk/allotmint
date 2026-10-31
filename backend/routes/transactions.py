@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Literal, Mapping, Optional, Tuple, get_args
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic_core import PydanticCustomError
 
 from backend import importers
 from backend.auth import get_active_user
@@ -35,6 +36,7 @@ from backend.common.ledger_transfers import replayed_units as _replayed_units
 from backend.common.prices import get_price_gbp
 from backend.common.realised_gains import compute_disposal_gains
 from backend.common.ticker_utils import normalise_filter_ticker, split_ticker
+from backend.common.trade_fees import FEE_BREAKDOWN_FIELDS, breakdown_error
 from backend.config import config
 from backend.integrations.moneyhub_api import MoneyhubClient, MoneyhubNotConfiguredError
 from backend.logging_setup import sanitise_log_value
@@ -126,7 +128,11 @@ class Transaction(BaseModel):
     price: float | None = None
     shares: float | None = None
     units: float | None = None
+    # ``fees`` is the trade's total charge; ``stamp_duty`` and ``fx_charge``
+    # (GBP) are optional parts of it, never added to it (#10493).
     fees: float | None = None
+    stamp_duty: float | None = None
+    fx_charge: float | None = None
     comments: str | None = None
     reason: str | None = None
     reason_to_buy: str | None = None
@@ -312,9 +318,26 @@ class TransactionCreate(BaseModel):
     units: Optional[float] = Field(default=None, gt=0)
     amount_minor: Optional[int] = Field(default=None, gt=0)
     fees: Optional[float] = None
+    # Parts of ``fees`` (GBP), not added to it; see backend.common.trade_fees.
+    stamp_duty: Optional[float] = Field(default=None, ge=0)
+    fx_charge: Optional[float] = Field(default=None, ge=0)
     comments: Optional[str] = None
     reason: Optional[str] = None
     external_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _check_fee_breakdown(self) -> "TransactionCreate":
+        _raise_on_breakdown_error(self.fees, self.stamp_duty, self.fx_charge)
+        return self
+
+
+def _raise_on_breakdown_error(fees: Any, stamp_duty: Any, fx_charge: Any) -> None:
+    """Reject a stamp duty / FX breakdown that does not fit within ``fees`` (#10493)."""
+    error = breakdown_error(fees, stamp_duty, fx_charge)
+    if error:
+        # A custom error, not ValueError: its context carries no exception
+        # object, so the 422 response stays JSON-serialisable.
+        raise PydanticCustomError("fee_breakdown", error)
 
 
 _Date = date
@@ -339,9 +362,18 @@ class TransactionUpdate(BaseModel):
     price_gbp: Optional[float] = Field(default=None, gt=0)
     units: Optional[float] = Field(default=None, gt=0)
     fees: Optional[float] = None
+    # Omitted keeps the stored value while ``fees`` is unchanged; a new
+    # ``fees`` drops an omitted part, as the old split no longer applies.
+    stamp_duty: Optional[float] = Field(default=None, ge=0)
+    fx_charge: Optional[float] = Field(default=None, ge=0)
     comments: Optional[str] = None
     reason: Optional[str] = None
     external_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _check_fee_breakdown(self) -> "TransactionUpdate":
+        _raise_on_breakdown_error(self.fees, self.stamp_duty, self.fx_charge)
+        return self
 
 
 class TransactionSplit(BaseModel):
@@ -505,16 +537,38 @@ def _format_transaction_response(
     return payload
 
 
+def _same_amount(a: object, b: object) -> bool:
+    if a is None or b is None:
+        return a is None and b is None
+    try:
+        return math.isclose(float(a), float(b), abs_tol=1e-9)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+
+
 def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping[str, object]) -> Dict[str, object]:
+    """Apply ``update`` to ``existing``; raise 422 if the fee breakdown no longer fits.
+
+    ``stamp_duty``/``fx_charge`` are not managed like ``fees``: the trade
+    editors do not show them, so an omitted part is kept while ``fees`` is
+    unchanged and dropped (back to unknown) when ``fees`` changes (#10493).
+    """
     managed_fields = {"ticker", "date", "price_gbp", "units", "fees", "comments", "reason"}
     updated = dict(existing)
+    fees_changed = not _same_amount(existing.get("fees"), update.get("fees"))
     for field in managed_fields:
         if field not in update or update.get(field) is None:
+            updated.pop(field, None)
+    for field in FEE_BREAKDOWN_FIELDS:
+        if fees_changed and update.get(field) is None:
             updated.pop(field, None)
     for key, value in update.items():
         if value is not None:
             updated[key] = value
     updated.pop("id", None)
+    error = breakdown_error(updated.get("fees"), updated.get("stamp_duty"), updated.get("fx_charge"))
+    if error:
+        raise HTTPException(status_code=422, detail=error)
     return updated
 
 
@@ -771,7 +825,7 @@ def _rollback_import(store: "AccountsStore", persisted: List[Dict[str, Any]]) ->
         _rebuild_portfolio(owner, account, store)
 
 
-_TRADE_ONLY_FIELDS = ("price_gbp", "units", "fees")
+_TRADE_ONLY_FIELDS = ("price_gbp", "units", "fees", *FEE_BREAKDOWN_FIELDS)
 
 _FUTURE_DATE_DETAIL = "date cannot be in the future"
 
@@ -789,6 +843,13 @@ def _reject_future_date(tx_date: Optional[date]) -> None:
     """400 for a future-dated write, which the rebuild would count in today's holdings (#10898)."""
     if _is_future_date(tx_date):
         raise HTTPException(status_code=400, detail=_FUTURE_DATE_DETAIL)
+
+
+def _drop_unset_breakdown(tx_data: Dict[str, Any]) -> None:
+    """Store ``stamp_duty``/``fx_charge`` only when known, so rows without them are unchanged (#10493)."""
+    for field in FEE_BREAKDOWN_FIELDS:
+        if tx_data.get(field) is None:
+            tx_data.pop(field, None)
 
 
 def _validate_create_shape(tx_data: Dict[str, Any]) -> None:
@@ -835,6 +896,7 @@ def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     _reject_future_date(tx.date)
 
     _validate_create_shape(tx_data)
+    _drop_unset_breakdown(tx_data)
 
     return _persist_transaction(store, owner, _transactions_account_name(owner, account, store), tx_data)
 
@@ -926,7 +988,7 @@ def _split_transaction_entry(entry: Mapping[str, Any], first_units: float) -> Tu
     first["units"] = round(first_units, 8)
     second["units"] = round(total - first_units, 8)
     ratio = first_units / total
-    for key in ("amount_minor", "fees"):
+    for key in ("amount_minor", "fees", *FEE_BREAKDOWN_FIELDS):
         value = entry.get(key)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             # The second half is the remainder, so the two always sum to the original.
@@ -1084,6 +1146,7 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     """
 
     tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id", *_BOT_ONLY_FIELDS})
+    _drop_unset_breakdown(tx_data)
     _coalesce_price_gbp(tx_data)
     if not tx_data.get("reason"):
         tx_data["reason"] = tx_data.get("reason_to_buy")

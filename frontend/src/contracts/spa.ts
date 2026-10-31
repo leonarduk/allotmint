@@ -155,6 +155,9 @@ export const transactionContractSchema = z
     shares: nullableNumber,
     units: nullableNumber,
     fees: nullableNumber,
+    // Parts of ``fees``, not added to it (#10493).
+    stamp_duty: nullableNumber,
+    fx_charge: nullableNumber,
     comments: nullableString,
     reason: nullableString,
     reason_to_buy: nullableString,

@@ -134,7 +134,12 @@ def _quantity(tx: Mapping[str, Any]) -> float | None:
 
 
 def _priced_value(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> float | None:
-    """Price x units, plus fees on an acquisition or minus them on a disposal."""
+    """Price x units, plus fees on an acquisition or minus them on a disposal.
+
+    ``fees`` is the trade's total charge. ``stamp_duty`` and ``fx_charge`` are
+    breakdowns of it (#10493, :mod:`backend.common.trade_fees`) and are
+    deliberately not added here, so recording them never changes a cost basis.
+    """
     price = _float(tx.get("price_gbp"))
     if price is None:
         return None

@@ -4105,6 +4105,7 @@
     "allInCost": "Custo anual total",
     "allInBreakdown": "{{funds}} em encargos de fundos + {{fees}} em taxas pagas (últimos 12 meses)",
     "allInBreakdownUnknownFunds": "Encargos de fundos desconhecidos + {{fees}} em taxas pagas (últimos 12 meses)",
+    "allInFeesSplit": "Taxas pagas: {{dealing}} de corretagem, {{stampDuty}} de imposto de selo, {{fx}} de câmbio, {{account}} de conta",
     "allInNotIncluded": "Não incluído: {{items}}",
     "allInUnknownValue": "{{value}} em {{holdings}} posições sem dados de encargos",
     "allInUnknownTrades_one": "{{trades}} negociação sem taxa registada",

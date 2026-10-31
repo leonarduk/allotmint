@@ -271,7 +271,11 @@ export type AllInCostPart = {
   unknown_value_gbp: number;
   holding_count: number;
   unknown_count: number;
+  /** Trade fees not explained by stamp duty or FX (all of `fees` on rows without a breakdown). */
   dealing_fees_gbp: number;
+  /** Parts of trade `fees` recorded as stamp duty and FX charges (#10493); optional for older responses. */
+  stamp_duty_gbp?: number;
+  fx_charges_gbp?: number;
   account_charges_gbp: number;
   trade_count: number;
   trades_without_fee_data: number;
@@ -851,6 +855,9 @@ export interface Transaction {
   units?: number | null;
   price_gbp?: number | null;
   fees?: number | null;
+  /** Stamp duty and FX charge (GBP): parts of ``fees``, not added to it (#10493). */
+  stamp_duty?: number | null;
+  fx_charge?: number | null;
   comments?: string | null;
   reason?: string | null;
   reason_to_buy?: string | null;

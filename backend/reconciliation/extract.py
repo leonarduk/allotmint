@@ -207,6 +207,8 @@ def _normalise_row(index: int, row: RawStatementRow) -> StatementRow:
         price_gbp=price_gbp,
         consideration_minor=consideration if is_trade else None,
         fees_minor=fees_minor if is_trade else 0,
+        # Kept as a breakdown of ``fees_minor`` (its total), never added again (#10493).
+        stamp_duty_minor=pounds_to_minor(row.stamp_duty) if is_trade else None,
         amount_minor=amount,
         flags=flags,
     )

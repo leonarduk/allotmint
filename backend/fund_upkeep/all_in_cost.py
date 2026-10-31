@@ -8,10 +8,13 @@ Two parts, per account and in total:
   ``unknown_value_gbp`` and it adds nothing to the cost, so a missing figure is
   never counted as GBP 0.
 * **Transaction costs** over the last 12 months -- the ``fees`` recorded on
-  trades (dealing commission; stamp duty and FX charges are included where the
-  import folds them into ``fees``, as no separate field exists) plus account
-  charges (``FEES`` rows, less ``FEES_REFUND`` rows). A trade with no ``fees``
-  value is counted in ``trades_without_fee_data``: its cost is unknown, not 0.
+  trades plus account charges (``FEES`` rows, less ``FEES_REFUND`` rows). A
+  trade's ``fees`` is its total charge; its optional ``stamp_duty`` and
+  ``fx_charge`` say how much of that total was tax or FX (#10493, see
+  :mod:`backend.common.trade_fees`), and the rest is reported as dealing. So
+  ``dealing_fees_gbp + stamp_duty_gbp + fx_charges_gbp`` is the trades' fees,
+  counted once. A trade with no ``fees`` value is counted in
+  ``trades_without_fee_data``: its cost is unknown, not 0.
 
 ``FEES``/``FEES_REFUND`` rows carry ``amount_minor`` (pence); trade ``fees``
 are GBP, as :mod:`backend.common.holdings_rebuild` reads them. The row *type*
@@ -23,12 +26,17 @@ account value, cash included, because fees are paid on the whole account.
 
 from __future__ import annotations
 
+import logging
 import math
 from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 from backend.common.fund_charges import ongoing_charge_pct
 from backend.common.sector_labels import is_cash_instrument
+from backend.common.trade_fees import split_fees
+from backend.logging_setup import sanitise_log_value
+
+logger = logging.getLogger(__name__)
 
 WINDOW_DAYS = 365
 _TRADE_TYPES = {"BUY", "PURCHASE", "SELL"}
@@ -54,6 +62,8 @@ def _empty_part() -> Dict[str, Any]:
         "holding_count": 0,
         "unknown_count": 0,
         "dealing_fees_gbp": 0.0,
+        "stamp_duty_gbp": 0.0,
+        "fx_charges_gbp": 0.0,
         "account_charges_gbp": 0.0,
         "trade_count": 0,
         "trades_without_fee_data": 0,
@@ -90,11 +100,20 @@ def _add_transaction(part: Dict[str, Any], tx: Mapping[str, Any]) -> None:
     tx_type = str(tx.get("type") or "").upper()
     if tx_type in _TRADE_TYPES:
         part["trade_count"] += 1
-        fees = _number(tx.get("fees"))
-        if fees is None:
+        split = split_fees(tx)
+        if split is None:
             part["trades_without_fee_data"] += 1
-        else:
-            part["dealing_fees_gbp"] += abs(fees)
+            return
+        if not split.fits:
+            logger.warning(
+                "Stamp duty and FX charge exceed fees on %s of %s on %s; counting the fees as dealing",
+                sanitise_log_value(tx_type),
+                sanitise_log_value(tx.get("ticker")),
+                sanitise_log_value(tx.get("date")),
+            )
+        part["dealing_fees_gbp"] += split.dealing
+        part["stamp_duty_gbp"] += split.stamp_duty
+        part["fx_charges_gbp"] += split.fx_charge
         return
     sign = _ACCOUNT_CHARGE_SIGNS.get(tx_type)
     amount = _number(tx.get("amount_minor"))
@@ -103,7 +122,13 @@ def _add_transaction(part: Dict[str, Any], tx: Mapping[str, Any]) -> None:
 
 
 def _finish(part: Dict[str, Any]) -> Dict[str, Any]:
-    known_cost = part["fund_charges_gbp"] + part["dealing_fees_gbp"] + part["account_charges_gbp"]
+    known_cost = (
+        part["fund_charges_gbp"]
+        + part["dealing_fees_gbp"]
+        + part["stamp_duty_gbp"]
+        + part["fx_charges_gbp"]
+        + part["account_charges_gbp"]
+    )
     value = part["value_gbp"]
     out = {key: (round(v, 2) if isinstance(v, float) else v) for key, v in part.items()}
     # Holdings but no known charge at all is "unknown", not GBP 0 (#7834); no

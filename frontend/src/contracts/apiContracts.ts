@@ -184,6 +184,9 @@ export const transactionContractSchema = z.object({
   shares: nullableNumber.optional(),
   units: nullableNumber.optional(),
   fees: nullableNumber.optional(),
+  // Stamp duty and FX charge are parts of ``fees`` (its total), not added to it (#10493).
+  stamp_duty: nullableNumber.optional(),
+  fx_charge: nullableNumber.optional(),
   comments: nullableString.optional(),
   reason: nullableString.optional(),
   reason_to_buy: nullableString.optional(),

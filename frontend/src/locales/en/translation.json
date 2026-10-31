@@ -4098,6 +4098,7 @@
     "allInCost": "All-in annual cost",
     "allInBreakdown": "{{funds}} fund charges + {{fees}} fees paid (last 12 months)",
     "allInBreakdownUnknownFunds": "Unknown fund charges + {{fees}} fees paid (last 12 months)",
+    "allInFeesSplit": "Fees paid: {{dealing}} dealing, {{stampDuty}} stamp duty, {{fx}} FX charges, {{account}} account charges",
     "allInNotIncluded": "Not included: {{items}}",
     "allInUnknownValue": "{{value}} in {{holdings}} holdings with no fee data",
     "allInUnknownTrades_one": "{{trades}} trade with no fee recorded",

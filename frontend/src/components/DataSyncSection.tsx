@@ -184,7 +184,7 @@ export default function DataSyncSection() {
           type="button"
           onClick={handleRefresh}
           disabled={busy !== null}
-          className="rounded bg-[var(--surface-card-border)] px-4 py-2 disabled:opacity-50"
+          className="rounded bg-[var(--surface-muted-bg)] px-4 py-2 disabled:opacity-50"
         >
           {t('support.dataSync.refresh', 'Refresh status')}
         </button>

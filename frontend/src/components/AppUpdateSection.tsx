@@ -100,7 +100,7 @@ function UpdateResult({ result }: { result: AppUpdateResult }) {
       <button
         type="button"
         onClick={() => window.location.reload()}
-        className="rounded bg-[var(--surface-card-border)] px-2 py-1"
+        className="rounded bg-[var(--surface-muted-bg)] px-2 py-1"
       >
         {t('support.appUpdate.reload', 'Reload page')}
       </button>

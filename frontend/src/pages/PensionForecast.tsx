@@ -746,8 +746,9 @@ export default function PensionForecast() {
                         onClick={() => setMonthlySpending(monthly)}
                         className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
                           selected
-                            ? "border-blue-500 bg-blue-50 text-blue-900"
-                            : "border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] text-[var(--surface-muted-color)] hover:border-slate-400"
+                            ? // Selected state: intentionally theme-independent accent colour.
+                            "border-blue-500 bg-blue-50 text-blue-900"
+                            : "border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] text-[var(--surface-muted-color)] hover:border-[var(--surface-muted-color)]"
                         }`}
                       >
                         <span className="block font-semibold">
@@ -946,7 +947,7 @@ export default function PensionForecast() {
                 </thead>
                 <tbody>
                   {breakdownEntries.map(({ key, label, annual, monthly, share }) => (
-                    <tr key={String(key)} className="odd:bg-transparent even:bg-[var(--surface-card-border)]">
+                    <tr key={String(key)} className="odd:bg-transparent even:bg-[var(--surface-muted-bg)]">
                       <td className="px-3 py-2 text-[var(--surface-muted-color)]">{label}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right text-[var(--surface-card-color)]">
                         {currencyFormatter.format(annual)}

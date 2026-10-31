@@ -286,7 +286,7 @@ function AppliedStrategyPrompt({
         <button
           type="button"
           onClick={onDismiss}
-          className="mt-2 rounded bg-[var(--surface-card-border)] px-3 py-1 text-[var(--surface-card-color)]"
+          className="mt-2 rounded bg-[var(--surface-muted-bg)] px-3 py-1 text-[var(--surface-card-color)]"
         >
           {t('planPanel.notNow')}
         </button>
@@ -422,7 +422,7 @@ function RebalanceComparison({
           <button
             type="button"
             onClick={onDismiss}
-            className="mt-2 rounded bg-[var(--surface-card-border)] px-3 py-1 text-[var(--surface-card-color)]"
+            className="mt-2 rounded bg-[var(--surface-muted-bg)] px-3 py-1 text-[var(--surface-card-color)]"
           >
             {t('planPanel.notNow')}
           </button>
@@ -717,7 +717,7 @@ export default function PlanPanel({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)]"
+            className="rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)]"
           >
             {t('planPanel.editPlan')}
           </button>

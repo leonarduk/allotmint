@@ -21,7 +21,7 @@ import type {
 
 const INPUT = 'w-full border p-1 text-sm';
 const BUTTON =
-  'rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
+  'rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
 const PRIMARY =
   'rounded bg-blue-500 px-2 py-1 text-sm text-white disabled:opacity-50';
 const gbp = new Intl.NumberFormat('en-GB', {

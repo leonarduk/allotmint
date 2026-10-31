@@ -31,7 +31,7 @@ import type {
 
 const INPUT = 'w-full border p-1 text-sm';
 const SMALL_BUTTON =
-  'rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
+  'rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
 const pct = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 
 const today = () => localDateISO();
@@ -770,7 +770,7 @@ export default function PlanEditor({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded bg-[var(--surface-card-border)] px-3 py-1 text-[var(--surface-card-color)]"
+          className="rounded bg-[var(--surface-muted-bg)] px-3 py-1 text-[var(--surface-card-color)]"
         >
           {t('planEditor.cancel')}
         </button>

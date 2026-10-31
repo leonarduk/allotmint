@@ -49,7 +49,7 @@ export default function Ideas({ tab }: { tab: IdeasTab }) {
               className={
                 item.id === tab
                   ? "rounded bg-blue-700 px-3 py-1 text-white!"
-                  : "rounded bg-[var(--surface-card-border)] px-3 py-1 text-[var(--surface-card-color)]!"
+                  : "rounded bg-[var(--surface-muted-bg)] px-3 py-1 text-[var(--surface-card-color)]!"
               }
             >
               {t(`ideas.tabs.${item.id}`)}

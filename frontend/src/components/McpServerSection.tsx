@@ -130,7 +130,7 @@ function RestartConfirmation({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded bg-[var(--surface-card-border)] px-3 py-1"
+          className="rounded bg-[var(--surface-muted-bg)] px-3 py-1"
         >
           {t('common.cancel', 'Cancel')}
         </button>

@@ -738,7 +738,7 @@ export default function Support() {
             <button
               type="button"
               onClick={copyReport}
-              className="rounded bg-[var(--surface-card-border)] px-2 py-1"
+              className="rounded bg-[var(--surface-muted-bg)] px-2 py-1"
             >
               {t("support.health.copyReport")}
             </button>

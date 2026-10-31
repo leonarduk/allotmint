@@ -213,7 +213,7 @@ function TargetEditor({
         <button
           type="button"
           onClick={() => setDraft((d) => draftFromCurrent(plan, d.split))}
-          className="rounded bg-[var(--surface-card-border)] px-2 py-1 text-[var(--surface-card-color)]"
+          className="rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-[var(--surface-card-color)]"
         >
           {t('strategy.targets.startFromCurrent')}
         </button>

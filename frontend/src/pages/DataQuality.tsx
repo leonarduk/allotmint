@@ -756,7 +756,7 @@ export default function DataQuality() {
             tabIndex={tab === item.id ? 0 : -1}
             onClick={() => setTab(item.id)}
             onKeyDown={(e) => handleTabKeyDown(e, index)}
-            className={tab === item.id ? "rounded bg-blue-700 px-3 py-1 text-white" : "rounded bg-[var(--surface-card-border)] px-3 py-1"}
+            className={tab === item.id ? "rounded bg-blue-700 px-3 py-1 text-white" : "rounded bg-[var(--surface-muted-bg)] px-3 py-1"}
           >
             {item.label}
           </button>

@@ -23,7 +23,7 @@ const errorText = (error: unknown) =>
 
 const INPUT = 'rounded border p-1';
 const SMALL_BUTTON =
-  'rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
+  'rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
 
 function OrderTable({ tranche }: { tranche: CashDeploymentTranche }) {
   const { t } = useTranslation();

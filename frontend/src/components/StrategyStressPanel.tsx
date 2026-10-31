@@ -292,7 +292,8 @@ function FactorChips({
             onClick={() => onToggle(f)}
             className={`rounded-full border px-3 py-0.5 text-sm ${
               on
-                ? 'border-blue-600 bg-blue-600 text-white'
+                ? // Active state: intentionally theme-independent accent colour.
+                  'border-blue-600 bg-blue-600 text-white'
                 : 'border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] text-[var(--surface-muted-color)] hover:bg-[var(--menu-hover-bg)]'
             }`}
           >

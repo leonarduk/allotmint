@@ -677,7 +677,7 @@ function TaxAllowancesSection() {
                 <td className="border p-2 text-right">{formatAllowanceValue(info.remaining)}</td>
                 <td className="border p-2 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <div className="h-2 w-24 rounded-full bg-[var(--surface-card-border)]" aria-hidden="true">
+                    <div className="h-2 w-24 rounded-full bg-[var(--surface-muted-bg)]" aria-hidden="true">
                       <div
                         className={`h-2 rounded-full ${progressColor}`}
                         style={{ width: `${clampedPercent}%` }}

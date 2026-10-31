@@ -314,7 +314,7 @@ export default function PlanBriefCard({ owner }: { owner: string }) {
           type="button"
           onClick={() => void run()}
           disabled={running}
-          className="rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)] disabled:opacity-60"
+          className="rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)] disabled:opacity-60"
         >
           {running ? t('planBrief.running') : t('planBrief.runNow')}
         </button>

@@ -554,6 +554,9 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           {t('transactionsPage.costBasisHint', { ticker: costBasisTicker })}
         </p>
       )}
+      {/* Field labels deliberately set no colour: they inherit the theme text
+          colour from surface.surfaceCard (#8168). Do not add a light-only
+          background here without also theming these labels. */}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-sm">
           {t('transactionsPage.owner')}

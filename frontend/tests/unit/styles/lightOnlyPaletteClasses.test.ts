@@ -12,7 +12,12 @@ import path from 'node:path';
 //
 // Intentionally fixed dark colours (e.g. `bg-slate-900 text-white` buttons,
 // `bg-gray-800` inputs, skeleton `bg-gray-700`) stay readable in both themes and
-// are not matched here.
+// are not matched here. Coloured status badges and accents (e.g. Bots
+// STATUS_CLASSES, StrategyLibrary TONES, indigo/blue active states) are
+// intentionally theme-independent, commented at their definition sites, and
+// out of scope for this guard (it only matches neutral slate/gray). Neutral
+// fills (secondary buttons, chips, tracks, table stripes) use
+// --surface-muted-bg; --surface-card-border is for borders/dividers only.
 const SRC = path.resolve(__dirname, '../../../src');
 
 const LIGHT_ONLY = [

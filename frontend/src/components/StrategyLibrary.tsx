@@ -31,8 +31,10 @@ function Badge({ children, tone }: { children: string; tone: string }) {
   );
 }
 
+// Coloured badge tones (blue/green/amber) are intentionally theme-independent
+// status colours; the neutral builtin tone uses the surface tokens.
 const TONES = {
-  builtin: 'bg-[var(--surface-card-border)] text-[var(--surface-card-color)]',
+  builtin: 'bg-[var(--surface-muted-bg)] text-[var(--surface-card-color)]',
   custom: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100',
   active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100',
   modified: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100',
@@ -186,7 +188,7 @@ function StrategyEditor({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded bg-[var(--surface-card-border)] px-3 py-1 text-[var(--surface-card-color)]"
+          className="rounded bg-[var(--surface-muted-bg)] px-3 py-1 text-[var(--surface-card-color)]"
         >
           {t('strategyLibrary.editor.cancel')}
         </button>
@@ -220,7 +222,7 @@ function OwnedAction({
         disabled={strategy.builtin}
         onClick={onClick}
         aria-label={`${label} ${strategy.name}`}
-        className="rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {label}
       </button>
@@ -285,7 +287,7 @@ function StrategyRow({
             aria-label={t('strategyLibrary.row.duplicateAria', {
               name: strategy.name,
             })}
-            className="rounded bg-[var(--surface-card-border)] px-2 py-1 text-sm text-[var(--surface-card-color)] disabled:opacity-50"
+            className="rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)] disabled:opacity-50"
           >
             {t('strategyLibrary.row.duplicate')}
           </button>
@@ -419,7 +421,7 @@ export default function StrategyLibrary({
         <button
           type="button"
           onClick={() => setEditing({ strategy: null })}
-          className="rounded bg-[var(--surface-card-border)] px-3 py-1 text-sm text-[var(--surface-card-color)]"
+          className="rounded bg-[var(--surface-muted-bg)] px-3 py-1 text-sm text-[var(--surface-card-color)]"
         >
           {t('strategyLibrary.new')}
         </button>

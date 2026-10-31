@@ -285,15 +285,13 @@ jobs:
           DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
         run: |
           set -euo pipefail
+          # shellcheck source=/dev/null
+          source "$GITHUB_WORKSPACE/scripts/bash/lib/cfn_resource_id.sh"
 
-          # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
-          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
-          data_bucket="$(aws cloudformation list-stack-resources \
-            --stack-name BackendLambdaStack \
-            --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId" \
-            --output text 2>/dev/null \
-            | tr '\t' '\n' | awk 'NF && $0 != "None" && !found {print; found=1}' || echo "")"
+          data_bucket="$(cfn_resource_id BackendLambdaStack "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId")" || {
+            echo "::error::Could not list BackendLambdaStack resources; not falling back to wildcard resources, which only means the stack is not deployed (#11095)."
+            exit 1
+          }
           if [ -z "$data_bucket" ] || [ "$data_bucket" = "None" ]; then
             echo "::notice::BackendLambdaStack not yet deployed or PortfolioDataBucket not found; using wildcard resource for permission checks."
             data_bucket="*"
@@ -310,26 +308,18 @@ jobs:
             static_site_stack_arn="*"
           fi
 
-          # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
-          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
-          price_refresh_alias_arn="$(aws cloudformation list-stack-resources \
-            --stack-name BackendLambdaStack \
-            --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PriceRefreshLambdaLiveAlias')].PhysicalResourceId" \
-            --output text 2>/dev/null \
-            | tr '\t' '\n' | awk 'NF && $0 != "None" && !found {print; found=1}' || echo "")"
+          price_refresh_alias_arn="$(cfn_resource_id BackendLambdaStack "StackResourceSummaries[?starts_with(LogicalResourceId,'PriceRefreshLambdaLiveAlias')].PhysicalResourceId")" || {
+            echo "::error::Could not list BackendLambdaStack resources; not falling back to wildcard resources, which only means the stack is not deployed (#11095)."
+            exit 1
+          }
           if [ -z "$price_refresh_alias_arn" ] || [ "$price_refresh_alias_arn" = "None" ]; then
             price_refresh_alias_arn="*"
           fi
 
-          # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
-          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
-          backend_log_group="$(aws cloudformation list-stack-resources \
-            --stack-name BackendLambdaStack \
-            --query "StackResourceSummaries[?starts_with(LogicalResourceId,'BackendLambdaLogGroup')].PhysicalResourceId" \
-            --output text 2>/dev/null \
-            | tr '\t' '\n' | awk 'NF && $0 != "None" && !found {print; found=1}' || echo "")"
+          backend_log_group="$(cfn_resource_id BackendLambdaStack "StackResourceSummaries[?starts_with(LogicalResourceId,'BackendLambdaLogGroup')].PhysicalResourceId")" || {
+            echo "::error::Could not list BackendLambdaStack resources; not falling back to wildcard resources, which only means the stack is not deployed (#11095)."
+            exit 1
+          }
           account_id="$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")"
           if [ -z "$backend_log_group" ] || [ "$backend_log_group" = "None" ] || [ -z "$account_id" ]; then
             backend_log_group_arn="*"
@@ -588,26 +578,14 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |
           set -euo pipefail
-          # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
-          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
-          refresh_fn="$(aws cloudformation list-stack-resources \
-            --stack-name BackendLambdaStack \
-            --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'PriceRefreshLambda')].PhysicalResourceId" \
-            --output text \
-            | tr '\t' '\n' | awk 'NF && $0 != "None" && !found {print; found=1}')"
+          # shellcheck source=/dev/null
+          source "$GITHUB_WORKSPACE/scripts/bash/lib/cfn_resource_id.sh"
+          refresh_fn="$(cfn_resource_id BackendLambdaStack "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'PriceRefreshLambda')].PhysicalResourceId")"
           if [ -z "$refresh_fn" ] || [ "$refresh_fn" = "None" ]; then
             echo "Unable to resolve PriceRefreshLambda physical function name from BackendLambdaStack resources" >&2
             exit 1
           fi
-          # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
-          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
-          data_bucket="$(aws cloudformation list-stack-resources \
-            --stack-name BackendLambdaStack \
-            --query "StackResourceSummaries[?ResourceType=='AWS::S3::Bucket' && starts_with(LogicalResourceId, 'PortfolioDataBucket')].PhysicalResourceId" \
-            --output text \
-            | tr '\t' '\n' | awk 'NF && $0 != "None" && !found {print; found=1}')"
+          data_bucket="$(cfn_resource_id BackendLambdaStack "StackResourceSummaries[?ResourceType=='AWS::S3::Bucket' && starts_with(LogicalResourceId, 'PortfolioDataBucket')].PhysicalResourceId")"
           if [ -z "$data_bucket" ] || [ "$data_bucket" = "None" ]; then
             echo "Unable to resolve PortfolioDataBucket physical bucket name from BackendLambdaStack resources" >&2
             exit 1
@@ -1171,14 +1149,9 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |
           set -euo pipefail
-          # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
-          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
-          backend_fn="$(aws cloudformation list-stack-resources \
-            --stack-name BackendLambdaStack \
-            --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId" \
-            --output text \
-            | tr '\t' '\n' | awk 'NF && $0 != "None" && !found {print; found=1}')"
+          # shellcheck source=/dev/null
+          source "$GITHUB_WORKSPACE/scripts/bash/lib/cfn_resource_id.sh"
+          backend_fn="$(cfn_resource_id BackendLambdaStack "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId")"
           if [ -z "$backend_fn" ] || [ "$backend_fn" = "None" ]; then
             echo "Unable to resolve BackendLambda physical function name from BackendLambdaStack resources" >&2
             exit 1
@@ -1395,6 +1368,8 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |
           set -euo pipefail
+          # shellcheck source=/dev/null
+          source "$GITHUB_WORKSPACE/scripts/bash/lib/cfn_resource_id.sh"
           if [ -z "${SMOKE_AUTH_TOKEN:-}" ]; then
             echo "No smoke-test Cognito token was obtained; skipping authenticated invocation check." >&2
             exit 0
@@ -1403,14 +1378,7 @@ jobs:
             echo "METRIC_START was not recorded; skipping authenticated invocation check." >&2
             exit 0
           fi
-          # No "| [0]" in --query: past 100 resources the CLI applies it per page
-          # and prints "<id>\nNone" (#11091); awk keeps the first real value and,
-          # unlike head -1, reads all input so pipefail never sees a SIGPIPE.
-          backend_fn="$(aws cloudformation list-stack-resources \
-            --stack-name BackendLambdaStack \
-            --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId" \
-            --output text \
-            | tr '\t' '\n' | awk 'NF && $0 != "None" && !found {print; found=1}')"
+          backend_fn="$(cfn_resource_id BackendLambdaStack "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId")"
           if [ -z "$backend_fn" ] || [ "$backend_fn" = "None" ]; then
             echo "Unable to resolve BackendLambda physical function name from BackendLambdaStack resources" >&2
             exit 1

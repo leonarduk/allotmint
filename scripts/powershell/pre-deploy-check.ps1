@@ -51,6 +51,26 @@ function Write-GhaError($msg) {
     }
 }
 
+# Mirrors cfn_resource_id in scripts/bash/lib/cfn_resource_id.sh. Ok=$false
+# means the aws call failed for a reason other than the stack not existing
+# (throttling, expired credentials, network), which callers must not treat as
+# "not deployed" (#11095). Id is the first PhysicalResourceId the query yields,
+# or $null when the stack does not exist or nothing matched. The query must not
+# end in "| [0]": past 100 resources the CLI applies --query per page (#11091).
+function Get-CfnResourceId([string]$Stack, [string]$Query) {
+    $output = @(& aws cloudformation list-stack-resources --stack-name $Stack --query $Query --output text 2>&1)
+    $exitCode = $LASTEXITCODE
+    $stderr = @($output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
+    $lines = @($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
+    if ($exitCode -ne 0) {
+        $message = (@($stderr) + @($lines)) -join "`n"
+        if ($message -match 'does not exist') { return [pscustomobject]@{ Ok = $true; Id = $null; Error = $null } }
+        return [pscustomobject]@{ Ok = $false; Id = $null; Error = "aws cloudformation list-stack-resources --stack-name $Stack failed (exit $exitCode):`n$message" }
+    }
+    $id = $lines | ForEach-Object { $_ -split "`t" } | Where-Object { $_ -and $_ -ne 'None' } | Select-Object -First 1
+    return [pscustomobject]@{ Ok = $true; Id = $id; Error = $null }
+}
+
 # 0. Deployment environment variable validation
 Write-Host "`n=== 0. Deployment environment variable validation ==="
 & pwsh scripts/powershell/validate-deployment-env.ps1
@@ -108,15 +128,14 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
 } elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN) {
     Write-Skip "IAM simulation (requires GITHUB_DEPLOY_ROLE_ARN)"
 } else {
-    # No "|[0]": past 100 resources the CLI applies --query per page (#11091).
-    $BucketId = & aws cloudformation list-stack-resources `
-        --stack-name BackendLambdaStack `
-        --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId" `
-        --output text 2>$null |
-        ForEach-Object { $_ -split "`t" } |
-        Where-Object { $_ -and $_ -ne 'None' } |
-        Select-Object -First 1
-    if (-not $BucketId -or $BucketId -eq 'None') {
+    $BucketLookup = Get-CfnResourceId 'BackendLambdaStack' `
+        "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId"
+    $BucketId = $BucketLookup.Id
+    # A failed lookup is not "not deployed": fail rather than skip (#11095).
+    if (-not $BucketLookup.Ok) {
+        Write-Host $BucketLookup.Error -ForegroundColor Red
+        Write-Fail "IAM simulation (could not list BackendLambdaStack resources; see the error above)"
+    } elseif (-not $BucketId -or $BucketId -eq 'None') {
         Write-Skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
     } else {
         $AwsRegion = if ($env:AWS_REGION) { $env:AWS_REGION } else {

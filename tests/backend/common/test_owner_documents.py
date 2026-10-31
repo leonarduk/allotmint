@@ -76,6 +76,26 @@ def test_list_stems_ignores_nested_and_non_json_keys():
     assert list_s3_json_stems("b", "docs", client=fake) == ["alex", "bob"]
 
 
+def test_list_stems_follows_the_continuation_token_of_a_truncated_page():
+    fake = FakeS3(page_size=2)
+    for key in ("docs/alex.json", "docs/bob.json", "docs/carol.json"):
+        fake.objects[("b", key)] = b"{}"
+    assert list_s3_json_stems("b", "docs", client=fake) == ["alex", "bob", "carol"]
+    # One truncated page, then a request that carried its continuation token.
+    assert fake.list_calls == [
+        {"Prefix": "docs/", "ContinuationToken": None},
+        {"Prefix": "docs/", "ContinuationToken": "2"},
+    ]
+
+
+def test_list_stems_stops_on_a_truncated_page_without_a_token():
+    fake = FakeS3(page_size=1, omit_continuation_token=True)
+    for key in ("docs/alex.json", "docs/bob.json"):
+        fake.objects[("b", key)] = b"{}"
+    assert list_s3_json_stems("b", "docs", client=fake) == ["alex"]
+    assert len(fake.list_calls) == 1
+
+
 def test_load_existing_returns_none_only_for_a_missing_key():
     fake = FakeS3()
     storage = S3JSONStorage(bucket="b", key="k.json", client=fake)

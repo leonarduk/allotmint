@@ -475,3 +475,28 @@ def test_normalised_sources_empty_frame():
     from backend.timeseries.outlier_guard import _normalised_sources
 
     assert _normalised_sources(pd.DataFrame({"Source": pd.Series([], dtype=object)})).tolist() == []
+
+
+def test_datetime64_dates_skip_to_datetime(monkeypatch):
+    """#8105: an already-datetime64 Date column is ordered without pd.to_datetime,
+    whose should_cache heuristic iterates every row of a full history."""
+    df = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("pd.to_datetime must not run on a datetime64 column")
+
+    monkeypatch.setattr(pd, "to_datetime", fail)
+
+    out = drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")
+    assert out["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+
+
+@pytest.mark.parametrize("as_strings", [False, True], ids=["datetime64", "str"])
+def test_unsorted_dates_give_same_result_for_datetime64_and_strings(as_strings):
+    """Rows are still ordered by date (#8105): shuffled input, either dtype, same drops."""
+    df = _frame(VWRL_CLOSES, VWRL_VOLUMES).iloc[[3, 0, 5, 1, 4, 2]]
+    if as_strings:
+        df = df.assign(Date=df["Date"].dt.strftime("%Y-%m-%d"))
+
+    out = drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")
+    assert sorted(out["Close"].tolist()) == sorted([119.25, 120.52, 120.90, 120.73])

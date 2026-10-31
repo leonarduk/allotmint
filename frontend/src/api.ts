@@ -670,8 +670,17 @@ export const getLiveQuotes = (tickers: string[], signal?: AbortSignal) => {
   );
 };
 
-/** Fetch quote snapshots for a list of symbols. */
-export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
+/**
+ * Fetch quote snapshots for a list of symbols.
+ *
+ * GET /api/quotes returns 502 when every requested symbol fails
+ * (backend/routes/quotes.py, #8096); a partial failure is still a 200 list.
+ * That 502 means "no quotes right now": fetchJson retries it twice with
+ * bounded delays, then rejects with the generic "temporarily unavailable"
+ * message and `status: 502`, which the Watchlist and SeedCatalogue show as a
+ * recoverable error (the next poll or retry can succeed) (#8098).
+ */
+export const getQuotes =(symbols: string[], signal?: AbortSignal) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });
   return fetchJson<{
     name?: string | null;

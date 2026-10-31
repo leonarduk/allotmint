@@ -147,6 +147,26 @@ describe("Watchlist page", () => {
     unmount();
   });
 
+  it("treats the all-symbols-failed 502 as recoverable: a later refresh shows quotes (#8098)", async () => {
+    // getQuotes' rejection for GET /api/quotes' 502 (see its docstring).
+    const unavailable = Object.assign(
+      new Error("The backend service is temporarily unavailable. Please try again."),
+      { status: 502 },
+    );
+    (getQuotes as ReturnType<typeof vi.fn>)
+      .mockRejectedValueOnce(unavailable)
+      .mockResolvedValue(sampleRows);
+    localStorage.setItem("watchlistSymbols", "AAA,BBB");
+
+    renderWatchlist();
+
+    expect(await screen.findByText(unavailable.message)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(await screen.findByText("Alpha")).toBeInTheDocument();
+    expect(screen.queryByText(unavailable.message)).not.toBeInTheDocument();
+  });
+
   it("lets a long unbroken error (e.g. a timeout URL) wrap instead of widening the page (#8612)", async () => {
     const message =
       "Request timed out after 30s: http://localhost:6468/api/quotes?symbols=%5EFTSE%2C%5ENDX%2C%5EGSPC%2C%5ERUT";

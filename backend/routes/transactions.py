@@ -1472,6 +1472,15 @@ def _append_and_rebuild(store: "AccountsStore", owner: str, tx_account: str, row
         _rebuild_portfolio(owner, tx_account, store)
     except Exception:
         _remove_appended(store, owner, tx_account, start, len(rows))
+        try:
+            # The failed rebuild may have written part of the holdings; bring them back in line.
+            _rebuild_portfolio(owner, tx_account, store)
+        except Exception:
+            logger.exception(
+                "Could not rebuild %s/%s after rolling back a cost-basis import",
+                sanitise_log_value(owner),
+                sanitise_log_value(tx_account),
+            )
         raise
     return start
 

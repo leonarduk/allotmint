@@ -100,6 +100,16 @@ def test_plan_absorbs_float_noise_so_units_are_unchanged():
     assert sum(t["units"] for t in txs) == pytest.approx(0.3, abs=1e-12)
 
 
+def test_plan_skips_lots_whose_last_lot_would_be_negative():
+    # Within the float tolerance overall, but the earlier lots already exceed the units held.
+    txs, reason = plan_cost_basis_lots(
+        [], [{"ticker": "AAA.L", "units": 10}], "AAA.L", [_lot(10.0000001), _lot(0.0000001)]
+    )
+
+    assert txs == []
+    assert reason is not None and "last lot would leave no units" in reason
+
+
 def test_plan_skips_a_holding_not_on_file():
     txs, reason = plan_cost_basis_lots([], [], "AAA.L", [_lot(1)])
 
@@ -242,3 +252,5 @@ def test_import_rolls_back_every_account_when_a_rebuild_fails(client, tmp_path, 
     for account in ("isa", "sipp"):
         ledger = json.loads((tmp_path / "testowner" / f"{account}_transactions.json").read_text())
         assert ledger["transactions"] == []
+    # The account whose rebuild failed is rebuilt again after its rows are removed.
+    assert calls.count("sipp") == 2

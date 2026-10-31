@@ -221,4 +221,7 @@ def plan_cost_basis_lots(
     total = sum(lot.units for lot in lots)
     if abs(total - held) > UNITS_TOLERANCE:
         return [], f"lot units add up to {total:g}, but {held:g} units are held"
+    if held - sum(lot.units for lot in lots[:-1]) <= 0:
+        # The last lot absorbs float noise; it must not end up zero or negative.
+        return [], f"lot units add up to {total:g}, but the last lot would leave no units for {held:g} held"
     return _lot_transactions(str(holding.get("ticker")), lots, held), None

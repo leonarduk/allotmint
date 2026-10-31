@@ -32,13 +32,17 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
 
 from backend import report_periodic
 from backend.common import ledger_performance, portfolio_utils
+from backend.common.account_holdings import (
+    load_account_holdings_file,
+    normalise_account_file_name,
+    read_store_holdings,
+)
 from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX, S3AccountsStore
 from backend.common.data_providers import PLOTS_PREFIX
 from backend.common.dividend_attribution import is_attribution_only
 from backend.common.instrument_classification import ASSET_CLASS_LABELS, canonical_asset_class
 from backend.common.realised_gains import compute_disposal_gains
 from backend.logging_setup import sanitise_log_value
-from backend.routes.transactions import _load_account_holdings_file, _normalise_account_file_name, _read_store_holdings
 from backend.timeseries.cache import cache_only
 
 try:
@@ -1883,8 +1887,8 @@ def _load_transactions_s3(owner: str) -> List[dict]:
                     continue
                 txs = data.get("transactions") if isinstance(data, dict) else None
                 if isinstance(txs, list):
-                    account = _normalise_account_file_name(name.removesuffix("_transactions.json"))
-                    holdings_doc = _read_store_holdings(holdings_store, owner, account)
+                    account = normalise_account_file_name(name.removesuffix("_transactions.json"))
+                    holdings_doc = read_store_holdings(holdings_store, owner, account)
                     by_account[account] = _with_disposal_gains(txs, holdings_doc)
     return [tx for txs in by_account.values() for tx in txs]
 
@@ -1932,8 +1936,8 @@ def _load_transactions(owner: str) -> List[dict]:
                 continue
             txs = data.get("transactions") if isinstance(data, dict) else None
             if isinstance(txs, list):
-                account = _normalise_account_file_name(path.name.removesuffix("_transactions.json"))
-                holdings_doc = _load_account_holdings_file(owner_dir / f"{account}.json", owner, account)
+                account = normalise_account_file_name(path.name.removesuffix("_transactions.json"))
+                holdings_doc = load_account_holdings_file(owner_dir / f"{account}.json", owner, account)
                 records.extend(_with_disposal_gains(txs, holdings_doc))
     return records
 

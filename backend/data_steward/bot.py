@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
-from typing import Any, Dict, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
+from backend.bots.digest_models import Severity
 from backend.bots.registry import (
     BotKind,
     BotRunContext,
@@ -24,6 +26,7 @@ from backend.bots.registry import (
     Schedule,
     register_bot,
 )
+from backend.bots.run_records import DIGEST_ITEMS_KEY, digest_item, plural
 from backend.config import config
 from backend.data_steward.runner import StewardLimits
 from backend.data_steward.service import run_and_save
@@ -43,7 +46,27 @@ class DataStewardSettings(BotSettings):
     )
 
 
-def to_run_result(report: Dict[str, Any]) -> RunResult:
+def digest_items(verdicts: Counter, created: datetime) -> List[Dict[str, Any]]:
+    """Issues with a fix available, as one system-wide (admins only) digest item (#10502)."""
+
+    fixable = verdicts.get("fix_available", 0)
+    if not fixable:
+        return []
+    return [
+        digest_item(
+            BOT_ID,
+            "fix-available",
+            created,
+            owner=None,
+            severity=Severity.MEDIUM,
+            title=f"{plural(fixable, 'data issue')} with a fix available",
+            summary="The data steward found the likely cause; nothing has been changed.",
+            link="/data-quality",
+        )
+    ]
+
+
+def to_run_result(report: Dict[str, Any], started_at: Optional[datetime] = None) -> RunResult:
     """A steward report as a bot run: counts and a pointer, no portfolio values."""
 
     verdicts = Counter(str(item.get("verdict")) for item in report.get("items") or [])
@@ -63,6 +86,7 @@ def to_run_result(report: Dict[str, Any]) -> RunResult:
             "issues_investigated": investigated,
             "verdicts": dict(verdicts),
             "errors": len(errors),
+            DIGEST_ITEMS_KEY: digest_items(verdicts, started_at or datetime.now(timezone.utc)),
         },
         error="\n".join(errors) or None,
         model=f"{report.get('provider')}/{report.get('model')}",
@@ -92,7 +116,7 @@ class DataStewardBot:
     def run(self, context: BotRunContext, settings: BotSettings) -> RunResult:
         caps = DataStewardSettings.model_validate(settings.model_dump())
         limits = StewardLimits(max_issues=caps.max_issues, max_tool_calls_per_issue=caps.max_tool_calls)
-        return to_run_result(asyncio.run(run_and_save(config, limits=limits)))
+        return to_run_result(asyncio.run(run_and_save(config, limits=limits)), context.started_at)
 
 
 register_bot(DataStewardBot(), replace=True)

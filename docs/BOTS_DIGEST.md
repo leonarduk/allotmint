@@ -25,7 +25,32 @@ items. The model lives in `backend/bots/digest_models.py` (`DigestItem`):
 `RegistryRunRecordSource` (`backend/bots/run_records.py`) lists the registry's
 bots and reads each bot's latest *finished* run (a run still `running` is
 skipped) from the registry's run store. A malformed item is skipped with a
-warning. A run with `status: "failed"` becomes a high-severity item on its own.
+warning. A run with `status: "failed"` becomes a high-severity item on its own:
+system-wide for a system bot; for an owner-scoped bot it belongs to the owner
+the run was for (the run record's `owner`), or to every owner for a run over
+all owners.
+
+Build items with `digest_item()` in `backend/bots/run_records.py`. It fills in
+`id` and `dedupe_key` (`<bot>:<key>`, or `<bot>:<owner>:<key>` for an
+owner-scoped item) and rounds `created` to whole seconds.
+
+### What each bot reports (#10502)
+
+| Bot | Items |
+|---|---|
+| `price-refresh` | System: tickers with no price (medium) |
+| `dividend-refresh` | System: no accounts with holdings found (medium) |
+| `pension-report` | System: reports not sent, counts only (high when none sent, else medium) |
+| `trading-agent` | System: one low item per BUY/SELL signal, restating the alert |
+| `data-steward` | System: issues with a fix available (medium) |
+| `trend-watch` | Per owner: holdings to review (medium); the owner's check failed (high) |
+| `cash-deployment` | Per owner: tranches overdue (high) and due now (medium); the owner's check failed (high) |
+| `decision-journal` | Per owner: trades not yet logged (low); reviews ready (info) |
+
+Every bot also gets the failed-run item above. Owner-scoped items name the
+owner in the stored run report, so the Bots page API (`backend/routes/bots.py`)
+serves each owner's items only to callers with access to that owner, as the
+digest does.
 
 ## Composer
 
@@ -69,3 +94,11 @@ delivers the digest.
 - `GET /bots/digest/{owner}/preview`: the digest as it would be composed now. Nothing is saved or sent.
 
 All three check owner access. System-wide items are returned to admins only.
+
+## Bots page
+
+The Bots page (`frontend/src/pages/Bots.tsx`) shows the digest at the top
+(`frontend/src/components/BotsDigest.tsx`): the latest stored digest, a
+"Preview now" button and the history. It opens on the selected owner (the
+signed-in user's own owner by default) and has an owner picker when the caller
+can see more than one.

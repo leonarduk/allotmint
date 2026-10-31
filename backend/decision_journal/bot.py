@@ -9,11 +9,13 @@ listed). :class:`DecisionJournalBot` puts it on the Bots page.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 
+from backend.bots.digest_models import Severity
 from backend.bots.registry import BotKind, BotRunContext, BotScope, BotSettings, RunResult, Schedule, register_bot
+from backend.bots.run_records import DIGEST_ITEMS_KEY, digest_item, plural
 from backend.common.investment_plan import plans_dir
 from backend.decision_journal.capture import lookback_window, qualifying_trades
 from backend.decision_journal.prices import SeriesLoader, load_return_series
@@ -95,6 +97,43 @@ def _counts(result: Mapping[str, Any]) -> dict[str, int]:
     }
 
 
+def _owner_items(owner: str, result: Mapping[str, Any], created: datetime) -> list[dict[str, Any]]:
+    unlogged, reviews = len(result["unlogged"]), len(result["reviews_run"])
+    items = []
+    if unlogged:
+        items.append(
+            digest_item(
+                BOT_ID,
+                "unlogged",
+                created,
+                owner=owner,
+                severity=Severity.LOW,
+                title=f"{plural(unlogged, 'trade')} not yet logged in your decision journal",
+                summary="Log why you made each one, or dismiss it.",
+            )
+        )
+    if reviews:
+        items.append(
+            digest_item(
+                BOT_ID,
+                "reviews",
+                created,
+                owner=owner,
+                severity=Severity.INFO,
+                title=f"{plural(reviews, 'decision review')} ready",
+                summary="Reviews of past decisions that fell due in the last run.",
+                action_required=False,
+            )
+        )
+    return items
+
+
+def digest_items(result: Mapping[str, Any], created: datetime) -> list[dict[str, Any]]:
+    """Owner-scoped digest items (#10502). The Bots API only serves each owner's items to that owner."""
+
+    return [item for owner, row in result["owners"].items() for item in _owner_items(owner, row, created)]
+
+
 class DecisionJournalBot:
     id = BOT_ID
     name = BOT_NAME
@@ -121,7 +160,8 @@ class DecisionJournalBot:
             f"{counts['reviews_run']} review{'s' if counts['reviews_run'] != 1 else ''} run "
             f"across {counts['owners']} owner{'s' if counts['owners'] != 1 else ''}"
         )
-        return RunResult(status="ok", summary=summary, report=counts, raw=result)
+        report = {**counts, DIGEST_ITEMS_KEY: digest_items(result, context.started_at)}
+        return RunResult(status="ok", summary=summary, report=report, raw=result)
 
 
 register_bot(DecisionJournalBot(), replace=True)

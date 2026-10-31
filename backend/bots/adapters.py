@@ -17,9 +17,9 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field, model_validator
 
-from backend.bots.digest_models import DigestItem, Severity
+from backend.bots.digest_models import Severity
 from backend.bots.registry import BotKind, BotRunContext, BotScope, BotSettings, RunResult, Schedule, register_bot
-from backend.bots.run_records import DIGEST_ITEMS_KEY
+from backend.bots.run_records import DIGEST_ITEMS_KEY, digest_item
 
 PENSION_REPORT_CADENCE_ENV = "PENSION_REPORT_CADENCE"
 
@@ -33,18 +33,7 @@ def _system_digest_item(
 ) -> Dict[str, Any]:
     """A system-wide (``owner=None``, admins only) digest item, JSON-ready for the run report (docs/BOTS_DIGEST.md)."""
 
-    return DigestItem(
-        id=f"{bot_id}:{key}",
-        bot=bot_id,
-        owner=None,
-        severity=severity,
-        title=title,
-        summary=summary,
-        link="/bots",
-        action_required=True,
-        created=context.started_at,
-        dedupe_key=f"{bot_id}:{key}",
-    ).model_dump(mode="json")
+    return digest_item(bot_id, key, context.started_at, owner=None, severity=severity, title=title, summary=summary)
 
 
 # ─────────────────────────────── price refresh ─────────────────────────────
@@ -274,7 +263,23 @@ class TradingAgentBot:
         signals = trading_agent.run()
         rows = [{"ticker": s.get("ticker"), "action": s.get("action"), "reason": s.get("reason")} for s in signals]
         summary = f"{len(rows)} signal{'s' if len(rows) != 1 else ''} sent" if rows else "No signals"
-        return RunResult(status="ok", summary=summary, report={"signals": rows}, raw=signals)
+        report = {"signals": rows, DIGEST_ITEMS_KEY: [self._signal_item(row, context) for row in rows]}
+        return RunResult(status="ok", summary=summary, report=report, raw=signals)
+
+    def _signal_item(self, row: Dict[str, Any], context: BotRunContext) -> Dict[str, Any]:
+        """One signal as a system-wide digest item: a restatement of the alert, not advice."""
+
+        ticker, action = str(row.get("ticker") or "?"), str(row.get("action") or "?").upper()
+        return digest_item(
+            self.id,
+            f"signal:{ticker}:{action}",
+            context.started_at,
+            owner=None,
+            severity=Severity.LOW,
+            title=f"{action} signal for {ticker}",
+            summary=str(row.get("reason") or ""),
+            action_required=False,
+        )
 
 
 for _bot in (TradingAgentBot(), PriceRefreshBot(), DividendRefreshBot(), PensionReportBot()):

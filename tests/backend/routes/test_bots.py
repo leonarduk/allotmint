@@ -194,6 +194,44 @@ def test_owner_scoped_runs_filtered_by_owner_access(monkeypatch):
     assert client.get("/bots/price-refresh/runs/theirs").status_code == 404
 
 
+def test_digest_items_about_other_owners_are_hidden(monkeypatch):
+    """A run over every owner is visible to all, but each owner's digest items only to that owner (#10502)."""
+
+    from backend.bots.digest_models import Severity
+    from backend.bots.run_records import digest_item
+
+    now = datetime.now(timezone.utc)
+    items = [
+        digest_item("decision-journal", "unlogged", now, owner=owner, severity=Severity.LOW, title=f"t {owner}")
+        for owner in ("viewer", "other", None)
+    ]
+    report = {"owners": 2, "digest_items": [*items, "malformed"]}
+    runs.save_run(
+        runs.RunRecord(
+            id="all", bot_id="decision-journal", trigger="manual", status="ok", started_at=now, report=report
+        )
+    )
+
+    def fake_access(identity, owner, accounts_root=None):
+        if owner != "viewer":
+            raise PermissionDeniedError("no")
+
+    monkeypatch.setattr(bots_route, "ensure_owner_access", fake_access)
+    client = _client(monkeypatch, identity=USER, disable_auth=False)
+
+    def owners(run):
+        return [i["owner"] for i in run["report"]["digest_items"]]
+
+    [listed] = client.get("/bots/decision-journal/runs").json()
+    assert owners(listed) == ["viewer", None]
+    assert listed["report"]["owners"] == 2
+    assert owners(client.get("/bots/decision-journal/runs/all").json()) == ["viewer", None]
+    summary = next(b for b in client.get("/bots").json() if b["id"] == "decision-journal")
+    assert owners(summary["last_run"]) == ["viewer", None]
+    # The stored record is unchanged.
+    assert len(runs.get_run("decision-journal", "all").report["digest_items"]) == 4
+
+
 def test_local_list_marks_unscheduled_bots(monkeypatch):
     """#10925: locally only local_bot_schedule bots get a Next run (default: price/dividend refresh)."""
 

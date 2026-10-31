@@ -386,3 +386,68 @@ def test_pension_report_errors_report_a_count_only_item(monkeypatch, sent, sever
     assert item.title == "1 pension report not sent"
     # The error lines name owners; the item only counts them.
     assert "alex" not in item.title + item.summary
+
+
+def test_trading_agent_signals_are_low_system_items(monkeypatch):
+    from backend.agent import trading_agent
+
+    signals = [
+        {"ticker": "VWRL.L", "action": "buy", "reason": "RSI 28 below 30"},
+        {"ticker": "TSCO.L", "action": "SELL", "reason": "RSI 75 above 70"},
+    ]
+    monkeypatch.setattr(trading_agent, "run", lambda: signals)
+
+    record, items = _job_items("trading-agent")
+
+    assert record.summary == "2 signals sent"
+    assert [(i.owner, i.severity, i.action_required, i.dedupe_key, i.title, i.summary) for i in items] == [
+        (None, Severity.LOW, False, "trading-agent:signal:VWRL.L:BUY", "BUY signal for VWRL.L", "RSI 28 below 30"),
+        (None, Severity.LOW, False, "trading-agent:signal:TSCO.L:SELL", "SELL signal for TSCO.L", "RSI 75 above 70"),
+    ]
+
+
+def test_trading_agent_without_signals_has_no_items(monkeypatch):
+    from backend.agent import trading_agent
+
+    monkeypatch.setattr(trading_agent, "run", lambda: [])
+
+    assert _job_items("trading-agent")[1] == []
+
+
+def test_data_steward_fix_available_is_a_system_item():
+    from collections import Counter
+
+    from backend.data_steward.bot import digest_items
+
+    [item] = digest_items(Counter({"fix_available": 2, "no_issue": 1}), NOW)
+    assert (item["owner"], item["severity"], item["dedupe_key"]) == (None, "medium", "data-steward:fix-available")
+    assert item["title"] == "2 data issues with a fix available"
+    assert digest_items(Counter({"no_issue": 3}), NOW) == []
+
+
+def test_failed_single_owner_run_belongs_to_that_owner_only(fake_bot):
+    """An owner-scoped bot's failed run for one owner never reaches another owner's digest."""
+
+    from backend.bots import runs
+
+    fake_bot.scope = "owner"
+    runs.save_run(
+        runs.RunRecord(id="upload-1", bot_id="fake-bot", trigger="event", status="failed", started_at=NOW, owner="bob")
+    )
+    source = RegistryRunRecordSource()
+
+    assert source.latest_run("fake-bot").owner == "bob"
+    assert "fake-bot:run-failed" not in _keys(compose_digest("alex", source, previous=None, now=NOW))
+    [item] = [i for i in compose_digest("bob", source, previous=None, now=NOW).items if i.bot == "fake-bot"]
+    assert (item.owner, item.severity) == ("bob", Severity.HIGH)
+
+
+def test_digest_item_helper_scopes_owner_keys():
+    from backend.bots.run_records import digest_item
+
+    system = digest_item("b", "k", NOW, owner=None, severity=Severity.LOW, title="t")
+    owned = digest_item("b", "k", NOW.replace(microsecond=123456), owner="alex", severity=Severity.LOW, title="t")
+
+    assert (system["dedupe_key"], owned["dedupe_key"]) == ("b:k", "b:alex:k")
+    assert owned["created"] == "2026-10-12T07:00:00Z"
+    assert DigestItem.model_validate(owned).link == "/bots"

@@ -70,6 +70,10 @@ def test_run_for_one_owner_matches_the_card_and_stores_counts_only(accounts):
 
     assert result.status == "ok"
     assert result.summary == "1 tranche(s) due now, 0 overdue across 1 owner"
+    items = result.report.pop("digest_items")
+    assert [(i["owner"], i["severity"], i["dedupe_key"], i["title"]) for i in items] == [
+        ("alex", "medium", "cash-deployment:alex:due", "1 cash deployment tranche due now")
+    ]
     assert result.report == {
         "owners": [
             {
@@ -83,7 +87,7 @@ def test_run_for_one_owner_matches_the_card_and_stores_counts_only(accounts):
         ],
         "failed": [],
     }
-    assert "amount_minor" not in json.dumps(result.report)
+    assert "amount_minor" not in json.dumps([result.report, items])
     # Run now returns the same run as GET /cash-deployment/{owner} for that day.
     assert result.raw == [bot_module.run("alex", AS_OF.date())]
 
@@ -122,6 +126,25 @@ def test_one_owners_failure_does_not_stop_the_others(monkeypatch):
     assert [row["owner"] for row in result.report["owners"]] == ["alex"]
     assert result.report["failed"] == [{"owner": "sam", "error": "ValueError: settings unreadable"}]
     assert result.error == "sam: ValueError: settings unreadable"
+    # Only sam's failure is a digest item, and it is sam's alone, without the error text.
+    [item] = result.report["digest_items"]
+    assert (item["owner"], item["severity"], item["dedupe_key"]) == ("sam", "high", "cash-deployment:sam:failed")
+    assert "unreadable" not in item["title"] + item["summary"]
+
+
+def test_overdue_tranches_are_a_high_item_per_owner():
+    rows = [
+        {"owner": "alex", "tranches_due": 0, "overdue": 2},
+        {"owner": "sam", "tranches_due": 1, "overdue": 1},
+    ]
+
+    items = bot_module.digest_items(rows, [], AS_OF)
+
+    assert [(i["dedupe_key"], i["severity"], i["title"]) for i in items] == [
+        ("cash-deployment:alex:overdue", "high", "2 cash deployment tranches overdue"),
+        ("cash-deployment:sam:overdue", "high", "1 cash deployment tranche overdue"),
+        ("cash-deployment:sam:due", "medium", "1 cash deployment tranche due now"),
+    ]
 
 
 def test_every_owner_failing_is_failed(monkeypatch):

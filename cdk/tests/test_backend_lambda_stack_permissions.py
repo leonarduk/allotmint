@@ -46,6 +46,10 @@ BACKEND_LIST_PREFIXES = (
     "trend_watch",
     # Saved watchlists (#10713): missing-vs-denied for backend/common/watchlists.py.
     "watchlists",
+    # Investment plans and decision journals (#11159): owner listing and
+    # missing-vs-denied for backend/common/owner_documents.py.
+    "plans",
+    "decision_journal",
     # Writable per-owner account documents (manual holdings / transactions);
     # separate from the read-only accounts/ demo prefix (issue #4275).
     WRITABLE_ACCOUNTS_PREFIX,
@@ -1264,6 +1268,9 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # BOTS_PREFIX is not duplicated either: the backend's only fallback is a local
 # file:// path and it learns the S3 location from BOTS_STORAGE_URI (#10477),
 # which test_bot_lambdas_share_the_bots_storage_prefix checks.
+# PLANS_PREFIX and DECISION_JOURNAL_PREFIX reach the backend only via PLANS_URI
+# and DECISION_JOURNAL_URI (#11159); their names match the backend's local
+# directory names, checked by test_plans_and_decision_journal_live_in_s3.
 # DATA_STEWARD_REPORTS_PREFIX likewise: backend/data_steward/store.py has no S3
 # fallback and learns the location from DATA_STEWARD_REPORTS_URI (#10471), which
 # test_data_steward_lambda_is_read_only_except_its_reports checks.
@@ -1276,6 +1283,8 @@ _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
         "RETIREMENT_READINESS_PREFIX",
         "BOTS_PREFIX",
         "DATA_STEWARD_REPORTS_PREFIX",
+        "PLANS_PREFIX",
+        "DECISION_JOURNAL_PREFIX",
     }
 )
 
@@ -1629,3 +1638,49 @@ def test_backend_lambda_gets_the_deploy_app_version(monkeypatch) -> None:
     assert _lambda_env(_stack_template(), "BackendLambda")["APP_VERSION"] == "v9.9.9 (abc1234)"
     monkeypatch.delenv("APP_VERSION")
     assert _lambda_env(_stack_template(), "BackendLambda")["APP_VERSION"] == "dev"
+
+
+@pytest.mark.parametrize(
+    ("env_var", "constant", "backend_file", "dirname_constant"),
+    [
+        ("PLANS_URI", "PLANS_PREFIX", ("common", "investment_plan.py"), "PLANS_DIRNAME"),
+        (
+            "DECISION_JOURNAL_URI",
+            "DECISION_JOURNAL_PREFIX",
+            ("decision_journal", "store.py"),
+            "JOURNAL_DIRNAME",
+        ),
+    ],
+)
+def test_plans_and_decision_journal_live_in_s3(
+    env_var, constant, backend_file, dirname_constant
+) -> None:
+    """The backend Lambda keeps plans and journals in S3, not its ephemeral /tmp/data (#11159).
+
+    The URI points at the prefix the backend uses locally, GetObject/PutObject
+    come from the bucket-wide grant, and ListBucket on the prefix lets owner
+    discovery list it and makes a missing document a NoSuchKey (not a 403).
+    """
+    import stacks.backend_lambda_stack as stack_mod
+
+    prefix = getattr(stack_mod, constant)
+    # Parsed, not imported: the CDK test env has no backend runtime deps.
+    source = _backend_common_dir().parent.joinpath(*backend_file)
+    assert prefix == _fallback_string_literal(source, dirname_constant)
+
+    template = _stack_template()
+    parts = _lambda_env(template, "BackendLambda")[env_var]["Fn::Join"][1]
+    assert parts[0] == "s3://" and parts[-1] == f"/{prefix}"
+
+    role = _role_logical_id_for_lambda(template, "BackendLambda")
+    for action in ("s3:GetObject", "s3:PutObject"):
+        resources = _resources_for_s3_action(template, role, action)
+        assert any("'/*'" in r for r in resources), (
+            f"{action} does not cover {prefix}/: {resources}"
+        )
+    conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
+    assert any(
+        {prefix, f"{prefix}/*"} <= set(condition.get("StringLike", {}).get("s3:prefix", []))
+        for condition in conditions
+    ), f"BackendLambda s3:ListBucket must include {prefix}/"
+

@@ -4031,6 +4031,7 @@
       "title": "Assign holdings to sleeves",
       "help": "Choose the sleeve for each holding. Tags apply to the ticker across all your accounts.",
       "sleeveFor": "Sleeve for {{ticker}}",
+      "sleeveForOwner": "Sleeve for {{ticker}} ({{owner}})",
       "col": {
         "holding": "Holding",
         "sector": "Sector",

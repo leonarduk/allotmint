@@ -4038,6 +4038,7 @@
       "title": "Asignar posiciones a bloques",
       "help": "Elija el bloque de cada posición. La asignación se aplica al ticker en todas sus cuentas.",
       "sleeveFor": "Bloque de {{ticker}}",
+      "sleeveForOwner": "Bloque de {{ticker}} ({{owner}})",
       "col": {
         "holding": "Posición",
         "sector": "Sector",

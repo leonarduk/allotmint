@@ -450,7 +450,7 @@ def _computed_holdings(
     return out
 
 
-def _tracked_instruments(transactions: Sequence[Mapping[str, Any]], aliases: Mapping[str, str]) -> set[str]:
+def tracked_instruments(transactions: Sequence[Mapping[str, Any]], aliases: Mapping[str, str]) -> set[str]:
     """Instrument keys any trade or transfer mentions, including ones since sold down to zero.
 
     Derived from the transactions themselves rather than the replay's
@@ -518,7 +518,7 @@ def rebuild_holdings_document(
     aliases = name_aliases(transactions, old_holdings)
     replay = replay_transactions(transactions, trade_cash=tx_data.get(TRADE_CASH_FLAG) is True, aliases=aliases)
     computed = _computed_holdings(replay, previous, cutoff)
-    tracked = _tracked_instruments(transactions, aliases)
+    tracked = tracked_instruments(transactions, aliases)
     if replay.cash_seen:
         tracked.add(CASH_TICKER)
     # Keep the existing ordering so the rewritten file diffs cleanly. A

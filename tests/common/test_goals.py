@@ -86,3 +86,51 @@ def test_load_all_goals_ignores_malformed_entries(goal_storage):
     )
     result = goals_mod.load_all_goals()
     assert result == {"alice": [g1], "bob": [g2]}
+
+
+@pytest.fixture
+def history_storage(tmp_path, monkeypatch):
+    storage = get_storage(f"file://{tmp_path / 'goal_history.json'}")
+    storage.save({})
+    monkeypatch.setattr(goals_mod, "_HISTORY_STORAGE", storage)
+    return storage
+
+
+def test_record_goal_amount_keeps_one_snapshot_per_day(history_storage):
+    goals_mod.record_goal_amount("alice", "Car", 100.0, date(2026, 2, 1))
+    goals_mod.record_goal_amount("alice", "Car", 50.0, date(2026, 1, 1))
+    points = goals_mod.record_goal_amount("alice", "Car", 120.0, date(2026, 2, 1))
+    assert points == [(date(2026, 1, 1), 50.0), (date(2026, 2, 1), 120.0)]
+    assert goals_mod.load_goal_history("alice", "Car") == points
+    assert goals_mod.load_goal_history("bob", "Car") == []
+
+
+def test_load_goal_history_ignores_malformed_entries(history_storage):
+    history_storage.save(
+        {
+            "alice": {"Car": [{"date": "2026-01-01", "amount": 10}, {"date": "bad", "amount": 1}, {"amount": 2}]},
+            "bob": "not a dict",
+        }
+    )
+    assert goals_mod.load_goal_history("alice", "Car") == [(date(2026, 1, 1), 10.0)]
+    assert goals_mod.load_goal_history("bob", "Car") == []
+
+
+def test_rename_and_delete_goal_history(goal_storage, history_storage):
+    goals_mod.record_goal_amount("alice", "Car", 10.0, date(2026, 1, 1))
+    goals_mod.rename_goal_history("alice", "Car", "Van")
+    assert goals_mod.load_goal_history("alice", "Car") == []
+    assert goals_mod.load_goal_history("alice", "Van") == [(date(2026, 1, 1), 10.0)]
+
+    goals_mod.save_goals("alice", [goals_mod.Goal("Van", 100.0, date(2030, 1, 1))])
+    goals_mod.delete_goal("alice", "Van")
+    assert goals_mod.load_goal_history("alice", "Van") == []
+
+
+def test_history_helpers_do_not_write_when_nothing_changes(history_storage, monkeypatch):
+    def fail_save(data):  # pragma: no cover - safety guard
+        pytest.fail("history should not be saved")
+
+    monkeypatch.setattr(history_storage, "save", fail_save)
+    goals_mod.rename_goal_history("alice", "Missing", "Other")
+    goals_mod.delete_goal_history("alice", "Missing")

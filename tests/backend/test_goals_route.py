@@ -14,6 +14,9 @@ def _app(tmp_path, monkeypatch, *, active_user: str | None = "alice", disable_au
     storage = get_storage(f"file://{tmp_path / 'goals.json'}")
     storage.save({})
     monkeypatch.setattr(goals_mod, "_STORAGE", storage)
+    history = get_storage(f"file://{tmp_path / 'goal_history.json'}")
+    history.save({})
+    monkeypatch.setattr(goals_mod, "_HISTORY_STORAGE", history)
     monkeypatch.setattr(routes_pkg.app_config, "disable_auth", disable_auth)
     module = importlib.reload(goals_route)
     monkeypatch.setattr(module, "DEMO_OWNER", "demo", raising=False)
@@ -52,6 +55,37 @@ def test_goal_progress(tmp_path, monkeypatch):
     data = resp.json()
     assert round(data["progress"], 2) == 0.5
     assert any(t["action"] == "buy" for t in data["trades"])
+
+
+def test_goal_progress_history_and_projection(tmp_path, monkeypatch):
+    client = _app(tmp_path, monkeypatch)
+    payload = {"name": "House", "target_amount": 2000, "target_date": "2030-06-30"}
+    client.post("/goals", json=payload)
+
+    unknown = client.get("/goals/House").json()
+    assert unknown["progress"] is None
+    assert unknown["projection"]["status"] == "insufficient_history"
+
+    first = client.post("/goals/House/progress", json={"amount": 200, "on": "2026-01-01"})
+    assert first.status_code == 200
+    assert first.json()["projection"]["status"] == "insufficient_history"
+
+    second = client.post("/goals/House/progress", json={"amount": 500, "on": "2026-03-02"}).json()
+    assert second["progress"] == 0.25
+    assert second["projection"]["status"] == "projected"
+    assert second["projection"]["projected_date"] == "2026-12-27"
+
+    # Without an amount the latest recorded one is used.
+    detail = client.get("/goals/House").json()
+    assert detail["current_amount"] == 500
+    assert detail["projection"]["projected_date"] == "2026-12-27"
+
+    # History follows a rename.
+    client.put("/goals/House", json={**payload, "name": "Home"})
+    assert client.get("/goals/Home").json()["projection"]["points"] == 2
+
+    assert client.post("/goals/Missing/progress", json={"amount": 1}).status_code == 404
+    assert client.post("/goals/Home/progress", json={"amount": -1}).status_code == 422
 
 
 def test_update_and_delete(tmp_path, monkeypatch):

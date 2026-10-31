@@ -69,6 +69,7 @@ def test_get_goal_returns_progress_and_trades(monkeypatch, fake_goal_class):
     fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
 
     monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    monkeypatch.setattr(goals, "load_goal_history", lambda owner, name: [])
 
     expected_trades = [{"symbol": "goal", "action": "buy", "amount": 100.0}]
 
@@ -81,7 +82,67 @@ def test_get_goal_returns_progress_and_trades(monkeypatch, fake_goal_class):
 
     assert response.progress == pytest.approx(0.25)
     assert response.trades == expected_trades
-    assert response.model_dump(exclude={"progress", "trades"}) == fake.to_dict()
+    assert response.current_amount == 500.0
+    assert response.projection["status"] == "insufficient_history"
+    assert response.model_dump(exclude={"progress", "trades", "current_amount", "projection"}) == fake.to_dict()
+
+
+def test_get_goal_without_amount_or_history_leaves_progress_unknown(monkeypatch, fake_goal_class):
+    fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    monkeypatch.setattr(goals, "load_goal_history", lambda owner, name: [])
+
+    response = goals._get_goal("owner", "Emergency")
+
+    # Unknown is not the same as zero (#7829).
+    assert response.progress is None
+    assert response.current_amount is None
+    assert response.trades is None
+    assert response.projection["status"] == "insufficient_history"
+
+
+def test_get_goal_falls_back_to_latest_recorded_amount_and_projects(monkeypatch, fake_goal_class):
+    fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
+    history = [(datetime.date(2026, 1, 1), 200.0), (datetime.date(2026, 3, 2), 500.0)]
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    monkeypatch.setattr(goals, "load_goal_history", lambda owner, name: history)
+
+    response = goals._get_goal("owner", "Emergency")
+
+    assert response.current_amount == 500.0
+    assert response.progress == pytest.approx(0.25)
+    assert response.projection["status"] == "projected"
+    assert response.projection["projected_date"] == "2026-12-27"
+    assert response.projection["on_track"] is True
+
+
+def test_record_progress_stores_snapshot_and_returns_detail(monkeypatch, fake_goal_class):
+    fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    recorded = []
+
+    def fake_record(owner, name, amount, on):
+        recorded.append((owner, name, amount, on))
+        return [(on, amount)]
+
+    monkeypatch.setattr(goals, "record_goal_amount", fake_record)
+
+    payload = goals.ProgressPayload(amount=800.0, on=datetime.date(2026, 5, 1))
+    response = goals._record_progress("owner", "Emergency", payload)
+
+    assert recorded == [("owner", "Emergency", 800.0, datetime.date(2026, 5, 1))]
+    assert response.progress == pytest.approx(0.4)
+    assert response.projection["status"] == "insufficient_history"
+    assert response.projection["points"] == 1
+
+
+def test_record_progress_missing_goal_raises_404(monkeypatch):
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [])
+
+    with pytest.raises(HTTPException) as exc:
+        goals._record_progress("owner", "Missing", goals.ProgressPayload(amount=1.0))
+
+    assert exc.value.status_code == 404
 
 
 def test_get_goal_missing_raises_404(monkeypatch):
@@ -104,6 +165,8 @@ def test_update_goal_replaces_goal_and_saves(monkeypatch, fake_goal_class):
         saved.goals = goals_list
 
     monkeypatch.setattr(goals, "save_goals", fake_save_goals)
+    renamed = []
+    monkeypatch.setattr(goals, "rename_goal_history", lambda owner, old, new: renamed.append((owner, old, new)))
 
     payload = goals.GoalPayload(
         name="Updated",
@@ -121,6 +184,7 @@ def test_update_goal_replaces_goal_and_saves(monkeypatch, fake_goal_class):
     assert saved_goal.target_amount == payload.target_amount
     assert saved_goal.target_date == payload.target_date
     assert result == payload
+    assert renamed == [("demo-owner", "Old", "Updated")]
 
 
 def test_update_goal_missing_raises_404(monkeypatch):

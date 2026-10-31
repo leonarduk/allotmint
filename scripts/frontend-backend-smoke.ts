@@ -285,6 +285,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
+    "method": "POST",
+    "path": "/goals/{name}/progress",
+    "body": {
+      "amount": 0
+    }
+  },
+  {
     "method": "PUT",
     "path": "/goals/{name}",
     "body": {

@@ -1632,3 +1632,37 @@ def test_create_transaction_ignores_bot_only_flags(tmp_path, monkeypatch):
     stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"][0]
     assert "estimated" not in stored
     assert "attribution_only" not in stored
+
+
+def test_update_transaction_cannot_set_or_clear_bot_only_flags(tmp_path, monkeypatch):
+    """PUT keeps the stored estimated/attribution_only, whatever the body says (#11097)."""
+    client = _make_client(tmp_path, monkeypatch)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    rows = [
+        {"date": "2026-08-10", "type": "DIVIDEND", "amount_minor": 1000, "reason": "booked"},
+        {
+            "date": "2026-07-16",
+            "type": "DIVIDEND",
+            "ticker": "SEGA.L",
+            "amount_minor": 500,
+            "reason": "Automated dividend import",
+            "estimated": True,
+            "attribution_only": True,
+        },
+    ]
+    path = owner_dir / "ISA_transactions.json"
+    path.write_text(json.dumps({"owner": "alice", "account_type": "ISA", "transactions": rows}))
+
+    set_flags = {"owner": "alice", "account": "ISA", "reason": "edited", "estimated": True, "attribution_only": True}
+    clear_flags = {**set_flags, "estimated": False, "attribution_only": False}
+    assert client.put("/transactions/alice:ISA:0", json=set_flags).status_code == 200
+    assert client.put("/transactions/alice:ISA:1", json=clear_flags).status_code == 200
+
+    booked, estimate = json.loads(path.read_text())["transactions"]
+    assert booked["reason"] == "edited"
+    assert "estimated" not in booked
+    assert "attribution_only" not in booked
+    assert estimate["reason"] == "edited"
+    assert estimate["estimated"] is True
+    assert estimate["attribution_only"] is True

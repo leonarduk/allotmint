@@ -361,7 +361,7 @@ class TransactionUpdate(BaseModel):
     type: Optional[ManualTradeType] = None
     price_gbp: Optional[float] = Field(default=None, gt=0)
     units: Optional[float] = Field(default=None, gt=0)
-    fees: Optional[float] = None
+    fees: Optional[float] = Field(default=None, ge=0)
     # Omitted keeps the stored value while ``fees`` is unchanged; a new
     # ``fees`` drops an omitted part, as the old split no longer applies.
     stamp_duty: Optional[float] = Field(default=None, ge=0)

@@ -172,3 +172,18 @@ def test_split_pro_rates_the_breakdown(client, tmp_path):
     first, second = _stored(tmp_path)
     assert (first["fees"], first["stamp_duty"], first["fx_charge"]) == (5.0, 1.25, 0.5)
     assert (second["fees"], second["stamp_duty"], second["fx_charge"]) == (15.0, 3.75, 1.5)
+
+
+def test_update_rejects_negative_fees_without_a_breakdown(client, tmp_path):
+    created = client.post("/transactions", json=_payload()).json()
+    resp = client.put(f"/transactions/{created['id']}", json=_payload(fees=-1.0))
+    assert resp.status_code == 422
+    assert _stored(tmp_path)[0]["fees"] == 20.0
+
+
+@pytest.mark.parametrize("fees", [0.0, None, 7.5])
+def test_update_accepts_non_negative_or_unknown_fees(client, tmp_path, fees):
+    created = client.post("/transactions", json=_payload()).json()
+    resp = client.put(f"/transactions/{created['id']}", json=_payload(fees=fees))
+    assert resp.status_code == 200
+    assert _stored(tmp_path)[0].get("fees") == fees

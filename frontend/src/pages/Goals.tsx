@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createGoal, getGoal, getGoals } from "../api";
-import { money } from "../lib/money";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { EMPTY_GOAL_FORM, formatGoalDate, parseGoalForm, type Goal, type GoalForm } from "../lib/goalForm";
 
 type GoalWithProgress = Goal & { progress: number; trades: { action: string; amount: number; ticker: string }[] };
@@ -11,6 +11,9 @@ const fieldStyle = { display: "flex", flexDirection: "column" as const, gap: "0.
 
 export default function Goals() {
   const { t, i18n } = useTranslation();
+  // Goal amounts are GBP like every other backend amount; show them in the
+  // configured base currency the same way the portfolio views do (#10035).
+  const reporting = useReportingCurrency();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [form, setForm] = useState<GoalForm>(EMPTY_GOAL_FORM);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +131,7 @@ export default function Goals() {
               <span>
                 {t("goals.goalLine", {
                   name: g.name,
-                  amount: money(g.target_amount, "GBP", i18n.language),
+                  amount: reporting.format(g.target_amount),
                   date: formatGoalDate(g.target_date, i18n.language),
                 })}
               </span>
@@ -154,7 +157,7 @@ export default function Goals() {
                   <li key={i}>
                     {t("goals.trade", {
                       action: trade.action,
-                      amount: money(trade.amount, "GBP", i18n.language),
+                      amount: reporting.format(trade.amount),
                       ticker: trade.ticker,
                     })}
                   </li>

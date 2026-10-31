@@ -1,13 +1,17 @@
+import type { ReactNode } from "react";
 import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import i18n from "@/i18n";
+import { configContext, type ConfigContextValue } from "@/ConfigContext";
+import { clearReportingRateCache } from "@/hooks/useReportingCurrency";
 import Goals from "@/pages/Goals";
 import { formatGoalDate, parseGoalForm } from "@/lib/goalForm";
 
 const mockGetGoals = vi.hoisted(() => vi.fn());
 const mockCreateGoal = vi.hoisted(() => vi.fn());
 const mockGetGoal = vi.hoisted(() => vi.fn());
+const mockGetGbpRate = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -16,11 +20,24 @@ vi.mock("@/api", async () => {
     getGoals: mockGetGoals,
     createGoal: mockCreateGoal,
     getGoal: mockGetGoal,
+    getGbpRate: mockGetGbpRate,
   };
 });
 
+function withCurrency(reportingCurrency: string) {
+  const value = { reportingCurrency } as unknown as ConfigContextValue;
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <MemoryRouter>
+        <configContext.Provider value={value}>{children}</configContext.Provider>
+      </MemoryRouter>
+    );
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  clearReportingRateCache();
   mockGetGoals.mockResolvedValue([]);
 });
 
@@ -83,13 +100,26 @@ describe("Goals page", () => {
     mockGetGoals.mockResolvedValue([
       { name: "House deposit", target_amount: 50000, target_date: "2030-01-01" },
     ]);
-    render(<Goals />, { wrapper: MemoryRouter });
+    render(<Goals />, { wrapper: withCurrency("GBP") });
     const line = await screen.findByText(/House deposit/);
     expect(line).toHaveTextContent("£50,000.00");
     expect(line).toHaveTextContent(formatGoalDate("2030-01-01", "en"));
     expect(line).not.toHaveTextContent("2030-01-01");
     expect(line).not.toHaveTextContent("View");
     expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
+  });
+
+  it("shows goal amounts in the configured base currency, not hardcoded GBP", async () => {
+    mockGetGbpRate.mockResolvedValue({ currency: "USD", gbp_per_unit: 0.8, source: "test" });
+    mockGetGoals.mockResolvedValue([
+      { name: "House deposit", target_amount: 50000, target_date: "2030-01-01" },
+    ]);
+    render(<Goals />, { wrapper: withCurrency("USD") });
+    const line = await screen.findByText(/House deposit/);
+    // 50,000 GBP at 0.8 GBP per USD.
+    await waitFor(() => expect(line).toHaveTextContent("$62,500.00"));
+    expect(line).not.toHaveTextContent("£");
+    expect(mockGetGbpRate).toHaveBeenCalledWith("USD");
   });
 });
 

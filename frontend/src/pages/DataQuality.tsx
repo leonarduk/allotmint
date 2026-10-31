@@ -353,11 +353,11 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
           <div className="mb-4 grid grid-cols-2 gap-4">
             <div>
               <h4 className="mb-1 text-sm font-semibold">{t("dataQuality.admin.issues.before")}</h4>
-              <pre className="overflow-auto rounded bg-[var(--surface-card-bg)] p-2 text-xs">{JSON.stringify(preview.preview.before ?? {}, null, 2)}</pre>
+              <pre className="overflow-auto rounded bg-[var(--surface-muted-bg)] p-2 text-xs">{JSON.stringify(preview.preview.before ?? {}, null, 2)}</pre>
             </div>
             <div>
               <h4 className="mb-1 text-sm font-semibold">{t("dataQuality.admin.issues.after")}</h4>
-              <pre className="overflow-auto rounded bg-[var(--surface-card-bg)] p-2 text-xs">{JSON.stringify(preview.preview.after ?? {}, null, 2)}</pre>
+              <pre className="overflow-auto rounded bg-[var(--surface-muted-bg)] p-2 text-xs">{JSON.stringify(preview.preview.after ?? {}, null, 2)}</pre>
             </div>
           </div>
           <div className="flex justify-end gap-2">

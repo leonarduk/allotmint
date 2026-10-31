@@ -408,7 +408,7 @@ function TaxHarvestSection() {
           ) : candidates.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse border border-[var(--surface-card-border)] text-sm">
-                <thead className="bg-[var(--surface-card-bg)]">
+                <thead className="bg-[var(--surface-muted-bg)]">
                   <tr>
                     <th className="border p-2 text-left">{t("taxTools.harvest.col.holding")}</th>
                     <th className="border p-2 text-right">{t("taxTools.harvest.col.units")}</th>

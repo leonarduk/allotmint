@@ -208,7 +208,7 @@ function ResultTable({
         </thead>
         <tbody>
           {result.portfolio && (
-            <tr className="border-t bg-[var(--surface-card-bg)] font-medium">
+            <tr className="border-t bg-[var(--surface-muted-bg)] font-medium">
               <td className="px-2 py-1">{t('strategyStress.portfolio')}</td>
               {result.horizons.map((h) => (
                 <ReturnCell key={h} value={result.portfolio?.horizons[h]} />

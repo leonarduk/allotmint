@@ -62,7 +62,7 @@ function DiffSection({ title, emptyMessage, rows }: DiffSectionProps) {
           {emptyMessage}
         </p>
       ) : (
-        <ul className="mt-1 divide-y divide-gray-800 rounded border border-gray-800">
+        <ul className="mt-1 divide-y divide-[var(--surface-card-border)] rounded border border-[var(--surface-card-border)]">
           {rows.map(({ ticker, detail }, index) => (
             <li
               key={`${ticker}-${index}`}
@@ -94,7 +94,7 @@ function ReconciliationPreview({
     <div
       role="status"
       aria-label={t('csvImportForm.previewTitle')}
-      className="mt-3 space-y-3 border-t border-gray-800 pt-3"
+      className="mt-3 space-y-3 border-t border-[var(--surface-card-border)] pt-3"
     >
       <div>
         <h3 className="font-semibold text-blue-300">
@@ -138,7 +138,7 @@ function ReconciliationPreview({
           }))}
         />
       </div>
-      <section className="rounded border border-gray-800 p-2 text-sm">
+      <section className="rounded border border-[var(--surface-card-border)] p-2 text-sm">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-300">
           {t('csvImportForm.cashBalance')}
         </h4>
@@ -232,7 +232,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
   const canSubmit = Boolean(account && provider && file) && !submitting;
 
   return (
-    <div className="rounded-lg border border-gray-800 bg-black/20 p-3">
+    <div className="rounded-lg border border-[var(--surface-card-border)] bg-black/20 p-3">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
         {t('csvImportForm.importCsv')}
       </p>

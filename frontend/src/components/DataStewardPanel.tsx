@@ -43,7 +43,7 @@ function Evidence({ item }: { item: DataStewardItem }) {
               {ev.tool}({JSON.stringify(ev.arguments)})
             </code>
             {ev.is_error && <span className="ml-2 text-red-700">{t("dataQuality.admin.steward.toolError")}</span>}
-            <pre className="max-h-48 overflow-auto rounded bg-[var(--surface-card-bg)] p-2 text-[var(--surface-card-color)]">
+            <pre className="max-h-48 overflow-auto rounded bg-[var(--surface-muted-bg)] p-2 text-[var(--surface-card-color)]">
               {ev.truncated ? `${ev.result}\n…` : ev.result}
             </pre>
           </li>

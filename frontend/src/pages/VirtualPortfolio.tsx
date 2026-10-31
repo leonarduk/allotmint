@@ -650,7 +650,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
         <summary className="cursor-pointer text-sm font-medium">
           {t("virtualPortfolio.preview")}
         </summary>
-        <pre className="mt-2 overflow-x-auto rounded bg-[var(--surface-card-bg)] p-3 text-xs">
+        <pre className="mt-2 overflow-x-auto rounded bg-[var(--surface-muted-bg)] p-3 text-xs">
           {JSON.stringify({ accounts: normalizedPreview }, null, 2)}
         </pre>
       </details>

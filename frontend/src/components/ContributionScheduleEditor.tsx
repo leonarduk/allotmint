@@ -80,7 +80,7 @@ function toPayload(rows: DraftRow[]): ScheduledContribution[] | { badAmount: num
 }
 
 const inputClass = "w-full rounded border border-[var(--surface-card-border)] bg-transparent p-1";
-const buttonClass = "rounded border border-gray-400 px-3 py-1 text-sm disabled:opacity-50";
+const buttonClass = "rounded border border-[var(--surface-muted-color)] px-3 py-1 text-sm disabled:opacity-50";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (

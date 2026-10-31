@@ -61,7 +61,7 @@ export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-gray-800 bg-black/20 p-4">
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-[var(--surface-card-border)] bg-black/20 p-4">
       {error && (
         <div role="alert" aria-live="assertive" className="text-sm text-red-500">
           {error}

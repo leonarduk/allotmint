@@ -726,7 +726,9 @@ export default function PensionForecast() {
                       onClick={() => setHousehold(h)}
                       className={`rounded-full px-3 py-1 font-medium transition ${
                         household === h
-                          ? "bg-slate-900 text-white"
+                          ? // Active state: intentionally theme-independent dark pill,
+                            // readable in both themes (like the other accent active states).
+                            "bg-slate-900 text-white"
                           : "bg-transparent text-[var(--surface-muted-color)] hover:bg-[var(--menu-hover-bg)]"
                       }`}
                     >
@@ -777,7 +779,7 @@ export default function PensionForecast() {
                   {t("pensionForecast.ages.ageNowLabel")}
                 </p>
                 <p
-                  className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] px-3 py-2 text-sm text-[var(--surface-card-color)]"
+                  className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-muted-bg)] px-3 py-2 text-sm text-[var(--surface-card-color)]"
                   aria-labelledby="age-now-label"
                 >
                   {displayedWholeAge ?? "—"}
@@ -799,7 +801,7 @@ export default function PensionForecast() {
                 <input
                   id="retirement-age"
                   type="number"
-                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--surface-muted-bg)]"
                   value={plannedRetirementAge}
                   onChange={(e) => setPlannedRetirementAge(e.target.value)}
                   min={displayedWholeAge ?? 40}
@@ -829,7 +831,7 @@ export default function PensionForecast() {
                 <input
                   id="death-age"
                   type="number"
-                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--surface-muted-bg)]"
                   value={deathAge}
                   onChange={(e) => setDeathAge(Number(e.target.value))}
                   required
@@ -848,7 +850,7 @@ export default function PensionForecast() {
                 <input
                   id="state-pension"
                   type="number"
-                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--surface-muted-bg)]"
                   value={statePension}
                   onChange={(e) => setStatePension(e.target.value)}
                   min={0}
@@ -874,7 +876,7 @@ export default function PensionForecast() {
           </div>
         </section>
         <section
-          className="flex h-full flex-col gap-4 rounded-3xl border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-6"
+          className="flex h-full flex-col gap-4 rounded-3xl border border-[var(--surface-card-border)] bg-[var(--surface-muted-bg)] p-6"
           aria-labelledby="pension-future-heading"
         >
           <header className="space-y-1">
@@ -930,7 +932,7 @@ export default function PensionForecast() {
               </h3>
               <table className="min-w-full divide-y divide-[var(--surface-card-border)] text-sm">
                 <thead>
-                  <tr className="bg-[var(--surface-card-bg)] text-left">
+                  <tr className="bg-[var(--surface-muted-bg)] text-left">
                     <th className="px-3 py-2 font-semibold text-[var(--surface-muted-color)]">
                       {t("pensionForecast.incomeTable.source")}
                     </th>

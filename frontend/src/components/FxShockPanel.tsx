@@ -35,7 +35,7 @@ function FxResultsTable({
   const { t } = useTranslation();
   return (
     <table className="min-w-full border border-[var(--surface-card-border)] text-sm">
-      <thead className="bg-[var(--surface-card-bg)]">
+      <thead className="bg-[var(--surface-muted-bg)]">
         <tr>
           <th className="p-2 text-left">{t('scenarioFx.owner')}</th>
           <th className="p-2 text-right">

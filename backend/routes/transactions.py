@@ -1430,8 +1430,8 @@ def _group_purchase_lots(
 
 def _plan_account_lots(
     store: "AccountsStore", owner: str, account: str, by_ticker: Dict[str, List[PurchaseLot]]
-) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """``(transactions account, rows to append, updated holdings, skipped rows)`` for one account."""
+) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[Any]]:
+    """``(transactions account, rows to append, updated holdings, skipped rows, ledger planned against)``."""
     tx_account = _transactions_account_name(owner, account, store)
     tx_doc = store.read_document(owner, f"{tx_account}_transactions.json") or {}
     transactions = list(tx_doc.get("transactions") or [])
@@ -1455,17 +1455,28 @@ def _plan_account_lots(
                 "lots": len(txs),
             }
         )
-    return tx_account, rows, updated, skipped
+    return tx_account, rows, updated, skipped, transactions
 
 
-def _append_and_rebuild(store: "AccountsStore", owner: str, tx_account: str, rows: List[Dict[str, Any]]) -> int:
+def _append_and_rebuild(
+    store: "AccountsStore", owner: str, tx_account: str, rows: List[Dict[str, Any]], planned: List[Any]
+) -> int:
     """Append ``rows`` to the account's ledger in one write, rebuild, and return the first new index.
 
-    A failed rebuild removes the rows again before re-raising.
+    ``planned`` is the ledger the rows were planned against. If it changed
+    before the lock was taken (another write landed in between), the
+    "holding not yet tracked" check may be stale and appending could double
+    units, so the import is refused with a 409 instead. A failed rebuild
+    removes the rows again before re-raising.
     """
     store.ensure_owner(owner)
     with _locked_transactions_data(owner, tx_account, store) as (data, _file):
         transactions = data["transactions"]
+        if transactions != planned:
+            raise HTTPException(
+                status_code=409,
+                detail=f"The {tx_account} transactions changed during the import; nothing was written. Try again.",
+            )
         start = len(transactions)
         transactions.extend(rows)
     try:
@@ -1519,12 +1530,12 @@ async def import_cost_basis(
     written: List[Tuple[str, str, int, int]] = []
     try:
         for (lot_owner, lot_account), by_ticker in groups.items():
-            tx_account, rows, account_updated, account_skipped = _plan_account_lots(
+            tx_account, rows, account_updated, account_skipped, planned = _plan_account_lots(
                 store, lot_owner, lot_account, by_ticker
             )
             skipped.extend(account_skipped)
             if rows:
-                start = _append_and_rebuild(store, lot_owner, tx_account, rows)
+                start = _append_and_rebuild(store, lot_owner, tx_account, rows, planned)
                 written.append((lot_owner, tx_account, start, len(rows)))
                 updated.extend(account_updated)
     except Exception:

@@ -254,3 +254,24 @@ def test_import_rolls_back_every_account_when_a_rebuild_fails(client, tmp_path, 
         assert ledger["transactions"] == []
     # The account whose rebuild failed is rebuilt again after its rows are removed.
     assert calls.count("sipp") == 2
+
+
+def test_import_refuses_when_the_ledger_changes_after_planning(client, tmp_path, monkeypatch):
+    _write_account(tmp_path, "testowner", "isa", [{"ticker": "AAA.L", "units": 10, "cost_basis_gbp": 0}])
+    ledger = tmp_path / "testowner" / "isa_transactions.json"
+    real_plan = transactions._plan_account_lots
+
+    def plan_then_concurrent_write(*args, **kwargs):
+        planned = real_plan(*args, **kwargs)
+        # Another request records a trade for the same holding before the import takes the lock.
+        trade = {"type": "BUY", "ticker": "AAA.L", "date": "2024-01-02", "units": 10, "price_gbp": 4}
+        ledger.write_text(json.dumps({"transactions": [trade]}))
+        return planned
+
+    monkeypatch.setattr(transactions, "_plan_account_lots", plan_then_concurrent_write)
+    csv = "ticker,date,units,unit_cost\nAAA.L,2020-01-02,10,2\n"
+
+    resp = _post(client, csv, owner="testowner", account="isa")
+
+    assert resp.status_code == 409
+    assert [t["type"] for t in json.loads(ledger.read_text())["transactions"]] == ["BUY"]

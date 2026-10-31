@@ -159,9 +159,13 @@ def run(
     data_root: Optional[Path] = None,
     transactions: Optional[List[Any]] = None,
     schedule: Optional[Sequence[ScheduledContribution]] = None,
+    explain: bool = False,
     allowances: Any = _DEFAULT,
 ) -> Dict[str, Any]:
     """Build ``owner``'s contribution and allowance report.
+
+    ``explain=True`` adds ``explanations``: a short factual note per missing,
+    wrong-amount or late contribution from :mod:`backend.allowance_guardian.agent`.
 
     ``today`` defaults to the Europe/London date. ``transactions`` (one owner's
     ``Transaction``-like rows), ``schedule`` and ``allowances`` (an object with
@@ -179,7 +183,7 @@ def run(
     contributions = match_contributions(schedule, transactions, tax_year_bounds(today)[0], today)
     pension = _pension_section(allowances, transactions, schedule, today)
     isa = _isa_section(allowances, transactions, schedule, today)
-    return {
+    result: Dict[str, Any] = {
         "owner": owner,
         "as_of": today.isoformat(),
         "tax_year": tax_year_label(today),
@@ -192,3 +196,9 @@ def run(
         "assumptions": list(ASSUMPTIONS),
         "adviser_note": ADVISER_NOTE,
     }
+    if explain:
+        # Opt-in LLM step (#10491); without it the report stays deterministic.
+        from backend.allowance_guardian.agent import explain_unmatched
+
+        result["explanations"] = explain_unmatched(result, owner)
+    return result

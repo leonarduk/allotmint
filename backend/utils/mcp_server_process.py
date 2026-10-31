@@ -202,6 +202,8 @@ def port_listening(port: int) -> bool:
     A connect probe on every platform, never a TCP-table state check: the
     Windows lookup relies on this because some machines report blank or wrong
     states there (#11124), so a state check would miss live listeners.
+    ``test_port_listening_is_a_connect_probe`` pins this against real sockets:
+    a bound-only socket is False, a listening one True.
     """
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:

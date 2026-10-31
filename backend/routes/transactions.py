@@ -13,7 +13,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Literal, Mapping, Optional, Tuple, get_args
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_core import PydanticCustomError
 
@@ -1164,9 +1164,21 @@ def _missing_ledger_fields(row: Transaction) -> str:
     return "/".join(missing)
 
 
+def _schedule_guardian_run(
+    background_tasks: BackgroundTasks, persisted: List[Dict[str, Any]], actor: str | None
+) -> None:
+    """Run the allowance guardian bot after the response once an import persisted rows (#10495)."""
+    if not persisted:
+        return
+    from backend.allowance_guardian.bot import run_after_import
+
+    background_tasks.add_task(run_after_import, actor)
+
+
 @router.post("/transactions/import")
 async def import_transactions(
     request: Request,
+    background_tasks: BackgroundTasks,
     provider: str = Form(...),
     file: UploadFile = File(...),
     owner: str | None = Form(default=None),
@@ -1183,6 +1195,9 @@ async def import_transactions(
     the caller must supply the destination explicitly). Rows for which no
     owner/account can be resolved are reported in ``skipped`` rather than
     persisted or silently dropped.
+
+    When any row was persisted the allowance guardian bot runs afterwards
+    (#10495).
     """
 
     data = await file.read()
@@ -1249,6 +1264,7 @@ async def import_transactions(
             _rollback_import(store, persisted)
             raise
 
+    _schedule_guardian_run(background_tasks, persisted, None)
     return {"persisted": persisted, "skipped": skipped}
 
 
@@ -1261,6 +1277,7 @@ async def import_transactions(
 )
 def import_moneyhub_transactions(
     request: Request,
+    background_tasks: BackgroundTasks,
     owner: str = Form(...),
     identity: str | None = Depends(get_active_user),
 ) -> Dict[str, List[Dict[str, Any]]]:
@@ -1332,6 +1349,7 @@ def import_moneyhub_transactions(
             file_accounts[row_account] = _transactions_account_name(owner, row_account, store)
         persisted.append(_persist_transaction(store, owner, file_accounts[row_account], tx_data))
 
+    _schedule_guardian_run(background_tasks, persisted, identity)
     return {"persisted": persisted, "skipped": skipped}
 
 

@@ -4,11 +4,12 @@ import type { Account } from '../types';
 import { getAlerts, getDividends, getGroupMovers } from '../api';
 import { holdingsFromAccounts } from '../lib/dividends';
 import { money, signedPercent } from '../lib/money';
-import { formatDateISO } from '../lib/date';
 import {
   advanceVisitRecord,
   buildSinceLastVisitDigest,
+  dismissVisitRecord,
   moversWindowDays,
+  visitDay,
   type SinceLastVisitDigest as Digest,
   type VisitRecord,
 } from '../lib/sinceLastVisit';
@@ -25,12 +26,21 @@ const MOVERS_FETCH_LIMIT = 10;
 function recordVisit(slug: string, now: number): number | null {
   const key = `${LAST_VISIT_KEY_PREFIX}${slug}`;
   const record = advanceVisitRecord(loadJSON<VisitRecord | null>(key, null), now);
+  persistVisit(key, record);
+  return record.previous;
+}
+
+/** Mark everything up to ``now`` as seen for ``slug`` (the card was dismissed). */
+function recordDismissal(slug: string, now: number): void {
+  persistVisit(`${LAST_VISIT_KEY_PREFIX}${slug}`, dismissVisitRecord(now));
+}
+
+function persistVisit(key: string, record: VisitRecord): void {
   try {
     saveJSON(key, record);
   } catch (err) {
     console.warn('Could not persist last-visit timestamp', err);
   }
-  return record.previous;
 }
 
 const ownersFromAccounts = (accounts: Account[]): string[] =>
@@ -79,7 +89,7 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
     Promise.allSettled([
       (async () => getGroupMovers(slug, days, MOVERS_FETCH_LIMIT))(),
       (async () => getAlerts())(),
-      (async () => getDividends({ start: formatDateISO(new Date(since)) }))(),
+      (async () => getDividends({ start: visitDay(since) }))(),
     ]).then(([movers, alerts, dividends]) => {
       if (cancelled) return;
       const value = <T,>(result: PromiseSettledResult<T>, label: string): T | null => {
@@ -105,6 +115,10 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
 
   if (dismissed || since === null || !digest) return null;
 
+  const dismiss = () => {
+    recordDismissal(slug, Date.now());
+    setDismissed(true);
+  };
   const title = t('sinceLastVisit.title', 'Since you were last here');
   const dividendAmounts = Object.entries(digest.dividends?.amounts ?? {})
     .map(([currency, amount]) => money(amount, currency))
@@ -142,7 +156,7 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
                   ? t('sinceLastVisit.moversUnavailable', 'Movers are unavailable right now.')
                   : digest.movers.length === 0
                     ? t('sinceLastVisit.noMovers', 'No big movers among your holdings.')
-                    : t('sinceLastVisit.movers', 'Biggest movers over {{days}} days: {{list}}', {
+                    : t('sinceLastVisit.movers', 'Biggest movers over the last {{days}} days: {{list}}', {
                         days,
                         list: digest.movers
                           .map((row) => `${row.ticker} ${signedPercent(row.change_pct / 100)}`)
@@ -171,7 +185,7 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
             </ul>
           )}
         </div>
-        <button type="button" onClick={() => setDismissed(true)} className="shrink-0">
+        <button type="button" onClick={dismiss} className="shrink-0">
           {t('sinceLastVisit.dismiss', 'Dismiss')}
         </button>
       </div>

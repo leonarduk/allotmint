@@ -5,8 +5,10 @@ import {
   alertsSince,
   biggestMovers,
   buildSinceLastVisitDigest,
+  dismissVisitRecord,
   dividendsSince,
   moversWindowDays,
+  visitDay,
   VISIT_SESSION_GAP_MS,
 } from '@/lib/sinceLastVisit';
 
@@ -100,9 +102,9 @@ describe('alertsSince', () => {
     expect(result.map((a) => a.ticker)).toEqual(['HSBA', 'VOD.L']);
   });
 
-  it('does not filter by ticker when holdings are unknown', () => {
+  it('shows no alerts when no holdings are known, since /alerts/ is not owner-scoped', () => {
     const result = alertsSince([alert('ANY', '2026-10-31T09:00:00Z')], since, []);
-    expect(result).toHaveLength(1);
+    expect(result).toEqual([]);
   });
 });
 
@@ -123,6 +125,46 @@ describe('dividendsSince', () => {
       ['Alice']
     );
     expect(delta).toEqual({ payments: 2, amounts: { GBP: 12.34, USD: 5 } });
+  });
+
+  // Instants built from local date parts have the same local day in any
+  // timezone; their UTC day differs on one side of UTC or the other.
+  it.each([
+    ['just after local midnight', new Date(2026, 9, 29, 0, 30).getTime()],
+    ['just before local midnight', new Date(2026, 9, 29, 23, 30).getTime()],
+  ])('uses the local calendar day of the visit (%s)', (_label, since) => {
+    expect(visitDay(since)).toBe('2026-10-29');
+    const delta = dividendsSince(
+      [dividend({ date: '2026-10-28' }), dividend({ date: '2026-10-29', amount_minor: 100 })],
+      since,
+      ['alice']
+    );
+    expect(delta).toEqual({ payments: 1, amounts: { GBP: 1 } });
+  });
+
+  it('uses the local day even when it differs from the UTC day', () => {
+    const originalTz = process.env.TZ;
+    try {
+      process.env.TZ = 'Asia/Tokyo'; // UTC+9, no DST
+      // 20:00Z on the 28th is 05:00 on the 29th in Tokyo.
+      const since = Date.parse('2026-10-28T20:00:00Z');
+      expect(new Date(since).getDate()).toBe(29);
+      expect(visitDay(since)).toBe('2026-10-29');
+      const delta = dividendsSince([dividend({ date: '2026-10-28' })], since, ['alice']);
+      expect(delta.payments).toBe(0);
+    } finally {
+      if (originalTz === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTz;
+    }
+  });
+});
+
+describe('dismissVisitRecord', () => {
+  it('marks now as seen: hidden on reload, compared against the dismissal next session', () => {
+    const dismissed = dismissVisitRecord(NOW);
+    expect(dismissed).toEqual({ previous: null, current: NOW });
+    expect(advanceVisitRecord(dismissed, NOW + 1000).previous).toBeNull();
+    expect(advanceVisitRecord(dismissed, NOW + VISIT_SESSION_GAP_MS + 1).previous).toBe(NOW);
   });
 });
 

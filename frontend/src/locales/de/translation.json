@@ -3643,7 +3643,7 @@
     "title": "Seit Ihrem letzten Besuch",
     "since": "Änderungen seit {{date}}.",
     "nothingChanged": "Seitdem nichts Wesentliches: keine großen Bewegungen, Warnungen oder Dividenden.",
-    "movers": "Größte Bewegungen über {{days}} Tage: {{list}}",
+    "movers": "Größte Bewegungen in den letzten {{days}} Tagen: {{list}}",
     "noMovers": "Keine großen Bewegungen bei Ihren Beständen.",
     "moversUnavailable": "Bewegungen sind derzeit nicht verfügbar.",
     "alerts": "Warnungen: {{list}}",

@@ -1,4 +1,5 @@
 import type { Alert, MoverRow, Transaction } from '../types';
+import { localDateISO } from './date';
 import type { CurrencyAmounts } from './dividends';
 import { normalizeDisplayCurrency } from './money';
 
@@ -48,6 +49,26 @@ export function advanceVisitRecord(
   return { previous: record.current, current: now };
 }
 
+/**
+ * The record to store when the viewer dismisses the digest: everything up to
+ * ``now`` counts as seen. ``previous`` is cleared so a reload within the same
+ * session keeps the card hidden; once the session gap passes,
+ * ``advanceVisitRecord`` rolls this visit into ``previous`` and the next card
+ * only reports what changed after the dismissal.
+ */
+export function dismissVisitRecord(now: number): VisitRecord {
+  return { previous: null, current: now };
+}
+
+/**
+ * The viewer's local calendar date (YYYY-MM-DD) of ``since``. Dividend rows
+ * carry local calendar dates, so comparing against the UTC date would shift
+ * the boundary by a day for anyone far from UTC.
+ */
+export function visitDay(since: number): string {
+  return localDateISO(new Date(since));
+}
+
 /** The smallest movers window that covers the time since ``since``. */
 export function moversWindowDays(since: number, now: number): number {
   const elapsedDays = Math.max(1, Math.ceil((now - since) / DAY_MS));
@@ -66,7 +87,10 @@ export interface SinceLastVisitInput {
   dividends: Transaction[] | null;
   /** Owner slugs in view; dividends for anyone else are ignored. */
   owners: string[];
-  /** Upper-cased tickers held; alerts for anything else are ignored. */
+  /**
+   * Upper-cased tickers held; alerts for anything else are ignored. With no
+   * holdings no alert is relevant (and /alerts/ is not owner-scoped).
+   */
   heldTickers: string[];
   maxMovers?: number;
   maxAlerts?: number;
@@ -103,7 +127,11 @@ export function biggestMovers(
     .slice(0, limit);
 }
 
-/** Alerts raised after ``since`` for a held ticker, newest first. */
+/**
+ * Alerts raised after ``since`` for a held ticker, newest first. No held
+ * tickers means no alerts: /alerts/ is not owner-scoped, so an unfiltered list
+ * would show every alert in the system.
+ */
 export function alertsSince(
   alerts: Alert[],
   since: number,
@@ -121,14 +149,14 @@ export function alertsSince(
       ({ alert, at }) =>
         Number.isFinite(at) &&
         at > since &&
-        (held.size === 0 || isHeld(alert.ticker ?? '', held))
+        isHeld(alert.ticker ?? '', held)
     )
     .sort((a, b) => b.at - a.at)
     .map(({ alert }) => alert);
 }
 
 /**
- * Booked dividends dated on or after the day of ``since`` for the owners in
+ * Booked dividends dated on or after the viewer's local day of ``since`` for the owners in
  * view. Dividend rows carry a date only, so a payment on the day of the last
  * visit is included. Estimates and attribution-only rows are not cash paid.
  */
@@ -137,7 +165,7 @@ export function dividendsSince(
   since: number,
   owners: string[]
 ): DividendDelta {
-  const sinceDay = new Date(since).toISOString().slice(0, 10);
+  const sinceDay = visitDay(since);
   const ownerSet = new Set(owners.map((owner) => owner.toLowerCase()));
   const delta: DividendDelta = { payments: 0, amounts: {} };
   for (const tx of dividends) {

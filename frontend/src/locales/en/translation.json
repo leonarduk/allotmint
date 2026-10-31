@@ -3636,7 +3636,7 @@
     "title": "Since you were last here",
     "since": "Changes since {{date}}.",
     "nothingChanged": "Nothing notable since then: no big movers, alerts or dividends.",
-    "movers": "Biggest movers over {{days}} days: {{list}}",
+    "movers": "Biggest movers over the last {{days}} days: {{list}}",
     "noMovers": "No big movers among your holdings.",
     "moversUnavailable": "Movers are unavailable right now.",
     "alerts": "Alerts: {{list}}",

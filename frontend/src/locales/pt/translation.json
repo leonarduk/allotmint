@@ -3643,7 +3643,7 @@
     "title": "Desde a sua última visita",
     "since": "Alterações desde {{date}}.",
     "nothingChanged": "Nada de relevante desde então: sem grandes movimentos, alertas ou dividendos.",
-    "movers": "Maiores movimentos em {{days}} dias: {{list}}",
+    "movers": "Maiores movimentos nos últimos {{days}} dias: {{list}}",
     "noMovers": "Sem grandes movimentos nas suas posições.",
     "moversUnavailable": "Os movimentos não estão disponíveis agora.",
     "alerts": "Alertas: {{list}}",

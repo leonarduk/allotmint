@@ -80,6 +80,36 @@ describe('SinceLastVisitDigest', () => {
     expect(screen.queryByRole('region', { name: title() })).not.toBeInTheDocument();
   });
 
+  it('treats dismissing as seen, so a reload does not bring the same delta back', async () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ previous: null, current: Date.now() - 3 * DAY }));
+    const first = render(<SinceLastVisitDigest slug="family" accounts={accounts} />);
+    await screen.findByRole('region', { name: title() });
+
+    const before = Date.now();
+    await userEvent.click(screen.getByRole('button', { name: i18n.t('sinceLastVisit.dismiss') }));
+    const stored = JSON.parse(window.localStorage.getItem(KEY) ?? '{}');
+    expect(stored.previous).toBeNull();
+    expect(stored.current).toBeGreaterThanOrEqual(before);
+    first.unmount();
+    vi.clearAllMocks();
+
+    const { container } = render(<SinceLastVisitDigest slug="family" accounts={accounts} />);
+    expect(container).toBeEmptyDOMElement();
+    expect(mocks.getGroupMovers).not.toHaveBeenCalled();
+  });
+
+  it('shows no alerts when the group has no holdings loaded', async () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ previous: null, current: Date.now() - 3 * DAY }));
+    mocks.getGroupMovers.mockResolvedValue({ gainers: [], losers: [] });
+    render(
+      <SinceLastVisitDigest slug="family" accounts={[{ ...accounts[0], holdings: [] }]} />
+    );
+
+    const card = await screen.findByRole('region', { name: title() });
+    expect(card).not.toHaveTextContent('VOD.L crossed your threshold');
+    expect(card).toHaveTextContent(i18n.t('sinceLastVisit.nothingChanged'));
+  });
+
   it('explains an empty digest instead of rendering blank', async () => {
     window.localStorage.setItem(KEY, JSON.stringify({ previous: null, current: Date.now() - 3 * DAY }));
     mocks.getGroupMovers.mockResolvedValue({ gainers: [], losers: [] });

@@ -206,6 +206,26 @@ def test_update_goal_moves_history_back_when_save_fails(monkeypatch, fake_goal_c
     assert renamed == [("Old", "New"), ("New", "Old")]
 
 
+def test_update_goal_history_conflict_becomes_409_without_saving(monkeypatch, fake_goal_class):
+    existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])
+
+    def conflicting_rename(owner, old, new):
+        raise goals.GoalHistoryConflict("taken")
+
+    def fail_save(owner, goals_list):  # pragma: no cover - safety guard
+        pytest.fail("goal should not be saved")
+
+    monkeypatch.setattr(goals, "rename_goal_history", conflicting_rename)
+    monkeypatch.setattr(goals, "save_goals", fail_save)
+    payload = goals.GoalPayload(name="New", target_amount=1.0, target_date=datetime.date(2031, 1, 1))
+
+    with pytest.raises(HTTPException) as exc:
+        goals._update_goal("demo-owner", "Old", payload)
+
+    assert exc.value.status_code == 409
+
+
 def test_update_goal_missing_raises_404(monkeypatch):
     monkeypatch.setattr(goals, "load_goals", lambda owner: [])
 

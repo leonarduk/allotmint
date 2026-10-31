@@ -149,12 +149,22 @@ def record_goal_amount(user: str, name: str, amount: float, on: date) -> List[Tu
     return points
 
 
+class GoalHistoryConflict(ValueError):
+    """Raised when moving history would overwrite another goal's history."""
+
+
 def rename_goal_history(user: str, old: str, new: str) -> None:
-    """Move a goal's history to its new name; a no-op when there is none."""
+    """Move a goal's history to its new name; a no-op when there is none.
+
+    Raises :class:`GoalHistoryConflict` rather than overwrite a non-empty
+    history already stored under ``new``.
+    """
     data = _load_history_raw()
     user_history = data.get(user, {})
     if old == new or old not in user_history:
         return
+    if user_history.get(new):
+        raise GoalHistoryConflict(f"History already exists for goal {new!r}")
     user_history[new] = user_history.pop(old)
     _HISTORY_STORAGE.save(data)
 
@@ -184,6 +194,7 @@ def load_all_goals() -> Dict[str, List[Goal]]:
 
 __all__ = [
     "Goal",
+    "GoalHistoryConflict",
     "load_goals",
     "save_goals",
     "add_goal",

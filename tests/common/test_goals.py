@@ -139,6 +139,23 @@ def test_rename_and_delete_goal_history(goal_storage, history_storage):
     assert goals_mod.load_goal_history("alice", "Van") == []
 
 
+def test_rename_goal_history_refuses_to_overwrite_existing_history(history_storage):
+    goals_mod.record_goal_amount("alice", "Car", 10.0, date(2026, 1, 1))
+    goals_mod.record_goal_amount("alice", "Van", 20.0, date(2026, 2, 1))
+
+    with pytest.raises(goals_mod.GoalHistoryConflict):
+        goals_mod.rename_goal_history("alice", "Car", "Van")
+
+    assert goals_mod.load_goal_history("alice", "Car") == [(date(2026, 1, 1), 10.0)]
+    assert goals_mod.load_goal_history("alice", "Van") == [(date(2026, 2, 1), 20.0)]
+
+
+def test_rename_goal_history_allows_empty_destination(history_storage):
+    history_storage.save({"alice": {"Car": [{"date": "2026-01-01", "amount": 10}], "Van": []}})
+    goals_mod.rename_goal_history("alice", "Car", "Van")
+    assert goals_mod.load_goal_history("alice", "Van") == [(date(2026, 1, 1), 10.0)]
+
+
 def test_history_helpers_do_not_write_when_nothing_changes(history_storage, monkeypatch):
     def fail_save(data):  # pragma: no cover - safety guard
         pytest.fail("history should not be saved")

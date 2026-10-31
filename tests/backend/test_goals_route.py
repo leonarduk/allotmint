@@ -1,5 +1,5 @@
 import importlib
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -86,6 +86,31 @@ def test_goal_progress_history_and_projection(tmp_path, monkeypatch):
 
     assert client.post("/goals/Missing/progress", json={"amount": 1}).status_code == 404
     assert client.post("/goals/Home/progress", json={"amount": -1}).status_code == 422
+
+
+def test_rename_onto_existing_goal_is_rejected_and_keeps_both_histories(tmp_path, monkeypatch):
+    client = _app(tmp_path, monkeypatch)
+    for name in ("House", "Car"):
+        client.post("/goals", json={"name": name, "target_amount": 2000, "target_date": "2030-06-30"})
+    client.post("/goals/House/progress", json={"amount": 100, "on": "2026-01-01"})
+    client.post("/goals/Car/progress", json={"amount": 300, "on": "2026-02-01"})
+
+    resp = client.put("/goals/House", json={"name": "Car", "target_amount": 1, "target_date": "2031-01-01"})
+
+    assert resp.status_code == 409
+    assert [g["name"] for g in client.get("/goals").json()] == ["House", "Car"]
+    assert goals_mod.load_goal_history("alice", "House") == [(date(2026, 1, 1), 100.0)]
+    assert goals_mod.load_goal_history("alice", "Car") == [(date(2026, 2, 1), 300.0)]
+
+
+def test_future_dated_progress_is_rejected(tmp_path, monkeypatch):
+    client = _app(tmp_path, monkeypatch)
+    client.post("/goals", json={"name": "House", "target_amount": 2000, "target_date": "2030-06-30"})
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+
+    assert client.post("/goals/House/progress", json={"amount": 1, "on": tomorrow}).status_code == 422
+    assert client.post("/goals/House/progress", json={"amount": 1, "on": date.today().isoformat()}).status_code == 200
+    assert [d for d, _ in goals_mod.load_goal_history("alice", "House")] == [date.today()]
 
 
 def test_non_finite_amounts_are_rejected(tmp_path, monkeypatch):

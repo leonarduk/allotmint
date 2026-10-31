@@ -9,6 +9,7 @@ from backend.auth import get_current_user
 from backend.common.goal_projection import project_completion
 from backend.common.goals import (
     Goal,
+    GoalHistoryConflict,
     add_goal,
     delete_goal,
     load_goal_history,
@@ -97,19 +98,31 @@ def _record_progress(owner: str, name: str, payload: ProgressPayload) -> GoalRes
     # inf/nan would be persisted as non-standard JSON and poison the projection.
     if not math.isfinite(payload.amount) or payload.amount < 0:
         raise HTTPException(status_code=422, detail="amount must be a finite number of zero or more")
+    on = payload.on or date.today()
+    if on > date.today():
+        raise HTTPException(status_code=422, detail="progress cannot be recorded for a future date")
     goal = _find_goal(owner, name)
-    history = record_goal_amount(owner, name, payload.amount, payload.on or date.today())
+    history = record_goal_amount(owner, name, payload.amount, on)
     return _goal_response(goal, payload.amount, history)
+
+
+_NAME_CONFLICT = "Another goal already uses that name"
 
 
 def _update_goal(owner: str, name: str, payload: GoalPayload) -> GoalPayload:
     goals = load_goals(owner)
     for idx, g in enumerate(goals):
         if g.name == name:
+            # Renaming onto another goal would merge the two and clobber its history.
+            if payload.name != name and any(o.name == payload.name for o in goals):
+                raise HTTPException(status_code=409, detail=_NAME_CONFLICT)
             goals[idx] = Goal(payload.name, payload.target_amount, payload.target_date)
             # Move the history first so a failure there leaves the goal untouched;
             # if saving the goal then fails, move it back.
-            rename_goal_history(owner, name, payload.name)
+            try:
+                rename_goal_history(owner, name, payload.name)
+            except GoalHistoryConflict as exc:
+                raise HTTPException(status_code=409, detail=_NAME_CONFLICT) from exc
             try:
                 save_goals(owner, goals)
             except Exception:

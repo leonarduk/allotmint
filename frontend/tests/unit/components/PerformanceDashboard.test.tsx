@@ -618,6 +618,21 @@ describe("PerformanceDashboard", () => {
       );
     });
 
+    it("shows an unknown holding basis as sent rather than undefined", async () => {
+      renderWithAlpha({
+        portfolio_return_basis: "mixed",
+        portfolio_price_basis_share: 0.5,
+        portfolio_unpriced_holdings: [
+          { ticker: "ABC.L", return_basis: "price" },
+          { ticker: "NEW.L", return_basis: "some_new_basis" },
+        ],
+      });
+
+      const unpriced = await screen.findByTestId("alpha-unpriced-holdings");
+      expect(unpriced).toHaveTextContent("ABC.L (price only), NEW.L (some_new_basis)");
+      expect(unpriced).not.toHaveTextContent("undefined");
+    });
+
     it("omits the price share when nothing was priced", async () => {
       renderWithAlpha({
         portfolio_return_basis: "price",

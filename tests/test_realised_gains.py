@@ -1,10 +1,13 @@
+import io
 import json
 import logging
 
 import pytest
 from fastapi.testclient import TestClient
 
+import backend.routes.transactions as transactions_routes
 from backend.app import create_app
+from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX, S3AccountsStore
 from backend.common.holdings_rebuild import rebuild_holdings_document
 from backend.common.realised_gains import compute_disposal_gains
 from backend.config import config
@@ -285,6 +288,81 @@ def test_list_transactions_resolves_ticker_less_sell_via_holdings_file(tmp_path,
 
     resp = client.get("/transactions", params={"owner": "alice"})
     assert resp.status_code == 200
+    sell = next(row for row in resp.json() if row["type"] == "SELL")
+    assert sell["realised_gain_gbp"] == pytest.approx(200.0)
+    assert sell["cost_basis_gbp"] == pytest.approx(400.0)
+
+
+@pytest.mark.parametrize("holdings_bytes", [None, b"{not json", b"\xff\xfe\x00 not utf-8"])
+def test_list_transactions_falls_back_when_holdings_file_is_missing_or_unreadable(
+    tmp_path, monkeypatch, holdings_bytes
+):
+    txs, _ = _alias_only_in_holdings_case()
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "ISA_transactions.json").write_text(json.dumps({"owner": "alice", "transactions": txs}))
+    if holdings_bytes is not None:
+        (owner_dir / "isa.json").write_bytes(holdings_bytes)
+    client = TestClient(create_app())
+
+    resp = client.get("/transactions", params={"owner": "alice"})
+
+    # Pre-#8122 pooling: the SELL sits in its own name pool, so its cost is unknown.
+    assert resp.status_code == 200
+    sell = next(row for row in resp.json() if row["type"] == "SELL")
+    assert sell["realised_gain_gbp"] is None
+    assert sell["unmatched_units"] == pytest.approx(4.0)
+
+
+class _FakeS3:
+    """In-memory boto3 S3 client surface used by ``S3AccountsStore``."""
+
+    def __init__(self) -> None:
+        self.objects: dict[str, bytes] = {}
+
+    def get_object(self, Bucket, Key):  # noqa: N803 - boto3 kwarg names
+        from botocore.exceptions import ClientError
+
+        if Key not in self.objects:
+            raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
+        return {"Body": io.BytesIO(self.objects[Key])}
+
+    def put_object(self, Bucket, Key, Body, **_kwargs):  # noqa: N803
+        self.objects[Key] = Body
+
+    def list_objects_v2(self, Bucket, Prefix, **_kwargs):  # noqa: N803
+        return {"Contents": [{"Key": k} for k in sorted(self.objects) if k.startswith(Prefix)], "IsTruncated": False}
+
+
+def test_list_transactions_store_branch_reads_the_holdings_file_the_rebuild_writes(tmp_path, monkeypatch):
+    txs, holdings = _alias_only_in_holdings_case()
+    fake = _FakeS3()
+    store = S3AccountsStore(bucket="bucket", client=fake)
+    prefix = f"{WRITABLE_ACCOUNTS_PREFIX}/alice"
+    # Mixed-case ledger name, as imports write it; the rebuild lower-cases the holdings name.
+    fake.objects[f"{prefix}/ISA_transactions.json"] = json.dumps({"owner": "alice", "transactions": txs}).encode()
+    fake.objects[f"{prefix}/isa.json"] = json.dumps({"holdings": holdings}).encode()
+    store.rebuild_portfolio("alice", "ISA")
+    rebuilt_keys = [k for k in fake.objects if not k.endswith("_transactions.json")]
+    assert rebuilt_keys == [f"{prefix}/isa.json"]
+
+    read_names: list[str] = []
+    original_read = store.read_document
+
+    def spy_read(owner, filename):
+        read_names.append(filename)
+        return original_read(owner, filename)
+
+    monkeypatch.setattr(store, "read_document", spy_read)
+    monkeypatch.setattr(config, "accounts_root", tmp_path / "missing")
+    monkeypatch.setattr(transactions_routes, "resolve_writable_store", lambda request: (store, None))
+    client = TestClient(create_app())
+
+    resp = client.get("/transactions", params={"owner": "alice"})
+
+    assert resp.status_code == 200
+    assert [name for name in read_names if not name.endswith("_transactions.json")] == ["isa.json"]
     sell = next(row for row in resp.json() if row["type"] == "SELL")
     assert sell["realised_gain_gbp"] == pytest.approx(200.0)
     assert sell["cost_basis_gbp"] == pytest.approx(400.0)

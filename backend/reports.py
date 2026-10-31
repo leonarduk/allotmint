@@ -32,12 +32,13 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
 
 from backend import report_periodic
 from backend.common import ledger_performance, portfolio_utils
-from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX
+from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX, S3AccountsStore
 from backend.common.data_providers import PLOTS_PREFIX
 from backend.common.dividend_attribution import is_attribution_only
 from backend.common.instrument_classification import ASSET_CLASS_LABELS, canonical_asset_class
 from backend.common.realised_gains import compute_disposal_gains
 from backend.logging_setup import sanitise_log_value
+from backend.routes.transactions import _load_account_holdings_file, _normalise_account_file_name, _read_store_holdings
 from backend.timeseries.cache import cache_only
 
 try:
@@ -1860,6 +1861,8 @@ def _load_transactions_s3(owner: str) -> List[dict]:
     by_account: Dict[str, List[dict]] = {}
     for root in _transaction_roots():
         prefix = f"{root.rstrip('/')}/{owner}/"
+        # Each ledger's ``<account>.json`` sits beside it under the same root.
+        holdings_store = S3AccountsStore(bucket=bucket, prefix=root.rstrip("/"), client=s3)
         paginator = s3.get_paginator("list_objects_v2")
         try:
             pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
@@ -1880,23 +1883,28 @@ def _load_transactions_s3(owner: str) -> List[dict]:
                     continue
                 txs = data.get("transactions") if isinstance(data, dict) else None
                 if isinstance(txs, list):
-                    by_account[name.removesuffix("_transactions.json").lower()] = _with_disposal_gains(txs)
+                    account = _normalise_account_file_name(name.removesuffix("_transactions.json"))
+                    holdings_doc = _read_store_holdings(holdings_store, owner, account)
+                    by_account[account] = _with_disposal_gains(txs, holdings_doc)
     return [tx for txs in by_account.values() for tx in txs]
 
 
 _DERIVED_GAIN_FIELDS = ("realised_gain_gbp", "cost_basis_gbp", "proceeds_gbp", "unmatched_units")
 
 
-def _with_disposal_gains(transactions: List[Any]) -> List[dict]:
+def _with_disposal_gains(transactions: List[Any], holdings_doc: Optional[Dict[str, Any]] = None) -> List[dict]:
     """Copy one account's ledger with each SELL's Section 104 gain attached.
 
     The same derivation ``GET /transactions`` applies
     (``routes.transactions._transactions_from_doc``), so the reports' realised
-    gains match the ledger. Stored derived fields are dropped first so a stale
-    value never survives (#10801).
+    gains match the ledger. ``holdings_doc`` is the account's ``<account>.json``,
+    whose holdings resolve ticker-less trades as the rebuild does (#8122).
+    Stored derived fields are dropped first so a stale value never survives
+    (#10801).
     """
     rows = [tx for tx in transactions if isinstance(tx, dict)]
-    gains = compute_disposal_gains(rows)
+    old_holdings = (holdings_doc or {}).get("holdings")
+    gains = compute_disposal_gains(rows, old_holdings if isinstance(old_holdings, list) else None)
     enriched: List[dict] = []
     for idx, tx in enumerate(rows):
         row = {key: value for key, value in tx.items() if key not in _DERIVED_GAIN_FIELDS}
@@ -1924,7 +1932,9 @@ def _load_transactions(owner: str) -> List[dict]:
                 continue
             txs = data.get("transactions") if isinstance(data, dict) else None
             if isinstance(txs, list):
-                records.extend(_with_disposal_gains(txs))
+                account = _normalise_account_file_name(path.name.removesuffix("_transactions.json"))
+                holdings_doc = _load_account_holdings_file(owner_dir / f"{account}.json", owner, account)
+                records.extend(_with_disposal_gains(txs, holdings_doc))
     return records
 
 

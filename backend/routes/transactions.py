@@ -400,7 +400,8 @@ def _load_account_holdings_file(path: Path, owner: str, account: str) -> dict[st
     if path.exists():
         try:
             loaded = json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError, ValueError):
+        except (json.JSONDecodeError, OSError, ValueError) as exc:
+            logger.warning("Ignoring unreadable holdings %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
             loaded = {}
     else:
         loaded = {}
@@ -415,6 +416,26 @@ def _load_account_holdings_file(path: Path, owner: str, account: str) -> dict[st
     if not isinstance(holdings, list):
         loaded["holdings"] = []
     return loaded
+
+
+def _read_store_holdings(store: "AccountsStore", owner: str, account: str) -> Optional[Dict[str, Any]]:
+    """Return ``account``'s ``<account>.json`` from ``store``, or ``None`` if it can't be read.
+
+    Uses the file name the holdings rebuild writes (``account.lower()``). Only
+    read paths call this, so an undecodable document is logged and treated as
+    absent rather than failing the request (#8122).
+    """
+    filename = f"{_normalise_account_file_name(account)}.json"
+    try:
+        return store.read_document(owner, filename)
+    except (OSError, ValueError) as exc:
+        logger.warning(
+            "Ignoring unreadable holdings %s/%s: %s",
+            sanitise_log_value(owner),
+            sanitise_log_value(filename),
+            sanitise_log_value(exc),
+        )
+        return None
 
 
 def _account_payload_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -624,7 +645,7 @@ def load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Trans
 
     if store is not None:
         for owner, account_raw, data in store.iter_transaction_documents():
-            holdings_doc = store.read_document(owner, f"{_normalise_account_file_name(account_raw)}.json")
+            holdings_doc = _read_store_holdings(store, owner, account_raw)
             merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(
                 owner, account_raw, data, holdings_doc
             )

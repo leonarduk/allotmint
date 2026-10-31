@@ -8,6 +8,13 @@ Account") is never counted as income twice. The dividend refresh bot does the
 same on every run; this is for a data checkout edited by hand, and for the
 one-off migration of rows written before the flag existed.
 
+A file with flagged rows is rewritten whole with ``json.dumps`` (2-space
+indent, key order as loaded, whether it ended with a newline kept). A file
+already in that layout shows only the flagged rows in a diff; a hand-edited
+file with other indentation or spacing is reformatted throughout. ``--dry-run``
+lists which files would change without writing them, so check those files'
+layout before a real run. Files with nothing to flag are not touched.
+
 Usage::
 
     python -m scripts.mark_dividend_attribution /path/to/allotmint-data/accounts [--dry-run]
@@ -33,6 +40,7 @@ def _process(path: Path, dry_run: bool) -> int:
     if changed and not dry_run:
         # Same layout as the data files (2-space indent), keeping whether the
         # file ended with a newline so only the flagged rows show in a diff.
+        # Any other layout is normalised; see the module docstring.
         text = json.dumps(data, indent=2, ensure_ascii=False) + ("\n" if raw.endswith("\n") else "")
         path.write_text(text, encoding="utf-8")
     return changed

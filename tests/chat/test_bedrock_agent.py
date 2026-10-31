@@ -307,26 +307,78 @@ async def test_run_chat_turn_reports_failed_tool_call_to_the_model_instead_of_ra
     assert "MCP server unreachable" in tool_result["content"][0]["text"]
 
 
-async def test_run_chat_turn_raises_after_max_iterations(monkeypatch):
+async def test_run_chat_turn_returns_tool_results_after_max_iterations(monkeypatch):
+    # Hitting the cap returns the last tool results with a note, not a RuntimeError (#7623).
     session = FakeSession(
         tools=[FakeTool("get_live_prices")],
-        tool_results={"get_live_prices": FakeCallToolResult("ok")},
+        tool_results={"get_live_prices": FakeCallToolResult('{"VOD.L": 72.1}')},
     )
     monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
 
     class FakeBedrock:
+        def __init__(self):
+            self.call_count = 0
+
         def converse(self, **kwargs):
+            self.call_count += 1
             return _assistant_tool_use("tool-loop", "get_live_prices", {})
 
-    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+    fake_bedrock = FakeBedrock()
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: fake_bedrock)
 
-    with pytest.raises(RuntimeError, match="did not converge"):
-        await bedrock_agent.run_chat_turn(
-            "loop forever",
-            [],
-            mcp_server_url="https://example.com/mcp",
-            bedrock_model_id="amazon.nova-lite-v1:0",
-        )
+    reply = await bedrock_agent.run_chat_turn(
+        "loop forever",
+        [],
+        mcp_server_url="https://example.com/mcp",
+        bedrock_model_id="amazon.nova-lite-v1:0",
+    )
+
+    assert fake_bedrock.call_count == bedrock_agent.MAX_TOOL_ITERATIONS
+    assert len(session.calls) == bedrock_agent.MAX_TOOL_ITERATIONS
+    assert f"tool-call limit for this turn ({bedrock_agent.MAX_TOOL_ITERATIONS} steps)" in reply
+    assert 'get_live_prices:\n{"VOD.L": 72.1}' in reply
+
+
+async def test_run_chat_turn_with_no_iterations_returns_cap_reply(monkeypatch):
+    # A non-positive limit means the loop never runs; the cap reply must still be returned.
+    from backend.chat.turn_limits import TurnLimits
+
+    session = FakeSession(tools=[FakeTool("get_live_prices")], tool_results={})
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: object())
+
+    reply = await bedrock_agent.run_chat_turn(
+        "hi",
+        [],
+        mcp_server_url="https://example.com/mcp",
+        bedrock_model_id="amazon.nova-lite-v1:0",
+        limits=TurnLimits(max_iterations=-1),
+    )
+
+    assert "tool-call limit for this turn (-1 steps)" in reply
+    assert session.calls == []
+
+
+def test_iteration_cap_reply_raises_when_limits_ask_for_it():
+    # A structured-output caller (the plan brief) keeps the old error at the cap.
+    from backend.chat.turn_limits import TurnLimits
+
+    with pytest.raises(RuntimeError, match="did not converge after 6 iterations"):
+        bedrock_agent.iteration_cap_reply(6, [("get_market_rates", "{}")], TurnLimits(raise_at_cap=True))
+    assert "get_market_rates:\n{}" in bedrock_agent.iteration_cap_reply(6, [("get_market_rates", "{}")], TurnLimits())
+
+
+def test_iteration_cap_reply_bounds_results():
+    long_text = "x" * (bedrock_agent.CAP_REPLY_MAX_CHARS_PER_RESULT + 50)
+    results = [(f"tool_{i}", long_text) for i in range(bedrock_agent.CAP_REPLY_MAX_RESULTS + 2)]
+
+    reply = bedrock_agent.iteration_cap_reply(3, results)
+
+    assert "(3 steps)" in reply
+    assert reply.count("... (truncated)") == bedrock_agent.CAP_REPLY_MAX_RESULTS
+    assert "x" * (bedrock_agent.CAP_REPLY_MAX_CHARS_PER_RESULT + 1) not in reply
+    assert f"tool_{bedrock_agent.CAP_REPLY_MAX_RESULTS}:" not in reply
+    assert "(and 2 more tool results not shown)" in reply
 
 
 async def test_run_chat_turn_sends_system_prompt_only_when_given(monkeypatch):

@@ -112,8 +112,11 @@ def _record_progress(owner: str, name: str, payload: ProgressPayload) -> GoalRes
 _NAME_CONFLICT = "Another goal already uses that name"
 
 
-def _restore_history_name(owner: str, new: str, old: str) -> None:
-    """Best-effort rollback of a history rename; never masks the caller's error."""
+def _restore_history_name(owner: str, new: str, old: str) -> bool:
+    """Best-effort rollback of a history rename; never masks the caller's error.
+
+    Returns whether the history is back under ``old``.
+    """
     try:
         rename_goal_history(owner, new, old)
     except Exception:
@@ -123,6 +126,47 @@ def _restore_history_name(owner: str, new: str, old: str) -> None:
             sanitise_log_value(old),
             sanitise_log_value(new),
         )
+        return False
+    return True
+
+
+def _repoint_goal_to_history(owner: str, goals: List[Goal], old: str, new: str) -> bool:
+    """Retry saving the renamed goal so it matches its history, now under ``new``.
+
+    Returns whether the save succeeded. On failure, logs what has diverged and
+    how to reconcile it by hand.
+    """
+    try:
+        save_goals(owner, goals)
+    except Exception:
+        logger.exception(
+            "Goal and history diverged: goal is still saved as %s but its history is stored under %s; "
+            "repair by renaming the history key %s back to %s, or the goal to %s",
+            sanitise_log_value(old),
+            sanitise_log_value(new),
+            sanitise_log_value(new),
+            sanitise_log_value(old),
+            sanitise_log_value(new),
+        )
+        return False
+    logger.warning(
+        "Rename of goal %s to %s completed by re-saving the goal after its history rollback failed",
+        sanitise_log_value(old),
+        sanitise_log_value(new),
+    )
+    return True
+
+
+def _recover_failed_save(owner: str, goals: List[Goal], old: str, new: str) -> bool:
+    """Keep goal and history together after ``save_goals`` failed mid-rename.
+
+    Returns ``True`` only when the update ended up saved (rollback failed, but
+    re-saving the goal under ``new`` succeeded). ``False`` means the caller
+    must re-raise the original error.
+    """
+    if _restore_history_name(owner, new, old):
+        return False
+    return _repoint_goal_to_history(owner, goals, old, new)
 
 
 def _update_goal(owner: str, name: str, payload: GoalPayload) -> GoalPayload:
@@ -133,8 +177,12 @@ def _update_goal(owner: str, name: str, payload: GoalPayload) -> GoalPayload:
             if payload.name != name and any(o.name == payload.name for o in goals):
                 raise HTTPException(status_code=409, detail=_NAME_CONFLICT)
             goals[idx] = Goal(payload.name, payload.target_amount, payload.target_date)
-            # Move the history first so a failure there leaves the goal untouched;
-            # if saving the goal then fails, move it back.
+            # Move the history first so a failure there leaves the goal untouched.
+            # If saving the goal then fails, move the history back. If that
+            # rollback also fails, the history is stranded under the new name, so
+            # retry saving the goal under it: success completes the update, and
+            # failure re-raises the original error after logging both names so
+            # the split can be repaired by hand (#11184).
             try:
                 rename_goal_history(owner, name, payload.name)
             except GoalHistoryConflict as exc:
@@ -142,8 +190,8 @@ def _update_goal(owner: str, name: str, payload: GoalPayload) -> GoalPayload:
             try:
                 save_goals(owner, goals)
             except Exception:
-                _restore_history_name(owner, payload.name, name)
-                raise
+                if not _recover_failed_save(owner, goals, name, payload.name):
+                    raise
             return GoalPayload(**payload.model_dump())
     raise HTTPException(status_code=404, detail="Goal not found")
 

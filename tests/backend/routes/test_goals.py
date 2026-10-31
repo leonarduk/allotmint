@@ -233,6 +233,39 @@ def test_update_goal_failed_rollback_logs_and_reraises_original_error(monkeypatc
     assert record.exc_info is not None
 
 
+def test_update_goal_repoint_failure_logs_goal_and_history_key(monkeypatch, fake_goal_class, caplog):
+    """Save, rollback and re-point all fail: the original error surfaces with a repair log (#11184)."""
+    existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])
+    renamed = []
+    saves = []
+
+    def rename(owner, old, new):
+        renamed.append((old, new))
+        if len(renamed) > 1:
+            raise RuntimeError("rollback failed")
+
+    def failing_save(owner, goals_list):
+        saves.append([g.name for g in goals_list])
+        raise OSError(f"disk full #{len(saves)}")
+
+    monkeypatch.setattr(goals, "rename_goal_history", rename)
+    monkeypatch.setattr(goals, "save_goals", failing_save)
+    payload = goals.GoalPayload(name="New", target_amount=1.0, target_date=datetime.date(2031, 1, 1))
+
+    with caplog.at_level("ERROR", logger=goals.logger.name):
+        with pytest.raises(OSError, match="disk full #1"):
+            goals._update_goal("demo-owner", "Old", payload)
+
+    # The re-point retried saving the goal under the history's (new) name.
+    assert saves == [["New"], ["New"]]
+    record = next(r for r in caplog.records if "diverged" in r.getMessage())
+    message = record.getMessage()
+    assert "goal is still saved as Old" in message
+    assert "history is stored under New" in message
+    assert record.exc_info is not None
+
+
 def test_update_goal_history_conflict_becomes_409_without_saving(monkeypatch, fake_goal_class):
     existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
     monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])

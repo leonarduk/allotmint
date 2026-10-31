@@ -17,6 +17,10 @@
 #
 # Callers that fall back when nothing is found must not fall back on exit 1:
 # a failed call says nothing about whether the resource exists (#11095).
+# "Does not exist" means a ValidationError naming a missing stack (the CLI's
+# message is the service's, not localised). Requiring both keeps other
+# validation errors failing; if AWS ever rewords it, a missing stack fails
+# loudly rather than being silently treated as found-nothing.
 #
 # QUERY must not end in "| [0]": past 100 resources the CLI applies --query
 # per page and prints "<id>\nNone" (#11091). awk keeps the first real value
@@ -28,7 +32,7 @@ cfn_resource_id() {
   output="$(aws cloudformation list-stack-resources \
     --stack-name "$stack" --query "$query" --output text 2>"$err_file")" || status=$?
   if [ "$status" -ne 0 ]; then
-    if grep -q "does not exist" "$err_file"; then
+    if grep -q "ValidationError.*does not exist" "$err_file"; then
       rm -f "$err_file"
       return 0
     fi

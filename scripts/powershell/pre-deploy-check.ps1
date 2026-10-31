@@ -51,25 +51,7 @@ function Write-GhaError($msg) {
     }
 }
 
-# Mirrors cfn_resource_id in scripts/bash/lib/cfn_resource_id.sh. Ok=$false
-# means the aws call failed for a reason other than the stack not existing
-# (throttling, expired credentials, network), which callers must not treat as
-# "not deployed" (#11095). Id is the first PhysicalResourceId the query yields,
-# or $null when the stack does not exist or nothing matched. The query must not
-# end in "| [0]": past 100 resources the CLI applies --query per page (#11091).
-function Get-CfnResourceId([string]$Stack, [string]$Query) {
-    $output = @(& aws cloudformation list-stack-resources --stack-name $Stack --query $Query --output text 2>&1)
-    $exitCode = $LASTEXITCODE
-    $stderr = @($output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
-    $lines = @($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
-    if ($exitCode -ne 0) {
-        $message = (@($stderr) + @($lines)) -join "`n"
-        if ($message -match 'does not exist') { return [pscustomobject]@{ Ok = $true; Id = $null; Error = $null } }
-        return [pscustomobject]@{ Ok = $false; Id = $null; Error = "aws cloudformation list-stack-resources --stack-name $Stack failed (exit $exitCode):`n$message" }
-    }
-    $id = $lines | ForEach-Object { $_ -split "`t" } | Where-Object { $_ -and $_ -ne 'None' } | Select-Object -First 1
-    return [pscustomobject]@{ Ok = $true; Id = $id; Error = $null }
-}
+. (Join-Path $PSScriptRoot 'lib\cfn-resource-id.ps1')
 
 # 0. Deployment environment variable validation
 Write-Host "`n=== 0. Deployment environment variable validation ==="

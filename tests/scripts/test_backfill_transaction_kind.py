@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+
+import pytest
 
 from scripts import backfill_transaction_kind as script
 
@@ -78,6 +81,23 @@ def test_account_falls_back_to_the_file_name(tmp_path):
     script.main([str(tmp_path)])
 
     assert json.loads(path.read_text(encoding="utf-8"))["transactions"][0]["kind"] == "isa_subscription"
+
+
+@pytest.mark.parametrize(
+    "data,expected",
+    [
+        ({"account_type": "isa", "account": "alex-isa"}, "isa"),
+        ({"account_type": "sipp", "account": "alex-isa"}, "sipp"),
+        ({"account": "alex-isa"}, "alex-isa"),
+        ({"account_type": "", "account": "alex-isa"}, "alex-isa"),
+        ({}, "gia"),
+        ({"account_type": "  ", "account": None}, "gia"),
+    ],
+)
+def test_account_name_prefers_account_type_then_account_then_file_name(data, expected):
+    path = Path("alex") / "gia_transactions.json"
+
+    assert script._account_name(path, data) == expected
 
 
 def test_file_with_nothing_to_classify_is_not_touched(tmp_path):

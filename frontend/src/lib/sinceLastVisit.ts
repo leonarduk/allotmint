@@ -168,12 +168,15 @@ export function dividendsSince(
   const sinceDay = visitDay(since);
   const ownerSet = new Set(owners.map((owner) => owner.toLowerCase()));
   const delta: DividendDelta = { payments: 0, amounts: {} };
+  // /dividends returns every owner's rows when unscoped, so with no owner in
+  // view nothing can be attributed safely (same rule as alertsSince).
+  if (ownerSet.size === 0) return delta;
   for (const tx of dividends) {
     if (tx.estimated || tx.attribution_only) continue;
     if (tx.amount_minor == null || !Number.isFinite(tx.amount_minor)) continue;
     const day = tx.date?.slice(0, 10);
     if (!day || day < sinceDay) continue;
-    if (ownerSet.size > 0 && !ownerSet.has((tx.owner ?? '').toLowerCase())) continue;
+    if (!ownerSet.has((tx.owner ?? '').toLowerCase())) continue;
     const currency = normalizeDisplayCurrency(tx.currency || 'GBP');
     delta.amounts[currency] = (delta.amounts[currency] ?? 0) + tx.amount_minor / 100;
     delta.payments += 1;

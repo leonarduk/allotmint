@@ -127,6 +127,12 @@ describe('dividendsSince', () => {
     expect(delta).toEqual({ payments: 2, amounts: { GBP: 12.34, USD: 5 } });
   });
 
+  it('counts no dividends when no owner is in view, since /dividends is not owner-scoped', () => {
+    const since = Date.parse('2026-10-29T18:00:00Z');
+    const delta = dividendsSince([dividend({ date: '2026-10-30' })], since, []);
+    expect(delta).toEqual({ payments: 0, amounts: {} });
+  });
+
   // Instants built from local date parts have the same local day in any
   // timezone; their UTC day differs on one side of UTC or the other.
   it.each([

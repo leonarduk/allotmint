@@ -40,7 +40,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
-import { renderPieLabelLine, withSmallSliceLabelsHidden } from "../lib/pieLabels";
+import { createPieLabelRenderers } from "../lib/pieLabels";
 
 const COLORS = [
   "#8884d8",
@@ -543,6 +543,15 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
       ? `${labelName}: ${percentValue.toFixed(2)}%`
       : `${labelName}: ${reporting.format(numericValue)} (${percentValue.toFixed(2)}%)`;
   };
+  // Collision- and edge-aware inline labels (#10313); each pie places its labels as a whole.
+  const innerLabels = createPieLabelRenderers(
+    chartData.map((d) => d.value),
+    formatSliceLabel,
+  );
+  const outerLabels = createPieLabelRenderers(
+    (outerRing ?? []).map((d) => d.value),
+    (props) => formatSliceLabel({ ...props, name: shortLabel(String(props.name ?? "")) }),
+  );
   const contributionParams = new URLSearchParams({ group: resolvedSlug });
   if (activeOwner) contributionParams.set("owner", activeOwner);
   if (activeAccountType) contributionParams.set("account", activeAccountType);
@@ -679,10 +688,8 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
                   cy="50%"
                   // With the holdings ring on, the groups sit inside it and the legend names them.
                   outerRadius={outerRing ? "52%" : "80%"}
-                  labelLine={showInlinePieLabels && !outerRing && renderPieLabelLine}
-                  label={
-                    showInlinePieLabels && !outerRing && withSmallSliceLabelsHidden(formatSliceLabel)
-                  }
+                  labelLine={showInlinePieLabels && !outerRing && innerLabels.labelLine}
+                  label={showInlinePieLabels && !outerRing && innerLabels.label}
                 >
                   {chartData.map((_, index) => (
                     <Cell
@@ -701,13 +708,8 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
                     innerRadius="54%"
                     outerRadius="80%"
                     legendType="none"
-                    labelLine={showInlinePieLabels && renderPieLabelLine}
-                    label={
-                      showInlinePieLabels &&
-                      withSmallSliceLabelsHidden((props) =>
-                        formatSliceLabel({ ...props, name: shortLabel(String(props.name ?? "")) }),
-                      )
-                    }
+                    labelLine={showInlinePieLabels && outerLabels.labelLine}
+                    label={showInlinePieLabels && outerLabels.label}
                   >
                     {outerRing.map((slice, index) => (
                       <Cell

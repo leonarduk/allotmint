@@ -109,9 +109,9 @@ def _record_progress(owner: str, name: str, payload: ProgressPayload) -> GoalRes
     # (one JSON document holding every user's goals), adds this snapshot and
     # writes the document back, with no version check. Two overlapping requests
     # (e.g. concurrent Lambda invocations, for the same or *different* users)
-    # can both read the same document; the later write then silently drops the
-    # earlier request's snapshot, although that request still answered 200 with
-    # it included. We accept this because progress is recorded by hand, one
+    # can both read the same document; whichever writes last silently drops the
+    # snapshot the other one wrote first, although that other request already
+    # answered 200 with it included. We accept this because progress is recorded by hand, one
     # click at a time, so overlapping writes are rare. A lost snapshot only
     # thins the projection's input, and the user can record it again. Neither
     # the goal definition nor its target is affected. The store may be a file,

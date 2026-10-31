@@ -467,3 +467,24 @@ def test_import_skips_conflicting_price_row_and_imports_the_rest(tmp_path, monke
     [skipped] = data["skipped"]
     assert skipped["ticker"] == "MSFT"
     assert "Conflicting values for price" in skipped["skip_reason"]
+
+
+def test_import_sets_cash_kind_only_when_unambiguous(tmp_path, monkeypatch):
+    """Imported cash rows get a structured ``kind`` when the rules are sure, else stay null (#10797)."""
+    client = _make_client(tmp_path, monkeypatch)
+    rows = [
+        Transaction(owner="", account="", date="2024-05-01", type="DEPOSIT", amount_minor=100_000),
+        Transaction(owner="", account="", date="2024-05-02", type="DEPOSIT", amount_minor=50_000,
+                    comments="Transfer from bank"),
+        Transaction(owner="", account="", date="2024-05-03", type="DEPOSIT", amount_minor=50_000, kind="manual"),
+    ]  # fmt: skip
+    monkeypatch.setattr(importers, "parse", lambda provider, data: rows)
+
+    resp = client.post(
+        "/transactions/import",
+        data={"provider": "moneyhub", "owner": "alice", "account": "isa"},
+        files={"file": ("tx.csv", b"unused", "text/csv")},
+    )
+
+    assert resp.status_code == 200
+    assert [row["kind"] for row in resp.json()["persisted"]] == ["isa_subscription", None, "manual"]

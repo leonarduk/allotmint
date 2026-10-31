@@ -24,6 +24,7 @@ from backend.common.accounts_store import (
     S3AccountsStore,
 )
 from backend.common.authz import ensure_owner_access
+from backend.common.cash_kind import classify_cash_kind
 from backend.common.core_optional import require_core
 from backend.common.currency import CurrencyNormaliser
 from backend.common.instruments import get_instrument_meta
@@ -118,6 +119,10 @@ class Transaction(BaseModel):
     date: str | None = None
     ticker: str | None = None
     type: str | None = None
+    # What a cash movement is: one of backend.common.cash_kind.CASH_KINDS
+    # (personal_contribution, tax_relief, employer_contribution, transfer_in,
+    # isa_subscription, isa_transfer_in, withdrawal, interest, fee), or None
+    # when not classified (#10797). Moneyhub API rows keep the legacy "account".
     kind: str | None = None
     amount_minor: float | None = None
     currency: str | None = None
@@ -1067,7 +1072,7 @@ def _coalesce_price_gbp(tx_data: Dict[str, Any]) -> None:
     tx_data["price_gbp"] = float(price) * rate
 
 
-def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
+def _tx_data_from_parsed(row: Transaction, account: str | None = None) -> Dict[str, Any]:
     """Normalise a parsed import ``Transaction`` into the persisted-record shape.
 
     Importers set ``price``/``reason_to_buy`` (hargreaves) while the
@@ -1077,6 +1082,10 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     rows (Moneyhub) carry no ticker/price/units at all; those fields persist
     as ``None``, which ``rebuild_account_holdings`` already treats as "no
     security impact" (#4965).
+
+    With the destination ``account``, a row the importer left without a
+    ``kind`` gets one from :func:`classify_cash_kind` when the row is
+    unambiguous (#10797); otherwise ``kind`` stays ``None``.
 
     Raises :class:`ImportPriceCurrencyError` when ``price`` and
     ``price_gbp`` conflict, or a non-GBP price has no stored trade-date FX
@@ -1088,6 +1097,8 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     if not tx_data.get("reason"):
         tx_data["reason"] = tx_data.get("reason_to_buy")
     tx_data.pop("reason_to_buy", None)
+    if account and not tx_data.get("kind"):
+        tx_data["kind"] = classify_cash_kind(tx_data, account)
     return tx_data
 
 
@@ -1169,7 +1180,7 @@ async def import_transactions(
             continue
 
         try:
-            tx_data = _tx_data_from_parsed(row)
+            tx_data = _tx_data_from_parsed(row, row_account)
         except ImportPriceCurrencyError as exc:
             skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc)})
             continue

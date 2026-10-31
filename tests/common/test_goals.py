@@ -116,6 +116,18 @@ def test_load_goal_history_ignores_malformed_entries(history_storage):
     assert goals_mod.load_goal_history("bob", "Car") == []
 
 
+@pytest.mark.parametrize("amount", [float("inf"), float("-inf"), float("nan")])
+def test_record_goal_amount_rejects_non_finite(history_storage, amount):
+    with pytest.raises(ValueError):
+        goals_mod.record_goal_amount("alice", "Car", amount, date(2026, 1, 1))
+    assert history_storage.load() == {}
+
+
+def test_load_goal_history_skips_non_finite_stored_amounts(history_storage):
+    history_storage.save({"alice": {"Car": [{"date": "2026-01-01", "amount": float("inf")}]}})
+    assert goals_mod.load_goal_history("alice", "Car") == []
+
+
 def test_rename_and_delete_goal_history(goal_storage, history_storage):
     goals_mod.record_goal_amount("alice", "Car", 10.0, date(2026, 1, 1))
     goals_mod.rename_goal_history("alice", "Car", "Van")

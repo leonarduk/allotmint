@@ -1,8 +1,9 @@
+import math
 from datetime import date
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from backend.auth import get_current_user
 from backend.common.goal_projection import project_completion
@@ -35,11 +36,15 @@ class GoalResponse(GoalPayload):
     progress: float | None = None
     current_amount: float | None = None
     trades: List[dict] | None = None
+    # Built only from *recorded* history (POST /goals/{name}/progress); an
+    # ad-hoc ``current_amount`` on GET drives progress but never the projection.
     projection: dict | None = None
 
 
 class ProgressPayload(BaseModel):
-    amount: float = Field(ge=0)
+    # Validated in ``_record_progress``: a pydantic constraint would echo inf/nan
+    # back in the 422 body, which FastAPI then fails to JSON-encode.
+    amount: float
     # Defaults to today when omitted.
     on: date | None = None
 
@@ -89,6 +94,9 @@ def _get_goal(owner: str, name: str, current_amount: float | None = None) -> Goa
 
 
 def _record_progress(owner: str, name: str, payload: ProgressPayload) -> GoalResponse:
+    # inf/nan would be persisted as non-standard JSON and poison the projection.
+    if not math.isfinite(payload.amount) or payload.amount < 0:
+        raise HTTPException(status_code=422, detail="amount must be a finite number of zero or more")
     goal = _find_goal(owner, name)
     history = record_goal_amount(owner, name, payload.amount, payload.on or date.today())
     return _goal_response(goal, payload.amount, history)
@@ -99,8 +107,14 @@ def _update_goal(owner: str, name: str, payload: GoalPayload) -> GoalPayload:
     for idx, g in enumerate(goals):
         if g.name == name:
             goals[idx] = Goal(payload.name, payload.target_amount, payload.target_date)
-            save_goals(owner, goals)
+            # Move the history first so a failure there leaves the goal untouched;
+            # if saving the goal then fails, move it back.
             rename_goal_history(owner, name, payload.name)
+            try:
+                save_goals(owner, goals)
+            except Exception:
+                rename_goal_history(owner, payload.name, name)
+                raise
             return GoalPayload(**payload.model_dump())
     raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -124,7 +138,7 @@ if config.disable_auth:
         return _create_goal(DEMO_OWNER, payload)
 
     @router.get("/{name}")
-    def get_goal(name: str, current_amount: float | None = None) -> GoalResponse:
+    def get_goal(name: str, current_amount: float | None = Query(None, allow_inf_nan=False)) -> GoalResponse:
         return _get_goal(DEMO_OWNER, name, current_amount)
 
     @router.post("/{name}/progress")
@@ -156,7 +170,9 @@ else:
 
     @router.get("/{name}")
     def get_goal(  # type: ignore[misc]
-        name: str, current_amount: float | None = None, current_user: str = Depends(get_current_user)
+        name: str,
+        current_amount: float | None = Query(None, allow_inf_nan=False),
+        current_user: str = Depends(get_current_user),
     ) -> GoalResponse:
         return _get_goal(current_user, name, current_amount)
 

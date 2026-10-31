@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Goal tracking helpers."""
 
+import math
 import os
 from dataclasses import dataclass
 from datetime import date
@@ -120,7 +121,9 @@ def load_goal_history(user: str, name: str) -> List[Tuple[date, float]]:
     points: List[Tuple[date, float]] = []
     for entry in raw if isinstance(raw, list) else []:
         try:
-            points.append((date.fromisoformat(str(entry["date"])), float(entry["amount"])))
+            amount = float(entry["amount"])
+            if math.isfinite(amount):
+                points.append((date.fromisoformat(str(entry["date"])), amount))
         except (KeyError, TypeError, ValueError):
             continue
     return sorted(points)
@@ -129,8 +132,14 @@ def load_goal_history(user: str, name: str) -> List[Tuple[date, float]]:
 def record_goal_amount(user: str, name: str, amount: float, on: date) -> List[Tuple[date, float]]:
     """Record the amount saved toward a goal on ``on`` (one snapshot per day).
 
-    Returns the goal's updated history.
+    Returns the goal's updated history. Raises ``ValueError`` for a non-finite
+    amount, which would otherwise be stored as non-standard JSON.
+
+    This is a plain read-modify-write of the whole store: it assumes a single
+    writer (the app's usage), so concurrent writers could lose an update.
     """
+    if not math.isfinite(amount):
+        raise ValueError("Goal amount must be a finite number")
     data = _load_history_raw()
     by_day = dict(load_goal_history(user, name))
     by_day[on] = float(amount)

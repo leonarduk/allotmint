@@ -187,6 +187,25 @@ def test_update_goal_replaces_goal_and_saves(monkeypatch, fake_goal_class):
     assert renamed == [("demo-owner", "Old", "Updated")]
 
 
+def test_update_goal_moves_history_back_when_save_fails(monkeypatch, fake_goal_class):
+    existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])
+    renamed = []
+    monkeypatch.setattr(goals, "rename_goal_history", lambda owner, old, new: renamed.append((old, new)))
+
+    def failing_save(owner, goals_list):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(goals, "save_goals", failing_save)
+    payload = goals.GoalPayload(name="New", target_amount=1.0, target_date=datetime.date(2031, 1, 1))
+
+    with pytest.raises(OSError):
+        goals._update_goal("demo-owner", "Old", payload)
+
+    # History moved first, then restored, so it still matches the unsaved goal.
+    assert renamed == [("Old", "New"), ("New", "Old")]
+
+
 def test_update_goal_missing_raises_404(monkeypatch):
     monkeypatch.setattr(goals, "load_goals", lambda owner: [])
 

@@ -88,6 +88,17 @@ def test_goal_progress_history_and_projection(tmp_path, monkeypatch):
     assert client.post("/goals/Home/progress", json={"amount": -1}).status_code == 422
 
 
+def test_non_finite_amounts_are_rejected(tmp_path, monkeypatch):
+    client = _app(tmp_path, monkeypatch)
+    client.post("/goals", json={"name": "House", "target_amount": 2000, "target_date": "2030-06-30"})
+    headers = {"Content-Type": "application/json"}
+
+    for raw in ('{"amount": Infinity}', '{"amount": NaN}'):
+        assert client.post("/goals/House/progress", content=raw, headers=headers).status_code == 422
+    assert client.get("/goals/House", params={"current_amount": "inf"}).status_code == 422
+    assert goals_mod.load_goal_history("alice", "House") == []
+
+
 def test_update_and_delete(tmp_path, monkeypatch):
     client = _app(tmp_path, monkeypatch)
     payload = {"name": "Trip", "target_amount": 2000, "target_date": date.today().isoformat()}

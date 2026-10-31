@@ -125,6 +125,12 @@ PLAN_BRIEFS_PREFIX = "plan_briefs"
 # Get/PutObject grant; without RETIREMENT_READINESS_URI the store falls back
 # to the read-only image and nothing is ever kept (#10509).
 RETIREMENT_READINESS_PREFIX = "retirement_readiness"
+# Investment plans and decision-journal entries, one <owner>.json each (#11159,
+# backend/common/owner_documents.py). The Lambda's data_root is the empty,
+# per-container /tmp/data, so without PLANS_URI / DECISION_JOURNAL_URI a saved
+# plan or journal entry is lost on the next cold start.
+PLANS_PREFIX = "plans"
+DECISION_JOURNAL_PREFIX = "decision_journal"
 CHAT_HISTORY_RETENTION_DAYS = 90
 CHAT_HISTORY_NONCURRENT_DAYS = 1
 
@@ -703,6 +709,16 @@ class BackendLambdaStack(Stack):
                 # as unavailable rather than "nothing saved", so no one could
                 # ever save their first copy.
                 "watchlists",
+                # Investment plans and decision journals (#11159). Owner
+                # discovery lists them: investment_plan.py:plan_owners and
+                # decision_journal/store.py:journal_owners →
+                # OwnerDocumentStore.owners → storage.py:list_s3_json_stems
+                # (list_objects_v2). ListBucket also makes a not-yet-saved
+                # <owner>.json a NoSuchKey, which S3JSONStorage.load_existing
+                # reads as "absent"; a 403 there raises instead, so without it
+                # nobody could save a first plan or journal entry.
+                PLANS_PREFIX,
+                DECISION_JOURNAL_PREFIX,
                 # Writable, per-owner account documents (manual holdings and
                 # transaction writes) live under a dedicated prefix that is
                 # separate from the read-only ``accounts/`` demo dataset so
@@ -856,6 +872,12 @@ class BackendLambdaStack(Stack):
             # PlanBriefLambda writes them (#10475).
             "PLAN_BRIEFS_URI": f"s3://{bucket_name}/{PLAN_BRIEFS_PREFIX}",
             "RETIREMENT_READINESS_URI": f"s3://{bucket_name}/{RETIREMENT_READINESS_PREFIX}",
+            # Plans and decision journals (#11159): load_plan/save_plan and
+            # load_journal/save_journal read and write <prefix>/<owner>.json
+            # via S3JSONStorage get_object/put_object, covered by the
+            # bucket-wide Get/PutObject grant below.
+            "PLANS_URI": f"s3://{bucket_name}/{PLANS_PREFIX}",
+            "DECISION_JOURNAL_URI": f"s3://{bucket_name}/{DECISION_JOURNAL_PREFIX}",
             "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
             # GET /bots shows the pension report's schedule (#10477).
             "PENSION_REPORT_CADENCE": pension_report_cadence,
@@ -940,6 +962,7 @@ class BackendLambdaStack(Stack):
         # - queries/         (saved query listing)
         # - timeseries/meta/ (timeseries admin listing)
         # - transactions/    (report transaction exports)
+        # - plans/, decision_journal/ (owner listing, missing-vs-denied; #11159)
         # - "" (root)        (Data Explorer root tree listing, issue #6110)
         self._grant_bucket_access(
             backend_fn,

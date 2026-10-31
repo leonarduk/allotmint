@@ -5,16 +5,16 @@ and their reasoning (``PlanDecision``, linked here by ``id``). Everything else
 lives in ``<data_root>/decision_journal/<owner>.json``, so the plan schema only
 gains an optional ``id``: the context snapshot taken at decision time, the
 legs the review compares, the owner's expectation and the reviews themselves.
+On AWS, where ``data_root`` is the Lambda's ephemeral ``/tmp/data``,
+``DECISION_JOURNAL_URI`` (``s3://<bucket>/decision_journal``) holds them
+instead (#11159).
 """
 
 from __future__ import annotations
 
 import datetime as dt
-import json
 import logging
-import os
 import re
-import tempfile
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -22,12 +22,14 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.common.investment_plan import DECISION_ID_PATTERN, plans_dir
-from backend.common.path_utils import safe_join
+from backend.common.owner_documents import OwnerDocumentStore
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
 JOURNAL_DIRNAME = "decision_journal"
+#: ``s3://<bucket>/<prefix>`` for journals on AWS; unset means ``journal_dir()``.
+DECISION_JOURNAL_URI_ENV = "DECISION_JOURNAL_URI"
 #: Trades at or above this many pounds qualify for a "log this decision?" prompt.
 DEFAULT_THRESHOLD_GBP = 1000.0
 #: Months after the decision at which a follow-up review falls due.
@@ -166,18 +168,28 @@ def journal_dir(data_root: Optional[Path] = None) -> Path:
     return plans_dir(data_root).parent / JOURNAL_DIRNAME
 
 
-def _journal_path(owner: str, data_root: Optional[Path]) -> Path:
+_JOURNALS = OwnerDocumentStore(uri_env=DECISION_JOURNAL_URI_ENV, local_dir=journal_dir)
+
+
+def _check_owner(owner: str) -> str:
     if not _OWNER_RE.match(owner or ""):
         raise ValueError(f"Invalid owner id {owner!r}")
-    return safe_join(journal_dir(data_root), f"{owner}.json")
+    return owner
+
+
+def journal_owners(data_root: Optional[Path] = None) -> set[str]:
+    """Owners with a saved journal, from ``DECISION_JOURNAL_URI`` when set, else ``journal_dir()``."""
+    return _JOURNALS.owners(data_root)
 
 
 def load_journal(owner: str, data_root: Optional[Path] = None) -> Journal:
-    """The owner's journal, or an empty one when nothing has been logged yet."""
-    path = _journal_path(owner, data_root)
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    """The owner's journal, or an empty one when nothing has been logged yet.
+
+    A read failure raises rather than returning an empty journal, which the
+    next save would write over the real one.
+    """
+    raw = _JOURNALS.read(_check_owner(owner), data_root)
+    if raw is None:
         return Journal(owner=owner)
     journal = Journal.model_validate(raw)
     if journal.owner != owner:
@@ -185,18 +197,12 @@ def load_journal(owner: str, data_root: Optional[Path] = None) -> Journal:
     return journal
 
 
-def save_journal(journal: Journal, data_root: Optional[Path] = None) -> Path:
-    """Write ``journal`` atomically to ``<data_root>/decision_journal/<owner>.json``."""
-    path = _journal_path(journal.owner, data_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(journal.model_dump(mode="json", exclude_none=True), indent=2, ensure_ascii=False) + "\n"
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{journal.owner}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(payload)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
+def save_journal(journal: Journal, data_root: Optional[Path] = None) -> Optional[Path]:
+    """Write ``journal`` to ``DECISION_JOURNAL_URI`` when set, else atomically to
+    ``<data_root>/decision_journal/<owner>.json``.
+
+    Returns the local path, or ``None`` when the journal was written to S3.
+    """
+    path = _JOURNALS.write(_check_owner(journal.owner), journal.model_dump(mode="json", exclude_none=True), data_root)
     logger.info("Saved decision journal for %s", sanitise_log_value(journal.owner))
     return path

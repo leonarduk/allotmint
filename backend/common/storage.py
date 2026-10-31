@@ -21,7 +21,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Protocol
+from typing import Any, Dict, Optional, Protocol
 from urllib.parse import urlparse
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -80,9 +80,48 @@ class S3JSONStorage:
             logger.warning("S3 load failed for %s/%s: %s", self.bucket, self.key, sanitise_log_value(exc))
             return {}
 
+    def load_existing(self) -> Optional[Dict[str, Any]]:
+        """The stored object, or ``None`` when the key does not exist; any other failure raises.
+
+        Unlike :meth:`load`, a failed read is never an empty document. Callers
+        that read, modify and write back (plans, the decision journal, #11159)
+        would otherwise overwrite real data after a transient error. A missing
+        key reads as ``NoSuchKey`` only when the caller has ``s3:ListBucket``
+        on the prefix; without it S3 answers 403, which raises here.
+        """
+        try:
+            obj = self._client().get_object(Bucket=self.bucket, Key=self.key)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in _MISSING_KEY_CODES:
+                return None
+            raise
+        return json.loads(obj["Body"].read())
+
     def save(self, data: Dict[str, Any]) -> None:
         body = json.dumps(data).encode("utf-8")
         self._client().put_object(Bucket=self.bucket, Key=self.key, Body=body)
+
+
+_MISSING_KEY_CODES = frozenset({"NoSuchKey", "404", "NotFound"})
+
+
+def list_s3_json_stems(bucket: str, prefix: str, client: Any | None = None) -> list[str]:
+    """Names of the ``<prefix>/<name>.json`` objects directly under ``prefix``, without ``.json``.
+
+    Errors propagate: an empty list must mean "nothing stored", not "could not list".
+    """
+    if client is None:
+        import boto3  # type: ignore
+
+        client = boto3.client("s3")
+    base = f"{prefix.strip('/')}/" if prefix.strip("/") else ""
+    stems: list[str] = []
+    for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=base):
+        for item in page.get("Contents") or []:
+            name = str(item.get("Key", ""))[len(base) :]
+            if "/" not in name and name.endswith(".json") and len(name) > len(".json"):
+                stems.append(name.removesuffix(".json"))
+    return sorted(stems)
 
 
 @dataclass
@@ -170,4 +209,5 @@ __all__ = [
     "S3JSONStorage",
     "ParameterStoreJSONStorage",
     "get_storage",
+    "list_s3_json_stems",
 ]

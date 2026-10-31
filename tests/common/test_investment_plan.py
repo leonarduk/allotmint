@@ -137,6 +137,35 @@ def test_owner_ids_cannot_escape_plans_dir(tmp_path, owner):
         load_plan(owner, tmp_path)
 
 
+def test_plans_round_trip_through_s3_when_plans_uri_is_set(monkeypatch, tmp_path):
+    """On AWS the plan lives in the bucket, not the Lambda's ephemeral /tmp/data (#11159)."""
+    from tests.backend.fake_s3 import FakeS3
+
+    fake = FakeS3()
+    monkeypatch.setenv("PLANS_URI", "s3://data-bucket/plans")
+    monkeypatch.setattr("boto3.client", lambda service, *args, **kwargs: fake)
+    plan = parse_plan(plan_data(), "alex")
+
+    assert save_plan(plan, tmp_path) is None
+    assert list(fake.objects) == [("data-bucket", "plans/alex.json")]
+    assert load_plan("alex", tmp_path) == plan
+    assert plan_mod.plan_owners(tmp_path) == {"alex"}
+    assert not (tmp_path / "plans").exists()
+    with pytest.raises(PlanNotFoundError):
+        load_plan("bob", tmp_path)
+
+
+def test_plan_read_error_in_s3_is_not_reported_as_no_plan(monkeypatch, tmp_path):
+    from botocore.exceptions import ClientError
+
+    from tests.backend.fake_s3 import FakeS3
+
+    monkeypatch.setenv("PLANS_URI", "s3://data-bucket/plans")
+    monkeypatch.setattr("boto3.client", lambda service, *args, **kwargs: FakeS3(fail_with="AccessDenied"))
+    with pytest.raises(ClientError):
+        load_plan("alex", tmp_path)
+
+
 def test_plans_dir_defaults_to_config_data_root(monkeypatch, tmp_path):
     monkeypatch.setattr(plan_mod.config, "data_root", tmp_path, raising=False)
     assert plan_mod.plans_dir() == tmp_path / "plans"

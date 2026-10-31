@@ -25,7 +25,7 @@ function Get-CfnResourceId([string]$Stack, [string]$Query) {
     $lines = @($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
     if ($exitCode -ne 0) {
         $message = (@($stderr) + @($lines)) -join "`n"
-        if ($message -match 'ValidationError[\s\S]*does not exist') {
+        if ($message -match 'ValidationError[\s\S]*Stack with id \S+ does not exist') {
             return [pscustomobject]@{ Ok = $true; Id = $null; Error = $null }
         }
         return [pscustomobject]@{
@@ -34,6 +34,6 @@ function Get-CfnResourceId([string]$Stack, [string]$Query) {
             Error = "aws cloudformation list-stack-resources --stack-name $Stack failed (exit $exitCode):`n$message"
         }
     }
-    $id = $lines | ForEach-Object { $_ -split "`t" } | Where-Object { $_ -and $_ -ne 'None' } | Select-Object -First 1
+    $id = $lines | ForEach-Object { $_ -split "[`t`r`n]" } | Where-Object { $_ -and $_ -ne 'None' } | Select-Object -First 1
     return [pscustomobject]@{ Ok = $true; Id = $id; Error = $null }
 }

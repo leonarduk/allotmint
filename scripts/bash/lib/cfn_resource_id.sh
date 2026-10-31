@@ -32,7 +32,7 @@ cfn_resource_id() {
   output="$(aws cloudformation list-stack-resources \
     --stack-name "$stack" --query "$query" --output text 2>"$err_file")" || status=$?
   if [ "$status" -ne 0 ]; then
-    if grep -q "ValidationError.*does not exist" "$err_file"; then
+    if grep -Eq "ValidationError.*Stack with id [^ ]+ does not exist" "$err_file"; then
       rm -f "$err_file"
       return 0
     fi

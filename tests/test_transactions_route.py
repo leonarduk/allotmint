@@ -1666,3 +1666,15 @@ def test_update_transaction_cannot_set_or_clear_bot_only_flags(tmp_path, monkeyp
     assert estimate["reason"] == "edited"
     assert estimate["estimated"] is True
     assert estimate["attribution_only"] is True
+
+
+def test_transaction_update_model_excludes_bot_only_fields():
+    """Pin the model contract behind ``update_transaction``'s ``exclude=_BOT_ONLY_FIELDS``.
+
+    The body model declares no bot-only field today, so Pydantic drops them and
+    the exclude is a backstop. Adding one to the model makes that exclude
+    load-bearing, so this fails to force a review of the guard (#11142).
+    """
+    assert "estimated" not in transactions.TransactionUpdate.model_fields
+    assert "attribution_only" not in transactions.TransactionUpdate.model_fields
+    assert transactions._BOT_ONLY_FIELDS.isdisjoint(transactions.TransactionUpdate.model_fields)

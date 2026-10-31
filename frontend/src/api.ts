@@ -3964,6 +3964,8 @@ export interface StatementRow {
   price_gbp: number | null;
   consideration_minor: number | null;
   fees_minor: number;
+  /** Stamp duty included in `fees_minor`, when the statement shows it (#10493). */
+  stamp_duty_minor?: number | null;
   amount_minor: number | null;
   flags: string[];
 }

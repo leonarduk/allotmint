@@ -4104,6 +4104,7 @@
     "allInCost": "Coût annuel total",
     "allInBreakdown": "{{funds}} de frais de fonds + {{fees}} de frais payés (12 derniers mois)",
     "allInBreakdownUnknownFunds": "Frais de fonds inconnus + {{fees}} de frais payés (12 derniers mois)",
+    "allInFeesSplit": "Frais payés : {{dealing}} de courtage, {{stampDuty}} de droit de timbre, {{fx}} de change, {{account}} de tenue de compte",
     "allInNotIncluded": "Non inclus : {{items}}",
     "allInUnknownValue": "{{value}} dans {{holdings}} positions sans données de frais",
     "allInUnknownTrades_one": "{{trades}} opération sans frais enregistrés",

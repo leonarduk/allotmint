@@ -4104,6 +4104,7 @@
     "allInCost": "Costo annuo complessivo",
     "allInBreakdown": "{{funds}} di spese dei fondi + {{fees}} di commissioni pagate (ultimi 12 mesi)",
     "allInBreakdownUnknownFunds": "Spese dei fondi sconosciute + {{fees}} di commissioni pagate (ultimi 12 mesi)",
+    "allInFeesSplit": "Commissioni pagate: {{dealing}} di negoziazione, {{stampDuty}} di imposta di bollo, {{fx}} di cambio, {{account}} di conto",
     "allInNotIncluded": "Non incluso: {{items}}",
     "allInUnknownValue": "{{value}} in {{holdings}} posizioni senza dati sui costi",
     "allInUnknownTrades_one": "{{trades}} operazione senza commissione registrata",

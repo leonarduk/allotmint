@@ -301,3 +301,26 @@ def test_refresh_bot_dividend_estimates_are_not_broker_rows():
 
     assert diffs == []
     assert len(matched) == 3
+
+
+def _buy_with_stamp_duty():
+    # £6.95 dealing + £5.00 stamp duty: the same £11.95 total as STATEMENT's BUY.
+    return [{**STATEMENT["rows"][1], "fees": 6.95, "stamp_duty": 5.00}]
+
+
+def test_missing_trade_records_stamp_duty_as_part_of_fees():
+    _, diffs, _ = _reconcile(_extraction(closing_cash=None, rows=_buy_with_stamp_duty()), [])
+
+    body = diffs[0].suggestion.request.body
+    # fees is the total (#10493); stamp_duty is the part of it that is tax.
+    assert body["fees"] == 11.95
+    assert body["stamp_duty"] == 5.0
+
+
+def test_fee_fix_records_stamp_duty_and_trade_without_it_sends_none():
+    _, diffs, _ = _reconcile(_extraction(closing_cash=None, rows=_buy_with_stamp_duty()), [BUY_NO_FEE])
+    assert diffs[0].suggestion.request.body["stamp_duty"] == 5.0
+
+    _, diffs, _ = _reconcile(_extraction(closing_cash=None, rows=STATEMENT["rows"][1:2]), [BUY_NO_FEE])
+    # Not on the statement: unknown, so nothing is sent rather than 0.
+    assert "stamp_duty" not in diffs[0].suggestion.request.body

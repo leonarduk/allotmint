@@ -170,6 +170,77 @@ describe('FundChargesSummary (#7834)', () => {
     ).toBeInTheDocument();
   });
 
+  it('splits stamp duty and FX out of trade fees, counting each once (#10493)', () => {
+    const part: AllInCostPart = {
+      value_gbp: 10000,
+      fund_charges_gbp: 20,
+      known_value_gbp: 10000,
+      unknown_value_gbp: 0,
+      holding_count: 1,
+      unknown_count: 0,
+      dealing_fees_gbp: 13,
+      stamp_duty_gbp: 5,
+      fx_charges_gbp: 2,
+      account_charges_gbp: 10,
+      trade_count: 1,
+      trades_without_fee_data: 0,
+      known_cost_gbp: 50,
+      known_cost_pct: 0.5,
+      complete: true,
+    };
+    render(
+      <FundChargesSummary
+        charges={{
+          weightedChargePct: 0.2,
+          annualCostGbp: 20,
+          holdingCount: 1,
+          unknownCount: 0,
+        }}
+        allInCost={part}
+      />
+    );
+    // 13 + 5 + 2 trade fees + 10 account charges = 30 fees paid.
+    expect(screen.getByTestId('fund-charges-all-in')).toHaveTextContent(
+      /20\.00 fund charges \+ .*30\.00 fees paid/
+    );
+    const split = screen.getByTestId('fund-charges-all-in-fees-split');
+    expect(split).toHaveTextContent(/13\.00 dealing/);
+    expect(split).toHaveTextContent(/5\.00 stamp duty/);
+    expect(split).toHaveTextContent(/2\.00 FX charges/);
+    expect(split).toHaveTextContent(/10\.00 account charges/);
+  });
+
+  it('shows no fee split when no stamp duty or FX is recorded', () => {
+    render(
+      <FundChargesSummary
+        charges={{
+          weightedChargePct: 0.2,
+          annualCostGbp: 20,
+          holdingCount: 1,
+          unknownCount: 0,
+        }}
+        allInCost={{
+          value_gbp: 10000,
+          fund_charges_gbp: 20,
+          known_value_gbp: 10000,
+          unknown_value_gbp: 0,
+          holding_count: 1,
+          unknown_count: 0,
+          dealing_fees_gbp: 9.95,
+          account_charges_gbp: 0,
+          trade_count: 1,
+          trades_without_fee_data: 0,
+          known_cost_gbp: 29.95,
+          known_cost_pct: 0.2995,
+          complete: true,
+        }}
+      />
+    );
+    expect(
+      screen.queryByTestId('fund-charges-all-in-fees-split')
+    ).not.toBeInTheDocument();
+  });
+
   it('renders nothing without any priced non-cash holdings', () => {
     const { container } = render(
       <FundChargesSummary

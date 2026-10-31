@@ -3639,6 +3639,21 @@
     "openHelp": "Ouvrir l'aide et la prise en main",
     "dismiss": "Compris, ne plus afficher"
   },
+  "sinceLastVisit": {
+    "title": "Depuis votre dernière visite",
+    "since": "Changements depuis le {{date}}.",
+    "nothingChanged": "Rien de notable depuis : aucun grand mouvement, alerte ou dividende.",
+    "movers": "Plus fortes variations sur {{days}} jours : {{list}}",
+    "noMovers": "Aucune forte variation parmi vos positions.",
+    "moversUnavailable": "Les variations sont indisponibles pour le moment.",
+    "alerts": "Alertes : {{list}}",
+    "noAlerts": "Aucun seuil d'alerte franchi.",
+    "alertsUnavailable": "Les alertes sont indisponibles pour le moment.",
+    "dividends": "Dividendes versés : {{amount}} ({{payments}} paiements)",
+    "noDividends": "Aucun dividende versé.",
+    "dividendsUnavailable": "Les dividendes sont indisponibles pour le moment.",
+    "dismiss": "Masquer"
+  },
   "reportingCurrency": {
     "converted": "Montants en {{currency}}, convertis depuis la GBP au taux du jour (1 {{currency}} = £{{rate}}).",
     "unavailable": "Aucun taux GBP n'est enregistré pour {{currency}} : les montants sont affichés en GBP."

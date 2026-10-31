@@ -90,6 +90,7 @@ import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
 import { FirstRunHelpBanner } from "./FirstRunHelpBanner";
+import { SinceLastVisitDigest } from "./SinceLastVisitDigest";
 import { PricingAsOf } from "./PricingAsOf";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
@@ -1139,6 +1140,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   return (
     <div style={{ marginTop: "1rem" }}>
       <FirstRunHelpBanner />
+      {/* Fetches only once the portfolio has loaded, never before first paint (#7835). */}
+      {isAllPositions && !asOfOverride && (
+        <SinceLastVisitDigest slug={slug} accounts={portfolio?.accounts ?? null} />
+      )}
       <div
         className="flex-wrap-row"
         style={{

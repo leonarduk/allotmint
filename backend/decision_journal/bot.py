@@ -9,6 +9,7 @@ listed). :class:`DecisionJournalBot` puts it on the Bots page.
 
 from __future__ import annotations
 
+import os
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
@@ -16,11 +17,13 @@ from typing import Any, Iterable, Mapping, Optional
 from backend.bots.digest_models import Severity
 from backend.bots.registry import BotKind, BotRunContext, BotScope, BotSettings, RunResult, Schedule, register_bot
 from backend.bots.run_records import DIGEST_ITEMS_KEY, digest_item, plural
-from backend.common.investment_plan import plans_dir
+from backend.common.data_providers import DATA_BUCKET_ENV
+from backend.common.investment_plan import plan_owners
+from backend.config import config
 from backend.decision_journal.capture import lookback_window, qualifying_trades
 from backend.decision_journal.prices import SeriesLoader, load_return_series
 from backend.decision_journal.review import run_due_reviews
-from backend.decision_journal.store import journal_dir, load_journal, save_journal
+from backend.decision_journal.store import journal_owners, load_journal, save_journal
 
 BOT_ID = "decision-journal"
 BOT_NAME = "Decision journal"
@@ -28,18 +31,26 @@ BOT_SCHEDULE = "daily"
 
 
 def known_owners(data_root: Optional[Path] = None) -> list[str]:
-    """Owners with a saved plan or journal."""
-    stems = set()
-    for directory in (plans_dir(data_root), journal_dir(data_root)):
-        if directory.is_dir():
-            stems |= {path.stem for path in directory.glob("*.json")}
-    return sorted(stems)
+    """Owners with a saved plan or journal (S3 prefixes on AWS, local directories otherwise)."""
+    return sorted(plan_owners(data_root) | journal_owners(data_root))
 
 
 def _all_transactions() -> list[Mapping[str, Any]]:
+    """Every owner's transactions, including the writable store on AWS.
+
+    On AWS ``config.accounts_root`` is the empty ``/tmp/data/accounts``, so the
+    owners' own transactions are only in ``S3AccountsStore`` (writable-accounts/),
+    resolved as in ``backend.common.dividends._resolve_store``.
+    """
     from backend.routes.transactions import load_all_transactions
 
-    return [tx.model_dump() for tx in load_all_transactions()]
+    store = None
+    bucket = os.getenv(DATA_BUCKET_ENV)
+    if config.app_env == "aws" and bucket:
+        from backend.common.accounts_store import S3AccountsStore
+
+        store = S3AccountsStore(bucket=bucket)
+    return [tx.model_dump() for tx in load_all_transactions(store)]
 
 
 def run_for_owner(

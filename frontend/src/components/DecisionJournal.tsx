@@ -275,7 +275,8 @@ function ExpectationFields({
   );
 }
 
-function DraftEditor({
+/** Edit a pre-filled draft; only "Log decision", with the owner's reasoning, writes to the plan. */
+export function DraftEditor({
   owner,
   initial,
   onDone,

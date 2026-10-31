@@ -3695,6 +3695,10 @@
     "expected": "Esperado: {{text}}",
     "reviewsDue": "Revisiones pendientes: {{dates}}",
     "planChangePrompt": "Ha cambiado el objetivo del plan. ¿Registrar esta decisión?",
+    "tradePromptLabel": "Registrar decisiones de operaciones",
+    "tradePrompt": "Las operaciones de {{threshold}} o más pueden ir al diario de decisiones mientras su razonamiento está fresco. La operación está guardada; no se registra nada hasta que confirme.",
+    "tradePromptError": "No se pudo consultar el diario de decisiones: {{message}}",
+    "dismiss": "Descartar",
     "entries": "Decisiones registradas"
   },
   "planBrief": {

@@ -8,6 +8,10 @@ vi.mock('@/api', () => ({
   getTransactions: vi.fn(),
   updateTransaction: vi.fn(),
   splitTransaction: vi.fn(),
+  getDecisionJournal: vi.fn(),
+  createDecisionDraft: vi.fn(),
+  confirmDecision: vi.fn(),
+  dismissDecisionChange: vi.fn(),
 }));
 vi.mock('@/hooks/useDemoReadOnly', () => ({
   useDemoReadOnly: () => ({ demoReadOnly: false, reason: () => undefined }),
@@ -16,7 +20,15 @@ vi.mock('@/hooks/useInstrumentHistory', () => ({
   invalidateInstrumentHistory: vi.fn(),
 }));
 
-import { createTransaction, getOwners, getTransactions } from '@/api';
+import {
+  confirmDecision,
+  createDecisionDraft,
+  createTransaction,
+  dismissDecisionChange,
+  getDecisionJournal,
+  getOwners,
+  getTransactions,
+} from '@/api';
 import { invalidateInstrumentHistory } from '@/hooks/useInstrumentHistory';
 import { RecordTradeForm } from '@/components/RecordTradeForm';
 import { InstrumentTradeSection } from '@/components/InstrumentTradeSection';
@@ -40,6 +52,10 @@ const mockCreate = createTransaction as unknown as Mock;
 const mockOwners = getOwners as unknown as Mock;
 const mockGetTx = getTransactions as unknown as Mock;
 const mockInvalidate = invalidateInstrumentHistory as unknown as Mock;
+const mockJournal = getDecisionJournal as unknown as Mock;
+const mockDraft = createDecisionDraft as unknown as Mock;
+const mockConfirm = confirmDecision as unknown as Mock;
+const mockDismiss = dismissDecisionChange as unknown as Mock;
 
 async function fillTrade(
   user: ReturnType<typeof userEvent.setup>,
@@ -125,7 +141,7 @@ describe('RecordTradeForm', () => {
       reason: 'top up gold',
     });
     expect(mockCreate.mock.calls[0][0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(onSaved).toHaveBeenCalledWith('BUY');
+    expect(onSaved).toHaveBeenCalledWith('BUY', { id: 'steve:isa:1' });
   });
 
   it('sends the price unchanged when entered in pounds', async () => {
@@ -257,5 +273,93 @@ describe('InstrumentTradeSection', () => {
     expect(
       screen.queryByRole('form', { name: /Record trade/ })
     ).not.toBeInTheDocument();
+  });
+});
+
+// Synthetic owner, ticker and amounts only (#10488).
+const SAVED_SELL = {
+  id: 'steve:isa:2',
+  owner: 'steve',
+  account: 'isa',
+  date: '2026-10-01',
+  type: 'SELL',
+  ticker: 'PHGP.L',
+  units: 4,
+  price_gbp: 290,
+  reason: 'top up gold',
+};
+const SELL_DRAFT = {
+  id: 'dj-new',
+  kind: 'trade',
+  source_ref: 'steve:isa:2',
+  date: '2026-10-01',
+  decision: 'Sold £1,160 of PHGP.L',
+  alternatives: ['Keep holding PHGP.L'],
+  reason: '',
+  amount_gbp: 1160,
+  legs: [
+    { role: 'chosen', label: 'Proceeds held as cash', ticker: null },
+    { role: 'alternative', label: 'Keep holding PHGP.L', ticker: 'PHGP.L' },
+  ],
+  snapshot: {},
+};
+
+describe('InstrumentTradeSection decision journal prompt', () => {
+  const journal = (threshold: number) => ({
+    settings: { threshold_gbp: threshold },
+    entries: [],
+    unlogged: [],
+  });
+
+  beforeEach(() => {
+    mockCreate.mockReset().mockResolvedValue(SAVED_SELL);
+    mockOwners.mockReset().mockResolvedValue(OWNERS);
+    mockGetTx.mockReset().mockResolvedValue([]);
+    mockInvalidate.mockReset();
+    mockJournal.mockReset().mockResolvedValue(journal(1000));
+    mockDraft.mockReset().mockResolvedValue(SELL_DRAFT);
+    mockConfirm.mockReset();
+    mockDismiss.mockReset();
+  });
+
+  async function recordSell(user: ReturnType<typeof userEvent.setup>) {
+    render(<InstrumentTradeSection ticker="PHGP.L" positions={POSITIONS} quoteCurrency="GBP" />);
+    await user.click(screen.getByRole('button', { name: 'Sell' }));
+    await fillTrade(user, { units: '4', price: '290' });
+    await user.click(screen.getByRole('button', { name: 'Record Sell' }));
+    await screen.findByText('Sell of PHGP.L recorded.');
+  }
+
+  it('offers a pre-filled draft for a SELL above the threshold', async () => {
+    const user = userEvent.setup();
+    await recordSell(user);
+    expect(mockJournal).toHaveBeenCalledWith('steve');
+    await user.click(await screen.findByRole('button', { name: 'Log this decision?' }));
+    expect(mockDraft).toHaveBeenCalledWith('steve', { source_ref: 'steve:isa:2' });
+    expect(await screen.findByLabelText('What was decided')).toHaveValue('Sold £1,160 of PHGP.L');
+    expect(screen.getByLabelText('Your reasoning')).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Log decision' })).toBeDisabled();
+    expect(mockConfirm).not.toHaveBeenCalled();
+  });
+
+  it('shows no prompt for a trade below the threshold', async () => {
+    mockJournal.mockResolvedValue(journal(5000));
+    const user = userEvent.setup();
+    await recordSell(user);
+    await waitFor(() => expect(mockJournal).toHaveBeenCalledWith('steve'));
+    expect(screen.queryByRole('region', { name: 'Log trade decisions' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log this decision?' })).not.toBeInTheDocument();
+  });
+
+  it('dismissing the prompt writes nothing', async () => {
+    const user = userEvent.setup();
+    await recordSell(user);
+    await screen.findByRole('button', { name: 'Log this decision?' });
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByRole('region', { name: 'Log trade decisions' })).not.toBeInTheDocument();
+    expect(mockDismiss).not.toHaveBeenCalled();
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockDraft).not.toHaveBeenCalled();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 });

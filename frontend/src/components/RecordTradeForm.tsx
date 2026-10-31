@@ -5,7 +5,7 @@ import { createTransaction, getOwners } from "../api";
 import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
 import { localDateISO } from "../lib/date";
 import { money } from "../lib/money";
-import type { InstrumentPosition, OwnerSummary } from "../types";
+import type { InstrumentPosition, OwnerSummary, Transaction } from "../types";
 import {
   buildTransactionPayload,
   EMPTY_TRANSACTION_FORM_VALUES,
@@ -30,7 +30,8 @@ type Props = {
   positions: InstrumentPosition[];
   /** The instrument's quote currency; GBX/GBp defaults price entry to pence. */
   quoteCurrency?: string | null;
-  onSaved: (side: TradeType) => void;
+  /** Called with the saved transaction as POST /transactions returned it. */
+  onSaved: (side: TradeType, saved: Transaction) => void;
   onCancel: () => void;
 };
 
@@ -103,8 +104,8 @@ function useRecordTrade({ ticker, side, positions, quoteCurrency, onSaved }: Omi
     setSaving(true);
     setError(null);
     try {
-      await createTransaction(built.payload);
-      onSaved(tradeSide);
+      const saved = await createTransaction(built.payload);
+      onSaved(tradeSide, saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("recordTrade.saveFailed"));
     } finally {

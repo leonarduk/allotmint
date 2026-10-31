@@ -3695,6 +3695,10 @@
     "expected": "Attendu : {{text}}",
     "reviewsDue": "Revues dues : {{dates}}",
     "planChangePrompt": "Vous avez modifié l'objectif du plan. Consigner cette décision ?",
+    "tradePromptLabel": "Consigner les décisions de transaction",
+    "tradePrompt": "Les transactions de {{threshold}} ou plus peuvent être consignées dans le journal des décisions tant que votre raisonnement est frais. La transaction est enregistrée ; rien n'est consigné avant votre confirmation.",
+    "tradePromptError": "Impossible de consulter le journal des décisions : {{message}}",
+    "dismiss": "Ignorer",
     "entries": "Décisions consignées"
   },
   "planBrief": {

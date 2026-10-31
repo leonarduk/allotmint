@@ -31,6 +31,7 @@ import {
   type TradeSideFilter,
 } from './transactions/transactionTable';
 import { TransactionsTable } from './transactions/TransactionsTable';
+import { TradeJournalPrompt } from './TradeJournalPrompt';
 import { useTransactionsTableState } from '../hooks/useTransactionsTableState';
 import surface from '../styles/surface.module.css';
 
@@ -53,6 +54,8 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  // The trade just created, offered for the decision journal (#10488).
+  const [savedTrades, setSavedTrades] = useState<Transaction[] | null>(null);
   const [manualError, setManualError] = useState<string | null>(null);
   const [manualSuccess, setManualSuccess] = useState<string | null>(null);
   const [manualAccounts, setManualAccounts] = useState<
@@ -504,6 +507,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       event.preventDefault();
       setFormError(null);
       setFormSuccess(null);
+      setSavedTrades(null);
 
       const payload = validatePayload();
       if (!payload) {
@@ -516,8 +520,9 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           setFormSuccess(t('transactionsPage.updated'));
           setEditingId(null);
         } else {
-          await createTransaction(payload);
+          const created = await createTransaction(payload);
           setFormSuccess(t('transactionsPage.created'));
+          setSavedTrades([created]);
         }
         setFilterOwnerAndAccount(payload.owner, payload.account);
         resetForm();
@@ -718,6 +723,13 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
 
           {formError && <p style={{ color: 'red' }}>{formError}</p>}
           {formSuccess && <p style={{ color: 'limegreen' }}>{formSuccess}</p>}
+          {savedTrades?.[0]?.owner && (
+            <TradeJournalPrompt
+              owner={savedTrades[0].owner}
+              trades={savedTrades}
+              onClose={() => setSavedTrades(null)}
+            />
+          )}
           {error && (
             <div>
               <p style={{ color: 'red' }}>{error.message}</p>

@@ -58,6 +58,11 @@ const {
   ),
   createManualHoldingMock: vi.fn(() => Promise.resolve({ status: 'saved' })),
 }));
+const getDecisionJournalMock = vi.hoisted(() =>
+  vi.fn(() =>
+    Promise.resolve({ settings: { threshold_gbp: 1000 }, entries: [], unlogged: [] })
+  )
+);
 
 vi.mock('@/api', () => ({
   getTransactions: getTransactionsMock,
@@ -66,6 +71,9 @@ vi.mock('@/api', () => ({
   createManualHolding: createManualHoldingMock,
   updateTransaction: vi.fn(() => Promise.resolve({})),
   deleteTransaction: vi.fn(() => Promise.resolve({})),
+  getDecisionJournal: getDecisionJournalMock,
+  createDecisionDraft: vi.fn(),
+  confirmDecision: vi.fn(),
 }));
 
 describe('TransactionsPage', () => {
@@ -375,6 +383,58 @@ describe('TransactionsPage', () => {
         })
       );
     });
+  });
+
+  it('offers to log a created trade above the journal threshold (#10488)', async () => {
+    // Synthetic saved row, as POST /transactions returns it.
+    createTransactionMock.mockResolvedValueOnce({
+      id: 'alex:isa:9',
+      owner: 'alex',
+      account: 'isa',
+      date: '2024-03-01',
+      type: 'SELL',
+      ticker: 'PFE',
+      units: 2,
+      price_gbp: 600,
+    } as never);
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+        ]}
+      />
+    );
+    await screen.findByText('PFE');
+    const [ownerFilter, accountFilter] = screen.getAllByRole('combobox');
+    fireEvent.change(ownerFilter, { target: { value: 'alex' } });
+    fireEvent.change(accountFilter, { target: { value: 'isa' } });
+    fireEvent.change(screen.getByLabelText('Type'), {
+      target: { value: 'SELL' },
+    });
+    fireEvent.change(screen.getByLabelText('Date'), {
+      target: { value: '2024-03-01' },
+    });
+    fireEvent.change(getEditorTicker(), { target: { value: 'PFE' } });
+    fireEvent.change(getEditorPrice(), { target: { value: '600' } });
+    fireEvent.change(getEditorUnits(), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Reason'), {
+      target: { value: 'take profit' },
+    });
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Add transaction' }).closest('form')!
+    );
+
+    const prompt = await screen.findByRole('region', {
+      name: 'Log trade decisions',
+    });
+    expect(getDecisionJournalMock).toHaveBeenCalledWith('alex');
+    expect(
+      within(prompt).getByText('SELL £1,200 of PFE on 2024-03-01')
+    ).toBeInTheDocument();
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Dismiss' }));
+    expect(
+      screen.queryByRole('region', { name: 'Log trade decisions' })
+    ).not.toBeInTheDocument();
   });
 
   it('guards validation when submitting without filter owner/account context', async () => {

@@ -3695,6 +3695,10 @@
     "expected": "Atteso: {{text}}",
     "reviewsDue": "Revisioni previste: {{dates}}",
     "planChangePrompt": "Hai modificato l'obiettivo del piano. Registrare questa decisione?",
+    "tradePromptLabel": "Registra le decisioni di negoziazione",
+    "tradePrompt": "Le operazioni da {{threshold}} in su possono andare nel diario delle decisioni finché il ragionamento è fresco. L'operazione è salvata; non viene registrato nulla finché non confermi.",
+    "tradePromptError": "Impossibile consultare il diario delle decisioni: {{message}}",
+    "dismiss": "Ignora",
     "entries": "Decisioni registrate"
   },
   "planBrief": {

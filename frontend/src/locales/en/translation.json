@@ -3688,6 +3688,10 @@
     "expected": "Expected: {{text}}",
     "reviewsDue": "Reviews due: {{dates}}",
     "planChangePrompt": "You changed the plan target. Log this decision?",
+    "tradePromptLabel": "Log trade decisions",
+    "tradePrompt": "Trades of {{threshold}} or more can go in the decision journal while your reasoning is fresh. The trade is saved; nothing is logged until you confirm.",
+    "tradePromptError": "Could not check the decision journal: {{message}}",
+    "dismiss": "Dismiss",
     "entries": "Logged decisions"
   },
   "planBrief": {

@@ -3695,6 +3695,10 @@
     "expected": "Erwartet: {{text}}",
     "reviewsDue": "Überprüfungen fällig: {{dates}}",
     "planChangePrompt": "Sie haben das Planziel geändert. Diese Entscheidung protokollieren?",
+    "tradePromptLabel": "Handelsentscheidungen protokollieren",
+    "tradePrompt": "Trades ab {{threshold}} können im Entscheidungsjournal erfasst werden, solange Ihre Begründung frisch ist. Der Trade ist gespeichert; protokolliert wird erst nach Ihrer Bestätigung.",
+    "tradePromptError": "Das Entscheidungsjournal konnte nicht geprüft werden: {{message}}",
+    "dismiss": "Schließen",
     "entries": "Protokollierte Entscheidungen"
   },
   "planBrief": {

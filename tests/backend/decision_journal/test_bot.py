@@ -6,9 +6,14 @@ import functools
 import json
 from datetime import date, datetime, timezone
 
+import pytest
+
 from backend.bots import registry, runner
 from backend.bots.registry import BotSettings
+from backend.common import dividends
 from backend.common import investment_plan as plan_mod
+from backend.common.accounts_store import S3AccountsStore
+from backend.config import config
 from backend.decision_journal import bot as bot_mod
 from backend.decision_journal import entries as entries_mod
 from backend.decision_journal.store import load_journal, save_journal
@@ -79,10 +84,8 @@ def _capture_store(monkeypatch):
 
 def test_transactions_include_the_writable_s3_store_on_aws(monkeypatch):
     """On AWS the owners' transactions are in writable-accounts/, not the empty /tmp/data (#11159)."""
-    from backend.common.accounts_store import S3AccountsStore
-
     seen = _capture_store(monkeypatch)
-    monkeypatch.setattr(bot_mod.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(config, "app_env", "aws", raising=False)
     monkeypatch.setenv("DATA_BUCKET", "data-bucket")
 
     assert bot_mod._all_transactions() == []
@@ -91,8 +94,31 @@ def test_transactions_include_the_writable_s3_store_on_aws(monkeypatch):
 
 def test_transactions_read_only_the_local_dataset_off_aws(monkeypatch):
     seen = _capture_store(monkeypatch)
-    monkeypatch.setattr(bot_mod.config, "app_env", "local", raising=False)
+    monkeypatch.setattr(config, "app_env", "local", raising=False)
     monkeypatch.setenv("DATA_BUCKET", "data-bucket")
 
     bot_mod._all_transactions()
     assert seen["store"] is None
+
+
+@pytest.mark.parametrize(
+    ("app_env", "bucket"),
+    [("aws", "data-bucket"), ("local", "data-bucket"), ("local", None), ("aws", None)],
+)
+def test_transactions_store_matches_dividends_resolve_store(monkeypatch, app_env, bucket):
+    """One predicate for "read the writable S3 store" across the scheduled paths (#11175)."""
+    seen = _capture_store(monkeypatch)
+    monkeypatch.setattr(config, "app_env", app_env, raising=False)
+    if bucket is None:
+        monkeypatch.delenv("DATA_BUCKET", raising=False)
+    else:
+        monkeypatch.setenv("DATA_BUCKET", bucket)
+
+    bot_mod._all_transactions()
+    resolved = dividends._resolve_store()
+
+    assert isinstance(seen["store"], S3AccountsStore) == isinstance(resolved, S3AccountsStore)
+    if isinstance(resolved, S3AccountsStore):
+        assert seen["store"].bucket == resolved.bucket == bucket
+    else:
+        assert seen["store"] is None

@@ -9,15 +9,12 @@ listed). :class:`DecisionJournalBot` puts it on the Bots page.
 
 from __future__ import annotations
 
-import os
 from datetime import date
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 
 from backend.bots.registry import BotKind, BotRunContext, BotScope, BotSettings, RunResult, Schedule, register_bot
-from backend.common.data_providers import DATA_BUCKET_ENV
 from backend.common.investment_plan import plan_owners
-from backend.config import config
 from backend.decision_journal.capture import lookback_window, qualifying_trades
 from backend.decision_journal.prices import SeriesLoader, load_return_series
 from backend.decision_journal.review import run_due_reviews
@@ -37,18 +34,19 @@ def _all_transactions() -> list[Mapping[str, Any]]:
     """Every owner's transactions, including the writable store on AWS.
 
     On AWS ``config.accounts_root`` is the empty ``/tmp/data/accounts``, so the
-    owners' own transactions are only in ``S3AccountsStore`` (writable-accounts/),
-    resolved as in ``backend.common.dividends._resolve_store``.
+    owners' own transactions are only in ``S3AccountsStore`` (writable-accounts/).
+    The store comes from ``backend.common.dividends._resolve_store`` so the two
+    scheduled paths cannot disagree about where transactions live (#11175). Off
+    AWS ``load_all_transactions`` already reads ``config.accounts_root``, so the
+    local store it returns is not passed again.
     """
+    from backend.common.accounts_store import S3AccountsStore
+    from backend.common.dividends import _resolve_store
     from backend.routes.transactions import load_all_transactions
 
-    store = None
-    bucket = os.getenv(DATA_BUCKET_ENV)
-    if config.app_env == "aws" and bucket:
-        from backend.common.accounts_store import S3AccountsStore
-
-        store = S3AccountsStore(bucket=bucket)
-    return [tx.model_dump() for tx in load_all_transactions(store)]
+    store = _resolve_store()
+    writable = store if isinstance(store, S3AccountsStore) else None
+    return [tx.model_dump() for tx in load_all_transactions(writable)]
 
 
 def run_for_owner(

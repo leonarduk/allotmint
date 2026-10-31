@@ -554,12 +554,15 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           {t('transactionsPage.costBasisHint', { ticker: costBasisTicker })}
         </p>
       )}
+      {/* Field labels deliberately set no colour: they inherit the theme text
+          colour from surface.surfaceCard (#8168). Do not add a light-only
+          background here without also theming these labels. */}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-sm">
           {t('transactionsPage.owner')}
           <input
             list="manual-owner-options"
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-[var(--surface-card-border)] p-2"
             value={manualOwner}
             onChange={(event) => setManualOwner(event.target.value)}
             // eslint-disable-next-line i18next/no-literal-string -- owner id example, not prose
@@ -574,7 +577,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         <label className="text-sm">
           {t('transactionsPage.account')}
           <input
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-[var(--surface-card-border)] p-2"
             value={manualAccount}
             onChange={(event) => setManualAccount(event.target.value)}
             placeholder="ISA"
@@ -583,7 +586,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         <label className="text-sm">
           {t('transactionsPage.ticker')}
           <input
-            className="mt-1 w-full rounded border border-slate-300 p-2 uppercase"
+            className="mt-1 w-full rounded border border-[var(--surface-card-border)] p-2 uppercase"
             value={manualTicker}
             onChange={(event) =>
               setManualTicker(event.target.value.toUpperCase())
@@ -595,7 +598,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         <label className="text-sm">
           {t('transactionsPage.valueGbp')}
           <input
-            className="mt-1 w-full rounded border border-slate-300 p-2 disabled:opacity-60"
+            className="mt-1 w-full rounded border border-[var(--surface-card-border)] p-2 disabled:opacity-60"
             value={costBasisMode ? '' : manualValue}
             disabled={costBasisMode}
             onChange={(event) => setManualValue(event.target.value)}
@@ -605,7 +608,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         <label className="text-sm">
           {t('transactionsPage.units')}
           <input
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-[var(--surface-card-border)] p-2"
             value={manualUnits}
             onChange={(event) => setManualUnits(event.target.value)}
             placeholder="10"
@@ -614,7 +617,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         <label className="text-sm">
           {t('transactionsPage.priceGbp')}
           <input
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-[var(--surface-card-border)] p-2"
             value={manualPrice}
             onChange={(event) => setManualPrice(event.target.value)}
             placeholder="120.50"

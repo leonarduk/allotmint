@@ -187,12 +187,12 @@ function SleeveRow({
             (targets ? t('sleeves.customTargets') : t('sleeves.noTargets'))}
         </div>
         {targets && (
-          <div className="text-xs text-slate-500 dark:text-slate-400">
+          <div className="text-xs text-[var(--surface-muted-color)]">
             {targets}
           </div>
         )}
         {isCore && (
-          <div className="text-xs text-slate-500 dark:text-slate-400">
+          <div className="text-xs text-[var(--surface-muted-color)]">
             {t('sleeves.coreHelp')}
           </div>
         )}
@@ -356,7 +356,7 @@ function HoldingAssignments({
       <summary className="cursor-pointer text-sm font-medium">
         {t('sleeves.assign.title')}
       </summary>
-      <p className="my-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="my-2 text-xs text-[var(--surface-muted-color)]">
         {t('sleeves.assign.help')}
       </p>
       {error && <p className="break-words text-sm text-red-600">{error}</p>}
@@ -438,7 +438,7 @@ export default function SleevesPanel({
   return (
     <section className="mb-6" aria-label={t('sleeves.title')}>
       <h2 className="mb-2 text-xl">{t('sleeves.title')}</h2>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('sleeves.help')}
       </p>
       {error && <p className="break-words text-sm text-red-600">{error}</p>}

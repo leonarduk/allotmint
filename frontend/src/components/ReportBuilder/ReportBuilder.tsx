@@ -178,7 +178,7 @@ export function ReportBuilder({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-full w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+      <div className="max-h-full w-full max-w-3xl overflow-y-auto rounded-lg bg-[var(--surface-card-bg)] p-6 shadow-xl">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold" data-testid="report-builder-heading">
@@ -186,19 +186,19 @@ export function ReportBuilder({
                 ? t("reports.builder.headingEdit")
                 : t("reports.builder.headingCreate")}
             </h1>
-            <p className="text-sm text-gray-600">{t("reports.builder.subheading")}</p>
+            <p className="text-sm text-[var(--surface-muted-color)]">{t("reports.builder.subheading")}</p>
           </div>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className="rounded border border-[var(--surface-card-border)] px-3 py-1 text-sm font-medium text-[var(--surface-muted-color)] hover:bg-[var(--menu-hover-bg)]"
           >
             {t("common.close", "Close")}
           </button>
         </div>
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div>
-            <label htmlFor="report-template-name" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="report-template-name" className="block text-sm font-medium text-[var(--surface-muted-color)]">
               {t("reports.builder.nameLabel")}
             </label>
             <input
@@ -207,7 +207,7 @@ export function ReportBuilder({
               value={name}
               onChange={(event) => setName(event.target.value)}
               disabled={submitting}
-              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1 w-full rounded border border-[var(--surface-card-border)] px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             {validationErrors.name && (
               <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
@@ -217,7 +217,7 @@ export function ReportBuilder({
           <div>
             <label
               htmlFor="report-template-description"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-[var(--surface-muted-color)]"
             >
               {t("reports.builder.descriptionLabel")}
             </label>
@@ -226,20 +226,20 @@ export function ReportBuilder({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               disabled={submitting}
-              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1 w-full rounded border border-[var(--surface-card-border)] px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               rows={2}
             />
           </div>
 
           <div>
-            <p className="text-sm font-medium text-gray-700">
+            <p className="text-sm font-medium text-[var(--surface-muted-color)]">
               {t("reports.builder.metricsLabel")}
             </p>
             <div className="mt-2 space-y-2">
               {sectionOptions.map((option) => {
                 const selection = selectionFor(option.id);
                 return (
-                  <div key={option.id} className="rounded border border-gray-200 p-2">
+                  <div key={option.id} className="rounded border border-[var(--surface-card-border)] p-2">
                     <label className="flex items-center gap-2 font-medium">
                       <input
                         type="checkbox"
@@ -251,7 +251,7 @@ export function ReportBuilder({
                     </label>
                     {selection ? (
                       <fieldset className="mt-2 pl-6">
-                        <legend className="text-xs uppercase tracking-wide text-gray-500">
+                        <legend className="text-xs uppercase tracking-wide text-[var(--surface-muted-color)]">
                           {t("reports.builder.columnsLabel")}
                         </legend>
                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
@@ -303,7 +303,7 @@ export function ReportBuilder({
               <button
                 type="button"
                 onClick={onCancel}
-                className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                className="rounded border border-[var(--surface-card-border)] px-4 py-2 text-sm font-medium text-[var(--surface-muted-color)] hover:bg-[var(--menu-hover-bg)]"
                 disabled={submitting || deleting}
               >
                 {t("common.cancel", "Cancel")}

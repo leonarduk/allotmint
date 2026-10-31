@@ -19,6 +19,8 @@
     --surface-card-color: rgba(255, 255, 255, 0.95);
     --surface-card-border: #3a3a3a;
     --surface-muted-color: #bbbbbb;
+    /* Neutral fill for secondary buttons, chips, tracks and table stripes (#8168). */
+    --surface-muted-bg: #383838;
     --native-control-bg: #ffffff;
     --native-control-color: #213547;
     /* Top nav menu (Menu.tsx) colours (#8609). Opaque values so contrast
@@ -67,6 +69,7 @@
     --surface-card-color: #213547;
     --surface-card-border: #e0e0e0;
     --surface-muted-color: #555555;
+    --surface-muted-bg: #e5e7eb;
     --menu-text: #4b5563;
     --menu-text-active: #111827;
     --menu-active-bg: #f3f4f6;
@@ -105,6 +108,8 @@
     --surface-card-color: rgba(255, 255, 255, 0.95);
     --surface-card-border: #3a3a3a;
     --surface-muted-color: #bbbbbb;
+    /* Neutral fill for secondary buttons, chips, tracks and table stripes (#8168). */
+    --surface-muted-bg: #383838;
     --menu-text: #c4c4c4;
     --menu-text-active: #ffffff;
     --menu-active-bg: #3a3a3a;
@@ -148,6 +153,7 @@
         --surface-card-color: #213547;
         --surface-card-border: #e0e0e0;
         --surface-muted-color: #555555;
+        --surface-muted-bg: #e5e7eb;
         --menu-text: #4b5563;
         --menu-text-active: #111827;
         --menu-active-bg: #f3f4f6;

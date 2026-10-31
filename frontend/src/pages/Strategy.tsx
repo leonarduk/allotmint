@@ -192,7 +192,7 @@ function TargetEditor({
       aria-label={t('strategy.targets.title')}
     >
       <h2 className="mb-2 text-xl">{t('strategy.targets.title')}</h2>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('strategy.targets.help')}
       </p>
       <TargetFields draft={draft} onChange={setDraft} current={current} />
@@ -213,7 +213,7 @@ function TargetEditor({
         <button
           type="button"
           onClick={() => setDraft((d) => draftFromCurrent(plan, d.split))}
-          className="rounded bg-gray-200 px-2 py-1 text-slate-900"
+          className="rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-[var(--surface-card-color)]"
         >
           {t('strategy.targets.startFromCurrent')}
         </button>
@@ -370,7 +370,7 @@ function DriftTable({
           </tbody>
         </table>
       </div>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mt-1 text-xs text-[var(--surface-muted-color)]">
         {t('strategy.drift.totalLine', {
           total: gbp.format(plan.total_value),
           tolerance: pct.format(plan.policy.tolerance_pct),
@@ -391,7 +391,7 @@ function SuggestedInstrument({ trade }: { trade: RebalanceTrade }) {
       {trade.name ? (
         <>
           {trade.name}{' '}
-          <span className="text-slate-500 dark:text-slate-400">
+          <span className="text-[var(--surface-muted-color)]">
             ({trade.ticker})
           </span>
         </>
@@ -476,7 +476,7 @@ function SuggestedTrades({ plan, title }: { plan: RebalancePlan; title?: string 
           ? t('strategy.trades.sleeveHeading', { sleeve: title })
           : t('strategy.trades.heading')}
       </h2>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('strategy.trades.help')}
       </p>
       {byAccount.length === 0 ? (
@@ -541,7 +541,7 @@ function NewCashPlanner({
       aria-label={t('strategy.newCash.title')}
     >
       <h2 className="mb-2 text-xl">{t('strategy.newCash.title')}</h2>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('strategy.newCash.help')}
       </p>
       <div className="flex flex-wrap items-center gap-3">
@@ -671,7 +671,7 @@ export default function Strategy() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl md:text-4xl">{t('strategy.title')}</h1>
-      <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+      <p className="mb-4 text-sm text-[var(--surface-muted-color)]">
         {t('strategy.intro')}
       </p>
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -695,7 +695,7 @@ export default function Strategy() {
           ))}
         </select>
         {loading && (
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-[var(--surface-muted-color)]">
             {t('strategy.loading')}
           </span>
         )}

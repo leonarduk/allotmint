@@ -40,6 +40,10 @@ _SUFFIX = "_transactions.json"
 
 
 def _account_name(path: Path, data: Dict[str, Any]) -> str:
+    """The first non-blank string of ``account_type`` then ``account``, else the file name.
+
+    Empty, whitespace-only and non-string values count as absent.
+    """
     for key in ("account_type", "account"):
         value = data.get(key)
         if isinstance(value, str) and value.strip():

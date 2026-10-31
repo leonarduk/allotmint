@@ -88,6 +88,8 @@ def test_account_falls_back_to_the_file_name(tmp_path):
     [
         ({"account_type": "isa", "account": "alex-isa"}, "isa"),
         ({"account_type": "sipp", "account": "alex-isa"}, "sipp"),
+        # ``account`` that is itself a valid account type still loses to ``account_type``.
+        ({"account_type": "isa", "account": "sipp"}, "isa"),
         ({"account": "alex-isa"}, "alex-isa"),
         ({"account_type": "", "account": "alex-isa"}, "alex-isa"),
         ({}, "gia"),

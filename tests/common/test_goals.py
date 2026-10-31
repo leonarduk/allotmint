@@ -1,5 +1,6 @@
 """Tests for goal helpers."""
 
+import copy
 from datetime import date, timedelta
 
 import pytest
@@ -177,3 +178,28 @@ def test_history_helpers_do_not_write_when_nothing_changes(history_storage, monk
     monkeypatch.setattr(history_storage, "save", fail_save)
     goals_mod.rename_goal_history("alice", "Missing", "Other")
     goals_mod.delete_goal_history("alice", "Missing")
+
+
+def test_record_goal_amount_interleaved_writes_lose_earlier_snapshot(history_storage, monkeypatch):
+    """Pin the accepted lost-update risk documented in ``_record_progress`` (#11186).
+
+    Request A reads the store, request B then records a snapshot (for another
+    user, since the store is one shared document), and A writes back what it
+    read. B's snapshot is silently lost: there is no version check.
+    """
+    goals_mod.record_goal_amount("alice", "Car", 10.0, date(2026, 1, 1))
+    stale = history_storage.load()  # what request A read before B wrote
+
+    goals_mod.record_goal_amount("bob", "Van", 99.0, date(2026, 1, 2))  # request B
+    assert goals_mod.load_goal_history("bob", "Van") == [(date(2026, 1, 2), 99.0)]
+
+    real_load = history_storage.load
+    monkeypatch.setattr(history_storage, "load", lambda: copy.deepcopy(stale))
+    points = goals_mod.record_goal_amount("alice", "Car", 20.0, date(2026, 1, 3))  # request A
+    monkeypatch.setattr(history_storage, "load", real_load)
+
+    # A's own response includes its snapshot and the stored history matches it...
+    assert points == [(date(2026, 1, 1), 10.0), (date(2026, 1, 3), 20.0)]
+    assert goals_mod.load_goal_history("alice", "Car") == points
+    # ...but B's earlier write was overwritten.
+    assert goals_mod.load_goal_history("bob", "Van") == []

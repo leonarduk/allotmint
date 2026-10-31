@@ -142,7 +142,8 @@ def record_goal_amount(user: str, name: str, amount: float, on: date) -> List[Tu
     date after today.
 
     This is a plain read-modify-write of the whole store: it assumes a single
-    writer (the app's usage), so concurrent writers could lose an update.
+    writer (the app's usage), so concurrent writers could lose an update. See
+    the accepted-risk note in ``backend.routes.goals._record_progress``.
     """
     if not math.isfinite(amount):
         raise ValueError("Goal amount must be a finite number")

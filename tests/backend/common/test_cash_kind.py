@@ -26,6 +26,11 @@ def test_cash_transfer_in_by_account_and_in_specie_left_alone():
     assert classify_cash_kind(_row("TRANSFER_IN", ticker="VWRL.L"), "sipp") is None
 
 
+def test_cash_transfer_in_with_ticker_on_isa_is_left_alone():
+    # An in-specie transfer into an ISA is not a cash ISA transfer (#11193).
+    assert classify_cash_kind(_row("TRANSFER_IN", ticker="VWRL.L"), "isa") is None
+
+
 @pytest.mark.parametrize(
     "comments,amount,expected",
     [

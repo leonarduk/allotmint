@@ -680,7 +680,7 @@ export const getLiveQuotes = (tickers: string[], signal?: AbortSignal) => {
  * message and `status: 502`, which the Watchlist and SeedCatalogue show as a
  * recoverable error (the next poll or retry can succeed) (#8098).
  */
-export const getQuotes =(symbols: string[], signal?: AbortSignal) => {
+export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });
   return fetchJson<{
     name?: string | null;

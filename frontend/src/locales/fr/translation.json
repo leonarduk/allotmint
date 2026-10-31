@@ -485,7 +485,7 @@
     "add": "Ajouter un objectif",
     "back": "Retour au portefeuille",
     "currentAmount": "Montant actuel:",
-    "currentAmountHint": "Ce que vous avez déjà épargné pour cet objectif. Sert à calculer la progression et est enregistré avec la date du jour pour constituer l'historique de la projection.",
+    "currentAmountHint": "Ce que vous avez déjà épargné pour cet objectif. Sert à calculer la progression. Utilisez « Enregistrer la progression » pour le sauvegarder avec la date du jour et constituer l'historique de la projection.",
     "empty": "Aucun objectif pour le moment.",
     "errorRequired": "Saisissez un nom, un montant cible supérieur à zéro et une date cible.",
     "errorSave": "Impossible d'enregistrer l'objectif. Veuillez réessayer.",
@@ -501,6 +501,8 @@
       "onTrack": "En bonne voie pour le {{date}} à votre rythme actuel.",
       "reached": "Objectif atteint."
     },
+    "recordError": "Impossible d'enregistrer la progression. Veuillez réessayer.",
+    "recordProgress": "Enregistrer la progression",
     "suggestedTrades": "Transactions suggérées",
     "targetAmount": "Montant cible",
     "targetDate": "Date cible",

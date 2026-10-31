@@ -117,8 +117,8 @@ describe("Goals page progress and projection", () => {
     mockGetGoals.mockResolvedValue([HOUSE]);
   });
 
-  it("records an entered amount and shows a progress bar with formatted amounts", async () => {
-    mockRecordGoalProgress.mockResolvedValue({
+  it("views an entered amount read-only and shows a progress bar with formatted amounts", async () => {
+    mockGetGoal.mockResolvedValue({
       ...HOUSE,
       progress: 0.248,
       current_amount: 12400,
@@ -132,8 +132,9 @@ describe("Goals page progress and projection", () => {
     const bar = await screen.findByRole("progressbar", { name: "Progress towards House deposit" });
     expect(bar).toHaveAttribute("value", "25");
     expect(screen.getByText("£12,400.00 of £50,000.00 (25%)")).toBeInTheDocument();
-    expect(mockRecordGoalProgress).toHaveBeenCalledWith("House deposit", 12400);
-    expect(mockGetGoal).not.toHaveBeenCalled();
+    // Viewing never writes history.
+    expect(mockGetGoal).toHaveBeenCalledWith("House deposit", 12400);
+    expect(mockRecordGoalProgress).not.toHaveBeenCalled();
     // One data point: no projection, and the page says why.
     expect(screen.getByText(/not enough history/i)).toHaveTextContent("at least 2 different dates");
     expect(screen.queryByText(/on track/i)).not.toBeInTheDocument();
@@ -151,10 +152,75 @@ describe("Goals page progress and projection", () => {
     fireEvent.click(await screen.findByRole("button", { name: "View" }));
 
     expect(await screen.findByText(/enter your current amount/i)).toBeInTheDocument();
-    expect(mockGetGoal).toHaveBeenCalledWith("House deposit");
+    expect(mockGetGoal).toHaveBeenCalledWith("House deposit", undefined);
     expect(mockRecordGoalProgress).not.toHaveBeenCalled();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
+  });
+
+  it("records progress only through the explicit Record progress button", async () => {
+    mockRecordGoalProgress.mockResolvedValue({
+      ...HOUSE,
+      progress: 0.2,
+      current_amount: 10000,
+      trades: [],
+      projection: projection({}),
+    });
+    render(<Goals />, { wrapper: MemoryRouter });
+    const recordButton = await screen.findByRole("button", { name: "Record progress" });
+    // Nothing to record until an amount is entered.
+    expect(recordButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Current Amount:"), { target: { value: "10000" } });
+    expect(recordButton).toBeEnabled();
+    fireEvent.click(recordButton);
+
+    expect(await screen.findByText("£10,000.00 of £50,000.00 (20%)")).toBeInTheDocument();
+    expect(mockRecordGoalProgress).toHaveBeenCalledTimes(1);
+    expect(mockRecordGoalProgress).toHaveBeenCalledWith("House deposit", 10000);
+    expect(mockGetGoal).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failure to record progress", async () => {
+    mockRecordGoalProgress.mockRejectedValue(new Error("boom"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<Goals />, { wrapper: MemoryRouter });
+    fireEvent.change(screen.getByLabelText("Current Amount:"), { target: { value: "100" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Record progress" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not record progress/i);
+  });
+
+  it("explains when recorded amounts are not increasing", async () => {
+    mockGetGoal.mockResolvedValue({
+      ...HOUSE,
+      progress: 0.1,
+      current_amount: 5000,
+      trades: [],
+      projection: projection({ status: "not_progressing", points: 2, monthly_rate: -50 }),
+    });
+    render(<Goals />, { wrapper: MemoryRouter });
+    fireEvent.click(await screen.findByRole("button", { name: "View" }));
+
+    expect(await screen.findByText(/not increasing/i)).toBeInTheDocument();
+    expect(screen.queryByText(/on track/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/assumes you keep saving/i)).not.toBeInTheDocument();
+  });
+
+  it("says when the target has been reached", async () => {
+    mockGetGoal.mockResolvedValue({
+      ...HOUSE,
+      progress: 1,
+      current_amount: 52000,
+      trades: [],
+      projection: projection({ status: "reached", points: 1, on_track: true }),
+    });
+    render(<Goals />, { wrapper: MemoryRouter });
+    fireEvent.click(await screen.findByRole("button", { name: "View" }));
+
+    expect(await screen.findByText("Target reached.")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("value", "100");
+    expect(screen.queryByText(/not enough history/i)).not.toBeInTheDocument();
   });
 
   it("shows a projected date with its assumptions when there is enough history", async () => {

@@ -485,7 +485,7 @@
     "add": "Ziel hinzufügen",
     "back": "Zurück zum Portfolio",
     "currentAmount": "Aktueller Betrag:",
-    "currentAmountHint": "Was Sie bisher für dieses Ziel gespart haben. Wird zur Berechnung des Fortschritts verwendet und mit dem heutigen Datum gespeichert, um den Verlauf für die Prognose aufzubauen.",
+    "currentAmountHint": "Was Sie bisher für dieses Ziel gespart haben. Wird zur Berechnung des Fortschritts verwendet. Mit „Fortschritt erfassen“ wird er mit dem heutigen Datum gespeichert, um den Verlauf für die Prognose aufzubauen.",
     "empty": "Noch keine Ziele.",
     "errorRequired": "Geben Sie einen Namen, einen Zielbetrag größer als null und ein Zieldatum ein.",
     "errorSave": "Das Ziel konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
@@ -501,6 +501,8 @@
       "onTrack": "Bei Ihrer aktuellen Rate auf Kurs für {{date}}.",
       "reached": "Ziel erreicht."
     },
+    "recordError": "Fortschritt konnte nicht erfasst werden. Bitte versuchen Sie es erneut.",
+    "recordProgress": "Fortschritt erfassen",
     "suggestedTrades": "Vorgeschlagene Trades",
     "targetAmount": "Zielbetrag",
     "targetDate": "Zieldatum",

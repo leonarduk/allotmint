@@ -485,7 +485,7 @@
     "add": "Agregar objetivo",
     "back": "Volver al portafolio",
     "currentAmount": "Monto actual:",
-    "currentAmountHint": "Lo que ha ahorrado hasta ahora para este objetivo. Se usa para calcular el progreso y se guarda con la fecha de hoy para crear el historial de la proyección.",
+    "currentAmountHint": "Lo que ha ahorrado hasta ahora para este objetivo. Se usa para calcular el progreso. Use «Registrar progreso» para guardarlo con la fecha de hoy y crear el historial de la proyección.",
     "empty": "Aún no hay objetivos.",
     "errorRequired": "Introduzca un nombre, un monto objetivo mayor que cero y una fecha objetivo.",
     "errorSave": "No se pudo guardar el objetivo. Inténtelo de nuevo.",
@@ -501,6 +501,8 @@
       "onTrack": "En camino para el {{date}} a su ritmo actual.",
       "reached": "Objetivo alcanzado."
     },
+    "recordError": "No se pudo registrar el progreso. Inténtelo de nuevo.",
+    "recordProgress": "Registrar progreso",
     "suggestedTrades": "Operaciones sugeridas",
     "targetAmount": "Monto objetivo",
     "targetDate": "Fecha objetivo",

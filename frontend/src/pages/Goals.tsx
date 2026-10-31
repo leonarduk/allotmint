@@ -53,6 +53,8 @@ export default function Goals() {
   const [error, setError] = useState<string | null>(null);
   const [current, setCurrent] = useState("");
   const [selected, setSelected] = useState<GoalDetail | null>(null);
+  const [recordError, setRecordError] = useState<string | null>(null);
+  const currentAmount = parseCurrentAmount(current);
 
   const refresh = () => {
     getGoals().then(setGoals).catch(() => setGoals([]));
@@ -82,15 +84,27 @@ export default function Goals() {
       });
   };
 
+  // Viewing is read-only: an entered amount only drives the progress shown,
+  // and with no amount the backend falls back to the latest recorded one.
   const view = (name: string) => {
-    // An entered amount is recorded (dated today) to build the history the
-    // projection needs; with no amount, show the latest recorded one.
-    const amount = parseCurrentAmount(current);
-    (amount === null ? getGoal(name) : recordGoalProgress(name, amount))
+    setRecordError(null);
+    getGoal(name, currentAmount ?? undefined)
       .then(setSelected)
       .catch((err: unknown) => {
         console.error("Failed to load goal", err);
         setSelected(null);
+      });
+  };
+
+  // Only this explicit action stores a dated snapshot for the projection.
+  const record = (name: string) => {
+    if (currentAmount === null) return;
+    setRecordError(null);
+    recordGoalProgress(name, currentAmount)
+      .then(setSelected)
+      .catch((err: unknown) => {
+        console.error("Failed to record goal progress", err);
+        setRecordError(t("goals.recordError"));
       });
   };
 
@@ -177,9 +191,17 @@ export default function Goals() {
               <button type="button" onClick={() => view(g.name)}>
                 {t("goals.view")}
               </button>
+              <button type="button" onClick={() => record(g.name)} disabled={currentAmount === null}>
+                {t("goals.recordProgress")}
+              </button>
             </li>
           ))}
         </ul>
+      )}
+      {recordError && (
+        <p role="alert" style={{ color: "var(--gain-negative)" }}>
+          {recordError}
+        </p>
       )}
 
       {selected && (

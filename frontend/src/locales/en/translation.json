@@ -479,7 +479,7 @@
     "add": "Add Goal",
     "back": "Back to Portfolio",
     "currentAmount": "Current Amount:",
-    "currentAmountHint": "What you have saved toward this goal so far. Used to calculate progress when you view a goal, and saved with today's date to build the history behind the projection.",
+    "currentAmountHint": "What you have saved toward this goal so far. Used to calculate progress when you view a goal. Use Record progress to save it with today's date and build the history behind the projection.",
     "empty": "No goals yet.",
     "errorRequired": "Enter a name, a target amount greater than zero and a target date.",
     "errorSave": "Could not save the goal. Please try again.",
@@ -495,6 +495,8 @@
       "onTrack": "On track for {{date}} at your current rate.",
       "reached": "Target reached."
     },
+    "recordError": "Could not record progress. Please try again.",
+    "recordProgress": "Record progress",
     "suggestedTrades": "Suggested Trades",
     "targetAmount": "Target Amount",
     "targetDate": "Target Date",

@@ -485,7 +485,7 @@
     "add": "Adicionar meta",
     "back": "Voltar ao portfólio",
     "currentAmount": "Valor atual:",
-    "currentAmountHint": "O que já poupou para esta meta. Usado para calcular o progresso e guardado com a data de hoje para criar o histórico da projeção.",
+    "currentAmountHint": "O que já poupou para esta meta. Usado para calcular o progresso. Use «Registar progresso» para o guardar com a data de hoje e criar o histórico da projeção.",
     "empty": "Ainda não há metas.",
     "errorRequired": "Introduza um nome, um valor alvo maior que zero e uma data alvo.",
     "errorSave": "Não foi possível guardar a meta. Tente novamente.",
@@ -501,6 +501,8 @@
       "onTrack": "No caminho certo para {{date}} ao ritmo atual.",
       "reached": "Meta atingida."
     },
+    "recordError": "Não foi possível registar o progresso. Tente novamente.",
+    "recordProgress": "Registar progresso",
     "suggestedTrades": "Negociações sugeridas",
     "targetAmount": "Valor alvo",
     "targetDate": "Data alvo",

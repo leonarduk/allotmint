@@ -250,6 +250,8 @@ async def run_chat_turn(
         if limits is not None and limits.max_tokens:
             extra["inferenceConfig"] = {"maxTokens": limits.max_tokens}
         plan_guard = PlanGuard(message, (tool.name for tool in tools))
+        # Set before the loop so the cap reply below can always read it.
+        last_results: List[Tuple[str, str]] = []
 
         for iteration in range(max_iterations):
             response = await _converse_with_retry(
@@ -275,7 +277,7 @@ async def run_chat_turn(
                 continue
 
             tool_result_content = []
-            last_results: List[Tuple[str, str]] = []
+            last_results = []
             for tool_use in tool_uses:
                 plan_guard.saw_call(tool_use["name"])
                 started = time.perf_counter()

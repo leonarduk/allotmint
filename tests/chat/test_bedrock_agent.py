@@ -339,6 +339,26 @@ async def test_run_chat_turn_returns_tool_results_after_max_iterations(monkeypat
     assert 'get_live_prices:\n{"VOD.L": 72.1}' in reply
 
 
+async def test_run_chat_turn_with_no_iterations_returns_cap_reply(monkeypatch):
+    # A non-positive limit means the loop never runs; the cap reply must still be returned.
+    from backend.chat.turn_limits import TurnLimits
+
+    session = FakeSession(tools=[FakeTool("get_live_prices")], tool_results={})
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: object())
+
+    reply = await bedrock_agent.run_chat_turn(
+        "hi",
+        [],
+        mcp_server_url="https://example.com/mcp",
+        bedrock_model_id="amazon.nova-lite-v1:0",
+        limits=TurnLimits(max_iterations=-1),
+    )
+
+    assert "tool-call limit for this turn (-1 steps)" in reply
+    assert session.calls == []
+
+
 def test_iteration_cap_reply_raises_when_limits_ask_for_it():
     # A structured-output caller (the plan brief) keeps the old error at the cap.
     from backend.chat.turn_limits import TurnLimits

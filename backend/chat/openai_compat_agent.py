@@ -124,6 +124,8 @@ async def run_chat_turn(
         tools = [_tool_to_openai_spec(tool) for tool in offered]
         max_iterations = (limits.max_iterations if limits else None) or MAX_TOOL_ITERATIONS
         plan_guard = PlanGuard(message, (tool.name for tool in offered))
+        # Set before the loop so the cap reply below can always read it.
+        last_results: List[Tuple[str, str]] = []
 
         for iteration in range(max_iterations):
             output_message = await _complete(
@@ -142,7 +144,7 @@ async def run_chat_turn(
                 messages.append({"role": "user", "content": reminder})
                 continue
 
-            last_results: List[Tuple[str, str]] = []
+            last_results = []
             for tool_call in tool_calls:
                 name = tool_call["function"]["name"]
                 plan_guard.saw_call(name)

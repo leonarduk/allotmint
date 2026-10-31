@@ -12,12 +12,14 @@ import { SleeveSelect } from "./HoldingSleeveCell";
 function OwnerSleevePicker({ owner, ticker }: { owner: string; ticker: string }) {
   const { t } = useTranslation();
   const control = useOwnerSleeveControl(owner);
-  if (!control?.heldTickers?.has(ticker.trim().toUpperCase())) return null;
-  const label = t("sleeves.assign.sleeveForOwner", { ticker, owner });
+  // Match and write with the same key the backend stores tags under.
+  const key = ticker.trim().toUpperCase();
+  if (!control?.heldTickers?.has(key)) return null;
+  const label = t("sleeves.assign.sleeveForOwner", { ticker: key, owner });
   return (
     <div style={{ marginBottom: "0.5rem" }}>
       <span style={{ marginRight: "0.5rem" }}>{label}</span>
-      <SleeveSelect control={control} ticker={ticker} label={label} />
+      <SleeveSelect control={control} ticker={key} label={label} />
     </div>
   );
 }

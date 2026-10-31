@@ -39,6 +39,9 @@ export function useOwnerSleeveControl(owner: string | null): SleeveControl | und
     [owner],
   );
 
+  // A listing without `holdings` gives an empty set, so the instrument page
+  // deliberately hides its picker rather than offer a tag the backend would
+  // reject for an unheld ticker.
   const heldTickers = useMemo(
     () => new Set((Array.isArray(list?.holdings) ? list.holdings : []).map((h) => h.ticker.trim().toUpperCase())),
     [list],

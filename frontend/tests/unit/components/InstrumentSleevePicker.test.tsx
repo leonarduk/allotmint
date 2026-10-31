@@ -58,12 +58,13 @@ describe("InstrumentSleevePicker", () => {
     // Two accounts for one owner still give one picker.
     render(<InstrumentSleevePicker ticker="aaa.l" positions={[position("alice"), position("alice", "sipp")]} />);
 
-    const select = await screen.findByRole("combobox", { name: "Sleeve for aaa.l (alice)" });
+    // The lower-cased route ticker is matched and sent in the backend's upper-cased form.
+    const select = await screen.findByRole("combobox", { name: "Sleeve for AAA.L (alice)" });
     expect(select).toHaveValue("core");
     expect(mockGetSleeves).toHaveBeenCalledTimes(1);
 
     await user.selectOptions(select, "sleeve-spec");
-    expect(mockAssign).toHaveBeenCalledWith("alice", "aaa.l", "sleeve-spec");
+    expect(mockAssign).toHaveBeenCalledWith("alice", "AAA.L", "sleeve-spec");
     await waitFor(() => expect(select).toHaveValue("sleeve-spec"));
   });
 
@@ -94,6 +95,14 @@ describe("InstrumentSleevePicker", () => {
     expect(mockAssign).toHaveBeenCalledTimes(1);
     expect(mockAssign).toHaveBeenCalledWith("bob", "AAA.L", "sleeve-bob");
     expect(alice).toHaveValue("sleeve-spec");
+  });
+
+  it("hides the picker when the listing has no holdings field (intended)", async () => {
+    mockGetSleeves.mockResolvedValue({ sleeves: [CORE, SPEC], assignments: {} } as unknown as SleeveList);
+    render(<InstrumentSleevePicker ticker="AAA.L" positions={[position("alice")]} />);
+    await waitFor(() => expect(mockGetSleeves).toHaveBeenCalledWith("alice"));
+    await act(async () => {});
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("shows the backend's error when the assignment is rejected", async () => {

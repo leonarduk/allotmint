@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.common.holdings_rebuild import rebuild_holdings_document
 from backend.common.realised_gains import compute_disposal_gains
 from backend.config import config
 from backend.utils.convert_portfolio_xml_to_account_transactions import extract_transactions_by_account
@@ -245,6 +246,48 @@ def test_ticker_less_sell_draws_on_pool_of_same_named_ticker():
     ]
     gains = compute_disposal_gains(txs)
     assert gains[1].realised_gain_gbp == pytest.approx(200.0)
+
+
+def _alias_only_in_holdings_case():
+    # The SELL names an instrument whose ticker only the holdings file records.
+    txs = [
+        _buy("2024-01-01", 10, 1000),
+        {"date": "2024-02-01", "type": "SELL", "instrument_name": "Alpha Fund", "units": 4, "amount_minor": 60000},
+    ]
+    holdings = [{"ticker": "AAA.L", "name": "Alpha Fund", "units": 10}]
+    return txs, holdings
+
+
+def test_ticker_less_sell_resolves_via_old_holdings_like_the_rebuild():
+    txs, holdings = _alias_only_in_holdings_case()
+
+    gains = compute_disposal_gains(txs, holdings)
+    rebuilt = rebuild_holdings_document({"transactions": txs}, "alice", "isa", {"holdings": holdings})
+
+    # Same pool on both paths: the rebuild's AAA.L lost 4 of 10 units at £100 each.
+    assert rebuilt["holdings"] == [
+        {"ticker": "AAA.L", "name": "Alpha Fund", "units": 6.0, "cost_basis_gbp": 600.0, "acquired_date": "2024-01-01"}
+    ]
+    assert gains[1].cost_basis_gbp == pytest.approx(400.0)
+    assert gains[1].unmatched_units == 0.0
+    assert gains[1].realised_gain_gbp == pytest.approx(200.0)
+
+
+def test_list_transactions_resolves_ticker_less_sell_via_holdings_file(tmp_path, monkeypatch):
+    txs, holdings = _alias_only_in_holdings_case()
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    doc = {"owner": "alice", "account_type": "ISA", "transactions": txs}
+    (owner_dir / "ISA_transactions.json").write_text(json.dumps(doc))
+    (owner_dir / "isa.json").write_text(json.dumps({"owner": "alice", "account_type": "ISA", "holdings": holdings}))
+    client = TestClient(create_app())
+
+    resp = client.get("/transactions", params={"owner": "alice"})
+    assert resp.status_code == 200
+    sell = next(row for row in resp.json() if row["type"] == "SELL")
+    assert sell["realised_gain_gbp"] == pytest.approx(200.0)
+    assert sell["cost_basis_gbp"] == pytest.approx(400.0)
 
 
 def test_unresolved_security_refs_pool_together():

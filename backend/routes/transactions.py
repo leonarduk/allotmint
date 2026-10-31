@@ -551,11 +551,22 @@ def _scope_update_to_type(existing: Mapping[str, object], update: Mapping[str, o
 _DERIVED_GAIN_FIELDS = ("realised_gain_gbp", "cost_basis_gbp", "proceeds_gbp", "unmatched_units")
 
 
-def _transactions_from_doc(owner: str, account_raw: str, data: Mapping[str, Any]) -> List[Transaction]:
+def _transactions_from_doc(
+    owner: str,
+    account_raw: str,
+    data: Mapping[str, Any],
+    holdings_doc: Mapping[str, Any] | None = None,
+) -> List[Transaction]:
+    """Return ``data``'s rows as :class:`Transaction` with SELL gains attached.
+
+    ``holdings_doc`` is the account's ``<account>.json``; its holdings resolve
+    ticker-less trades exactly as the holdings rebuild does (#8122).
+    """
     results: List[Transaction] = []
     account = account_raw.lower()
     transactions = data.get("transactions", []) or []
-    gains = compute_disposal_gains(transactions)
+    old_holdings = (holdings_doc or {}).get("holdings")
+    gains = compute_disposal_gains(transactions, old_holdings if isinstance(old_holdings, list) else None)
     for idx, t in enumerate(transactions):
         t = dict(t)
         t.pop("account", None)
@@ -605,11 +616,18 @@ def load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Trans
                     continue
                 owner = str(data.get("owner") or path.parent.name)
                 account_raw = str(data.get("account_type") or path.stem.replace("_transactions", ""))
-                merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
+                file_account = _normalise_account_file_name(path.stem.removesuffix("_transactions"))
+                holdings_doc = _load_account_holdings_file(path.parent / f"{file_account}.json", owner, account_raw)
+                merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(
+                    owner, account_raw, data, holdings_doc
+                )
 
     if store is not None:
         for owner, account_raw, data in store.iter_transaction_documents():
-            merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
+            holdings_doc = store.read_document(owner, f"{_normalise_account_file_name(account_raw)}.json")
+            merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(
+                owner, account_raw, data, holdings_doc
+            )
 
     results: List[Transaction] = []
     for txs in merged.values():

@@ -33,11 +33,15 @@ function Get-McpPort {
   }
   $port = if ($env:MCP_SERVER_PORT) { $env:MCP_SERVER_PORT } else { '8001' }
   if ($env:MCP_SERVER_URL) {
-    if ($env:MCP_SERVER_URL -notmatch '^http://(localhost|127\.0\.0\.1)(:(\d+))?(/|$)') {
+    # A local match result rather than $matches, which any later -match would
+    # overwrite. IgnoreCase keeps -match's case-insensitivity. Group 3 is the
+    # port digits; update the index if the pattern changes.
+    $urlMatch = [regex]::Match($env:MCP_SERVER_URL, '^http://(localhost|127\.0\.0\.1)(:(\d+))?(/|$)', 'IgnoreCase')
+    if (-not $urlMatch.Success) {
       Write-Host "MCP_SERVER_URL ($env:MCP_SERVER_URL) is not plain-HTTP localhost; skipping the MCP server." -ForegroundColor Yellow
       return $null
     }
-    $port = if ($matches[3]) { $matches[3] } else { '80' }
+    $port = if ($urlMatch.Groups[3].Success) { $urlMatch.Groups[3].Value } else { '80' }
   }
   if (-not (Test-ValidPort $port)) { throw "Invalid MCP server port '$port' (from MCP_SERVER_PORT or MCP_SERVER_URL; expected 1-65535)." }
   return [int]$port

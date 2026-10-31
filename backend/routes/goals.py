@@ -1,3 +1,4 @@
+import logging
 import math
 from datetime import date
 from typing import List
@@ -20,7 +21,9 @@ from backend.common.goals import (
 )
 from backend.common.rebalance import suggest_trades
 from backend.config import config, demo_identity
+from backend.logging_setup import sanitise_log_value
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/goals", tags=["goals"])
 DEMO_OWNER = demo_identity()
 
@@ -109,6 +112,19 @@ def _record_progress(owner: str, name: str, payload: ProgressPayload) -> GoalRes
 _NAME_CONFLICT = "Another goal already uses that name"
 
 
+def _restore_history_name(owner: str, new: str, old: str) -> None:
+    """Best-effort rollback of a history rename; never masks the caller's error."""
+    try:
+        rename_goal_history(owner, new, old)
+    except Exception:
+        logger.exception(
+            "Failed to move goal history back from %s to %s; it may now be stored under %s",
+            sanitise_log_value(new),
+            sanitise_log_value(old),
+            sanitise_log_value(new),
+        )
+
+
 def _update_goal(owner: str, name: str, payload: GoalPayload) -> GoalPayload:
     goals = load_goals(owner)
     for idx, g in enumerate(goals):
@@ -126,7 +142,7 @@ def _update_goal(owner: str, name: str, payload: GoalPayload) -> GoalPayload:
             try:
                 save_goals(owner, goals)
             except Exception:
-                rename_goal_history(owner, payload.name, name)
+                _restore_history_name(owner, payload.name, name)
                 raise
             return GoalPayload(**payload.model_dump())
     raise HTTPException(status_code=404, detail="Goal not found")

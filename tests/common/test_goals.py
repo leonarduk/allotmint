@@ -1,6 +1,6 @@
 """Tests for goal helpers."""
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -121,6 +121,20 @@ def test_record_goal_amount_rejects_non_finite(history_storage, amount):
     with pytest.raises(ValueError):
         goals_mod.record_goal_amount("alice", "Car", amount, date(2026, 1, 1))
     assert history_storage.load() == {}
+
+
+def test_record_goal_amount_rejects_future_dates(history_storage):
+    with pytest.raises(ValueError):
+        goals_mod.record_goal_amount("alice", "Car", 10.0, date.today() + timedelta(days=1))
+    assert history_storage.load() == {}
+    # Today itself is fine.
+    assert goals_mod.record_goal_amount("alice", "Car", 10.0, date.today()) == [(date.today(), 10.0)]
+
+
+def test_load_goal_history_skips_future_dated_stored_points(history_storage):
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    history_storage.save({"alice": {"Car": [{"date": "2026-01-01", "amount": 10}, {"date": tomorrow, "amount": 99}]}})
+    assert goals_mod.load_goal_history("alice", "Car") == [(date(2026, 1, 1), 10.0)]
 
 
 def test_load_goal_history_skips_non_finite_stored_amounts(history_storage):

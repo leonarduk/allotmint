@@ -206,6 +206,33 @@ def test_update_goal_moves_history_back_when_save_fails(monkeypatch, fake_goal_c
     assert renamed == [("Old", "New"), ("New", "Old")]
 
 
+def test_update_goal_failed_rollback_logs_and_reraises_original_error(monkeypatch, fake_goal_class, caplog):
+    existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])
+    renamed = []
+
+    def rename(owner, old, new):
+        renamed.append((old, new))
+        if len(renamed) > 1:
+            raise RuntimeError("rollback failed")
+
+    def failing_save(owner, goals_list):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(goals, "rename_goal_history", rename)
+    monkeypatch.setattr(goals, "save_goals", failing_save)
+    payload = goals.GoalPayload(name="New", target_amount=1.0, target_date=datetime.date(2031, 1, 1))
+
+    with caplog.at_level("ERROR", logger=goals.logger.name):
+        with pytest.raises(OSError, match="disk full"):
+            goals._update_goal("demo-owner", "Old", payload)
+
+    assert renamed == [("Old", "New"), ("New", "Old")]
+    record = next(r for r in caplog.records if "Failed to move goal history back" in r.getMessage())
+    assert "New" in record.getMessage() and "Old" in record.getMessage()
+    assert record.exc_info is not None
+
+
 def test_update_goal_history_conflict_becomes_409_without_saving(monkeypatch, fake_goal_class):
     existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
     monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])

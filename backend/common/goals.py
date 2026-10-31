@@ -116,14 +116,19 @@ def _load_history_raw() -> Dict[str, Dict[str, List[Dict[str, object]]]]:
 
 
 def load_goal_history(user: str, name: str) -> List[Tuple[date, float]]:
-    """Return ``(date, amount)`` snapshots for a goal, oldest first."""
+    """Return ``(date, amount)`` snapshots for a goal, oldest first.
+
+    Malformed, non-finite and future-dated entries are skipped.
+    """
     raw = _load_history_raw().get(user, {}).get(name, [])
     points: List[Tuple[date, float]] = []
+    today = date.today()
     for entry in raw if isinstance(raw, list) else []:
         try:
             amount = float(entry["amount"])
-            if math.isfinite(amount):
-                points.append((date.fromisoformat(str(entry["date"])), amount))
+            on = date.fromisoformat(str(entry["date"]))
+            if math.isfinite(amount) and on <= today:
+                points.append((on, amount))
         except (KeyError, TypeError, ValueError):
             continue
     return sorted(points)
@@ -133,13 +138,16 @@ def record_goal_amount(user: str, name: str, amount: float, on: date) -> List[Tu
     """Record the amount saved toward a goal on ``on`` (one snapshot per day).
 
     Returns the goal's updated history. Raises ``ValueError`` for a non-finite
-    amount, which would otherwise be stored as non-standard JSON.
+    amount, which would otherwise be stored as non-standard JSON, or for a
+    date after today.
 
     This is a plain read-modify-write of the whole store: it assumes a single
     writer (the app's usage), so concurrent writers could lose an update.
     """
     if not math.isfinite(amount):
         raise ValueError("Goal amount must be a finite number")
+    if on > date.today():
+        raise ValueError("Goal progress cannot be recorded for a future date")
     data = _load_history_raw()
     by_day = dict(load_goal_history(user, name))
     by_day[on] = float(amount)

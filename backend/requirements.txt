@@ -6,7 +6,8 @@ slowapi~=0.1.10
 mangum~=0.22.0
 mcp~=2.2.0
 # A floor, not a pin: >= lets pip resolve boto3 against the botocore pin below
-# (#2810). When bumping botocore, raise this floor to the same patch version.
+# (#2810). When bumping botocore, raise this floor to the same patch version;
+# test_boto3_and_botocore_share_a_patch_version fails until you do.
 boto3>=1.43.118
 pandas~=3.0.6
 yfinance~=1.7.0

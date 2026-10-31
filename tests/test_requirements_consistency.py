@@ -39,6 +39,16 @@ def _parse_package_names(path: Path) -> set[str]:
     return names
 
 
+def _pinned_version(path: Path, package: str) -> str:
+    """The version in ``package``'s specifier (``~=``, ``>=`` or ``==``) in ``path``."""
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        match = re.fullmatch(rf"{re.escape(package)}\s*(?:~=|>=|==)\s*([0-9][0-9A-Za-z.]*)", line, re.I)
+        if match:
+            return match.group(1)
+    raise AssertionError(f"{package} has no ~=, >= or == specifier in {path}")
+
+
 class RequirementsConsistencyTests(unittest.TestCase):
     def test_backend_requirements_are_mirrored_in_root_requirements(self) -> None:
         root_packages = _parse_package_names(ROOT_REQUIREMENTS)
@@ -72,6 +82,17 @@ class RequirementsConsistencyTests(unittest.TestCase):
             "backend/requirements.txt, or add them to ROOT_ONLY_ALLOWLIST in "
             "this test if they are genuinely local-only tooling.",
         )
+
+    def test_boto3_and_botocore_share_a_patch_version(self) -> None:
+        # Released in lockstep (#11120). Backend boto3 stays a >= floor (#2810),
+        # so the floor itself must match the botocore pin.
+        for path in (ROOT_REQUIREMENTS, BACKEND_REQUIREMENTS):
+            with self.subTest(path=path.name if path == ROOT_REQUIREMENTS else "backend/requirements.txt"):
+                self.assertEqual(
+                    _pinned_version(path, "boto3"),
+                    _pinned_version(path, "botocore"),
+                    f"boto3 and botocore must be bumped together to the same patch version in {path}.",
+                )
 
 
 if __name__ == "__main__":

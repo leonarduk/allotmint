@@ -216,7 +216,12 @@ def _near_miss(row: StatementRow, comparison: _Comparison) -> bool:
 
 
 def _add_stamp_duty(body: Dict[str, Any], row: StatementRow) -> None:
-    """Record the statement's stamp duty as part of ``fees`` when it shows one (#10493)."""
+    """Record the statement's stamp duty as part of ``fees`` when it shows one (#10493).
+
+    The extractor guarantees ``stamp_duty_minor <= fees_minor`` (see
+    ``extract._normalise_row``), so ``body["stamp_duty"]`` is always a part
+    of ``body["fees"]`` and the request cannot fail the breakdown check.
+    """
     if row.stamp_duty_minor is not None:
         body["stamp_duty"] = minor_to_pounds(row.stamp_duty_minor)
 

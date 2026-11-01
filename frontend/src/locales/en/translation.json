@@ -3646,10 +3646,10 @@
   },
   "sinceLastVisit": {
     "title": "Since you were last here",
-    "since": "Changes since {{date}}.",
-    "nothingChanged": "Nothing notable since then: no big movers, alerts or dividends.",
+    "since": "Your last visit was on {{date}}.",
+    "nothingChanged": "Nothing notable: no big movers over the last {{days}} days, and no alerts or dividends since your last visit.",
     "movers": "Biggest movers over the last {{days}} days: {{list}}",
-    "noMovers": "No big movers among your holdings.",
+    "noMovers": "No big movers among your holdings over the last {{days}} days.",
     "moversUnavailable": "Movers are unavailable right now.",
     "alerts": "Alerts: {{list}}",
     "noAlerts": "No alert thresholds crossed.",

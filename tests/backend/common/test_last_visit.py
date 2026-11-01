@@ -13,8 +13,8 @@ import pytest
 from botocore.response import StreamingBody
 from botocore.stub import Stubber
 
+from backend.common import conditional_store as cs
 from backend.common import last_visit as lv
-from backend.common import watchlists as wl
 
 ALICE = "alice@example.com"
 BOB = "bob@example.com"
@@ -22,8 +22,8 @@ T0 = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
-def store(tmp_path: Path) -> wl.FileWatchlistsStore:
-    return wl.FileWatchlistsStore(root=tmp_path)
+def store(tmp_path: Path) -> cs.FileStore:
+    return cs.FileStore(root=tmp_path)
 
 
 def _doc(tmp_path: Path, email: str = ALICE) -> dict:
@@ -142,19 +142,19 @@ def test_a_concurrent_write_is_retried_on_the_fresh_copy(store, tmp_path: Path, 
 
 def test_a_write_that_keeps_losing_is_unavailable(store, monkeypatch) -> None:
     def always_lose(key, data, *, expect_tag):
-        raise wl._PreconditionFailed()
+        raise cs.PreconditionFailed()
 
     monkeypatch.setattr(store, "write", always_lose)
     with pytest.raises(lv.LastVisitUnavailable):
         lv.record_visit(ALICE, "family", now=T0, store=store)
 
 
-def test_default_store_sits_under_the_watchlists_prefix_on_aws(monkeypatch, tmp_path: Path) -> None:
+def test_default_store_has_its_own_prefix_on_aws(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("LAST_VISIT_STORAGE_URI", raising=False)
     monkeypatch.setenv("DATA_BUCKET", "data-bkt")
     default = lv.get_last_visit_store()
-    assert isinstance(default, wl.S3WatchlistsStore)
-    assert (default.bucket, default.prefix) == ("data-bkt", "watchlists/last_visit")
+    assert isinstance(default, cs.S3Store)
+    assert (default.bucket, default.prefix) == ("data-bkt", "last_visit")
 
     monkeypatch.delenv("DATA_BUCKET")
     monkeypatch.setattr(lv.config, "data_root", tmp_path)
@@ -166,11 +166,11 @@ def test_default_store_sits_under_the_watchlists_prefix_on_aws(monkeypatch, tmp_
 
 def _s3_store():
     client = boto3.client("s3", region_name="eu-west-2", aws_access_key_id="x", aws_secret_access_key="x")
-    return wl.S3WatchlistsStore(bucket="bkt", prefix="watchlists/last_visit", client=client), Stubber(client)
+    return cs.S3Store(bucket="bkt", prefix="last_visit", client=client), Stubber(client)
 
 
 def _key(email: str) -> str:
-    return f"watchlists/last_visit/{lv.user_key(email)}.json"
+    return f"last_visit/{lv.user_key(email)}.json"
 
 
 def test_s3_first_visit_writes_only_if_the_key_is_still_absent() -> None:

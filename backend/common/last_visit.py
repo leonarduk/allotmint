@@ -12,14 +12,12 @@ is the SHA-256 of the lower-cased email, as for saved watchlists, so no key or
 file name carries the address.
 
 ``{base}`` is ``LAST_VISIT_STORAGE_URI`` when set, else
-``s3://$DATA_BUCKET/watchlists/last_visit`` on AWS, else
-``{data_root}/last_visit`` locally. On AWS it sits under the ``watchlists/``
-prefix on purpose: the backend Lambda already has GetObject/PutObject and,
-crucially, ListBucket there, so a not-yet-written document reads as a 404
-("first visit") rather than a 403. A prefix of its own would need a new
-ListBucket grant in ``cdk/`` first. The store implementation (file and S3,
-with conditional writes) is shared with :mod:`backend.common.watchlists` for
-the same reason.
+``s3://$DATA_BUCKET/last_visit`` on AWS, else ``{data_root}/last_visit``
+locally. The backend Lambda is granted ListBucket on ``last_visit/``
+(``cdk/stacks/backend_lambda_stack.py``), so a not-yet-written document reads
+as a 404 ("first visit") rather than a 403. The store (file and S3, with
+conditional writes) is :mod:`backend.common.conditional_store`, shared with
+:mod:`backend.common.watchlists`.
 
 Multi-device semantics are deliberately simple: one record per user and
 group, advanced by a visit from any device. A visit within
@@ -39,22 +37,23 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from backend.common.watchlists import S3_PREFIX as WATCHLISTS_S3_PREFIX
-from backend.common.watchlists import (
-    WatchlistsStore,
-    WatchlistsUnavailable,
-    _PreconditionFailed,
-    _Stored,
+from backend.common.conditional_store import (
+    ConditionalStore,
+    FileStore,
+    PreconditionFailed,
+    S3Store,
+    Stored,
+    StoreUnavailable,
     store_from_uri,
-    user_key,
 )
+from backend.common.watchlists import user_key
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
 DOCUMENT_VERSION = 1
-S3_PREFIX = f"{WATCHLISTS_S3_PREFIX}/last_visit"
+S3_PREFIX = "last_visit"
 VISIT_SESSION_GAP = timedelta(hours=1)
 # Groups kept per user; the least recently visited are dropped beyond this.
 MAX_GROUPS = 50
@@ -89,8 +88,8 @@ def _default_uri() -> str:
     return str(Path(root) / "last_visit")
 
 
-def get_last_visit_store() -> WatchlistsStore:
-    return store_from_uri(_default_uri())
+def get_last_visit_store() -> ConditionalStore:
+    return store_from_uri(_default_uri(), file_store=FileStore, s3_store=S3Store, name="last-visit")
 
 
 def _object_key(email: str) -> str:
@@ -139,7 +138,7 @@ def advance(record: Optional[VisitRecord], now: datetime) -> VisitRecord:
     return VisitRecord(previous=record.current, current=now)
 
 
-def _decode(stored: Optional[_Stored]) -> Dict[str, Any]:
+def _decode(stored: Optional[Stored]) -> Dict[str, Any]:
     """The ``groups`` map; empty when nothing is saved yet."""
 
     if stored is None:
@@ -172,7 +171,7 @@ def _update(
     email: str,
     slug: str,
     change: Callable[[Optional[VisitRecord]], VisitRecord],
-    store: Optional[WatchlistsStore],
+    store: Optional[ConditionalStore],
 ) -> VisitRecord:
     store = store or get_last_visit_store()
     key = _object_key(email)
@@ -185,10 +184,10 @@ def _update(
             body = {"version": DOCUMENT_VERSION, "updated_at": _now().isoformat(), "groups": _trim(groups)}
             try:
                 store.write(key, json.dumps(body, indent=2).encode("utf-8"), expect_tag=stored.tag if stored else None)
-            except _PreconditionFailed:
+            except PreconditionFailed:
                 continue
             return record
-    except WatchlistsUnavailable as exc:
+    except StoreUnavailable as exc:
         raise LastVisitUnavailable(str(exc)) from exc
     logger.warning("Last-visit write for %s kept losing to concurrent visits", sanitise_log_value(slug))
     raise LastVisitUnavailable("Last-visit document kept changing during the write")
@@ -200,7 +199,7 @@ def record_visit(
     *,
     seed: Optional[Dict[str, Any]] = None,
     now: Optional[datetime] = None,
-    store: Optional[WatchlistsStore] = None,
+    store: Optional[ConditionalStore] = None,
 ) -> VisitRecord:
     """Record a visit to ``slug`` by ``email`` and return the advanced record.
 
@@ -228,7 +227,7 @@ def dismiss_visit(
     slug: str,
     *,
     now: Optional[datetime] = None,
-    store: Optional[WatchlistsStore] = None,
+    store: Optional[ConditionalStore] = None,
 ) -> VisitRecord:
     """Mark everything up to now as seen for ``slug`` (the digest was dismissed).
 

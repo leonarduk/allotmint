@@ -103,6 +103,42 @@ def test_rename_onto_existing_goal_is_rejected_and_keeps_both_histories(tmp_path
     assert goals_mod.load_goal_history("alice", "Car") == [(date(2026, 2, 1), 300.0)]
 
 
+def test_rename_repoints_goal_to_history_when_save_and_rollback_fail(tmp_path, monkeypatch):
+    """Save fails once and the history rollback fails: the goal follows its history (#11184)."""
+    client = _app(tmp_path, monkeypatch)
+    goal = {"name": "House", "target_amount": 2000, "target_date": "2030-06-30"}
+    client.post("/goals", json=goal)
+    client.post("/goals/House/progress", json={"amount": 500, "on": "2026-01-01"})
+
+    real_save, real_rename = goals_route.save_goals, goals_route.rename_goal_history
+    calls = {"save": 0, "rename": 0}
+
+    def flaky_save(owner, goals_list):
+        calls["save"] += 1
+        if calls["save"] == 1:
+            raise OSError("transient write failure")
+        real_save(owner, goals_list)
+
+    def rename_without_rollback(owner, old, new):
+        calls["rename"] += 1
+        if calls["rename"] > 1:
+            raise RuntimeError("rollback failed")
+        real_rename(owner, old, new)
+
+    monkeypatch.setattr(goals_route, "save_goals", flaky_save)
+    monkeypatch.setattr(goals_route, "rename_goal_history", rename_without_rollback)
+
+    resp = client.put("/goals/House", json={**goal, "name": "Home"})
+
+    assert resp.status_code == 200
+    assert calls == {"save": 2, "rename": 2}
+    assert [g["name"] for g in client.get("/goals").json()] == ["Home"]
+    detail = client.get("/goals/Home").json()
+    assert detail["current_amount"] == 500
+    assert detail["progress"] == 0.25
+    assert detail["projection"]["points"] == 1
+
+
 def test_future_dated_progress_is_rejected(tmp_path, monkeypatch):
     client = _app(tmp_path, monkeypatch)
     client.post("/goals", json={"name": "House", "target_amount": 2000, "target_date": "2030-06-30"})

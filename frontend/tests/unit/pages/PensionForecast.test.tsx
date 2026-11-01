@@ -201,6 +201,14 @@ describe("PensionForecast page", () => {
     expect(screen.queryByText(/42\.7/)).not.toBeInTheDocument();
     // With no known age, the retirement-age input keeps its default floor.
     expect(screen.getByLabelText(/^retirement age$/i)).toHaveAttribute("min", "40");
+    // Focus ring uses a dedicated token that contrasts in both themes, not the
+    // --surface-muted-bg fill (near-invisible on dark cards) (#11189).
+    expect(screen.getByLabelText(/^retirement age$/i)).toHaveClass(
+      "focus:ring-[var(--focus-ring-color)]",
+    );
+    expect(screen.getByLabelText(/^retirement age$/i)).not.toHaveClass(
+      "focus:ring-[var(--surface-muted-bg)]",
+    );
   });
 
   it("shows a whole-number current age, never the raw fractional value", async () => {

@@ -802,7 +802,7 @@ export default function PensionForecast() {
                 <input
                   id="retirement-age"
                   type="number"
-                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--surface-muted-bg)]"
+                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color)]"
                   value={plannedRetirementAge}
                   onChange={(e) => setPlannedRetirementAge(e.target.value)}
                   min={displayedWholeAge ?? 40}
@@ -832,7 +832,7 @@ export default function PensionForecast() {
                 <input
                   id="death-age"
                   type="number"
-                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--surface-muted-bg)]"
+                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color)]"
                   value={deathAge}
                   onChange={(e) => setDeathAge(Number(e.target.value))}
                   required
@@ -851,7 +851,7 @@ export default function PensionForecast() {
                 <input
                   id="state-pension"
                   type="number"
-                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--surface-muted-bg)]"
+                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color)]"
                   value={statePension}
                   onChange={(e) => setStatePension(e.target.value)}
                   min={0}

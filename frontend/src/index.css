@@ -39,6 +39,9 @@
     --input-bg: #111;
     --input-border: #444;
     --input-text: #fff;
+    /* Keyboard focus ring for form inputs; must contrast with --surface-card-bg
+       (not a surface fill token) (#11189). */
+    --focus-ring-color: #60a5fa;
     --gain-positive: lightgreen;
     --gain-negative: red;
     /* Small-text action colours meeting WCAG AA (4.5:1) on --surface-card-bg (#9899). */
@@ -84,6 +87,7 @@
     --input-bg: #ffffff;
     --input-border: #ccc;
     --input-text: #213547;
+    --focus-ring-color: #2563eb;
     --gain-positive: #15803d;
     --gain-negative: #b91c1c;
     --danger-text: #b91c1c;
@@ -124,6 +128,9 @@
     --input-bg: #111;
     --input-border: #444;
     --input-text: #fff;
+    /* Keyboard focus ring for form inputs; must contrast with --surface-card-bg
+       (not a surface fill token) (#11189). */
+    --focus-ring-color: #60a5fa;
     --gain-positive: lightgreen;
     --gain-negative: red;
     /* Small-text action colours meeting WCAG AA (4.5:1) on --surface-card-bg (#9899). */
@@ -168,6 +175,7 @@
         --input-bg: #ffffff;
         --input-border: #ccc;
         --input-text: #213547;
+        --focus-ring-color: #2563eb;
         --gain-positive: #15803d;
         --gain-negative: #b91c1c;
         --danger-text: #b91c1c;

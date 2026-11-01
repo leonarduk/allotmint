@@ -15,10 +15,12 @@ import contextvars
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any, Coroutine, Dict, List, Optional, TypeVar
 
 from pydantic import Field
 
+from backend.bots.digest_models import Severity
 from backend.bots.registry import (
     BotKind,
     BotRunContext,
@@ -29,6 +31,7 @@ from backend.bots.registry import (
     RunStatus,
     Schedule,
 )
+from backend.bots.run_records import DIGEST_ITEMS_KEY, digest_item, plural
 from backend.logging_setup import sanitise_log_value
 from backend.trend_watch.settings import BOT_ID, load_base_trend_watch_config
 
@@ -78,11 +81,46 @@ def _owners(context: BotRunContext) -> List[str]:
     return [plot.owner for plot in list_plots() if plot.owner]
 
 
-def _summarise(rows: List[Dict[str, Any]], failed: List[Dict[str, str]]) -> RunResult:
+def digest_items(rows: List[Dict[str, Any]], failed: List[Dict[str, str]], created: datetime) -> List[Dict[str, Any]]:
+    """Each owner's review list and failed check as owner-scoped digest items (#10502)."""
+
+    items = [
+        digest_item(
+            BOT_ID,
+            "to-review",
+            created,
+            owner=row["owner"],
+            severity=Severity.MEDIUM,
+            title=f"{plural(row['to_review'], 'holding')} to review",
+            summary=(
+                f"The trend turned down on {plural(row['to_review'], 'held position')} out of "
+                f"{row['holdings_checked']} checked. A review list, not trade instructions."
+            ),
+        )
+        for row in rows
+        if row["to_review"]
+    ]
+    # The error text stays in the run's error field: it can quote data.
+    items.extend(
+        digest_item(
+            BOT_ID,
+            "failed",
+            created,
+            owner=f["owner"],
+            severity=Severity.HIGH,
+            title="Trend watch could not check your holdings",
+            summary="The last run failed for your portfolio.",
+        )
+        for f in failed
+    )
+    return items
+
+
+def _summarise(rows: List[Dict[str, Any]], failed: List[Dict[str, str]], created: datetime) -> RunResult:
     to_review = sum(row["to_review"] for row in rows)
     holdings = sum(row["holdings_checked"] for row in rows)
     summary = f"{to_review} to review of {holdings} holdings across {len(rows)} owner{'s' if len(rows) != 1 else ''}"
-    report = {"owners": rows, "failed": failed}
+    report = {"owners": rows, "failed": failed, DIGEST_ITEMS_KEY: digest_items(rows, failed, created)}
     if failed:
         status: RunStatus = "partial" if rows else "failed"
         error = "\n".join(f"{f['owner']}: {f['error']}" for f in failed)
@@ -128,4 +166,4 @@ class TrendWatchBot:
                     "report": f"trend_watch/{owner}/latest.json",
                 }
             )
-        return _summarise(rows, failed)
+        return _summarise(rows, failed, context.started_at)

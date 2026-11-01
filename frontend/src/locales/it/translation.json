@@ -4314,6 +4314,8 @@
     "title": "Bot",
     "intro": "Tutti i processi automatici e gli agenti IA dell’app: quando sono stati eseguiti l’ultima volta, cosa è successo e le loro impostazioni.",
     "loadError": "Impossibile caricare i bot.",
+    "digestOwnersError": "Impossibile caricare i titolari per il riepilogo.",
+    "digestNoOwners": "Non c’è nessun titolare per cui mostrare un riepilogo.",
     "disabled": "disattivato",
     "columns": {
       "bot": "Bot",

@@ -7,7 +7,8 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import type { BotDetail, BotRun, BotSummary } from '@/api';
+import type { BotDetail, BotRun, BotSummary, BotsDigest } from '@/api';
+import { RouteContext, type RouteContextValue } from '@/contexts/route';
 
 const api = vi.hoisted(() => ({
   getBots: vi.fn(),
@@ -16,11 +17,48 @@ const api = vi.hoisted(() => ({
   getBotRun: vi.fn(),
   runBotNow: vi.fn(),
   updateBotSettings: vi.fn(),
+  getOwners: vi.fn(),
+  getBotsDigestLatest: vi.fn(),
+  getBotsDigestHistory: vi.fn(),
+  getBotsDigestPreview: vi.fn(),
 }));
 
 vi.mock('@/api', () => api);
 
 import Bots from '@/pages/Bots';
+
+const owners = [
+  { owner: 'alex', accounts: ['isa'], full_name: 'Alex Example' },
+  { owner: 'sam', accounts: ['sipp'], full_name: 'Sam Example' },
+];
+
+function digestFor(owner: string): BotsDigest {
+  return {
+    owner,
+    period: 'weekly',
+    generated_at: '2026-10-12T07:00:00Z',
+    opener: `1 item needs ${owner} (1 new, 0 high severity).`,
+    items: [
+      {
+        id: `cash-deployment:${owner}:due`,
+        bot: 'cash-deployment',
+        owner,
+        severity: 'medium',
+        title: `Tranche due for ${owner}`,
+        summary: '',
+        link: '/bots',
+        action_required: true,
+        created: '2026-10-12T07:00:00Z',
+        dedupe_key: `cash-deployment:${owner}:due`,
+        status: 'new',
+      },
+    ],
+    resolved: [],
+    bots: [],
+    truncated: {},
+    needs_owner: true,
+  };
+}
 
 const lastRun: BotRun = {
   id: 'r1',
@@ -104,11 +142,115 @@ describe('Bots page', () => {
     api.getBots.mockResolvedValue(bots);
     api.getBot.mockResolvedValue(detail());
     api.getBotRuns.mockResolvedValue([]);
+    api.getOwners.mockResolvedValue([owners[0]]);
+    api.getBotsDigestLatest.mockRejectedValue(
+      Object.assign(new Error('HTTP 404'), { status: 404 })
+    );
+    api.getBotsDigestHistory.mockResolvedValue({ digests: [] });
   });
 
   afterEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+  });
+
+  it('shows the digest section above the bot list, with history (#10502)', async () => {
+    const older = {
+      ...digestFor('alex'),
+      generated_at: '2026-10-05T07:00:00Z',
+    };
+    api.getBotsDigestLatest.mockResolvedValue(digestFor('alex'));
+    api.getBotsDigestHistory.mockResolvedValue({
+      digests: [digestFor('alex'), older],
+    });
+    renderPage();
+
+    const section = await screen.findByTestId('bots-digest-section');
+    expect(
+      await within(section).findByText('Tranche due for alex')
+    ).toBeInTheDocument();
+    expect(api.getBotsDigestLatest).toHaveBeenCalledWith('alex');
+    expect(
+      within(section).getByTestId('bots-digest-history')
+    ).toHaveTextContent('2026-10-05');
+    // A single visible owner needs no picker.
+    expect(within(section).queryByRole('combobox')).toBeNull();
+    // The digest comes before the bot list.
+    const table = await screen.findByRole('table');
+    expect(
+      section.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('switches the digest to another owner with the picker', async () => {
+    api.getOwners.mockResolvedValue(owners);
+    api.getBotsDigestLatest.mockImplementation((owner: string) =>
+      Promise.resolve(digestFor(owner))
+    );
+    renderPage();
+
+    const section = await screen.findByTestId('bots-digest-section');
+    expect(
+      await within(section).findByText('Tranche due for alex')
+    ).toBeInTheDocument();
+    fireEvent.change(within(section).getByRole('combobox'), {
+      target: { value: 'sam' },
+    });
+    expect(
+      await within(section).findByText('Tranche due for sam')
+    ).toBeInTheDocument();
+    expect(api.getBotsDigestLatest).toHaveBeenLastCalledWith('sam');
+  });
+
+  it('opens the digest on the app-level selected owner', async () => {
+    api.getOwners.mockResolvedValue(owners);
+    api.getBotsDigestLatest.mockImplementation((owner: string) =>
+      Promise.resolve(digestFor(owner))
+    );
+    const setSelectedOwner = vi.fn();
+    const route = {
+      mode: 'bots',
+      setMode: vi.fn(),
+      selectedOwner: 'sam',
+      setSelectedOwner,
+      selectedGroup: '',
+      setSelectedGroup: vi.fn(),
+    } as unknown as RouteContextValue;
+    render(
+      <MemoryRouter>
+        <RouteContext.Provider value={route}>
+          <Bots />
+        </RouteContext.Provider>
+      </MemoryRouter>
+    );
+
+    const section = await screen.findByTestId('bots-digest-section');
+    expect(
+      await within(section).findByText('Tranche due for sam')
+    ).toBeInTheDocument();
+    fireEvent.change(within(section).getByRole('combobox'), {
+      target: { value: 'alex' },
+    });
+    expect(setSelectedOwner).toHaveBeenCalledWith('alex');
+  });
+
+  it('says when there is no owner to show a digest for', async () => {
+    api.getOwners.mockResolvedValue([]);
+    renderPage();
+    expect(
+      await screen.findByText('There is no owner to show a digest for.')
+    ).toBeInTheDocument();
+    expect(api.getBotsDigestLatest).not.toHaveBeenCalled();
+  });
+
+  it('reports a failure to load owners for the digest', async () => {
+    api.getOwners.mockRejectedValue(new Error('down'));
+    renderPage();
+    const section = await screen.findByTestId('bots-digest-section');
+    expect(await within(section).findByRole('alert')).toHaveTextContent(
+      'Could not load owners for the digest.'
+    );
+    expect(await screen.findByText('Price refresh')).toBeInTheDocument();
   });
 
   it('lists bots with last run status, summary and never-run state', async () => {

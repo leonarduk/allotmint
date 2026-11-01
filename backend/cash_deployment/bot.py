@@ -13,14 +13,16 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Optional
 
 from pydantic import ValidationError
 
+from backend.bots.digest_models import Severity
 from backend.bots.registry import BotKind, BotRunContext, BotScope, BotSettings, RunResult, RunStatus, Schedule
+from backend.bots.run_records import DIGEST_ITEMS_KEY, digest_item, plural
 from backend.cash_deployment.progress import build_progress
 from backend.cash_deployment.schedule import DeploymentSchedule, list_schedules
 from backend.cash_deployment.tranche import PriceLookup, build_tranche, default_prices, target_policy
@@ -174,9 +176,64 @@ def _overall_status(rows: list[dict[str, Any]], failed: list[dict[str, str]]) ->
     return "partial" if any(row["status"] == "partial" for row in rows) else "ok"
 
 
-def _summarise(rows: list[dict[str, Any]], failed: list[dict[str, str]], raw: list[dict[str, Any]]) -> RunResult:
+def _owner_items(row: dict[str, Any], created: datetime) -> list[dict[str, Any]]:
+    owner, due, overdue = row["owner"], row["tranches_due"], row["overdue"]
+    items = []
+    if overdue:
+        items.append(
+            digest_item(
+                BOT_ID,
+                "overdue",
+                created,
+                owner=owner,
+                severity=Severity.HIGH,
+                title=f"{plural(overdue, 'cash deployment tranche')} overdue",
+                summary="Tranches on your own phasing schedule are past their due date.",
+            )
+        )
+    if due:
+        items.append(
+            digest_item(
+                BOT_ID,
+                "due",
+                created,
+                owner=owner,
+                severity=Severity.MEDIUM,
+                title=f"{plural(due, 'cash deployment tranche')} due now",
+                summary="The order list for each tranche follows your saved plan.",
+            )
+        )
+    return items
+
+
+def digest_items(rows: list[dict[str, Any]], failed: list[dict[str, str]], created: datetime) -> list[dict[str, Any]]:
+    """Each owner's due and overdue tranches and failed check as owner-scoped digest items (#10502).
+
+    Counts only, like the rest of the run report: no amounts.
+    """
+
+    items = [item for row in rows for item in _owner_items(row, created)]
+    # The error text stays in the run's error field: it can quote data.
+    items.extend(
+        digest_item(
+            BOT_ID,
+            "failed",
+            created,
+            owner=f["owner"],
+            severity=Severity.HIGH,
+            title="Cash deployment tracker could not check your schedules",
+            summary="The last run failed for your portfolio.",
+        )
+        for f in failed
+    )
+    return items
+
+
+def _summarise(
+    rows: list[dict[str, Any]], failed: list[dict[str, str]], raw: list[dict[str, Any]], created: datetime
+) -> RunResult:
     status = _overall_status(rows, failed)
-    report = {"owners": rows, "failed": failed}
+    report = {"owners": rows, "failed": failed, DIGEST_ITEMS_KEY: digest_items(rows, failed, created)}
     if not rows and not failed:
         return RunResult(status=status, summary="No owners found", report=report, raw=raw)
     due = sum(row["tranches_due"] for row in rows)
@@ -221,4 +278,4 @@ class CashDeploymentBot:
                 continue
             raw.append(result)
             rows.append(_owner_row(result))
-        return _summarise(rows, failed, raw)
+        return _summarise(rows, failed, raw, context.started_at)

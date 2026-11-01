@@ -97,6 +97,9 @@ class BotRunRecord(BaseModel):
     finished_at: Optional[UtcDatetime] = None
     summary: str = ""
     error: Optional[str] = None
+    # The owner a single-owner run was for (e.g. an uploaded statement);
+    # ``None`` for a system job or a run over every owner.
+    owner: Optional[str] = None
     digest_items: List[DigestItem] = Field(default_factory=list)
 
 

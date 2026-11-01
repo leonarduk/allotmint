@@ -49,12 +49,17 @@ _NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 
 
 def _failure_item(bot: BotDescriptor, record: BotRunRecord, owner: str) -> DigestItem:
-    """A failed run is itself a high-severity item (system-wide for system bots)."""
+    """A failed run is itself a high-severity item.
+
+    System-wide for a system bot. For an owner-scoped bot it belongs to the
+    owner the run was for, so one owner's failed upload never shows in
+    another owner's digest; a run over every owner counts for each owner.
+    """
 
     return DigestItem(
         id=f"{bot.id}:run-failed",
         bot=bot.id,
-        owner=None if bot.scope == "system" else owner,
+        owner=None if bot.scope == "system" else (record.owner or owner),
         severity=Severity.HIGH,
         title=f"{bot.name} run failed",
         summary=f"The last run, started {record.started_at.date().isoformat()}, did not complete.",

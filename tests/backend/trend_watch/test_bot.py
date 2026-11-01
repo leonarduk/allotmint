@@ -64,6 +64,26 @@ def test_run_covers_every_owner_and_records_one_owners_failure(monkeypatch):
     assert result.summary.startswith("2 to review of 20 holdings across 2 owners")
     assert result.report["failed"] == [{"owner": "joe", "error": "RuntimeError: no prices"}]
     assert result.report["owners"][0]["report"] == "trend_watch/alex/latest.json"
+    # One owner-scoped digest item per owner with something to review, and one
+    # for joe's failed check (without the error text) (#10502).
+    items = [(i["owner"], i["severity"], i["dedupe_key"], i["title"]) for i in result.report["digest_items"]]
+    assert items == [
+        ("alex", "medium", "trend-watch:alex:to-review", "1 holding to review"),
+        ("lucy", "medium", "trend-watch:lucy:to-review", "1 holding to review"),
+        ("joe", "high", "trend-watch:joe:failed", "Trend watch could not check your holdings"),
+    ]
+    assert "no prices" not in str(result.report["digest_items"])
+
+
+def test_owner_with_nothing_to_review_has_no_digest_item(monkeypatch):
+    async def quiet(owner, *, notify):
+        return {"holdings_checked": 4, "items": []}
+
+    monkeypatch.setattr(service, "run_for_owner", quiet)
+
+    result = TrendWatchBot().run(_context(owner="alex"), TrendWatchBotSettings())
+
+    assert (result.status, result.report["digest_items"]) == ("ok", [])
 
 
 def test_run_for_a_named_owner_only_and_all_failed_is_failed(monkeypatch):

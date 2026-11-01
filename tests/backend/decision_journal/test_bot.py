@@ -69,9 +69,16 @@ def test_run_through_the_runner_reports_counts_only_and_never_writes_the_plan(tm
 
     assert record.status == "ok"
     assert record.summary == "1 unlogged trade, 1 review run across 1 owner"
-    # The Bots page shows reports to every signed-in user: totals only, no owner names.
+    # The Bots page shows reports to every signed-in user: totals only, no owner
+    # names, apart from the owner-scoped digest items, which the Bots API serves
+    # only to callers with access to that owner (tests/routes/test_bots.py).
+    items = record.report.pop("digest_items")
     assert record.report == {"owners": 1, "unlogged": 1, "reviews_run": 1}
     assert "alex" not in json.dumps(record.report)
+    assert [(i["owner"], i["severity"], i["action_required"], i["title"]) for i in items] == [
+        ("alex", "low", True, "1 trade not yet logged in your decision journal"),
+        ("alex", "info", False, "1 decision review ready"),
+    ]
     assert raw["as_of"] == date(2026, 7, 2).isoformat()
     assert (tmp_path / "plans" / "alex.json").read_text(encoding="utf-8") == before
     assert load_journal("alex", tmp_path).entries[0].reviews[0].horizon_months == 6

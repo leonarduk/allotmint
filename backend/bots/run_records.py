@@ -13,12 +13,13 @@ item is skipped with a warning; the rest of the run still counts.
 from __future__ import annotations
 
 import logging
-from typing import Any, List, Optional, Protocol
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Protocol
 
 from pydantic import ValidationError
 
 from backend.bots import registry, runs
-from backend.bots.digest_models import BotDescriptor, BotRunRecord, DigestItem
+from backend.bots.digest_models import BotDescriptor, BotRunRecord, DigestItem, Severity
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,47 @@ class RunRecordSource(Protocol):
 
     def latest_run(self, bot_id: str) -> Optional[BotRunRecord]:
         """The bot's most recent finished run, or ``None`` if it has never run."""
+
+
+def digest_item(
+    bot_id: str,
+    key: str,
+    created: datetime,
+    *,
+    owner: Optional[str],
+    severity: Severity,
+    title: str,
+    summary: str = "",
+    action_required: bool = True,
+    link: Optional[str] = "/bots",
+) -> Dict[str, Any]:
+    """One digest item, JSON-ready for a run report (docs/BOTS_DIGEST.md).
+
+    ``owner=None`` makes it system-wide (admins only). An owner-scoped item's
+    id and ``dedupe_key`` include the owner, so one run reporting the same
+    finding for two owners yields two distinct items.
+    """
+
+    dedupe_key = f"{bot_id}:{key}" if owner is None else f"{bot_id}:{owner}:{key}"
+    return DigestItem(
+        id=dedupe_key,
+        bot=bot_id,
+        owner=owner,
+        severity=severity,
+        title=title,
+        summary=summary,
+        link=link,
+        action_required=action_required,
+        # Whole seconds: the digest shows dates, and stray digits stay out of the report.
+        created=created.replace(microsecond=0),
+        dedupe_key=dedupe_key,
+    ).model_dump(mode="json")
+
+
+def plural(count: int, noun: str) -> str:
+    """``"1 holding"`` / ``"3 holdings"``, for counts in digest item titles."""
+
+    return f"{count} {noun if count == 1 else noun + 's'}"
 
 
 def digest_items_from_report(bot_id: str, report: Any) -> List[DigestItem]:
@@ -72,8 +114,16 @@ class RegistryRunRecordSource:
             finished_at=record.finished_at,
             summary=record.summary or "",
             error=record.error,
+            owner=record.owner,
             digest_items=digest_items_from_report(bot_id, record.report),
         )
 
 
-__all__ = ["DIGEST_ITEMS_KEY", "RegistryRunRecordSource", "RunRecordSource", "digest_items_from_report"]
+__all__ = [
+    "DIGEST_ITEMS_KEY",
+    "RegistryRunRecordSource",
+    "RunRecordSource",
+    "digest_item",
+    "digest_items_from_report",
+    "plural",
+]

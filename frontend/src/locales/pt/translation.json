@@ -4314,6 +4314,8 @@
     "title": "Bots",
     "intro": "Todas as tarefas automáticas e agentes de IA da aplicação: quando foram executados pela última vez, o que aconteceu e as suas definições.",
     "loadError": "Não foi possível carregar os bots.",
+    "digestOwnersError": "Não foi possível carregar os titulares para o resumo.",
+    "digestNoOwners": "Não há nenhum titular para mostrar um resumo.",
     "disabled": "desativado",
     "columns": {
       "bot": "Bot",

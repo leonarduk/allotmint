@@ -25,12 +25,14 @@ from backend.auth import get_active_user, is_demo_request
 from backend.bots import runner
 from backend.bots.local_scheduler import is_scheduled_here
 from backend.bots.registry import Bot, BotKind, BotScope, get_bot, list_bots
+from backend.bots.run_records import DIGEST_ITEMS_KEY
 from backend.bots.runs import MAX_RUNS, RunRecord, get_run, list_runs
 from backend.bots.settings import load_settings, save_settings
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import PermissionDeniedError
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
+from backend.routes.bots_digest import is_admin
 
 logger = logging.getLogger(__name__)
 
@@ -102,18 +104,55 @@ def _bot_or_404(bot_id: str) -> Bot:
         raise HTTPException(status_code=404, detail=f"Unknown bot: {bot_id}") from None
 
 
-def _can_view(record: RunRecord, identity: Optional[str]) -> bool:
-    if record.owner is None:
+def _can_access_owner(owner: Optional[str], identity: Optional[str]) -> bool:
+    if owner is None:
         return True
     try:
-        ensure_owner_access(identity, record.owner)
+        ensure_owner_access(identity, owner)
     except (PermissionDeniedError, FileNotFoundError):
         return False
     return True
 
 
+def _can_view(record: RunRecord, identity: Optional[str]) -> bool:
+    return _can_access_owner(record.owner, identity)
+
+
+def _redacted(record: RunRecord, identity: Optional[str]) -> RunRecord:
+    """``record`` without the digest items about owners the caller cannot access.
+
+    A run over every owner is visible to everyone, but its ``digest_items``
+    name owners (#10502): each owner's items are served only to callers with
+    access to that owner, and system-wide items (``owner`` is None) only to
+    admins, the same rule as ``GET /bots/digest`` (``bots_digest.is_admin``).
+    """
+
+    items = record.report.get(DIGEST_ITEMS_KEY) if record.report else None
+    if not isinstance(items, list):
+        return record
+    access: Dict[str, bool] = {}
+    admin: List[bool] = []
+
+    def visible(item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        owner = item.get("owner")
+        if owner is None:
+            if not admin:
+                admin.append(is_admin(identity))
+            return admin[0]
+        if not isinstance(owner, str):
+            return False
+        if owner not in access:
+            access[owner] = _can_access_owner(owner, identity)
+        return access[owner]
+
+    report = {**(record.report or {}), DIGEST_ITEMS_KEY: [item for item in items if visible(item)]}
+    return record.model_copy(update={"report": report})
+
+
 def _visible_runs(bot: Bot, identity: Optional[str], limit: Optional[int] = None) -> List[RunRecord]:
-    records = [r for r in list_runs(bot.id) if _can_view(r, identity)]
+    records = [_redacted(r, identity) for r in list_runs(bot.id) if _can_view(r, identity)]
     return records[:limit] if limit is not None else records
 
 
@@ -135,7 +174,7 @@ def _summary(bot: Bot, identity: Optional[str]) -> Dict[str, Any]:
         "scheduled_here": schedule is not None,
         "overdue": runner.is_overdue(schedule, settings, all_runs),
         "running": runner.running_record(bot) is not None,
-        "last_run": visible[0] if visible else None,
+        "last_run": _redacted(visible[0], identity) if visible else None,
     }
 
 
@@ -182,7 +221,7 @@ def bot_run(bot_id: str, run_id: str, identity: Optional[str] = Depends(get_acti
     record = get_run(bot.id, run_id)
     if record is None or not _can_view(record, identity):
         raise HTTPException(status_code=404, detail="Run not found")
-    return record
+    return _redacted(record, identity)
 
 
 @router.post("/{bot_id}/run", response_model=RunRecord, status_code=202)

@@ -690,6 +690,41 @@ used to check other permissions).
    ```
    (See the script comments for OIDC trust relationship setup.)
 
+#### Pre-flight fails with `Could not list BackendLambdaStack resources`
+**Symptom:** "Pre-flight IAM permission check" step fails with:
+`::error::Could not list BackendLambdaStack resources; not falling back to wildcard resources ...`,
+preceded by `aws cloudformation list-stack-resources --stack-name BackendLambdaStack failed (exit N):`
+and the AWS CLI's own error (for example `Throttling ... Rate exceeded`, `ExpiredToken`,
+or `Could not connect to the endpoint URL`).
+
+**This is an intentional behaviour change, not a regression** (#11095, shipped in #11144):
+
+- **Before:** any failed `list-stack-resources` call (throttling, expired credentials,
+  a transient AWS or network error) was treated as "stack not deployed". The pre-flight
+  check fell back to wildcard (`"*"`) resource ARNs, simulated the deploy role's
+  permissions against those, and the deploy carried on.
+- **After:** only a `ValidationError` saying `Stack with id BackendLambdaStack does not exist`
+  counts as "not deployed" and still uses wildcard ARNs (a first deploy). Any other failure
+  emits `::error::` and exits 1, failing the deploy job. `scripts/bash/pre-deploy-check.sh`
+  and `scripts/powershell/pre-deploy-check.ps1` report `FAIL` for the IAM simulation instead
+  of `SKIP`, for the same reason.
+- **Why:** a failed call says nothing about whether the stack exists. Simulating against
+  wildcard ARNs does not check the narrowly scoped grants the deploy role really has (see
+  #3910), so the job now fails loudly rather than run a check that proves nothing.
+
+**Operational impact:** a throttled or flaky `list-stack-resources` call now blocks a
+deploy that previously went through. When triaging, read the CLI error printed above the
+`::error::` line:
+
+1. `Throttling`, `Rate exceeded`, or a network or endpoint error: transient. Re-run the
+   failed job.
+2. `ExpiredToken` or `AccessDenied`: check the OIDC role assumption
+   (`AWS_ROLE_TO_ASSUME`) and that the deploy role can call
+   `cloudformation:ListStackResources` on `BackendLambdaStack`.
+3. Any other `ValidationError`: check the stack name and region (`AWS_REGION`). A
+   validation error that is not a missing stack is deliberately not treated as
+   "not deployed".
+
 #### `StaticSiteStack` deploy fails with `AccessDenied` on `cognito-idp:DescribeUserPoolClient`
 **Symptom:** "Deploy StaticSiteStack auth resources" step fails with:
 `User: arn:aws:iam::...:role/... is not authorized to perform: cognito-idp:DescribeUserPoolClient`.
@@ -711,7 +746,10 @@ bash scripts/bash/pre-deploy-check.sh
 
 This validates environment variables, dependency resolution, CDK synthesis, and
 IAM permissions in one pass. See "Before pushing a release tag" in
-`docs/CONTRIBUTOR_RUNBOOK.md` for details.
+`docs/CONTRIBUTOR_RUNBOOK.md` for details. If the IAM simulation reports `FAIL` with
+`could not list BackendLambdaStack resources`, see "Pre-flight fails with
+`Could not list BackendLambdaStack resources`" above: a failed lookup is no longer
+reported as `SKIP`.
 
 ## Deployment troubleshooting checklist
 

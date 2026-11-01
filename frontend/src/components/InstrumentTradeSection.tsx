@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
 import { invalidateInstrumentHistory } from "../hooks/useInstrumentHistory";
-import type { InstrumentPosition } from "../types";
+import type { InstrumentPosition, Transaction } from "../types";
 import { InstrumentTransactions } from "./InstrumentTransactions";
 import { RecordTradeForm } from "./RecordTradeForm";
+import { TradeJournalPrompt } from "./TradeJournalPrompt";
 import type { TradeType } from "./transactions/transactionForm";
 
 type Props = {
@@ -24,14 +25,18 @@ export function InstrumentTradeSection({ ticker, positions, quoteCurrency }: Pro
   const [side, setSide] = useState<TradeType | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  // The trade just saved, offered for the decision journal (#10488).
+  const [savedTrades, setSavedTrades] = useState<Transaction[] | null>(null);
 
   const open = (next: TradeType) => {
     setSavedMessage(null);
+    setSavedTrades(null);
     setSide(next);
   };
 
-  const handleSaved = (saved: TradeType) => {
+  const handleSaved = (saved: TradeType, transaction: Transaction) => {
     setSide(null);
+    setSavedTrades([transaction]);
     setSavedMessage(
       t("recordTrade.saved", { side: t(saved === "SELL" ? "recordTrade.sell" : "recordTrade.buy"), ticker }),
     );
@@ -51,6 +56,13 @@ export function InstrumentTradeSection({ ticker, positions, quoteCurrency }: Pro
         </button>
       </div>
       {savedMessage && <div role="status">{savedMessage}</div>}
+      {savedTrades?.[0]?.owner && (
+        <TradeJournalPrompt
+          owner={savedTrades[0].owner}
+          trades={savedTrades}
+          onClose={() => setSavedTrades(null)}
+        />
+      )}
       {side && (
         <RecordTradeForm
           key={side}

@@ -537,6 +537,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         setOneYearTwr(result.time_weighted_return ?? null);
       })
       .catch((e) => {
+        // A stale request (unmounted, or slug/as-of changed) is not this
+        // view's failure to report, just as its result is not applied.
+        if (cancelled) return;
         console.warn("One-year TWR unavailable for group", slug, e);
       });
     return () => {

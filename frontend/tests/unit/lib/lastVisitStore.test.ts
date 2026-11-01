@@ -68,14 +68,22 @@ describe('lastVisitStore', () => {
     expect(local()).toEqual({ previous: null, current: NOW });
   });
 
-  it('dismisses on the server, falling back to localStorage when that fails', async () => {
+  it('dismisses on the server without writing a local record', async () => {
     mocks.dismissLastVisit.mockResolvedValue({ stored: true, previous: null, current: 'x' });
     await recordDismissal('family', NOW, 'server');
     expect(local()).toBeNull();
+  });
 
+  it('does not write a local record nothing would read when the server dismissal fails', async () => {
     mocks.dismissLastVisit.mockRejectedValue(new Error('down'));
     await recordDismissal('family', NOW, 'server');
-    expect(local()).toEqual({ previous: null, current: NOW });
+    expect(local()).toBeNull();
     expect(warn).toHaveBeenCalled();
+  });
+
+  it('keeps the dismissal in this browser when the server will not store it', async () => {
+    mocks.dismissLastVisit.mockResolvedValue({ stored: false });
+    await recordDismissal('family', NOW, 'server');
+    expect(local()).toEqual({ previous: null, current: NOW });
   });
 });

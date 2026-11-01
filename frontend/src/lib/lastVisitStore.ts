@@ -97,7 +97,11 @@ export async function recordDismissal(slug: string, now: number, source: VisitSo
       const visit = await dismissLastVisit(slug);
       if (visit.stored) return;
     } catch (err) {
-      console.warn("Could not record the dismissal on the server; using this browser's record", err);
+      // The server holds this visit, so a local record would never be read
+      // back: the next load asks the server, which still has the visit. The
+      // dismissal is lost rather than recorded somewhere nothing reads it.
+      console.warn('Could not record the dismissal on the server', err);
+      return;
     }
   }
   persistLocal(slug, dismissVisitRecord(now));

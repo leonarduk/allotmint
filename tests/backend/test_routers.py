@@ -40,7 +40,7 @@ def test_compliance_routes(monkeypatch):
 
     monkeypatch.setattr(
         "backend.routes.compliance._known_owners",
-        lambda root: KnownOwnerSet(["alice"], active_root_has_entries=True),
+        lambda root, current_user=None: KnownOwnerSet(["alice"], active_root_has_entries=True),
     )
 
     monkeypatch.setattr(

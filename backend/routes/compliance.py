@@ -33,8 +33,13 @@ class KnownOwnerSet(set[str]):
         self.active_root_has_entries = active_root_has_entries
 
 
-def _known_owners(accounts_root) -> KnownOwnerSet:
-    """Return a lower-cased set of known owners for the configured root."""
+def _known_owners(accounts_root, current_user: Optional[str] = None) -> KnownOwnerSet:
+    """Return a lower-cased set of known owners for the configured root.
+
+    ``current_user`` is the caller's identity. With auth enabled
+    ``list_plots`` lists only the owners that user may see and lists nobody
+    without one, so the routes must pass it (#11348).
+    """
 
     owners = KnownOwnerSet()
     active_root_has_entries = False
@@ -69,7 +74,7 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
 
     list_plots_failed = False
     try:
-        entries = data_loader.list_plots(accounts_root)
+        entries = data_loader.list_plots(accounts_root, current_user=current_user)
     except data_loader.ProviderUnavailable:
         raise
     except Exception:
@@ -144,7 +149,7 @@ def compliance_for_owner(owner: str, request: Request, identity: Optional[str] =
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     ensure_owner_access(identity, owner_dir.name if owner_dir else owner, accounts_root)
-    owners = _known_owners(accounts_root)
+    owners = _known_owners(accounts_root, current_user=identity)
     if not owner_dir:
         # AWS owners are discovered from S3 by ``list_plots`` and need not
         # have a directory in Lambda's local filesystem.  Treat the provider
@@ -193,7 +198,7 @@ async def validate_trade(request: Request, identity: Optional[str] = Depends(get
 
     owner_dir = resolve_owner_directory(accounts_root, owner_value)
     ensure_owner_access(identity, owner_dir.name if owner_dir else owner_value, accounts_root)
-    owners = _known_owners(accounts_root)
+    owners = _known_owners(accounts_root, current_user=identity)
     discovered_for_active_root = getattr(owners, "active_root_has_entries", bool(owners))
     scaffold_missing = owner_dir is None
 

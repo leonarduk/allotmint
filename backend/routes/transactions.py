@@ -1649,9 +1649,19 @@ async def import_cost_basis(
                 updated.extend(account_updated)
     except Exception:
         # All or nothing across accounts, like /transactions/import.
+        # One account's failed rollback must not leave the others written, so
+        # each is undone on its own and failures are logged; the original
+        # error is what the caller sees.
         for lot_owner, lot_account, tx_account, start, appended, planned_holdings in reversed(written):
-            _remove_appended(store, lot_owner, tx_account, start, appended)
-            _restore_planned_holdings(store, lot_owner, lot_account, tx_account, planned_holdings)
+            try:
+                _remove_appended(store, lot_owner, tx_account, start, appended)
+                _restore_planned_holdings(store, lot_owner, lot_account, tx_account, planned_holdings)
+            except Exception:
+                logger.exception(
+                    "Could not roll back %s/%s after a failed cost-basis import",
+                    sanitise_log_value(lot_owner),
+                    sanitise_log_value(tx_account),
+                )
         raise
     return {"updated": updated, "skipped": skipped}
 

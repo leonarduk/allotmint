@@ -267,6 +267,35 @@ def test_import_rolls_back_every_account_when_a_rebuild_fails(client, tmp_path, 
         assert _holdings(tmp_path, "testowner", account) == after_rollback
 
 
+def test_one_failed_account_rollback_does_not_skip_the_others(client, tmp_path, monkeypatch):
+    for account, ticker in (("isa", "AAA.L"), ("sipp", "CCC.L"), ("gia", "DDD.L")):
+        _write_account(tmp_path, "testowner", account, [{"ticker": ticker, "units": 1}])
+    real_rebuild = transactions._rebuild_portfolio
+    calls = []
+
+    def flaky_rebuild(owner, account, store):
+        calls.append(account)
+        if account == "gia":
+            raise RuntimeError("boom")  # the import's last account fails
+        if account == "sipp" and calls.count("sipp") == 2:
+            raise RuntimeError("sipp rollback failed")  # its rollback fails too
+        real_rebuild(owner, account, store)
+
+    monkeypatch.setattr(transactions, "_rebuild_portfolio", flaky_rebuild)
+    csv = (
+        "account,ticker,date,units,unit_cost\n"
+        "isa,AAA.L,2020-01-02,1,5\nsipp,CCC.L,2020-01-02,1,7\ngia,DDD.L,2020-01-02,1,9\n"
+    )
+
+    with pytest.raises(RuntimeError, match="^boom$"):
+        _post(client, csv, owner="testowner")
+
+    # sipp's failed rollback is logged, and isa (undone after it) is still rolled back.
+    isa = json.loads((tmp_path / "testowner" / "isa_transactions.json").read_text())
+    assert isa["transactions"] == []
+    assert "cost_basis_gbp" not in _holdings(tmp_path, "testowner", "isa")["AAA.L"]
+
+
 def test_import_raises_the_rebuild_error_when_the_recovery_rebuild_also_fails(client, tmp_path, monkeypatch):
     _write_account(tmp_path, "testowner", "isa", [{"ticker": "AAA.L", "units": 1}])
     calls = []

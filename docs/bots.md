@@ -52,6 +52,10 @@ backend lives in `backend/bots/`; the API in `backend/routes/bots.py`.
   example: the upload route does the work and records one run with a closed,
   counts-only payload, and the bot's `run` catches every exception itself so a
   message that could quote the statement never reaches the run record.
+  `allowance-guardian` (`backend/allowance_guardian/bot.py`) runs for every
+  owner as a background task after a transaction import persists rows
+  (`run_after_import`), unless it is disabled or its `run_after_import`
+  setting is off; it turns each report alert into an owner-scoped digest item.
 - **Run now** (`POST /bots/{id}/run`, admin only): refused with 409 while a
   run is in progress. Locally it runs as a FastAPI background task; on AWS the
   backend invokes the bot's Lambda asynchronously (`BOT_LAMBDA_FUNCTIONS` in

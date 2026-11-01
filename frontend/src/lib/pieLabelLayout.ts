@@ -169,10 +169,12 @@ export function fitPieLabelText(
 ): string | null {
   const padding = options.padding ?? 4;
   const minChars = options.minChars ?? 3;
-  const available =
+  const available = Math.max(
+    0,
     placement.side === 'right'
       ? options.width - padding - placement.x
-      : placement.x - padding;
+      : placement.x - padding
+  );
   const maxChars = Math.floor(available / options.charWidth + EPSILON);
   if (text.length <= maxChars) return text;
   // Reserve one character's width for the ellipsis.

@@ -16,9 +16,11 @@ A file with classified rows is rewritten whole with ``json.dumps`` (2-space
 indent, key order as loaded, whether it ended with a newline kept). A file
 already in that layout shows only the new ``kind`` values in a diff; a
 hand-edited file with other indentation or spacing is reformatted throughout.
-``--dry-run`` reports what would change without writing anything, so check
-those files' layout before a real run. Files with nothing to classify are not
-touched.
+``--dry-run`` reports what would change without writing anything, including
+a separate list of files whose layout differs from that ``json.dumps`` output:
+"would be rewritten and reformatted" when the file has rows to classify, or
+"would be reformatted if written" when it has none (and so is left alone).
+Files with nothing to classify are not touched.
 
 Usage::
 
@@ -40,6 +42,10 @@ _SUFFIX = "_transactions.json"
 
 
 def _account_name(path: Path, data: Dict[str, Any]) -> str:
+    """The first non-blank string of ``account_type`` then ``account``, else the file name.
+
+    Empty, whitespace-only and non-string values count as absent.
+    """
     for key in ("account_type", "account"):
         value = data.get(key)
         if isinstance(value, str) and value.strip():
@@ -68,20 +74,25 @@ def _classify_rows(rows: List[Dict[str, Any]], account: str) -> Tuple[Counter, L
     return added, unclassified
 
 
-def _process(path: Path, dry_run: bool) -> Tuple[Counter, List[Tuple[int, Dict[str, Any]]]]:
+def _serialize(data: Any, raw: str) -> str:
+    """The text a rewrite writes: 2-space indent, keeping whether ``raw`` ended with a newline."""
+    return json.dumps(data, indent=2, ensure_ascii=False) + ("\n" if raw.endswith("\n") else "")
+
+
+def _process(path: Path, dry_run: bool) -> Tuple[Counter, List[Tuple[int, Dict[str, Any]]], bool]:
+    """Classify one file; return kinds set, cash rows left unclassified, and whether its layout would change."""
     raw = path.read_text(encoding="utf-8")
     data = json.loads(raw)
     transactions = data.get("transactions") if isinstance(data, dict) else None
     if not isinstance(transactions, list):
-        return Counter(), []
+        return Counter(), [], False
+    # Compared before classification so only layout differences count, not new kinds.
+    reformat = _serialize(data, raw) != raw
     rows = [tx for tx in transactions if isinstance(tx, dict)]
     added, unclassified = _classify_rows(rows, _account_name(path, data))
     if added and not dry_run:
-        # Same layout as the data files (2-space indent), keeping whether the
-        # file ended with a newline; see the module docstring.
-        text = json.dumps(data, indent=2, ensure_ascii=False) + ("\n" if raw.endswith("\n") else "")
-        path.write_text(text, encoding="utf-8")
-    return added, unclassified
+        path.write_text(_serialize(data, raw), encoding="utf-8")
+    return added, unclassified, reformat
 
 
 def _describe(index: int, tx: Dict[str, Any]) -> str:
@@ -99,6 +110,13 @@ def _report(rel: Path, added: Counter, unclassified: List[Tuple[int, Dict[str, A
             print(_describe(index, tx))
 
 
+def _report_layout(reformatted: List[Tuple[Path, bool]]) -> None:
+    print(f"{len(reformatted)} file(s) whose layout would be reformatted (not in json.dumps indent=2 layout)")
+    for rel, written in reformatted:
+        status = "would be rewritten and reformatted" if written else "would be reformatted if written (not written)"
+        print(f"  {rel}: {status}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("accounts_root", type=Path, help="Directory holding one folder per owner")
@@ -110,12 +128,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     verb = "would be classified" if args.dry_run else "classified"
     total, left = 0, 0
+    reformatted: List[Tuple[Path, bool]] = []
     for path in sorted(args.accounts_root.glob(f"*/*{_SUFFIX}")):
-        added, unclassified = _process(path, args.dry_run)
-        _report(path.relative_to(args.accounts_root), added, unclassified, verb)
+        rel = path.relative_to(args.accounts_root)
+        added, unclassified, reformat = _process(path, args.dry_run)
+        _report(rel, added, unclassified, verb)
         total += sum(added.values())
         left += len(unclassified)
+        if reformat:
+            reformatted.append((rel, bool(added)))
     print(f"{total} row(s) {verb} in total; {left} cash row(s) left unclassified")
+    if args.dry_run:
+        _report_layout(reformatted)
     return 0
 
 

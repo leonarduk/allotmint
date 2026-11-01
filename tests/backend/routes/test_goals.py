@@ -69,6 +69,7 @@ def test_get_goal_returns_progress_and_trades(monkeypatch, fake_goal_class):
     fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
 
     monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    monkeypatch.setattr(goals, "load_goal_history", lambda owner, name: [])
 
     expected_trades = [{"symbol": "goal", "action": "buy", "amount": 100.0}]
 
@@ -81,7 +82,96 @@ def test_get_goal_returns_progress_and_trades(monkeypatch, fake_goal_class):
 
     assert response.progress == pytest.approx(0.25)
     assert response.trades == expected_trades
-    assert response.model_dump(exclude={"progress", "trades"}) == fake.to_dict()
+    assert response.current_amount == 500.0
+    assert response.projection["status"] == "insufficient_history"
+    assert response.model_dump(exclude={"progress", "trades", "current_amount", "projection"}) == fake.to_dict()
+
+
+def test_get_goal_without_amount_or_history_leaves_progress_unknown(monkeypatch, fake_goal_class):
+    fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    monkeypatch.setattr(goals, "load_goal_history", lambda owner, name: [])
+
+    response = goals._get_goal("owner", "Emergency")
+
+    # Unknown is not the same as zero (#7829).
+    assert response.progress is None
+    assert response.current_amount is None
+    assert response.trades is None
+    assert response.projection["status"] == "insufficient_history"
+
+
+def test_get_goal_falls_back_to_latest_recorded_amount_and_projects(monkeypatch, fake_goal_class):
+    fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
+    history = [(datetime.date(2026, 1, 1), 200.0), (datetime.date(2026, 3, 2), 500.0)]
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    monkeypatch.setattr(goals, "load_goal_history", lambda owner, name: history)
+
+    response = goals._get_goal("owner", "Emergency")
+
+    assert response.current_amount == 500.0
+    assert response.progress == pytest.approx(0.25)
+    assert response.projection["status"] == "projected"
+    assert response.projection["projected_date"] == "2026-12-27"
+    assert response.projection["on_track"] is True
+
+
+def test_get_goal_supplied_amount_drives_progress_but_not_projection(monkeypatch, fake_goal_class):
+    """A supplied ``current_amount`` drives progress/trades; the projection uses only history (#11185)."""
+    fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
+    history = [(datetime.date(2026, 1, 1), 200.0), (datetime.date(2026, 3, 2), 500.0)]
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    monkeypatch.setattr(goals, "load_goal_history", lambda owner, name: history)
+    trade_inputs = []
+
+    def fake_suggest_trades(actual, target):
+        trade_inputs.append(actual)
+        return [{"symbol": "goal", "amount": actual["goal"]}]
+
+    monkeypatch.setattr(goals, "suggest_trades", fake_suggest_trades)
+
+    baseline = goals._get_goal("owner", "Emergency")
+    # Far above the latest recorded 500.0: fed into the projection, it would
+    # move the projected date well before the history-based 2026-12-27.
+    response = goals._get_goal("owner", "Emergency", current_amount=1500.0)
+
+    assert response.current_amount == 1500.0
+    assert response.progress == pytest.approx(0.75)
+    assert trade_inputs[-1] == {"goal": 1500.0, "cash": 500.0}
+    assert response.trades == [{"symbol": "goal", "amount": 1500.0}]
+    assert response.projection == baseline.projection
+    assert response.projection["status"] == "projected"
+    assert response.projection["projected_date"] == "2026-12-27"
+    assert response.projection["on_track"] is True
+
+
+def test_record_progress_stores_snapshot_and_returns_detail(monkeypatch, fake_goal_class):
+    fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    recorded = []
+
+    def fake_record(owner, name, amount, on):
+        recorded.append((owner, name, amount, on))
+        return [(on, amount)]
+
+    monkeypatch.setattr(goals, "record_goal_amount", fake_record)
+
+    payload = goals.ProgressPayload(amount=800.0, on=datetime.date(2026, 5, 1))
+    response = goals._record_progress("owner", "Emergency", payload)
+
+    assert recorded == [("owner", "Emergency", 800.0, datetime.date(2026, 5, 1))]
+    assert response.progress == pytest.approx(0.4)
+    assert response.projection["status"] == "insufficient_history"
+    assert response.projection["points"] == 1
+
+
+def test_record_progress_missing_goal_raises_404(monkeypatch):
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [])
+
+    with pytest.raises(HTTPException) as exc:
+        goals._record_progress("owner", "Missing", goals.ProgressPayload(amount=1.0))
+
+    assert exc.value.status_code == 404
 
 
 def test_get_goal_missing_raises_404(monkeypatch):
@@ -104,6 +194,8 @@ def test_update_goal_replaces_goal_and_saves(monkeypatch, fake_goal_class):
         saved.goals = goals_list
 
     monkeypatch.setattr(goals, "save_goals", fake_save_goals)
+    renamed = []
+    monkeypatch.setattr(goals, "rename_goal_history", lambda owner, old, new: renamed.append((owner, old, new)))
 
     payload = goals.GoalPayload(
         name="Updated",
@@ -121,6 +213,106 @@ def test_update_goal_replaces_goal_and_saves(monkeypatch, fake_goal_class):
     assert saved_goal.target_amount == payload.target_amount
     assert saved_goal.target_date == payload.target_date
     assert result == payload
+    assert renamed == [("demo-owner", "Old", "Updated")]
+
+
+def test_update_goal_moves_history_back_when_save_fails(monkeypatch, fake_goal_class):
+    existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])
+    renamed = []
+    monkeypatch.setattr(goals, "rename_goal_history", lambda owner, old, new: renamed.append((old, new)))
+
+    def failing_save(owner, goals_list):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(goals, "save_goals", failing_save)
+    payload = goals.GoalPayload(name="New", target_amount=1.0, target_date=datetime.date(2031, 1, 1))
+
+    with pytest.raises(OSError):
+        goals._update_goal("demo-owner", "Old", payload)
+
+    # History moved first, then restored, so it still matches the unsaved goal.
+    assert renamed == [("Old", "New"), ("New", "Old")]
+
+
+def test_update_goal_failed_rollback_logs_and_reraises_original_error(monkeypatch, fake_goal_class, caplog):
+    existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])
+    renamed = []
+
+    def rename(owner, old, new):
+        renamed.append((old, new))
+        if len(renamed) > 1:
+            raise RuntimeError("rollback failed")
+
+    def failing_save(owner, goals_list):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(goals, "rename_goal_history", rename)
+    monkeypatch.setattr(goals, "save_goals", failing_save)
+    payload = goals.GoalPayload(name="New", target_amount=1.0, target_date=datetime.date(2031, 1, 1))
+
+    with caplog.at_level("ERROR", logger=goals.logger.name):
+        with pytest.raises(OSError, match="disk full"):
+            goals._update_goal("demo-owner", "Old", payload)
+
+    assert renamed == [("Old", "New"), ("New", "Old")]
+    record = next(r for r in caplog.records if "Failed to move goal history back" in r.getMessage())
+    assert "New" in record.getMessage() and "Old" in record.getMessage()
+    assert record.exc_info is not None
+
+
+def test_update_goal_repoint_failure_logs_goal_and_history_key(monkeypatch, fake_goal_class, caplog):
+    """Save, rollback and re-point all fail: the original error surfaces with a repair log (#11184)."""
+    existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])
+    renamed = []
+    saves = []
+
+    def rename(owner, old, new):
+        renamed.append((old, new))
+        if len(renamed) > 1:
+            raise RuntimeError("rollback failed")
+
+    def failing_save(owner, goals_list):
+        saves.append([g.name for g in goals_list])
+        raise OSError(f"disk full #{len(saves)}")
+
+    monkeypatch.setattr(goals, "rename_goal_history", rename)
+    monkeypatch.setattr(goals, "save_goals", failing_save)
+    payload = goals.GoalPayload(name="New", target_amount=1.0, target_date=datetime.date(2031, 1, 1))
+
+    with caplog.at_level("ERROR", logger=goals.logger.name):
+        with pytest.raises(OSError, match="disk full #1"):
+            goals._update_goal("demo-owner", "Old", payload)
+
+    # The re-point retried saving the goal under the history's (new) name.
+    assert saves == [["New"], ["New"]]
+    record = next(r for r in caplog.records if "diverged" in r.getMessage())
+    message = record.getMessage()
+    assert "goal is still saved as Old" in message
+    assert "history is stored under New" in message
+    assert record.exc_info is not None
+
+
+def test_update_goal_history_conflict_becomes_409_without_saving(monkeypatch, fake_goal_class):
+    existing = fake_goal_class("Old", 3000.0, datetime.date(2030, 12, 31))
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [existing])
+
+    def conflicting_rename(owner, old, new):
+        raise goals.GoalHistoryConflict("taken")
+
+    def fail_save(owner, goals_list):  # pragma: no cover - safety guard
+        pytest.fail("goal should not be saved")
+
+    monkeypatch.setattr(goals, "rename_goal_history", conflicting_rename)
+    monkeypatch.setattr(goals, "save_goals", fail_save)
+    payload = goals.GoalPayload(name="New", target_amount=1.0, target_date=datetime.date(2031, 1, 1))
+
+    with pytest.raises(HTTPException) as exc:
+        goals._update_goal("demo-owner", "Old", payload)
+
+    assert exc.value.status_code == 409
 
 
 def test_update_goal_missing_raises_404(monkeypatch):

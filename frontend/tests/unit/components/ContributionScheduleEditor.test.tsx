@@ -76,6 +76,11 @@ describe("ContributionScheduleEditor", () => {
     render(<ContributionScheduleEditor owner="alex" onSaved={onSaved} />);
 
     const amount = await screen.findByDisplayValue("2500.00");
+    // Action buttons use the dedicated border token, not the muted text token (#11190).
+    for (const name of ["Add contribution", "Save schedule"]) {
+      expect(screen.getByRole("button", { name })).toHaveClass("border-[var(--surface-muted-border)]");
+      expect(screen.getByRole("button", { name })).not.toHaveClass("border-[var(--surface-muted-color)]");
+    }
     await user.clear(amount);
     await user.type(amount, "0.1");
     await user.click(screen.getByRole("button", { name: "Add contribution" }));

@@ -7,9 +7,9 @@ interface Props {
 export default function BackendUnavailableCard({ onRetry }: Props) {
   const { t } = useTranslation();
   return (
-    <div className="mx-auto my-8 max-w-[400px] rounded-lg border border-gray-300 p-4 text-center">
+    <div className="mx-auto my-8 max-w-[400px] rounded-lg border border-[var(--surface-card-border)] p-4 text-center">
       <h2>{t("backendUnavailable.title")}</h2>
-      <p className="mb-4 text-gray-600">
+      <p className="mb-4 text-[var(--surface-muted-color)]">
         {t("backendUnavailable.message")}
       </p>
       <div className="mb-4">

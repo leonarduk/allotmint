@@ -91,21 +91,21 @@ export default function RetirementReadinessCard({ owner }: { owner: string }) {
   return (
     <section
       aria-labelledby="retirement-readiness-heading"
-      className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+      className="space-y-4 rounded-3xl border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-6 shadow-sm"
       data-testid="retirement-readiness-card"
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h2
             id="retirement-readiness-heading"
-            className="text-2xl font-semibold text-slate-900"
+            className="text-2xl font-semibold text-[var(--surface-card-color)]"
           >
             {t(
               'retirementReadiness.heading',
               'Retirement readiness: historical drawdown test'
             )}
           </h2>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-[var(--surface-muted-color)]">
             {t(
               'retirementReadiness.description',
               "The projected pot replayed through every historical sequence of returns since 1871, in today's money."
@@ -129,7 +129,7 @@ export default function RetirementReadinessCard({ owner }: { owner: string }) {
         </p>
       )}
       {!report && !error && (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-[var(--surface-muted-color)]">
           {t(
             'retirementReadiness.empty',
             'No readiness report yet. Run it to replay the historical windows.'
@@ -138,14 +138,14 @@ export default function RetirementReadinessCard({ owner }: { owner: string }) {
       )}
       {report && simulation && (
         <>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-[var(--surface-muted-color)]">
             {t('retirementReadiness.runDate', 'Last run {{date}}', {
               date: report.run_date,
             })}
           </p>
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-600">
+              <tr className="text-left text-[var(--surface-muted-color)]">
                 <th className="py-1 pr-4 font-medium">
                   {t('retirementReadiness.survival', 'Windows survived')}
                 </th>
@@ -168,7 +168,7 @@ export default function RetirementReadinessCard({ owner }: { owner: string }) {
               ))}
             </tbody>
           </table>
-          <ul className="space-y-1 text-sm text-slate-700">
+          <ul className="space-y-1 text-sm text-[var(--surface-muted-color)]">
             {(['worst', 'median', 'best'] as const).map((name) => {
               const row = simulation[name];
               if (!row) return null;
@@ -193,7 +193,7 @@ export default function RetirementReadinessCard({ owner }: { owner: string }) {
           </ul>
           {report.attribution && (
             <p
-              className="text-sm text-slate-700"
+              className="text-sm text-[var(--surface-muted-color)]"
               data-testid="retirement-readiness-attribution"
             >
               {t('retirementReadiness.change', 'Since {{date}}: {{change}}', {
@@ -264,21 +264,21 @@ export default function RetirementReadinessCard({ owner }: { owner: string }) {
           {/* The template narrative repeats the figures and caveats shown here; only a model summary adds anything. */}
           {report.narrative.source === 'llm' && (
             <p
-              className="whitespace-pre-line text-sm text-slate-700"
+              className="whitespace-pre-line text-sm text-[var(--surface-muted-color)]"
               data-testid="retirement-readiness-narrative"
             >
               {report.narrative.text}
             </p>
           )}
           {report.results.data_notes.length > 0 && (
-            <ul className="list-disc space-y-1 pl-5 text-xs text-slate-500">
+            <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--surface-muted-color)]">
               {report.results.data_notes.map((note) => (
                 <li key={note}>{note}</li>
               ))}
             </ul>
           )}
           <ul
-            className="space-y-1 text-xs text-slate-500"
+            className="space-y-1 text-xs text-[var(--surface-muted-color)]"
             aria-label={t('retirementReadiness.caveatsLabel', 'Caveats')}
           >
             {report.caveats.map((caveat) => (

@@ -564,7 +564,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         </h1>
         <RelativeViewToggle />
       </div>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-[var(--surface-muted-color)]">
         {t("allocation.allocationDescription")}{" "}
         <Link
           className="text-blue-600 underline"
@@ -611,7 +611,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         </label>
       )}
       {isLookThroughView && (
-        <p className="mb-2 text-sm text-gray-600" data-testid="look-through-note">
+        <p className="mb-2 text-sm text-[var(--surface-muted-color)]" data-testid="look-through-note">
           {t("lookThrough.note")}
         </p>
       )}
@@ -623,12 +623,12 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         />
       )}
       {isCurrencyView && (
-        <p className="mb-4 text-sm text-gray-600" data-testid="currency-exposure-note">
+        <p className="mb-4 text-sm text-[var(--surface-muted-color)]" data-testid="currency-exposure-note">
           {t("allocation.currencyNote")}
         </p>
       )}
       {view === "region" && (
-        <div className="mb-4 text-sm text-gray-600" data-testid="region-exposure-note">
+        <div className="mb-4 text-sm text-[var(--surface-muted-color)]" data-testid="region-exposure-note">
           <p>{t("allocation.regionNote")}</p>
           {Object.entries(domicileDiffs)
             .sort(([a], [b]) => a.localeCompare(b))
@@ -643,7 +643,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         </div>
       )}
       {view === "sleeve" && (
-        <p className="mb-4 text-sm text-gray-600" data-testid="sleeve-note">
+        <p className="mb-4 text-sm text-[var(--surface-muted-color)]" data-testid="sleeve-note">
           {t("allocation.sleeveNote")}
         </p>
       )}
@@ -743,7 +743,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
           ) : (
             <div
               data-testid="allocation-chart-fallback"
-              className="flex h-full items-center justify-center rounded border border-dashed border-gray-300 bg-gray-50 p-4 text-center text-sm text-gray-600"
+              className="flex h-full items-center justify-center rounded border border-dashed border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 text-center text-sm text-[var(--surface-muted-color)]"
             >
               {t("allocation.chartsUnavailable", {
                 defaultValue: "Charts are unavailable in this environment.",

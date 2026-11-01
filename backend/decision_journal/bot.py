@@ -114,9 +114,7 @@ class DecisionJournalBot:
     kind: BotKind = "rules"
     scope: BotScope = "system"
     settings_model: type[BotSettings] = BotSettings
-    # No EventBridge rule or Lambda yet: it runs from the Bots page's Run now (locally)
-    # and POST /decision-journal/{owner}/run.
-    default_schedule: Optional[Schedule] = None
+    default_schedule: Optional[Schedule] = Schedule(hour=3)  # cdk DailyDecisionJournalRun
     timeout_minutes = 15
 
     def default_settings(self) -> dict[str, Any]:

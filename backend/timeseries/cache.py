@@ -188,10 +188,15 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     # entirely when there is nothing to parse; only fall back to
     # `pd.to_datetime` for inputs that genuinely need parsing (raw strings,
     # ``datetime.date`` objects, etc.).
-    if pd.api.types.is_datetime64_any_dtype(df["Date"]):
-        dates = df["Date"]
+    # ``df["Date"]`` builds a fresh Series on every access (no item cache
+    # under pandas 3 copy-on-write), so hold one reference: the identity check
+    # below would otherwise always see a "changed" column and rewrite it on
+    # every call (#8105).
+    original_dates = df["Date"]
+    if pd.api.types.is_datetime64_any_dtype(original_dates):
+        dates = original_dates
     else:
-        dates = pd.to_datetime(df["Date"], errors="coerce")
+        dates = pd.to_datetime(original_dates, errors="coerce")
     # Strip timezone info before casting: .astype("datetime64[ms]") raises
     # TypeError on tz-aware Series. All callers in this module produce tz-naive
     # timestamps, but this guard future-proofs against upstream tz-aware feeds.
@@ -215,7 +220,7 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     # 64-row sliced frame -- see #8137).
     if dates.dtype != "datetime64[ms]":
         df["Date"] = dates.astype("datetime64[ms]")
-    elif dates is not df["Date"]:
+    elif dates is not original_dates:
         df["Date"] = dates
     if df["Date"].hasnans:
         df = df.dropna(subset=["Date"])
@@ -423,8 +428,17 @@ _EPOCH_DATE = pd.Timestamp("1970-01-01")
 
 
 def _pre_epoch_mask(df: pd.DataFrame) -> np.ndarray:
-    """True for rows whose ``Date`` is on or before :data:`_EPOCH_DATE` (#10024)."""
-    return (pd.to_datetime(df["Date"], errors="coerce") <= _EPOCH_DATE).to_numpy()
+    """True for rows whose ``Date`` is on or before :data:`_EPOCH_DATE` (#10024).
+
+    A column that is already ``datetime64`` is compared as-is: ``pd.to_datetime``
+    would return the same values but first iterates every row in its
+    ``should_cache`` heuristic, which made this the largest single cost of a
+    warm-cache fill on long histories (#8105, same trap as #8095).
+    """
+    dates = df["Date"]
+    if not pd.api.types.is_datetime64_any_dtype(dates):
+        dates = pd.to_datetime(dates, errors="coerce")
+    return (dates <= _EPOCH_DATE).to_numpy()
 
 
 def _without_pre_epoch_rows(df: pd.DataFrame) -> pd.DataFrame:

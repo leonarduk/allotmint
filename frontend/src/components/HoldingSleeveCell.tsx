@@ -30,12 +30,15 @@ const stop = (event: MouseEvent) => event.stopPropagation();
 export function SleeveSelect({
   control,
   ticker,
-  label,
+  labelledBy,
 }: {
   control: SleeveControl;
   ticker: string;
-  /** Accessible name; defaults to "Sleeve for <ticker>". */
-  label?: string;
+  /**
+   * Id of a visible element naming the select. Without it the select is
+   * named "Sleeve for <ticker>" via aria-label.
+   */
+  labelledBy?: string;
 }) {
   const { t } = useTranslation();
   const { demoReadOnly, reason } = useDemoReadOnly();
@@ -58,7 +61,8 @@ export function SleeveSelect({
     <>
       <select
         className="rounded border p-1"
-        aria-label={label ?? t("sleeves.assign.sleeveFor", { ticker })}
+        aria-label={labelledBy ? undefined : t("sleeves.assign.sleeveFor", { ticker })}
+        aria-labelledby={labelledBy}
         value={sleeveOf(control, ticker)}
         disabled={busy || demoReadOnly}
         title={reason()}

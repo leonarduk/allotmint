@@ -344,7 +344,7 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
         <Modal
           onClose={() => setPreview(null)}
           labelledBy="dq-preview-title"
-          className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-lg bg-white p-6 text-slate-900"
+          className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-lg bg-[var(--surface-card-bg)] p-6 text-[var(--surface-card-color)]"
         >
           <h3 id="dq-preview-title" className="mb-2 text-lg font-semibold">
             {t("dataQuality.admin.issues.previewTitle", { type: preview.type })}
@@ -353,15 +353,15 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
           <div className="mb-4 grid grid-cols-2 gap-4">
             <div>
               <h4 className="mb-1 text-sm font-semibold">{t("dataQuality.admin.issues.before")}</h4>
-              <pre className="overflow-auto rounded bg-gray-100 p-2 text-xs">{JSON.stringify(preview.preview.before ?? {}, null, 2)}</pre>
+              <pre className="overflow-auto rounded bg-[var(--surface-muted-bg)] p-2 text-xs">{JSON.stringify(preview.preview.before ?? {}, null, 2)}</pre>
             </div>
             <div>
               <h4 className="mb-1 text-sm font-semibold">{t("dataQuality.admin.issues.after")}</h4>
-              <pre className="overflow-auto rounded bg-gray-100 p-2 text-xs">{JSON.stringify(preview.preview.after ?? {}, null, 2)}</pre>
+              <pre className="overflow-auto rounded bg-[var(--surface-muted-bg)] p-2 text-xs">{JSON.stringify(preview.preview.after ?? {}, null, 2)}</pre>
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" className="rounded border border-slate-300 bg-white px-4 py-2 text-slate-900 hover:bg-slate-100 disabled:opacity-50" onClick={() => setPreview(null)}>
+            <button type="button" className="rounded border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] px-4 py-2 text-[var(--surface-card-color)] hover:bg-[var(--menu-hover-bg)] disabled:opacity-50" onClick={() => setPreview(null)}>
               {t("dataQuality.admin.issues.actions.close")}
             </button>
             {preview.fixable && (
@@ -381,7 +381,7 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
         <Modal
           onClose={() => setConfirming(null)}
           labelledBy="dq-confirm-title"
-          className="w-full max-w-md rounded-lg bg-white p-6 text-slate-900"
+          className="w-full max-w-md rounded-lg bg-[var(--surface-card-bg)] p-6 text-[var(--surface-card-color)]"
         >
           <h3 id="dq-confirm-title" className="mb-2 text-lg font-semibold">
             {t("dataQuality.admin.issues.actions.confirmTitle")}
@@ -389,7 +389,7 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
           <p className="mb-2 text-sm">{confirming.suggested_fix}</p>
           <p className="mb-4 text-xs opacity-70">{t("dataQuality.admin.issues.actions.confirmBody")}</p>
           <div className="flex justify-end gap-2">
-            <button type="button" className="rounded border border-slate-300 bg-white px-4 py-2 text-slate-900 hover:bg-slate-100 disabled:opacity-50" onClick={() => setConfirming(null)}>
+            <button type="button" className="rounded border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] px-4 py-2 text-[var(--surface-card-color)] hover:bg-[var(--menu-hover-bg)] disabled:opacity-50" onClick={() => setConfirming(null)}>
               {t("dataQuality.admin.issues.actions.cancel")}
             </button>
             <button
@@ -756,7 +756,7 @@ export default function DataQuality() {
             tabIndex={tab === item.id ? 0 : -1}
             onClick={() => setTab(item.id)}
             onKeyDown={(e) => handleTabKeyDown(e, index)}
-            className={tab === item.id ? "rounded bg-blue-700 px-3 py-1 text-white" : "rounded bg-gray-200 px-3 py-1"}
+            className={tab === item.id ? "rounded bg-blue-700 px-3 py-1 text-white" : "rounded bg-[var(--surface-muted-bg)] px-3 py-1"}
           >
             {item.label}
           </button>

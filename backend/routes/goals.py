@@ -1,14 +1,29 @@
+import logging
+import math
 from datetime import date
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.auth import get_current_user
-from backend.common.goals import Goal, add_goal, delete_goal, load_goals, save_goals
+from backend.common.goal_projection import project_completion
+from backend.common.goals import (
+    Goal,
+    GoalHistoryConflict,
+    add_goal,
+    delete_goal,
+    load_goal_history,
+    load_goals,
+    record_goal_amount,
+    rename_goal_history,
+    save_goals,
+)
 from backend.common.rebalance import suggest_trades
 from backend.config import config, demo_identity
+from backend.logging_setup import sanitise_log_value
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/goals", tags=["goals"])
 DEMO_OWNER = demo_identity()
 
@@ -20,8 +35,22 @@ class GoalPayload(BaseModel):
 
 
 class GoalResponse(GoalPayload):
+    # ``progress`` and ``current_amount`` are None when the amount saved is
+    # unknown, so the UI never shows a misleading 0% (#7829).
     progress: float | None = None
+    current_amount: float | None = None
     trades: List[dict] | None = None
+    # Built only from *recorded* history (POST /goals/{name}/progress); an
+    # ad-hoc ``current_amount`` on GET drives progress but never the projection.
+    projection: dict | None = None
+
+
+class ProgressPayload(BaseModel):
+    # Validated in ``_record_progress``: a pydantic constraint would echo inf/nan
+    # back in the 422 body, which FastAPI then fails to JSON-encode.
+    amount: float
+    # Defaults to today when omitted.
+    on: date | None = None
 
 
 def _list_goals(owner: str) -> List[GoalPayload]:
@@ -35,23 +64,148 @@ def _create_goal(owner: str, payload: GoalPayload) -> GoalPayload:
     return GoalPayload.model_validate(goal.to_dict())
 
 
-def _get_goal(owner: str, name: str, current_amount: float) -> GoalResponse:
-    goals = load_goals(owner)
-    for g in goals:
+def _find_goal(owner: str, name: str) -> Goal:
+    for g in load_goals(owner):
         if g.name == name:
-            progress = g.progress(current_amount)
-            actual = {"goal": current_amount, "cash": max(g.target_amount - current_amount, 0.0)}
-            trades = suggest_trades(actual, {"goal": 1.0})
-            return GoalResponse.model_validate({**g.to_dict(), "progress": progress, "trades": trades})
+            return g
     raise HTTPException(status_code=404, detail="Goal not found")
+
+
+def _goal_response(goal: Goal, current_amount: float | None, history: List[tuple[date, float]]) -> GoalResponse:
+    """Build the detail response; an omitted amount falls back to the latest recorded one."""
+    if current_amount is None and history:
+        current_amount = history[-1][1]
+    progress = trades = None
+    if current_amount is not None:
+        progress = goal.progress(current_amount)
+        actual = {"goal": current_amount, "cash": max(goal.target_amount - current_amount, 0.0)}
+        trades = suggest_trades(actual, {"goal": 1.0})
+    projection = project_completion(history, goal.target_amount, goal.target_date).to_dict()
+    return GoalResponse.model_validate(
+        {
+            **goal.to_dict(),
+            "progress": progress,
+            "current_amount": current_amount,
+            "trades": trades,
+            "projection": projection,
+        }
+    )
+
+
+def _get_goal(owner: str, name: str, current_amount: float | None = None) -> GoalResponse:
+    goal = _find_goal(owner, name)
+    return _goal_response(goal, current_amount, load_goal_history(owner, name))
+
+
+def _record_progress(owner: str, name: str, payload: ProgressPayload) -> GoalResponse:
+    # inf/nan would be persisted as non-standard JSON and poison the projection.
+    if not math.isfinite(payload.amount) or payload.amount < 0:
+        raise HTTPException(status_code=422, detail="amount must be a finite number of zero or more")
+    on = payload.on or date.today()
+    if on > date.today():
+        raise HTTPException(status_code=422, detail="progress cannot be recorded for a future date")
+    goal = _find_goal(owner, name)
+    # Accepted risk (#11186): record_goal_amount reads the whole history store
+    # (one JSON document holding every user's goals), adds this snapshot and
+    # writes the document back, with no version check. Two overlapping requests
+    # (e.g. concurrent Lambda invocations, for the same or *different* users)
+    # can both read the same document; whichever writes last silently drops the
+    # snapshot the other one wrote first, although that other request already
+    # answered 200 with it included. We accept this because progress is recorded by hand, one
+    # click at a time, so overlapping writes are rare. A lost snapshot only
+    # thins the projection's input, and the user can record it again. Neither
+    # the goal definition nor its target is affected. The store may be a file,
+    # S3 or SSM, so there is no backend-neutral conditional write; if the
+    # history moves to S3 under real concurrency, guard the save with an
+    # ETag If-Match put and a bounded retry. Pinned by
+    # tests/common/test_goals.py::test_record_goal_amount_interleaved_writes_lose_earlier_snapshot.
+    history = record_goal_amount(owner, name, payload.amount, on)
+    return _goal_response(goal, payload.amount, history)
+
+
+_NAME_CONFLICT = "Another goal already uses that name"
+
+
+def _restore_history_name(owner: str, new: str, old: str) -> bool:
+    """Best-effort rollback of a history rename; never masks the caller's error.
+
+    Returns whether the history is back under ``old``.
+    """
+    try:
+        rename_goal_history(owner, new, old)
+    except Exception:
+        logger.exception(
+            "Failed to move goal history back from %s to %s; it may now be stored under %s",
+            sanitise_log_value(new),
+            sanitise_log_value(old),
+            sanitise_log_value(new),
+        )
+        return False
+    return True
+
+
+def _repoint_goal_to_history(owner: str, goals: List[Goal], old: str, new: str) -> bool:
+    """Retry saving the renamed goal so it matches its history, now under ``new``.
+
+    Returns whether the save succeeded. On failure, logs what has diverged and
+    how to reconcile it by hand.
+    """
+    try:
+        save_goals(owner, goals)
+    except Exception:
+        logger.exception(
+            "Goal and history diverged: goal is still saved as %s but its history is stored under %s; "
+            "repair by renaming the history key %s back to %s, or the goal to %s",
+            sanitise_log_value(old),
+            sanitise_log_value(new),
+            sanitise_log_value(new),
+            sanitise_log_value(old),
+            sanitise_log_value(new),
+        )
+        return False
+    logger.warning(
+        "Rename of goal %s to %s completed by re-saving the goal after its history rollback failed",
+        sanitise_log_value(old),
+        sanitise_log_value(new),
+    )
+    return True
+
+
+def _recover_failed_save(owner: str, goals: List[Goal], old: str, new: str) -> bool:
+    """Keep goal and history together after ``save_goals`` failed mid-rename.
+
+    Returns ``True`` only when the update ended up saved (rollback failed, but
+    re-saving the goal under ``new`` succeeded). ``False`` means the caller
+    must re-raise the original error.
+    """
+    if _restore_history_name(owner, new, old):
+        return False
+    return _repoint_goal_to_history(owner, goals, old, new)
 
 
 def _update_goal(owner: str, name: str, payload: GoalPayload) -> GoalPayload:
     goals = load_goals(owner)
     for idx, g in enumerate(goals):
         if g.name == name:
+            # Renaming onto another goal would merge the two and clobber its history.
+            if payload.name != name and any(o.name == payload.name for o in goals):
+                raise HTTPException(status_code=409, detail=_NAME_CONFLICT)
             goals[idx] = Goal(payload.name, payload.target_amount, payload.target_date)
-            save_goals(owner, goals)
+            # Move the history first so a failure there leaves the goal untouched.
+            # If saving the goal then fails, move the history back. If that
+            # rollback also fails, the history is stranded under the new name, so
+            # retry saving the goal under it: success completes the update, and
+            # failure re-raises the original error after logging both names so
+            # the split can be repaired by hand (#11184).
+            try:
+                rename_goal_history(owner, name, payload.name)
+            except GoalHistoryConflict as exc:
+                raise HTTPException(status_code=409, detail=_NAME_CONFLICT) from exc
+            try:
+                save_goals(owner, goals)
+            except Exception:
+                if not _recover_failed_save(owner, goals, name, payload.name):
+                    raise
             return GoalPayload(**payload.model_dump())
     raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -75,8 +229,12 @@ if config.disable_auth:
         return _create_goal(DEMO_OWNER, payload)
 
     @router.get("/{name}")
-    def get_goal(name: str, current_amount: float) -> GoalResponse:
+    def get_goal(name: str, current_amount: float | None = Query(None, allow_inf_nan=False)) -> GoalResponse:
         return _get_goal(DEMO_OWNER, name, current_amount)
+
+    @router.post("/{name}/progress")
+    def record_progress(name: str, payload: ProgressPayload) -> GoalResponse:
+        return _record_progress(DEMO_OWNER, name, payload)
 
     @router.put("/{name}")
     def update_goal(name: str, payload: GoalPayload) -> GoalPayload:
@@ -103,9 +261,17 @@ else:
 
     @router.get("/{name}")
     def get_goal(  # type: ignore[misc]
-        name: str, current_amount: float, current_user: str = Depends(get_current_user)
+        name: str,
+        current_amount: float | None = Query(None, allow_inf_nan=False),
+        current_user: str = Depends(get_current_user),
     ) -> GoalResponse:
         return _get_goal(current_user, name, current_amount)
+
+    @router.post("/{name}/progress")
+    def record_progress(  # type: ignore[misc]
+        name: str, payload: ProgressPayload, current_user: str = Depends(get_current_user)
+    ) -> GoalResponse:
+        return _record_progress(current_user, name, payload)
 
     @router.put("/{name}")
     def update_goal(  # type: ignore[misc]

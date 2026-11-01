@@ -17,6 +17,7 @@ from backend.config import config
 from backend.decision_journal import bot as bot_mod
 from backend.decision_journal import entries as entries_mod
 from backend.decision_journal.store import load_journal, save_journal
+from backend.lambda_api import decision_journal as lambda_handler
 from tests.backend.decision_journal.fixtures import fake_series, sell_entry
 
 PLAN = {"owner": "alex", "updated": "2026-01-01", "target": [{"class": "equity", "weight_pct": 100}]}
@@ -37,6 +38,11 @@ def test_bot_is_registered_with_the_registry():
     assert bot.scope == "system" and bot.kind == "rules"
     assert issubclass(bot.settings_model, BotSettings)
     assert bot.default_settings() == {"enabled": True, "cadence": "daily"}
+
+
+def test_default_schedule_matches_the_cdk_rule():
+    """cdk DailyDecisionJournalRun fires at 03:00 UTC daily (#10525)."""
+    assert registry.get_bot("decision-journal").default_schedule.description == "Daily at 03:00 UTC"
 
 
 def test_run_through_the_runner_reports_counts_only_and_never_writes_the_plan(tmp_path, monkeypatch):
@@ -122,3 +128,29 @@ def test_transactions_store_matches_dividends_resolve_store(monkeypatch, app_env
         assert seen["store"].bucket == resolved.bucket == bucket
     else:
         assert seen["store"] is None
+
+
+def test_lambda_handler_runs_the_bot_through_the_runner(monkeypatch):
+    seen = []
+
+    def fake_handle(bot_id, event, *, reraise=False):
+        seen.append((bot_id, event, reraise))
+        return {"bot": bot_id}
+
+    monkeypatch.setattr(lambda_handler, "handle_lambda_event", fake_handle)
+
+    event = {"bot_run_id": "r1"}
+    assert lambda_handler.lambda_handler(event, None) == {"status": "ok"}
+    assert seen == [("decision-journal", event, True)]
+
+
+def test_lambda_handler_reports_a_skipped_scheduled_run(monkeypatch):
+    monkeypatch.setattr(
+        lambda_handler,
+        "handle_lambda_event",
+        lambda bot_id, event, *, reraise=False: {"skipped": True, "reason": "Disabled", "run_id": "r1"},
+    )
+
+    result = lambda_handler.lambda_handler({"source": "aws.events"}, None)
+
+    assert result == {"status": "skipped", "reason": "Disabled"}

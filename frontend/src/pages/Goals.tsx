@@ -1,13 +1,50 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { createGoal, getGoal, getGoals } from "../api";
+import { createGoal, getGoal, getGoals, recordGoalProgress } from "../api";
 import { money } from "../lib/money";
 import { EMPTY_GOAL_FORM, formatGoalDate, parseGoalForm, type Goal, type GoalForm } from "../lib/goalForm";
-
-type GoalWithProgress = Goal & { progress: number; trades: { action: string; amount: number; ticker: string }[] };
+import { parseCurrentAmount, progressPercent, type GoalDetail, type GoalProjection } from "../lib/goalProgress";
 
 const fieldStyle = { display: "flex", flexDirection: "column" as const, gap: "0.25rem" };
+
+/** Projection sentence plus the assumptions it rests on; nothing is projected without enough history. */
+function ProjectionNote({ projection, targetDate }: { projection: GoalProjection | null; targetDate: string }) {
+  const { t, i18n } = useTranslation();
+  if (!projection) return null;
+  const fmt = (iso: string | null) => (iso ? formatGoalDate(iso, i18n.language) : "");
+  switch (projection.status) {
+    case "reached":
+      return <p>{t("goals.projection.reached")}</p>;
+    case "not_progressing":
+      return <p>{t("goals.projection.notProgressing")}</p>;
+    case "insufficient_history":
+      return <p>{t("goals.projection.insufficientHistory", { points: projection.min_points, days: projection.min_days })}</p>;
+    case "projected":
+      return (
+        <>
+          <p>
+            {t(projection.on_track ? "goals.projection.onTrack" : "goals.projection.behind", {
+              date: fmt(projection.projected_date),
+              targetDate: fmt(targetDate),
+            })}
+          </p>
+          <p>
+            <small>
+              {t("goals.projection.assumptions", {
+                start: fmt(projection.history_start),
+                end: fmt(projection.history_end),
+                rate: money(projection.monthly_rate, "GBP", i18n.language),
+                points: projection.points,
+              })}
+            </small>
+          </p>
+        </>
+      );
+    default:
+      return null;
+  }
+}
 
 export default function Goals() {
   const { t, i18n } = useTranslation();
@@ -15,7 +52,9 @@ export default function Goals() {
   const [form, setForm] = useState<GoalForm>(EMPTY_GOAL_FORM);
   const [error, setError] = useState<string | null>(null);
   const [current, setCurrent] = useState("");
-  const [selected, setSelected] = useState<GoalWithProgress | null>(null);
+  const [selected, setSelected] = useState<GoalDetail | null>(null);
+  const [recordError, setRecordError] = useState<string | null>(null);
+  const currentAmount = parseCurrentAmount(current);
 
   const refresh = () => {
     getGoals().then(setGoals).catch(() => setGoals([]));
@@ -45,11 +84,28 @@ export default function Goals() {
       });
   };
 
+  // Viewing is read-only: an entered amount only drives the progress shown,
+  // and with no amount the backend falls back to the latest recorded one.
   const view = (name: string) => {
-    const amount = Number(current);
-    getGoal(name, Number.isFinite(amount) ? amount : 0)
+    setRecordError(null);
+    getGoal(name, currentAmount ?? undefined)
       .then(setSelected)
-      .catch(() => setSelected(null));
+      .catch((err: unknown) => {
+        console.error("Failed to load goal", err);
+        setSelected(null);
+      });
+  };
+
+  // Only this explicit action stores a dated snapshot for the projection.
+  const record = (name: string) => {
+    if (currentAmount === null) return;
+    setRecordError(null);
+    recordGoalProgress(name, currentAmount)
+      .then(setSelected)
+      .catch((err: unknown) => {
+        console.error("Failed to record goal progress", err);
+        setRecordError(t("goals.recordError"));
+      });
   };
 
   return (
@@ -135,18 +191,43 @@ export default function Goals() {
               <button type="button" onClick={() => view(g.name)}>
                 {t("goals.view")}
               </button>
+              <button type="button" onClick={() => record(g.name)} disabled={currentAmount === null}>
+                {t("goals.recordProgress")}
+              </button>
             </li>
           ))}
         </ul>
+      )}
+      {recordError && (
+        <p role="alert" style={{ color: "var(--gain-negative)" }}>
+          {recordError}
+        </p>
       )}
 
       {selected && (
         <div style={{ marginTop: "1rem" }}>
           <h2>{selected.name}</h2>
-          <p>
-            {t("goals.progress", { progress: Math.round(selected.progress * 100) })}
-          </p>
-          {selected.trades.length > 0 && (
+          {selected.progress === null || selected.current_amount === null ? (
+            <p>{t("goals.progressUnknown")}</p>
+          ) : (
+            <>
+              <progress
+                value={progressPercent(selected.progress)}
+                max={100}
+                aria-label={t("goals.progressLabel", { name: selected.name })}
+                style={{ width: "100%" }}
+              />
+              <p>
+                {t("goals.progressSummary", {
+                  current: money(selected.current_amount, "GBP", i18n.language),
+                  target: money(selected.target_amount, "GBP", i18n.language),
+                  progress: progressPercent(selected.progress),
+                })}
+              </p>
+            </>
+          )}
+          <ProjectionNote projection={selected.projection} targetDate={selected.target_date} />
+          {selected.trades && selected.trades.length > 0 && (
             <>
               <h3>{t("goals.suggestedTrades")}</h3>
               <ul>

@@ -49,7 +49,9 @@ function RunSummary({
       ) : (
         state
       )}{' '}
-      {when && <span className="text-gray-600">({when})</span>}
+      {when && (
+        <span className="text-[var(--surface-muted-color)]">({when})</span>
+      )}
     </li>
   );
 }
@@ -124,7 +126,7 @@ export default function DataSyncSection() {
   const repo = status?.repo ?? 'allotmint-data';
   return (
     <SectionCard title={t('support.dataSync.title', 'Data sync with git')}>
-      <p className="mb-2 text-sm text-gray-600">
+      <p className="mb-2 text-sm text-[var(--surface-muted-color)]">
         {t(
           'support.dataSync.description',
           'Pull copies {{repo}} (main) into the website data; git wins. Push opens a pull request in {{repo}} with the website data.',
@@ -182,7 +184,7 @@ export default function DataSyncSection() {
           type="button"
           onClick={handleRefresh}
           disabled={busy !== null}
-          className="rounded bg-gray-200 px-4 py-2 disabled:opacity-50"
+          className="rounded bg-[var(--surface-muted-bg)] px-4 py-2 disabled:opacity-50"
         >
           {t('support.dataSync.refresh', 'Refresh status')}
         </button>

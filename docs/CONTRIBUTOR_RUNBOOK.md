@@ -754,6 +754,8 @@ Checks performed:
 6. **Frontend lint + tests** — `npm --prefix frontend run lint` and Vitest.
 7. **CDK tests** — `cdk/tests/` pytest suite.
 
+To run only some checks, set `PRE_DEPLOY_CHECK_SECTIONS` to the section numbers the script prints in its `=== N.` headers. These run 0–6, one lower than the list above. For example, `PRE_DEPLOY_CHECK_SECTIONS=3` runs just the IAM simulation. Both scripts honour it, and `tests/scripts/test_pre_deploy_check_lookup_failure.py` uses it to run the IAM section offline.
+
 ### What to expect during the automated deploy job
 
 Once you push a release tag (e.g., `v1.0.0`), the `.github/workflows/deploy-lambda.yml` workflow will automatically run. The `check-ci` job waits for the upstream `ci.yml` workflow to complete before proceeding with the actual deployment.

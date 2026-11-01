@@ -1461,7 +1461,7 @@ def _group_purchase_lots(
         if not _SAFE_COMPONENT_RE.fullmatch(lot_owner) or not _SAFE_COMPONENT_RE.fullmatch(lot_account):
             skipped.append(_lot_skip(lot, "Invalid owner or account"))
             continue
-        target = (lot_owner, _normalise_account_file_name(lot_account))
+        target = (lot_owner, normalise_account_file_name(lot_account))
         groups.setdefault(target, {}).setdefault(canonical_ticker(lot.ticker), []).append(lot)
     return groups
 

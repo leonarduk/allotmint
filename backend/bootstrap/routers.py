@@ -37,6 +37,7 @@ from backend.routes.instrument import router as instrument_router
 from backend.routes.instrument_admin import router as instrument_admin_router
 from backend.routes.instrument_notes import router as instrument_notes_router
 from backend.routes.investment_plan import router as investment_plan_router
+from backend.routes.last_visit import router as last_visit_router
 from backend.routes.logs import router as logs_router
 from backend.routes.market import router as market_router
 from backend.routes.mcp_server_admin import router as mcp_server_admin_router
@@ -113,6 +114,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(create_chat_router(app.state.limiter, cfg.chat_rate_limit), dependencies=protected)
     app.include_router(chat_history_router, dependencies=protected)
     app.include_router(watchlists_router, dependencies=protected)
+    app.include_router(last_visit_router, dependencies=protected)
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(create_signup_router(app.state.limiter, cfg.signup_rate_limit))

@@ -5,43 +5,14 @@ import { getAlerts, getDividends, getGroupMovers } from '../api';
 import { holdingsFromAccounts } from '../lib/dividends';
 import { money, signedPercent } from '../lib/money';
 import {
-  advanceVisitRecord,
   buildSinceLastVisitDigest,
-  dismissVisitRecord,
   moversWindowDays,
   visitDay,
   type SinceLastVisitDigest as Digest,
-  type VisitRecord,
 } from '../lib/sinceLastVisit';
-import { loadJSON, saveJSON } from '../utils/storage';
+import { recordDismissal, recordVisit, type VisitSource } from '../lib/lastVisitStore';
 
-export const LAST_VISIT_KEY_PREFIX = 'allotmint.lastVisit.';
 const MOVERS_FETCH_LIMIT = 10;
-
-/**
- * Record this visit for ``slug`` and return the previous one (epoch ms), or
- * null on a first visit. Storage can be blocked; the digest then just never
- * shows, which is the same as a first visit.
- */
-function recordVisit(slug: string, now: number): number | null {
-  const key = `${LAST_VISIT_KEY_PREFIX}${slug}`;
-  const record = advanceVisitRecord(loadJSON<VisitRecord | null>(key, null), now);
-  persistVisit(key, record);
-  return record.previous;
-}
-
-/** Mark everything up to ``now`` as seen for ``slug`` (the card was dismissed). */
-function recordDismissal(slug: string, now: number): void {
-  persistVisit(`${LAST_VISIT_KEY_PREFIX}${slug}`, dismissVisitRecord(now));
-}
-
-function persistVisit(key: string, record: VisitRecord): void {
-  try {
-    saveJSON(key, record);
-  } catch (err) {
-    console.warn('Could not persist last-visit timestamp', err);
-  }
-}
 
 const ownersFromAccounts = (accounts: Account[]): string[] =>
   Array.from(
@@ -61,13 +32,26 @@ type Props = {
 export function SinceLastVisitDigest({ slug, accounts }: Props) {
   const { t } = useTranslation();
   const [since, setSince] = useState<number | null>(null);
+  const [source, setSource] = useState<VisitSource>('local');
   const [digest, setDigest] = useState<Digest | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
+  // Recorded on mount, in parallel with the portfolio load, so the card's
+  // own fetches below still wait only on ``accounts`` and ``since`` (#11195).
   useEffect(() => {
     setDigest(null);
     setDismissed(false);
-    setSince(slug ? recordVisit(slug, Date.now()) : null);
+    setSince(null);
+    if (!slug) return;
+    let cancelled = false;
+    void recordVisit(slug, Date.now()).then((visit) => {
+      if (cancelled) return;
+      setSource(visit.source);
+      setSince(visit.since);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [slug]);
 
   const owners = useMemo(() => (accounts ? ownersFromAccounts(accounts) : []), [accounts]);
@@ -116,7 +100,8 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
   if (dismissed || since === null || !digest) return null;
 
   const dismiss = () => {
-    recordDismissal(slug, Date.now());
+    // recordDismissal never rejects: a server failure falls back to localStorage.
+    void recordDismissal(slug, Date.now(), source);
     setDismissed(true);
   };
   const title = t('sinceLastVisit.title', 'Since you were last here');

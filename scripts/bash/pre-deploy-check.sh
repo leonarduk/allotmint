@@ -12,6 +12,8 @@ set -uo pipefail
 
 # Always run from the repository root regardless of where the script is invoked from.
 cd "$(dirname "$0")/../.." || exit 1
+# shellcheck source=lib/cfn_resource_id.sh
+source scripts/bash/lib/cfn_resource_id.sh
 
 # Prefer python3 when present, falling back to python, so the interpreter used here
 # matches whatever scripts/powershell/pre-deploy-check.ps1 resolves to on the same machine.
@@ -81,13 +83,11 @@ if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]]; then
 elif [[ -z "${GITHUB_DEPLOY_ROLE_ARN:-}" ]]; then
     skip "IAM simulation (requires GITHUB_DEPLOY_ROLE_ARN)"
 else
-    # No "|[0]": past 100 resources the CLI applies --query per page (#11091).
-    BUCKET_ID=$(aws cloudformation list-stack-resources \
-        --stack-name BackendLambdaStack \
-        --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId" \
-        --output text 2>/dev/null \
-        | tr '\t' '\n' | awk 'NF && $0 != "None" && !found {print; found=1}' || echo "")
-    if [[ -z "$BUCKET_ID" || "$BUCKET_ID" == "None" ]]; then
+    # A failed lookup is not "not deployed": fail rather than skip (#11095).
+    if ! BUCKET_ID=$(cfn_resource_id BackendLambdaStack \
+        "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId"); then
+        fail "IAM simulation (could not list BackendLambdaStack resources; see the error above)"
+    elif [[ -z "$BUCKET_ID" || "$BUCKET_ID" == "None" ]]; then
         skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
     else
         AWS_REGION="${AWS_REGION:-$(aws configure get region 2>/dev/null || echo us-east-1)}"

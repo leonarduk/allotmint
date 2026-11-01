@@ -3651,6 +3651,21 @@
     "openHelp": "Abrir Ayuda y primeros pasos",
     "dismiss": "Entendido, no volver a mostrar"
   },
+  "sinceLastVisit": {
+    "title": "Desde tu última visita",
+    "since": "Cambios desde {{date}}.",
+    "nothingChanged": "Nada destacable desde entonces: sin grandes movimientos, alertas ni dividendos.",
+    "movers": "Mayores movimientos en los últimos {{days}} días: {{list}}",
+    "noMovers": "Sin grandes movimientos en tus posiciones.",
+    "moversUnavailable": "Los movimientos no están disponibles ahora.",
+    "alerts": "Alertas: {{list}}",
+    "noAlerts": "No se ha superado ningún umbral de alerta.",
+    "alertsUnavailable": "Las alertas no están disponibles ahora.",
+    "dividends": "Dividendos cobrados: {{amount}} ({{payments}} pagos)",
+    "noDividends": "No se han cobrado dividendos.",
+    "dividendsUnavailable": "Los dividendos no están disponibles ahora.",
+    "dismiss": "Descartar"
+  },
   "reportingCurrency": {
     "converted": "Importes en {{currency}}, convertidos desde GBP al tipo de hoy (1 {{currency}} = £{{rate}}).",
     "unavailable": "No hay ningún tipo GBP guardado para {{currency}}, así que los importes se muestran en GBP."

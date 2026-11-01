@@ -35,6 +35,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from backend.common.holdings_rebuild import name_aliases, tracked_instruments
 from backend.common.ticker_utils import canonical_ticker
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +177,7 @@ def parse_purchase_lots(data: bytes, latest: Optional[date] = None) -> Tuple[Lis
         except _RowError as exc:
             skipped.append({"line": line, "ticker": _optional(row, "ticker"), "skip_reason": str(exc)})
         except ValueError:
-            logger.warning("Unreadable cost-basis CSV row %s", line, exc_info=True)
+            logger.warning("Unreadable cost-basis CSV row %s", sanitise_log_value(line), exc_info=True)
             skipped.append({"line": line, "ticker": _optional(row, "ticker"), "skip_reason": _UNREADABLE_ROW})
     return lots, skipped
 

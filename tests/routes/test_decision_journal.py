@@ -13,6 +13,7 @@ from backend.common import investment_plan as plan_mod
 from backend.decision_journal import bot
 from backend.decision_journal import entries as entries_mod
 from backend.decision_journal.capture import ContextTools
+from backend.decision_journal.review import run_due_reviews
 from backend.decision_journal.store import load_journal, save_journal
 from backend.routes import decision_journal as dj_route
 from backend.routes import investment_plan as plan_route
@@ -219,3 +220,28 @@ def test_daily_run_lists_unlogged_and_runs_due_reviews_without_touching_the_plan
     # A second run the same day has nothing more to do.
     again = bot.run(as_of=date(2026, 7, 2), data_root=data_root, transactions=[], load_series=fake_series)
     assert again["owners"]["alex"]["reviews_run"] == []
+
+
+def test_journal_lists_patterns_only_from_enough_reviewed_entries(data_root):
+    client = _client(data_root)
+    assert client.get("/decision-journal/alex").json()["patterns"] == {
+        "min_reviewed": 5,
+        "reviewed_entries": 0,
+        "groups": [],
+    }
+
+    journal = load_journal("alex", data_root)
+    journal.entries = [
+        sell_entry(id=f"dj-sell-{n}", source_ref=f"alex:isa:{100 + n}", snapshot={"trade_type": "SELL"})
+        for n in range(5)
+    ]
+    assert len(run_due_reviews(journal, date(2026, 7, 2), fake_series)) == 5
+    save_journal(journal, data_root)
+
+    patterns = client.get("/decision-journal/alex").json()["patterns"]
+    assert patterns["reviewed_entries"] == 5
+    [group] = patterns["groups"]
+    assert (group["trade_type"], group["trend_watch"], group["horizon_months"]) == ("SELL", "unknown", 6)
+    rows = {row["alternative"]: row for row in group["rows"]}
+    assert set(rows) == {"cash", "other"}
+    assert all(row["comparisons"] == 5 and row["return_basis"] == "total" for row in rows.values())

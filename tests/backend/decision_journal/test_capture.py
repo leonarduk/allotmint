@@ -17,6 +17,7 @@ from backend.decision_journal.capture import (
     trade_amount_gbp,
     trade_change,
     trade_draft,
+    trend_watch_flag,
 )
 from tests.backend.decision_journal.fixtures import fake_series
 
@@ -192,8 +193,40 @@ def test_context_tool_allowlist_is_read_only():
         "get_instrument_technicals",
         "get_instrument_valuation",
         "get_allocation",
+        "get_trend_watch_flag",
     }
     assert all(name.startswith("get_") for name in READ_ONLY_CONTEXT_TOOLS)
+
+
+# A synthetic trend-watch report (#10476) listing one flagged holding.
+TREND_REPORT = {"run_date": "2026-09-28", "items": [{"ticker": "AAA.L"}]}
+
+
+def test_trend_watch_flag_from_a_report_run_on_or_before_the_trade():
+    assert trend_watch_flag(TREND_REPORT, "aaa.l", "2026-10-01") == {"flagged": True, "report_date": "2026-09-28"}
+    assert trend_watch_flag(TREND_REPORT, "BBB.L", "2026-09-28") == {"flagged": False, "report_date": "2026-09-28"}
+
+
+def test_trend_watch_flag_is_unknown_without_a_report_from_before_the_trade():
+    assert trend_watch_flag(None, "AAA.L", "2026-10-01") is None
+    assert trend_watch_flag(TREND_REPORT, "AAA.L", "2026-09-27") is None
+
+
+def test_sell_draft_snapshot_records_the_trend_watch_flag():
+    tools = ContextTools({"get_trend_watch_flag": lambda ticker, on: trend_watch_flag(TREND_REPORT, ticker, on)})
+    draft = trade_draft(trade_change(TXS[0]), tools)
+    assert draft["snapshot"]["trend_watch"] == {"flagged": True, "report_date": "2026-09-28"}
+
+
+def test_default_trend_watch_tool_reads_the_latest_report(monkeypatch):
+    from backend.trend_watch import storage
+
+    monkeypatch.setattr(storage, "load_latest", lambda owner: TREND_REPORT if storage.clean_owner(owner) else None)
+    tools = default_context_tools("alex", None, load_series=fake_series, today=date(2026, 10, 2))
+    assert tools.call("get_trend_watch_flag", ticker="AAA.L", on="2026-10-01")["flagged"] is True
+    # Owner ids trend watch cannot store under (spaces) have no reports.
+    spaced = default_context_tools("alex smith", None, load_series=fake_series, today=date(2026, 10, 2))
+    assert spaced.call("get_trend_watch_flag", ticker="AAA.L", on="2026-10-01") is None
 
 
 @pytest.mark.parametrize("name", ["save_plan", "post_transaction", "update_allocation_policy"])

@@ -1951,10 +1951,39 @@ export interface UnloggedChange {
   price_gbp?: number;
 }
 
+/** How the option taken ended against one kind of alternative, on one return basis (#10489). */
+export interface DecisionPatternRow {
+  alternative: "cash" | "same_instrument" | "other";
+  return_basis: string;
+  comparisons: number;
+  above: number;
+  below: number;
+  level: number;
+  first_date: string;
+  last_date: string;
+}
+
+export interface DecisionPatternGroup {
+  kind: DecisionJournalEntry["kind"];
+  trade_type?: string;
+  trend_watch: "flagged" | "not_flagged" | "unknown";
+  horizon_months: number;
+  rows: DecisionPatternRow[];
+  split_by_basis: boolean;
+}
+
+/** Counts across reviewed decisions; groups only list rows with at least `min_reviewed` comparisons. */
+export interface DecisionPatterns {
+  min_reviewed: number;
+  reviewed_entries: number;
+  groups: DecisionPatternGroup[];
+}
+
 export interface DecisionJournalResponse {
   settings: { threshold_gbp: number };
   entries: DecisionJournalEntry[];
   unlogged: UnloggedChange[];
+  patterns?: DecisionPatterns;
 }
 
 /** A pre-filled, unsaved draft; `reason` is always blank for the owner to write. */

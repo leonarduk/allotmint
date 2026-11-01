@@ -105,6 +105,20 @@ def _record_progress(owner: str, name: str, payload: ProgressPayload) -> GoalRes
     if on > date.today():
         raise HTTPException(status_code=422, detail="progress cannot be recorded for a future date")
     goal = _find_goal(owner, name)
+    # Accepted risk (#11186): record_goal_amount reads the whole history store
+    # (one JSON document holding every user's goals), adds this snapshot and
+    # writes the document back, with no version check. Two overlapping requests
+    # (e.g. concurrent Lambda invocations, for the same or *different* users)
+    # can both read the same document; whichever writes last silently drops the
+    # snapshot the other one wrote first, although that other request already
+    # answered 200 with it included. We accept this because progress is recorded by hand, one
+    # click at a time, so overlapping writes are rare. A lost snapshot only
+    # thins the projection's input, and the user can record it again. Neither
+    # the goal definition nor its target is affected. The store may be a file,
+    # S3 or SSM, so there is no backend-neutral conditional write; if the
+    # history moves to S3 under real concurrency, guard the save with an
+    # ETag If-Match put and a bounded retry. Pinned by
+    # tests/common/test_goals.py::test_record_goal_amount_interleaved_writes_lose_earlier_snapshot.
     history = record_goal_amount(owner, name, payload.amount, on)
     return _goal_response(goal, payload.amount, history)
 

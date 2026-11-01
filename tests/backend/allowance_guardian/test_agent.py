@@ -314,6 +314,49 @@ def test_an_amount_from_a_tool_result_this_run_is_accepted():
     assert (entries[1]["explanation"], entries[1]["note"]) == (None, agent.NOTE_NO_REPLY)
 
 
+@pytest.mark.parametrize(
+    "invented", ["£25.00", "£24.00", "£2,026.00", "£6.00"], ids=["day", "days-late", "year", "month"]
+)
+def test_an_amount_equal_to_a_date_part_or_day_count_in_the_facts_is_rejected(invented):
+    # The facts mention 2026-06-25 and "24 days after"; those numbers are not £ amounts.
+    entries, _ = _explain(_reply(f"A payment of {invented} arrived late.", "Two payments add up to £350.00."))
+
+    assert (entries[0]["explanation"], entries[0]["note"]) == (None, agent.NOTE_FIGURES)
+    assert entries[1]["note"] is None
+
+
+def test_an_amount_minor_field_nested_in_a_json_tool_result_is_accepted():
+    result = json.dumps({"tax_year": "2026-27", "transactions": [{"date": "2026-06-12", "amount_minor": 12_345}]})
+    tool_log = [{"tool": "get_transactions", "result": result, "is_error": False}]
+    entries, _ = _explain(_reply("A deposit of £123.45 is recorded on 2026-06-12.", ""), tool_log=tool_log)
+
+    assert entries[0]["explanation"] == "A deposit of £123.45 is recorded on 2026-06-12."
+
+
+def test_non_money_numbers_in_a_json_tool_result_are_not_amounts():
+    result = json.dumps({"count": 47, "days": 61, "transactions": [{"date": "2026-06-12", "amount": 10}]})
+    tool_log = [{"tool": "get_transactions", "result": result, "is_error": False}]
+    entries, _ = _explain(_reply("A payment of £61.00 arrived.", "A payment of £10.00 arrived."), tool_log=tool_log)
+
+    assert (entries[0]["explanation"], entries[0]["note"]) == (None, agent.NOTE_FIGURES)
+    assert entries[1]["note"] is None
+
+
+def test_a_non_json_tool_result_supplies_only_its_pound_amounts():
+    tool_log = [{"tool": "summarise_transactions", "result": "12 deposits, total £640.50", "is_error": False}]
+    entries, _ = _explain(_reply("Deposits total £640.50.", "There were £12.00 of deposits."), tool_log=tool_log)
+
+    assert entries[0]["explanation"] == "Deposits total £640.50."
+    assert (entries[1]["explanation"], entries[1]["note"]) == (None, agent.NOTE_FIGURES)
+
+
+def test_a_whole_pound_amount_matches_its_pence_form():
+    # The facts say £500.00; the model may quote it as £500.
+    entries, _ = _explain(_reply("A payment of £500 arrived on 2026-06-25.", "Two payments add up to £350."))
+
+    assert [e["note"] for e in entries] == [None, None]
+
+
 def test_an_unparseable_reply_leaves_every_entry_unexplained():
     entries, _ = _explain("I could not work it out.")
 

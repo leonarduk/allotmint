@@ -14,9 +14,10 @@ Guardrails, all checked here rather than trusted:
   :class:`backend.chat.turn_limits.TurnLimits` that offers, and allows, only
   :data:`READ_ONLY_TOOLS`;
 * each explanation must pass the guardian's no-advice wording check
-  (:mod:`backend.common.advice_wording`) and quote no £ amount that is not in
-  the facts given or in a tool result from this run; otherwise it is dropped
-  and the entry carries a note saying why;
+  (:mod:`backend.common.advice_wording`) and quote no £ amount that is not a
+  £ amount in the facts given or a money field (``amount``, ``amount_minor``,
+  ``value``...) in a tool result from this run -- dates and day counts never
+  count; otherwise it is dropped and the entry carries a note saying why;
 * any provider failure leaves every entry without an explanation, with a note.
 
 Read-only and opt-in: :func:`backend.allowance_guardian.report.run` calls this
@@ -30,7 +31,7 @@ import json
 import logging
 import re
 from datetime import date, timedelta
-from typing import Any, Callable, Coroutine, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Coroutine, Dict, Iterator, List, Mapping, Optional, Sequence
 
 from backend.allowance_guardian.match import AMOUNT_TOLERANCE_MINOR, EARLY_DAYS, LATE_WINDOW_DAYS, ON_TIME_GRACE_DAYS
 from backend.chat.tool_switches import is_read_only_tool_name
@@ -73,7 +74,9 @@ SYSTEM_PROMPT = (
 ChatTurn = Callable[..., Coroutine[Any, Any, str]]
 
 _MONEY_RE = re.compile(r"£\s?(\d[\d,]*(?:\.\d+)?)")
-_NUMBER_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_PLAIN_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
+#: Last word of a JSON key whose numeric value is a money amount (after any ``_minor``/``_gbp`` suffix).
+_MONEY_KEY_WORDS = frozenset({"amount", "value", "total", "price", "fee", "fees", "cost", "balance"})
 _STATUS_WORDS = {"missing": "missing", "wrong_amount": "a different amount", "late": "late"}
 
 
@@ -187,11 +190,77 @@ def _extract_json(reply: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _to_number(value: Any) -> Optional[float]:
+    """``value`` as a float when it is a number or a numeric string (``"£1,234.50"``), else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip().lstrip("£").replace(",", "").strip()
+        if _PLAIN_NUMBER_RE.fullmatch(text):
+            return float(text)
+    return None
+
+
+def _money_key(key: str) -> Optional[float]:
+    """The divisor for a money-like JSON key (100 for ``*_minor`` pence), or None for any other key."""
+    name = key.strip().lower()
+    divisor = 1.0
+    if name.endswith("_minor"):
+        name, divisor = name[: -len("_minor")], 100.0
+    elif name.endswith("_gbp"):
+        name = name[: -len("_gbp")]
+    words = name.split("_")
+    return divisor if words and words[-1] in _MONEY_KEY_WORDS else None
+
+
+def _json_amounts(value: Any) -> Iterator[float]:
+    """Pound amounts under money-like keys anywhere in a parsed JSON value."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            divisor = _money_key(str(key))
+            number = _to_number(child) if divisor is not None else None
+            if divisor is not None and number is not None:
+                yield abs(number) / divisor
+            else:
+                yield from _json_amounts(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _json_amounts(child)
+
+
+def _pound_amounts(text: str) -> Iterator[float]:
+    """£-prefixed amounts in ``text``."""
+    for raw in _MONEY_RE.findall(text):
+        if raw.strip(".,"):
+            yield float(raw.replace(",", "").rstrip("."))
+
+
+def _tool_result_amounts(result: str) -> Iterator[float]:
+    """Amounts in one tool result: money-like JSON fields when it parses, else only its £ amounts."""
+    try:
+        parsed = json.loads(result)
+    except (TypeError, ValueError):
+        parsed = None
+    if isinstance(parsed, (dict, list)):
+        yield from _json_amounts(parsed)
+    else:
+        yield from _pound_amounts(result)
+
+
 def _known_amounts(facts: str, limits: TurnLimits) -> set[float]:
-    """Amounts the reply may quote: every number in the facts or a tool result, as pounds or as pence."""
-    sources = [facts] + [str(call.get("result") or "") for call in limits.tool_log if not call.get("is_error")]
-    numbers = {float(raw.replace(",", "")) for text in sources for raw in _NUMBER_RE.findall(text)}
-    pounds = numbers | {value / 100 for value in numbers}
+    """Amounts the reply may quote (#10491 review).
+
+    Only £ amounts in the facts and money-like fields (``amount``, ``amount_minor``,
+    ``value``, ``total``, ``price``, ``fees``...) in this run's successful tool results
+    count; dates, day counts and the tax year in either never do. Each amount is
+    kept to the penny and as whole pounds, so a quoted "£500" matches £500.00.
+    """
+    pounds = list(_pound_amounts(facts))
+    for call in limits.tool_log:
+        if not call.get("is_error"):
+            pounds.extend(_tool_result_amounts(str(call.get("result") or "")))
     return {round(value, 2) for value in pounds} | {float(round(value)) for value in pounds}
 
 

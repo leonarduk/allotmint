@@ -85,6 +85,9 @@ def test_gap_tag_does_not_rescue_nit_wording(text):
         "[gap] Re-check the holdings document under the lock before appending.",
         "[gap] Name the missing column in the skip reason so imports can be fixed.",
         "[gap] Add a test that a failed S3 read never overwrites goals.",
+        "[gap] Add a comment to the migration, and reject rows with a NULL owner.",
+        "[gap] Document the retry contract in the OpenAPI schema so clients don't double-submit.",
+        "[gap] The **APPROVE** path skips the audit log.",
     ],
 )
 def test_real_gaps_mentioning_similar_words_are_kept(text):
@@ -107,3 +110,28 @@ def test_cli_writes_the_filtered_review_and_prints_the_count(tmp_path):
 
     assert result.stdout.strip() == "2"
     assert out.read_text(encoding="utf-8") == filter_followups.filter_review(REVIEW)[0]
+
+
+def test_nested_sub_bullets_follow_their_parent():
+    body = (
+        "## 5. Suggested follow-up issues\n\n"
+        "- [gap] Reject a negative fee on create.\n"
+        "  - covers POST /transactions\n"
+        "- [nit] Reword the error.\n"
+        "  - mention the field name\n"
+    )
+
+    filtered, kept = filter_followups.filter_review(body)
+
+    assert kept == 1
+    assert "  - covers POST /transactions" in filtered
+    assert "mention the field name" not in filtered
+
+
+def test_a_gap_mentioning_approve_is_classified_not_treated_as_the_verdict():
+    body = "## 5. Suggested follow-up issues\n\n- [gap] The **APPROVE** path skips the audit log.\n"
+
+    filtered, kept = filter_followups.filter_review(body)
+
+    assert kept == 1
+    assert "- The **APPROVE** path skips the audit log." in filtered

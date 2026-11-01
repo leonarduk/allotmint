@@ -10,8 +10,9 @@ bullets tagged ``[gap]`` remain, with the tag removed:
 
 * ``[nit]`` and untagged bullets are dropped: only what the review marks as a
   real gap is filed.
-* A ``[gap]`` bullet whose wording is still a nit (a comment, docstring,
-  docs, rename, "consider ...") is dropped too.
+* A ``[gap]`` bullet whose main ask is still a nit (it opens with "consider",
+  "add a comment", "rename", "reword" and similar) is dropped too.
+* Nested sub-bullets follow their parent follow-up.
 * The verdict line and anything outside the section are left untouched.
 
 There is no cap on the number of real gaps.
@@ -31,27 +32,31 @@ _SECTION = re.compile(r"^\s*#{1,6}\s*(?:\d+\.\s*)?suggested follow-?up", re.IGNO
 _NEXT_HEADING = re.compile(r"^\s*#{1,6}\s")
 _BULLET = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+(.*)$")
 _TAG = re.compile(r"^\[(gap|nit)\]\s*", re.IGNORECASE)
-_VERDICT = re.compile(r"\b(APPROVE|REQUEST CHANGES)\b")
-# Wording that marks a follow-up as a nit even when it is tagged [gap].
-_NIT_WORDING = re.compile(
-    r"\bconsider(?:ing)?\b"
-    r"|\b(?:add|adding|include|leave|write)\b[^.]{0,30}\bcomments?\b"
-    r"|\b(?:inline|code|explanatory|brief|short) comments?\b"
-    r"|\bdocstrings?\b"
-    r"|\bdocumentation\b"
-    r"|^document\b"
-    r"|\bdocument (?:that|why|how|in|the (?:choice|behaviou?r|contract|decision|asymmetry|semantics))\b"
-    r"|\brenam(?:e|es|ed|ing)\b"
-    r"|\breword(?:s|ed|ing)?\b"
-    r"|\bnits?\b"
-    r"|\bcosmetic\b"
-    r"|\bstyle\b",
+# Wording that marks a follow-up as a nit even when it is tagged [gap]. It only
+# counts when it opens the follow-up (its main ask): "Add a comment ..., and
+# reject rows with a NULL owner" or "Document the retry contract so clients
+# don't double-submit" mention the same words but ask for more than a nit.
+_NIT_OPENING = re.compile(
+    r"^(?:"
+    r"consider(?:ing)?\b"
+    r"|(?:add|adding|include|leave|write)\s+(?:an?\s+)?(?:brief\s+|short\s+|inline\s+|code\s+|explanatory\s+)?(?:comment|docstring|note)s?\b"
+    r"|(?:update|tighten|expand)\s+(?:the\s+)?docstrings?\b"
+    r"|document\s+(?:that|why|how|in)\b"
+    r"|renam(?:e|ing)\b"
+    r"|reword(?:ing)?\b"
+    r"|(?:style|cosmetic|nit)\b"
+    r")",
     re.IGNORECASE,
 )
+# A second clause ("..., and reject rows with a NULL owner") means the
+# follow-up asks for more than the nit it opens with.
+_SECOND_ASK = re.compile(r"(?:,|;)\s*(?:and|also|then)\s+\w+|;\s+\w+")
+# The review's verdict line, e.g. "- `**APPROVE**` — ..." or "**REQUEST CHANGES** — ...".
+_VERDICT_LINE = re.compile(r"^\s*(?:[-*+]\s+)?`?\*\*(?:APPROVE|REQUEST CHANGES)\*\*")
 
 
-def _is_verdict(text: str) -> bool:
-    return bool(_VERDICT.search(text)) and "**" in text
+def _is_verdict(line: str) -> bool:
+    return bool(_VERDICT_LINE.match(line))
 
 
 def classify(text: str) -> Tuple[bool, str]:
@@ -60,7 +65,8 @@ def classify(text: str) -> Tuple[bool, str]:
     if not match or match.group(1).lower() != "gap":
         return False, text
     rest = text[match.end() :]
-    return not _NIT_WORDING.search(rest), rest
+    nit_opening = bool(_NIT_OPENING.match(rest.lstrip("`*_ ")))
+    return not nit_opening or bool(_SECOND_ASK.search(rest)), rest
 
 
 def filter_review(body: str) -> Tuple[str, int]:
@@ -70,10 +76,11 @@ def filter_review(body: str) -> Tuple[str, int]:
     kept = 0
     in_section = False
     dropping = False
+    parent_seen = False
     bullet_indent = 0
     for line in lines:
         if _SECTION.match(line):
-            in_section, dropping = True, False
+            in_section, dropping, parent_seen = True, False, False
             out.append(line)
             continue
         if in_section and _NEXT_HEADING.match(line):
@@ -84,7 +91,13 @@ def filter_review(body: str) -> Tuple[str, int]:
         bullet = _BULLET.match(line)
         if bullet and not _is_verdict(line):
             indent, text = bullet.groups()
+            if parent_seen and len(indent) > bullet_indent:
+                # A nested sub-bullet belongs to its parent follow-up.
+                if not dropping:
+                    out.append(line)
+                continue
             keep, rest = classify(text)
+            parent_seen = True
             dropping, bullet_indent = not keep, len(indent)
             if keep:
                 kept += 1
@@ -92,7 +105,8 @@ def filter_review(body: str) -> Tuple[str, int]:
             continue
         if dropping and line.strip() and len(line) - len(line.lstrip()) > bullet_indent:
             continue  # continuation line of a dropped bullet
-        dropping = False
+        if line.strip():
+            dropping = False
         out.append(line)
     return "".join(out), kept
 

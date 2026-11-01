@@ -137,8 +137,10 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2" style={{ flex: '1 1 16rem', minWidth: 0 }}>
           <h2 className="text-base font-semibold">{title}</h2>
+          {/* Window-neutral on purpose: alerts and dividends are cut at the
+              visit, but movers cover the last `days` days (#11196). */}
           <p>
-            {t('sinceLastVisit.since', 'Changes since {{date}}.', {
+            {t('sinceLastVisit.since', 'Your last visit was on {{date}}.', {
               date: new Date(since).toLocaleString(),
             })}
           </p>
@@ -146,7 +148,8 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
             <p>
               {t(
                 'sinceLastVisit.nothingChanged',
-                'Nothing notable since then: no big movers, alerts or dividends.'
+                'Nothing notable: no big movers over the last {{days}} days, and no alerts or dividends since your last visit.',
+                { days }
               )}
             </p>
           ) : (
@@ -155,7 +158,11 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
                 {digest.movers === null
                   ? t('sinceLastVisit.moversUnavailable', 'Movers are unavailable right now.')
                   : digest.movers.length === 0
-                    ? t('sinceLastVisit.noMovers', 'No big movers among your holdings.')
+                    ? t(
+                        'sinceLastVisit.noMovers',
+                        'No big movers among your holdings over the last {{days}} days.',
+                        { days }
+                      )
                     : t('sinceLastVisit.movers', 'Biggest movers over the last {{days}} days: {{list}}', {
                         days,
                         list: digest.movers

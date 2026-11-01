@@ -3653,10 +3653,10 @@
   },
   "sinceLastVisit": {
     "title": "Depuis votre dernière visite",
-    "since": "Changements depuis le {{date}}.",
-    "nothingChanged": "Rien de notable depuis : aucun grand mouvement, alerte ou dividende.",
+    "since": "Votre dernière visite date du {{date}}.",
+    "nothingChanged": "Rien de notable : aucune forte variation sur les {{days}} derniers jours, ni alerte ni dividende depuis votre dernière visite.",
     "movers": "Plus fortes variations sur les {{days}} derniers jours : {{list}}",
-    "noMovers": "Aucune forte variation parmi vos positions.",
+    "noMovers": "Aucune forte variation parmi vos positions sur les {{days}} derniers jours.",
     "moversUnavailable": "Les variations sont indisponibles pour le moment.",
     "alerts": "Alertes : {{list}}",
     "noAlerts": "Aucun seuil d'alerte franchi.",

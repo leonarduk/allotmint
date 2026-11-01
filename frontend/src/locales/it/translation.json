@@ -3653,10 +3653,10 @@
   },
   "sinceLastVisit": {
     "title": "Dalla tua ultima visita",
-    "since": "Modifiche dal {{date}}.",
-    "nothingChanged": "Niente di rilevante da allora: nessun grande movimento, avviso o dividendo.",
+    "since": "La tua ultima visita è stata il {{date}}.",
+    "nothingChanged": "Niente di rilevante: nessun grande movimento negli ultimi {{days}} giorni e nessun avviso o dividendo dalla tua ultima visita.",
     "movers": "Maggiori movimenti negli ultimi {{days}} giorni: {{list}}",
-    "noMovers": "Nessun grande movimento tra le tue posizioni.",
+    "noMovers": "Nessun grande movimento tra le tue posizioni negli ultimi {{days}} giorni.",
     "moversUnavailable": "I movimenti non sono al momento disponibili.",
     "alerts": "Avvisi: {{list}}",
     "noAlerts": "Nessuna soglia di avviso superata.",

@@ -3653,10 +3653,10 @@
   },
   "sinceLastVisit": {
     "title": "Seit Ihrem letzten Besuch",
-    "since": "Änderungen seit {{date}}.",
-    "nothingChanged": "Seitdem nichts Wesentliches: keine großen Bewegungen, Warnungen oder Dividenden.",
+    "since": "Ihr letzter Besuch war am {{date}}.",
+    "nothingChanged": "Nichts Wesentliches: keine großen Bewegungen in den letzten {{days}} Tagen und seit Ihrem letzten Besuch keine Warnungen oder Dividenden.",
     "movers": "Größte Bewegungen in den letzten {{days}} Tagen: {{list}}",
-    "noMovers": "Keine großen Bewegungen bei Ihren Beständen.",
+    "noMovers": "Keine großen Bewegungen bei Ihren Beständen in den letzten {{days}} Tagen.",
     "moversUnavailable": "Bewegungen sind derzeit nicht verfügbar.",
     "alerts": "Warnungen: {{list}}",
     "noAlerts": "Keine Warnschwellen überschritten.",

@@ -409,8 +409,11 @@ class BackendLambdaStack(Stack):
         - s3:PutObject: S3JSONStorage.save (put_object), via goals.py:_save_raw
           (save_goals, add_goal, delete_goal) and _HISTORY_STORAGE.save in
           record_goal_amount, rename_goal_history and delete_goal_history.
-        No ListBucket: load() reads any ClientError, including the 403 S3
-        returns for a missing key without ListBucket, as an empty document.
+        s3:ListBucket on goals/ is granted through the backend's
+        lambda_list_prefixes (not here): the write paths read with
+        S3JSONStorage.load_existing (#11299), which treats only NoSuchKey as
+        "not yet saved"; without ListBucket a missing goals.json is a 403 and
+        the first goal write would fail.
         No DeleteObject: deleting a goal rewrites the JSON object.
         """
 
@@ -863,6 +866,11 @@ class BackendLambdaStack(Stack):
                 # nobody could save a first plan or journal entry.
                 PLANS_PREFIX,
                 DECISION_JOURNAL_PREFIX,
+                # Goals and goal history (#11292, #11299): goals.py write paths
+                # read through S3JSONStorage.load_existing, which needs a
+                # not-yet-created goals/goals.json to be a NoSuchKey rather
+                # than the 403 S3 returns without ListBucket.
+                GOALS_PREFIX,
                 # Writable, per-owner account documents (manual holdings and
                 # transaction writes) live under a dedicated prefix that is
                 # separate from the read-only ``accounts/`` demo dataset so

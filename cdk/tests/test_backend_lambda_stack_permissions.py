@@ -50,6 +50,8 @@ BACKEND_LIST_PREFIXES = (
     # missing-vs-denied for backend/common/owner_documents.py.
     "plans",
     "decision_journal",
+    # Goals (#11292, #11299): missing-vs-denied for load_existing in goals.py.
+    "goals",
     # Writable per-owner account documents (manual holdings / transactions);
     # separate from the read-only accounts/ demo prefix (issue #4275).
     WRITABLE_ACCOUNTS_PREFIX,
@@ -1834,10 +1836,12 @@ def test_goals_env_vars_are_set_only_on_the_backend_lambda() -> None:
 
 
 def test_backend_lambda_goals_grant_is_exactly_get_and_put_on_goals_objects() -> None:
-    """One statement: GetObject + PutObject on goals/*, unconditioned (#11292).
+    """One object statement: GetObject + PutObject on goals/*, unconditioned (#11292).
 
-    S3JSONStorage.load (get_object) and .save (put_object) are the only calls
-    the goals stores make, so no ListBucket and no DeleteObject reach goals/.
+    S3JSONStorage.load/load_existing (get_object) and .save (put_object) are
+    the only object calls the goals stores make, so no DeleteObject reaches
+    goals/. ListBucket on the goals prefix comes from the backend list
+    prefixes (#11299) so a missing goals.json is a NoSuchKey, not a 403.
     """
     template = _stack_template()
     role = _role_logical_id_for_lambda(template, "BackendLambda")
@@ -1846,7 +1850,6 @@ def test_backend_lambda_goals_grant_is_exactly_get_and_put_on_goals_objects() ->
         statement
         for statement in _s3_statements_for_role(template, role)
         if _mentions_goals_prefix(statement.get("Resource"))
-        or _mentions_goals_prefix(statement.get("Condition"))
     ]
     assert len(goals_statements) == 1, goals_statements
     statement = goals_statements[0]
@@ -1860,7 +1863,7 @@ def test_backend_lambda_goals_grant_is_exactly_get_and_put_on_goals_objects() ->
     delete_resources = _resources_for_s3_action(template, role, "s3:DeleteObject")
     assert not any(_mentions_goals_prefix(r) for r in delete_resources), delete_resources
     list_conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
-    assert not any(_mentions_goals_prefix(c) for c in list_conditions), list_conditions
+    assert any(_mentions_goals_prefix(c) for c in list_conditions), list_conditions
 
 
 def test_no_other_lambda_role_is_granted_goals_objects() -> None:

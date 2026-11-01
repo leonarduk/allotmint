@@ -1,10 +1,13 @@
 import logging
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from backend.auth import get_active_user
 from backend.common import data_loader
 from backend.common.account_scaffold import ensure_owner_scaffold
+from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.config import demo_identity
@@ -131,12 +134,17 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
 
 @router.get("/compliance/{owner}")
 @handle_owner_not_found
-def compliance_for_owner(owner: str, request: Request):
-    """Return compliance warnings and status for an owner."""
+def compliance_for_owner(owner: str, request: Request, identity: Optional[str] = Depends(get_active_user)):
+    """Return compliance warnings and status for an owner.
+
+    The caller must be authorised for ``owner`` (:func:`ensure_owner_access`,
+    #11346), checked before the owner's existence is revealed.
+    """
     require_core(compliance, "Compliance")
     accounts_root = resolve_accounts_root(request)
-    owners = _known_owners(accounts_root)
     owner_dir = resolve_owner_directory(accounts_root, owner)
+    ensure_owner_access(identity, owner_dir.name if owner_dir else owner, accounts_root)
+    owners = _known_owners(accounts_root)
     if not owner_dir:
         # AWS owners are discovered from S3 by ``list_plots`` and need not
         # have a directory in Lambda's local filesystem.  Treat the provider
@@ -164,12 +172,14 @@ def compliance_for_owner(owner: str, request: Request):
 
 @router.post("/compliance/validate")
 @handle_owner_not_found
-async def validate_trade(request: Request):
+async def validate_trade(request: Request, identity: Optional[str] = Depends(get_active_user)):
     """Validate a proposed trade for compliance issues.
 
     The returned payload mirrors :func:`compliance_for_owner` and
     includes warning messages along with hold-period countdowns and
-    the remaining trade quota for the current month.
+    the remaining trade quota for the current month. The caller must be
+    authorised for the body's ``owner``, checked before anything is read or
+    scaffolded (#11346).
     """
     require_core(compliance, "Compliance")
     trade = await request.json()
@@ -181,9 +191,10 @@ async def validate_trade(request: Request):
     if not owner_value:
         raise_owner_not_found(owner_value)
 
+    owner_dir = resolve_owner_directory(accounts_root, owner_value)
+    ensure_owner_access(identity, owner_dir.name if owner_dir else owner_value, accounts_root)
     owners = _known_owners(accounts_root)
     discovered_for_active_root = getattr(owners, "active_root_has_entries", bool(owners))
-    owner_dir = resolve_owner_directory(accounts_root, owner_value)
     scaffold_missing = owner_dir is None
 
     if owner_dir:

@@ -4,8 +4,17 @@ from backend.common.errors import OwnerNotFoundError
 from backend.routes import metrics
 
 
+@pytest.fixture(autouse=True)
+def access_checked(monkeypatch):
+    """Stub the owner-access check (#11346) and record the owners it saw."""
+    seen = []
+    monkeypatch.setattr(metrics, "resolve_accounts_root", lambda request: None)
+    monkeypatch.setattr(metrics, "ensure_owner_access", lambda identity, owner, root=None: seen.append(owner))
+    return seen
+
+
 @pytest.mark.asyncio
-async def test_get_metrics_returns_cached_payload(monkeypatch):
+async def test_get_metrics_returns_cached_payload(monkeypatch, access_checked):
     cached_payload = {"turnover": 0.42}
 
     def stub_load(owner: str):
@@ -18,9 +27,10 @@ async def test_get_metrics_returns_cached_payload(monkeypatch):
     monkeypatch.setattr(metrics, "load_metrics", stub_load)
     monkeypatch.setattr(metrics, "compute_and_store_metrics", stub_compute)
 
-    result = metrics.get_metrics("alex")
+    result = metrics.get_metrics("alex", request=None, identity=None)
 
     assert result == cached_payload
+    assert access_checked == ["alex"]
 
 
 @pytest.mark.asyncio
@@ -38,7 +48,7 @@ async def test_get_metrics_computes_when_cache_empty(monkeypatch):
     monkeypatch.setattr(metrics, "load_metrics", stub_load)
     monkeypatch.setattr(metrics, "compute_and_store_metrics", stub_compute)
 
-    result = metrics.get_metrics("alex")
+    result = metrics.get_metrics("alex", request=None, identity=None)
 
     assert result is sentinel
 
@@ -59,7 +69,7 @@ async def test_get_metrics_raises_http_not_found(monkeypatch):
     monkeypatch.setattr(metrics, "raise_owner_not_found", stub_raise_owner_not_found)
 
     with pytest.raises(OwnerNotFoundError) as exc:
-        metrics.get_metrics("alex")
+        metrics.get_metrics("alex", request=None, identity=None)
 
     assert exc.value.status_code == 404
     assert stub["called"]

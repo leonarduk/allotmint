@@ -79,13 +79,11 @@ def test_tax_allowances_route_with_auth(monkeypatch):
                 "allowances": allowances,
             }
 
+            # alice is not bob, his email or a listed viewer: another owner's
+            # allowances are refused (#11346).
             resp = client.get("/tax/allowances", params={"owner": "bob"})
-            assert resp.status_code == 200
-            assert resp.json() == {
-                "owner": "bob",
-                "tax_year": 2024,
-                "allowances": allowances,
-            }
+            assert resp.status_code == 403
+            assert "allowances" not in resp.json()
     finally:
         app.dependency_overrides.clear()
 

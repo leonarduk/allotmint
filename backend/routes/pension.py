@@ -1,8 +1,10 @@
 import inspect
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from backend.auth import get_active_user
+from backend.common.authz import ensure_owner_access
 from backend.common.data_loader import load_person_metadata
 from backend.common.pension import (
     DEFINED_CONTRIBUTION_ACCOUNT_MARKERS,
@@ -37,9 +39,15 @@ def _load_dob(owner: str, accounts_root) -> tuple[str, float]:
 def pension_profile(
     request: Request,
     owner: str = Query(..., description="Portfolio owner"),
+    identity: Optional[str] = Depends(get_active_user),
 ):
-    """Age facts the forecast form needs before any forecast has been run."""
-    dob, current_age = _load_dob(owner, resolve_accounts_root(request))
+    """Age facts the forecast form needs before any forecast has been run.
+
+    The caller must be authorised for ``owner`` (:func:`ensure_owner_access`, #11346).
+    """
+    accounts_root = resolve_accounts_root(request)
+    ensure_owner_access(identity, owner, accounts_root)
+    dob, current_age = _load_dob(owner, accounts_root)
     return {
         "dob": dob,
         "current_age": current_age,
@@ -69,8 +77,11 @@ def pension_forecast(
             description="Age you plan to stop work; defaults to your UK state pension age",
         ),
     ] = None,
+    identity: Optional[str] = Depends(get_active_user),
 ):
+    """Forecast ``owner``'s retirement income; the caller must be authorised for ``owner`` (#11346)."""
     accounts_root = resolve_accounts_root(request)
+    ensure_owner_access(identity, owner, accounts_root)
     dob, current_age = _load_dob(owner, accounts_root)
 
     state_pension_age = state_pension_age_uk(dob)

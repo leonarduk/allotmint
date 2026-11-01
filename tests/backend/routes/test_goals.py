@@ -116,6 +116,35 @@ def test_get_goal_falls_back_to_latest_recorded_amount_and_projects(monkeypatch,
     assert response.projection["on_track"] is True
 
 
+def test_get_goal_supplied_amount_drives_progress_but_not_projection(monkeypatch, fake_goal_class):
+    """A supplied ``current_amount`` drives progress/trades; the projection uses only history (#11185)."""
+    fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
+    history = [(datetime.date(2026, 1, 1), 200.0), (datetime.date(2026, 3, 2), 500.0)]
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])
+    monkeypatch.setattr(goals, "load_goal_history", lambda owner, name: history)
+    trade_inputs = []
+
+    def fake_suggest_trades(actual, target):
+        trade_inputs.append(actual)
+        return [{"symbol": "goal", "amount": actual["goal"]}]
+
+    monkeypatch.setattr(goals, "suggest_trades", fake_suggest_trades)
+
+    baseline = goals._get_goal("owner", "Emergency")
+    # Far above the latest recorded 500.0: fed into the projection, it would
+    # move the projected date well before the history-based 2026-12-27.
+    response = goals._get_goal("owner", "Emergency", current_amount=1500.0)
+
+    assert response.current_amount == 1500.0
+    assert response.progress == pytest.approx(0.75)
+    assert trade_inputs[-1] == {"goal": 1500.0, "cash": 500.0}
+    assert response.trades == [{"symbol": "goal", "amount": 1500.0}]
+    assert response.projection == baseline.projection
+    assert response.projection["status"] == "projected"
+    assert response.projection["projected_date"] == "2026-12-27"
+    assert response.projection["on_track"] is True
+
+
 def test_record_progress_stores_snapshot_and_returns_detail(monkeypatch, fake_goal_class):
     fake = fake_goal_class("Emergency", 2000.0, datetime.date(2030, 6, 30))
     monkeypatch.setattr(goals, "load_goals", lambda owner: [fake])

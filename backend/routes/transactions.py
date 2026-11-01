@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Literal, Mapping, Optional, Tuple, get_args
+from typing import Any, Dict, Iterable, Iterator, List, Literal, Mapping, Optional, Tuple, get_args
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -753,10 +753,12 @@ def transactions_with_compliance(
     request: Request,
     account: Optional[str] = None,
     ticker: Optional[str] = None,
+    identity: str | None = Depends(get_active_user),
 ):
     """Return transactions for ``owner`` annotated with compliance warnings."""
 
     require_core(compliance, "Compliance")
+    _ensure_owners_access(request, identity, [owner])
     store, _ = resolve_writable_store(request)
     txs = [t.model_dump() for t in load_all_transactions(store) if t.owner.lower() == owner.lower()]
     if account:
@@ -789,6 +791,20 @@ def _validate_component(value: str, field: str) -> str:
     if not _SAFE_COMPONENT_RE.fullmatch(value):
         raise HTTPException(status_code=400, detail=f"Invalid {field}")
     return value
+
+
+def _ensure_owners_access(request: Request, identity: Optional[str], owners: Iterable[str]) -> None:
+    """Raise a 403 unless ``identity`` may access every one of ``owners``.
+
+    The router is registered without auth dependencies, so each route checks
+    here before it writes anything. A request that touches an owner the
+    caller can't access then writes nothing at all (#11342). Like
+    :func:`ensure_owner_access`, this is a no-op when auth is disabled, except
+    for demo-scoped requests.
+    """
+    accounts_root = resolve_accounts_root(request)
+    for owner in sorted(set(owners)):
+        ensure_owner_access(identity, owner, accounts_root)
 
 
 def _persist_transaction(store: "AccountsStore", owner: str, account: str, tx_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -896,7 +912,9 @@ def _validate_create_shape(tx_data: Dict[str, Any]) -> None:
 
 
 @router.post("/transactions", status_code=201)
-def create_transaction(request: Request, tx: TransactionCreate) -> dict:
+def create_transaction(
+    request: Request, tx: TransactionCreate, identity: str | None = Depends(get_active_user)
+) -> dict:
     """Store a new transaction and return it.
 
     If the owner does not yet have a writable account root, one is created
@@ -904,6 +922,8 @@ def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     There is no separate account-creation endpoint; see
     :mod:`backend.common.signup_provision` for the admin-approval provisioning
     path that runs before any user write.
+
+    The caller must be authorised for ``tx.owner`` (:func:`ensure_owner_access`).
     """
 
     store = _require_writable_store(request)
@@ -911,6 +931,7 @@ def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     tx_data = tx.model_dump(mode="json", exclude=_BOT_ONLY_FIELDS)
     owner = _validate_component(tx_data.pop("owner"), "owner")
     account = _validate_component(tx_data.pop("account"), "account")
+    _ensure_owners_access(request, identity, [owner])
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
     _reject_future_date(tx.date)
@@ -921,14 +942,8 @@ def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     return _persist_transaction(store, owner, _transactions_account_name(owner, account, store), tx_data)
 
 
-@router.put("/transactions/{tx_id}")
-def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> dict:
-    store = _require_writable_store(request)
-
-    original_owner, original_account_raw, index = _parse_transaction_id(tx_id)
-    original_owner = _validate_component(original_owner, "owner")
-    original_account = _validate_component(original_account_raw, "account")
-
+def _update_target(tx: TransactionUpdate) -> Tuple[str, str, Dict[str, Any]]:
+    """``(new owner, new account, fields to apply)`` from a validated PUT body."""
     # TransactionUpdate has no bot-only fields today (extras are ignored); the
     # exclude keeps that true if they are ever added to the model.
     tx_data = tx.model_dump(mode="json", exclude=_BOT_ONLY_FIELDS)
@@ -937,6 +952,38 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
     _reject_future_date(tx.date)
+    return new_owner, new_account, tx_data
+
+
+def _append_moved_entry(store: "AccountsStore", owner: str, account: str, entry: Dict[str, object]) -> Tuple[str, int]:
+    """Append an entry moved from another ledger; return ``(file account, new index)``."""
+    file_account = _transactions_account_name(owner, account, store)
+    with _locked_transactions_data(owner, file_account, store) as (data, _):
+        transactions = data.setdefault("transactions", [])
+        transactions.append(entry)
+        data["owner"] = owner
+        data["account_type"] = file_account
+        new_index = len(transactions) - 1
+    return file_account, new_index
+
+
+@router.put("/transactions/{tx_id}")
+def update_transaction(
+    request: Request, tx_id: str, tx: TransactionUpdate, identity: str | None = Depends(get_active_user)
+) -> dict:
+    """Edit a transaction, moving it when the body names another owner/account.
+
+    The caller must be authorised for both the owner in ``tx_id`` and the
+    body's owner (:func:`ensure_owner_access`), checked before any write.
+    """
+    store = _require_writable_store(request)
+
+    original_owner, original_account_raw, index = _parse_transaction_id(tx_id)
+    original_owner = _validate_component(original_owner, "owner")
+    original_account = _validate_component(original_account_raw, "account")
+
+    new_owner, new_account, tx_data = _update_target(tx)
+    _ensure_owners_access(request, identity, [original_owner, new_owner])
 
     original_account_canonical = _find_transaction_account(original_owner, original_account, store)
 
@@ -975,13 +1022,7 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
     else:
         if pending_entry is None:
             raise HTTPException(status_code=500, detail="Failed to update transaction")
-        new_account = _transactions_account_name(new_owner, new_account, store)
-        with _locked_transactions_data(new_owner, new_account, store) as (data, _):
-            transactions = data.setdefault("transactions", [])
-            transactions.append(pending_entry)
-            data["owner"] = new_owner
-            data["account_type"] = new_account
-            new_index = len(transactions) - 1
+        new_account, new_index = _append_moved_entry(store, new_owner, new_account, pending_entry)
 
     affected: List[Tuple[str, str]] = [(new_owner, new_account)]
     if not same_location:
@@ -1022,16 +1063,20 @@ def _split_transaction_entry(entry: Mapping[str, Any], first_units: float) -> Tu
 
 
 @router.post("/transactions/{tx_id}/split")
-def split_transaction(request: Request, tx_id: str, body: TransactionSplit) -> dict:
+def split_transaction(
+    request: Request, tx_id: str, body: TransactionSplit, identity: str | None = Depends(get_active_user)
+) -> dict:
     """Split a transaction into two rows (same date, price and type).
 
     The second row is inserted directly after the first, so later transactions'
     ids shift by one.  Position cost is unchanged, so holdings are not rebuilt.
+    The caller must be authorised for the owner in ``tx_id``.
     """
     store = _require_writable_store(request)
 
     owner, account_raw, index = _parse_transaction_id(tx_id)
     owner = _validate_component(owner, "owner")
+    _ensure_owners_access(request, identity, [owner])
     account = _find_transaction_account(owner, _validate_component(account_raw, "account"), store)
 
     with _locked_transactions_data(owner, account, store) as (data, _):
@@ -1055,12 +1100,14 @@ def split_transaction(request: Request, tx_id: str, body: TransactionSplit) -> d
 
 
 @router.delete("/transactions/{tx_id}")
-def delete_transaction(request: Request, tx_id: str) -> dict:
+def delete_transaction(request: Request, tx_id: str, identity: str | None = Depends(get_active_user)) -> dict:
+    """Delete a transaction; the caller must be authorised for the owner in ``tx_id``."""
     store = _require_writable_store(request)
 
     owner, account_raw, index = _parse_transaction_id(tx_id)
     owner = _validate_component(owner, "owner")
     account = _validate_component(account_raw, "account")
+    _ensure_owners_access(request, identity, [owner])
 
     account_canonical = _find_transaction_account(owner, account, store)
 
@@ -1201,6 +1248,59 @@ def _schedule_guardian_run(
     background_tasks.add_task(run_after_import, actor)
 
 
+# A parsed import row ready to persist: (owner, account, record).
+_PlannedImportRow = Tuple[str, str, Dict[str, Any]]
+
+
+def _skip_row(row: Transaction, reason: str) -> Dict[str, Any]:
+    return {**row.model_dump(mode="json"), "skip_reason": reason}
+
+
+def _plan_import_row(row: Transaction, owner: str | None, account: str | None) -> _PlannedImportRow | str:
+    """The row's ``(owner, account, record)``, or why it is skipped.
+
+    ``owner``/``account`` are the form fallbacks for a row that names neither.
+    """
+    row_owner = row.owner or owner
+    row_account = row.account or account
+    if not row_owner or not row_account:
+        return "missing owner/account"
+    missing_fields = _missing_ledger_fields(row)
+    if missing_fields:
+        # e.g. a Hargreaves holdings export (Code,Units held,...) has no date or type (#10948).
+        return f"missing {missing_fields}"
+    try:
+        row_owner = _validate_component(row_owner, "owner")
+        row_account = _validate_component(row_account, "account")
+    except HTTPException as exc:
+        return str(exc.detail)
+    try:
+        tx_data = _tx_data_from_parsed(row, row_account)
+    except ImportPriceCurrencyError as exc:
+        return str(exc)
+    if _is_future_date(_parse_date(tx_data.get("date"))):
+        # Skipped per row, like other bad rows, so one typo does not block a historical import.
+        return _FUTURE_DATE_DETAIL
+    return row_owner, row_account, tx_data
+
+
+def _persist_import_rows(store: "AccountsStore", planned: List[_PlannedImportRow]) -> List[Dict[str, Any]]:
+    """Persist every planned row, rolling all of them back if one write fails."""
+    persisted: List[Dict[str, Any]] = []
+    # Transactions-file spelling per destination, looked up once per account.
+    file_accounts: Dict[Tuple[str, str], str] = {}
+    for row_owner, row_account, tx_data in planned:
+        target = (row_owner, row_account)
+        if target not in file_accounts:
+            file_accounts[target] = _transactions_account_name(row_owner, row_account, store)
+        try:
+            persisted.append(_persist_transaction(store, row_owner, file_accounts[target], tx_data))
+        except Exception:
+            _rollback_import(store, persisted)
+            raise
+    return persisted
+
+
 @router.post("/transactions/import")
 async def import_transactions(
     request: Request,
@@ -1209,6 +1309,7 @@ async def import_transactions(
     file: UploadFile = File(...),
     owner: str | None = Form(default=None),
     account: str | None = Form(default=None),
+    identity: str | None = Depends(get_active_user),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Parse a transaction export, persist rows not already imported, and report the rest.
 
@@ -1224,6 +1325,11 @@ async def import_transactions(
 
     When any row was persisted the allowance guardian bot runs afterwards
     (#10495).
+
+    Rows can each name their own owner, so the caller must be authorised for
+    every owner the import writes to (:func:`ensure_owner_access`). All of
+    them are checked before the first row is written: one denied owner is a
+    403 and nothing is persisted (#11342).
     """
 
     data = await file.read()
@@ -1247,48 +1353,17 @@ async def import_transactions(
         existing = load_all_transactions(store)
         parsed = importers.dedupe_against_existing(parsed, existing)
 
-    persisted: List[Dict[str, Any]] = []
+    planned: List[_PlannedImportRow] = []
     skipped: List[Dict[str, Any]] = []
-    # Transactions-file spelling per destination, looked up once per account.
-    file_accounts: Dict[Any, str] = {}
-
     for row in parsed:
-        row_owner = row.owner or owner
-        row_account = row.account or account
-        if not row_owner or not row_account:
-            skipped.append({**row.model_dump(mode="json"), "skip_reason": "missing owner/account"})
-            continue
+        plan = _plan_import_row(row, owner, account)
+        if isinstance(plan, str):
+            skipped.append(_skip_row(row, plan))
+        else:
+            planned.append(plan)
 
-        missing_fields = _missing_ledger_fields(row)
-        if missing_fields:
-            # e.g. a Hargreaves holdings export (Code,Units held,...) has no date or type (#10948).
-            skipped.append({**row.model_dump(mode="json"), "skip_reason": f"missing {missing_fields}"})
-            continue
-
-        try:
-            row_owner = _validate_component(row_owner, "owner")
-            row_account = _validate_component(row_account, "account")
-        except HTTPException as exc:
-            skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc.detail)})
-            continue
-
-        try:
-            tx_data = _tx_data_from_parsed(row, row_account)
-        except ImportPriceCurrencyError as exc:
-            skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc)})
-            continue
-        if _is_future_date(_parse_date(tx_data.get("date"))):
-            # Skipped per row, like other bad rows, so one typo does not block a historical import.
-            skipped.append({**row.model_dump(mode="json"), "skip_reason": _FUTURE_DATE_DETAIL})
-            continue
-        target = (row_owner, row_account)
-        if target not in file_accounts:
-            file_accounts[target] = _transactions_account_name(row_owner, row_account, store)
-        try:
-            persisted.append(_persist_transaction(store, row_owner, file_accounts[target], tx_data))
-        except Exception:
-            _rollback_import(store, persisted)
-            raise
+    _ensure_owners_access(request, identity, (row_owner for row_owner, _account, _data in planned))
+    persisted = _persist_import_rows(store, planned)
 
     _schedule_guardian_run(background_tasks, persisted, None)
     return {"persisted": persisted, "skipped": skipped}
@@ -1381,16 +1456,20 @@ def import_moneyhub_transactions(
 
 @router.post("/holdings/import")
 async def import_holdings(
+    request: Request,
     owner: str = Form(...),
     account: str = Form(...),
     provider: str = Form(...),
     file: UploadFile = File(...),
+    identity: str | None = Depends(get_active_user),
 ) -> dict[str, str]:
     """Parse a holdings export and persist it to the accounts store.
 
-    Returns a mapping containing the path of the written holdings file.
+    Returns a mapping containing the path of the written holdings file. The
+    caller must be authorised for ``owner`` (:func:`ensure_owner_access`).
     """
 
+    _ensure_owners_access(request, identity, [owner])
     data = await file.read()
     try:
         return update_holdings_from_csv.update_from_csv(
@@ -1412,13 +1491,16 @@ async def reconcile_holdings(
     account: str = Form(...),
     provider: str = Form(...),
     file: UploadFile = File(...),
+    identity: str | None = Depends(get_active_user),
 ) -> dict[str, object]:
     """Return the difference between a broker export and stored holdings.
 
     This endpoint deliberately uses only the store's read API and the pure
     reconciliation helper; applying the reported changes remains explicit.
+    It reads ``owner``'s holdings, so the caller must be authorised for them.
     """
     owner = _validate_component(owner, "owner")
+    _ensure_owners_access(request, identity, [owner])
     account = normalise_account_file_name(_validate_component(account, "account"))
     logger.debug("Reconciling holdings for %s/%s", sanitise_log_value(owner), sanitise_log_value(account))
 
@@ -1750,7 +1832,9 @@ def _manual_holding_plan(
 
 
 @router.post("/holdings/manual")
-def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
+def create_manual_holding(
+    request: Request, payload: ManualHoldingCreate, identity: str | None = Depends(get_active_user)
+) -> dict[str, Any]:
     """Set a holding's total units by recording the transaction that brings the account to it.
 
     Holdings are rebuilt from transactions on every transaction write, so a
@@ -1768,9 +1852,13 @@ def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dic
     There is no separate account-creation endpoint; see
     :mod:`backend.common.signup_provision` for the admin-approval provisioning
     path that runs before any user write.
+
+    The caller must be authorised for ``payload.owner``, for a ``dry_run``
+    preview as well as a save.
     """
     _validate_manual_holding_payload(payload)
     owner = _validate_component(payload.owner, "owner")
+    _ensure_owners_access(request, identity, [owner])
     account = _validate_component(payload.account, "account")
     ticker = str(payload.ticker or "").strip().upper()
     if not ticker:
@@ -1802,15 +1890,19 @@ def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dic
 
 
 @router.post("/accounts", status_code=201)
-def create_account(request: Request, payload: AccountCreate) -> dict[str, Any]:
+def create_account(
+    request: Request, payload: AccountCreate, identity: str | None = Depends(get_active_user)
+) -> dict[str, Any]:
     """Create an empty named portfolio account for ``payload.owner``.
 
     Produces a skeleton ``{account_type}.json`` document (owner, account_type,
     currency, empty holdings) without requiring a holding to be added first.
-    Returns 409 if an account of that type already exists for the owner.
+    Returns 409 if an account of that type already exists for the owner. The
+    caller must be authorised for ``payload.owner``.
     """
 
     owner = _validate_component(payload.owner, "owner")
+    _ensure_owners_access(request, identity, [owner])
     account_type = _validate_component(payload.account_type, "account_type")
     account_slug = normalise_account_file_name(account_type)
     filename = f"{account_slug}.json"
@@ -1843,8 +1935,11 @@ def create_account(request: Request, payload: AccountCreate) -> dict[str, Any]:
 def list_manual_holdings(
     request: Request,
     owner: str,
+    identity: str | None = Depends(get_active_user),
 ) -> dict[str, Any]:
+    """Summarise ``owner``'s accounts; the caller must be authorised for ``owner``."""
     owner_name = _validate_component(owner, "owner")
+    _ensure_owners_access(request, identity, [owner_name])
     store, _ = resolve_writable_store(request)
 
     # Merge the read-only global/demo dataset with the writable store, with
@@ -1889,6 +1984,7 @@ def list_transactions(
     tx_type: Optional[str] = Query(None, alias="type"),
     ticker: Optional[str] = None,
     ticker_match: Literal["exact", "base"] = "exact",
+    identity: str | None = Depends(get_active_user),
 ):
     """Return transactions with optional filtering.
 
@@ -1897,8 +1993,13 @@ def list_transactions(
     ``VOD.L`` also returns rows stored as ``VOD`` (but never ``VODX``); the
     instrument chart's trade overlay relies on this because transaction rows
     are not guaranteed to carry the charted instrument's suffix (#7791).
+
+    With ``owner`` the caller must be authorised for that owner. Without it
+    the listing is not scoped per owner (see #11342).
     """
 
+    if owner:
+        _ensure_owners_access(request, identity, [owner])
     start_d = _parse_date(start)
     end_d = _parse_date(end)
     base_symbol = split_ticker(ticker)[0] if ticker and ticker_match == "base" else None
@@ -1936,9 +2037,16 @@ def list_dividends(
     start: Optional[str] = None,
     end: Optional[str] = None,
     ticker: Optional[str] = None,
+    identity: str | None = Depends(get_active_user),
 ):
-    """Return only dividend transactions, grouped per owner/instrument."""
+    """Return only dividend transactions, grouped per owner/instrument.
 
+    With ``owner`` the caller must be authorised for that owner. Without it
+    the listing is not scoped per owner (see #11342).
+    """
+
+    if owner:
+        _ensure_owners_access(request, identity, [owner])
     start_d = _parse_date(start)
     end_d = _parse_date(end)
     norm_ticker = normalise_filter_ticker(

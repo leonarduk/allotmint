@@ -59,6 +59,47 @@ def test_load_transactions_attaches_section_104_gain_per_account(tmp_path, monke
     assert by_units[2]["realised_gain_gbp"] is None
 
 
+# A ticker-less SELL whose ticker only the account's holdings file records (#8122).
+_ALIAS_ONLY_IN_HOLDINGS_TXS = [
+    {"date": "2024-01-01", "type": "BUY", "ticker": "AAA.L", "units": 10, "amount_minor": 100000},
+    {"date": "2024-02-01", "type": "SELL", "instrument_name": "Alpha Fund", "units": 4, "amount_minor": 60000},
+]
+_ALIAS_ONLY_IN_HOLDINGS_DOC = {"holdings": [{"ticker": "AAA.L", "name": "Alpha Fund", "units": 10}]}
+
+
+def test_load_transactions_resolves_ticker_less_sell_via_holdings_file(tmp_path, monkeypatch):
+    """Reports pool the SELL with AAA.L, as GET /transactions and the rebuild do (#8122)."""
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "ISA_transactions.json").write_text(json.dumps({"transactions": _ALIAS_ONLY_IN_HOLDINGS_TXS}))
+    (owner_dir / "isa.json").write_text(json.dumps(_ALIAS_ONLY_IN_HOLDINGS_DOC))
+    monkeypatch.setattr(reports, "_transaction_roots", lambda: [str(tmp_path)])
+    monkeypatch.setattr(reports.config, "app_env", "local")
+
+    sell = next(tx for tx in reports._load_transactions("alice") if tx["type"] == "SELL")
+
+    assert sell["cost_basis_gbp"] == 400.0
+    assert sell["realised_gain_gbp"] == 200.0
+
+
+def test_load_transactions_s3_resolves_ticker_less_sell_via_holdings_file(monkeypatch):
+    """The S3 path reads ``<account>.json`` beside the ledger under the same prefix (#8122)."""
+    _install_fake_s3(
+        monkeypatch,
+        {
+            "writable-accounts/alice/ISA_transactions.json": {"transactions": _ALIAS_ONLY_IN_HOLDINGS_TXS},
+            "writable-accounts/alice/isa.json": _ALIAS_ONLY_IN_HOLDINGS_DOC,
+        },
+    )
+    monkeypatch.setattr(reports.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv("DATA_BUCKET", "bucket")
+
+    sell = next(tx for tx in reports._load_transactions("alice") if tx["type"] == "SELL")
+
+    assert sell["cost_basis_gbp"] == 400.0
+    assert sell["realised_gain_gbp"] == 200.0
+
+
 def test_load_transactions_s3(monkeypatch, caplog):
     owner = "alice"
     monkeypatch.setattr(reports.config, "app_env", "aws")
@@ -1350,7 +1391,8 @@ def _install_fake_s3(monkeypatch, objects):
     """Serve ``objects`` (key -> JSON payload) from a fake boto3 S3 client."""
 
     class FakeError(Exception):
-        pass
+        # Shaped like botocore's ClientError for a missing key.
+        response = {"Error": {"Code": "NoSuchKey"}}
 
     exceptions_mod = types.ModuleType("exceptions")
     exceptions_mod.BotoCoreError = FakeError
@@ -1369,6 +1411,8 @@ def _install_fake_s3(monkeypatch, objects):
             return FakePaginator()
 
         def get_object(self, Bucket, Key):
+            if Key not in objects:
+                raise FakeError(Key)
             return {"Body": io.BytesIO(json.dumps(objects[Key]).encode("utf-8"))}
 
     boto3_mod = types.ModuleType("boto3")

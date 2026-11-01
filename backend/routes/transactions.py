@@ -20,6 +20,11 @@ from pydantic_core import PydanticCustomError
 from backend import importers
 from backend.auth import get_active_user
 from backend.common import data_loader, moneyhub_tokens
+from backend.common.account_holdings import (
+    load_account_holdings_file,
+    normalise_account_file_name,
+    read_store_holdings,
+)
 from backend.common.accounts_store import (
     LocalAccountsStore,
     S3AccountsStore,
@@ -431,10 +436,6 @@ class AccountCreate(BaseModel):
     currency: str | None = None
 
 
-def _normalise_account_file_name(account: str) -> str:
-    return account.strip().lower()
-
-
 # Metadata/scaffold files that live alongside account holdings JSON but are not
 # themselves holdings accounts.
 _NON_HOLDINGS_FILES = frozenset({"person.json", "settings.json", "approvals.json"})
@@ -442,27 +443,6 @@ _NON_HOLDINGS_FILES = frozenset({"person.json", "settings.json", "approvals.json
 
 def _is_non_holdings_file(name: str) -> bool:
     return name.endswith("_transactions.json") or name in _NON_HOLDINGS_FILES
-
-
-def _load_account_holdings_file(path: Path, owner: str, account: str) -> dict[str, Any]:
-    if path.exists():
-        try:
-            loaded = json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError, ValueError):
-            loaded = {}
-    else:
-        loaded = {}
-
-    if not isinstance(loaded, dict):
-        loaded = {}
-
-    loaded.setdefault("owner", owner)
-    loaded.setdefault("account_type", account)
-    loaded.setdefault("currency", "GBP")
-    holdings = loaded.get("holdings")
-    if not isinstance(holdings, list):
-        loaded["holdings"] = []
-    return loaded
 
 
 def _account_payload_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -627,11 +607,22 @@ def _scope_update_to_type(existing: Mapping[str, object], update: Mapping[str, o
 _DERIVED_GAIN_FIELDS = ("realised_gain_gbp", "cost_basis_gbp", "proceeds_gbp", "unmatched_units")
 
 
-def _transactions_from_doc(owner: str, account_raw: str, data: Mapping[str, Any]) -> List[Transaction]:
+def _transactions_from_doc(
+    owner: str,
+    account_raw: str,
+    data: Mapping[str, Any],
+    holdings_doc: Mapping[str, Any] | None = None,
+) -> List[Transaction]:
+    """Return ``data``'s rows as :class:`Transaction` with SELL gains attached.
+
+    ``holdings_doc`` is the account's ``<account>.json``; its holdings resolve
+    ticker-less trades exactly as the holdings rebuild does (#8122).
+    """
     results: List[Transaction] = []
     account = account_raw.lower()
     transactions = data.get("transactions", []) or []
-    gains = compute_disposal_gains(transactions)
+    old_holdings = (holdings_doc or {}).get("holdings")
+    gains = compute_disposal_gains(transactions, old_holdings if isinstance(old_holdings, list) else None)
     for idx, t in enumerate(transactions):
         t = dict(t)
         t.pop("account", None)
@@ -681,11 +672,18 @@ def load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Trans
                     continue
                 owner = str(data.get("owner") or path.parent.name)
                 account_raw = str(data.get("account_type") or path.stem.replace("_transactions", ""))
-                merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
+                file_account = normalise_account_file_name(path.stem.removesuffix("_transactions"))
+                holdings_doc = load_account_holdings_file(path.parent / f"{file_account}.json", owner, account_raw)
+                merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(
+                    owner, account_raw, data, holdings_doc
+                )
 
     if store is not None:
         for owner, account_raw, data in store.iter_transaction_documents():
-            merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
+            holdings_doc = read_store_holdings(store, owner, account_raw)
+            merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(
+                owner, account_raw, data, holdings_doc
+            )
 
     results: List[Transaction] = []
     for txs in merged.values():
@@ -1421,7 +1419,7 @@ async def reconcile_holdings(
     reconciliation helper; applying the reported changes remains explicit.
     """
     owner = _validate_component(owner, "owner")
-    account = _normalise_account_file_name(_validate_component(account, "account"))
+    account = normalise_account_file_name(_validate_component(account, "account"))
     logger.debug("Reconciling holdings for %s/%s", sanitise_log_value(owner), sanitise_log_value(account))
 
     store, _ = resolve_writable_store(request)
@@ -1700,7 +1698,7 @@ def _transactions_account_name(owner: str, account: str, store: "AccountsStore")
     except HTTPException as exc:
         if exc.status_code != 404:
             raise
-        return _normalise_account_file_name(account)
+        return normalise_account_file_name(account)
 
 
 def _manual_price_warning(ticker: str, price: float) -> Optional[Dict[str, Any]]:
@@ -1743,7 +1741,7 @@ def _manual_holding_plan(
     """``(transactions account, units held now, offsetting transaction or None)`` for a manual holding."""
     tx_account = _transactions_account_name(owner, account, store)
     existing = store.read_document(owner, f"{tx_account}_transactions.json") or {}
-    holdings_doc = store.read_document(owner, f"{_normalise_account_file_name(account)}.json") or {}
+    holdings_doc = store.read_document(owner, f"{normalise_account_file_name(account)}.json") or {}
     transactions = list(existing.get("transactions") or [])
     holdings = list(holdings_doc.get("holdings") or [])
     held = _replayed_units(transactions, holdings, ticker)
@@ -1784,7 +1782,7 @@ def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dic
     price_warning = _manual_price_warning(ticker, price)
     result: dict[str, Any] = {
         "owner": owner,
-        "account": _normalise_account_file_name(account),
+        "account": normalise_account_file_name(account),
         "holding": {"ticker": ticker, "units": units, "price": price},
         "price_warning": price_warning,
     }
@@ -1796,7 +1794,7 @@ def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dic
 
     store.ensure_owner(owner)
     if payload.currency:
-        with _locked_account_holdings_data(owner, _normalise_account_file_name(account), store) as (doc, _):
+        with _locked_account_holdings_data(owner, normalise_account_file_name(account), store) as (doc, _):
             doc["currency"] = payload.currency.strip().upper() or "GBP"
     tx_account, held, tx = _manual_holding_plan(store, owner, account, ticker, units, price, tx_date)
     persisted = _persist_transaction(store, owner, tx_account, tx) if tx else None
@@ -1814,7 +1812,7 @@ def create_account(request: Request, payload: AccountCreate) -> dict[str, Any]:
 
     owner = _validate_component(payload.owner, "owner")
     account_type = _validate_component(payload.account_type, "account_type")
-    account_slug = _normalise_account_file_name(account_type)
+    account_slug = normalise_account_file_name(account_type)
     filename = f"{account_slug}.json"
     if _is_non_holdings_file(filename):
         raise HTTPException(status_code=400, detail="Invalid account_type")
@@ -1861,7 +1859,7 @@ def list_manual_holdings(
             for path in sorted(owner_dir.glob("*.json")):
                 if _is_non_holdings_file(path.name):
                     continue
-                payload = _load_account_holdings_file(path, owner_name, path.stem.lower())
+                payload = load_account_holdings_file(path, owner_name, path.stem.lower())
                 summaries[path.stem.lower()] = _account_payload_summary(payload)
 
     for name in store.list_owner_files(owner_name):

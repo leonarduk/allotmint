@@ -119,7 +119,7 @@ def _describe(index: int, tx: Dict[str, Any]) -> str:
     return f"  row {index}: " + " | ".join("" if value is None else str(value) for value in fields)
 
 
-def _report(rel: Path, added: Counter, unclassified: List[Tuple[int, Dict[str, Any]]], verb: str) -> None:
+def _report(rel: str, added: Counter, unclassified: List[Tuple[int, Dict[str, Any]]], verb: str) -> None:
     if added:
         kinds = ", ".join(f"{kind} {count}" for kind, count in sorted(added.items()))
         print(f"{rel}: {sum(added.values())} row(s) {verb} ({kinds})")
@@ -129,7 +129,7 @@ def _report(rel: Path, added: Counter, unclassified: List[Tuple[int, Dict[str, A
             print(_describe(index, tx))
 
 
-def _report_layout(reformatted: List[Tuple[Path, bool]]) -> None:
+def _report_layout(reformatted: List[Tuple[str, bool]]) -> None:
     print(f"{len(reformatted)} file(s) whose layout would be reformatted (not in json.dumps indent=2 layout)")
     for rel, written in reformatted:
         status = "would be rewritten and reformatted" if written else "would be reformatted if written (not written)"
@@ -147,9 +147,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     verb = "would be classified" if args.dry_run else "classified"
     total, left, kept = 0, 0, 0
-    reformatted: List[Tuple[Path, bool]] = []
+    reformatted: List[Tuple[str, bool]] = []
     for path in sorted(args.accounts_root.glob(f"*/*{_SUFFIX}")):
-        rel = path.relative_to(args.accounts_root)
+        # POSIX form so every printed path reads ``owner/file`` on any OS (#11280).
+        rel = path.relative_to(args.accounts_root).as_posix()
         added, unclassified, legacy, reformat = _process(path, args.dry_run)
         _report(rel, added, unclassified, verb)
         if legacy:

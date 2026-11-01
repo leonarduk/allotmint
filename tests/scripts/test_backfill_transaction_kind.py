@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -175,6 +175,26 @@ def test_real_run_does_not_print_the_layout_report(tmp_path, capsys):
     script.main([str(tmp_path)])
 
     assert "layout would be reformatted" not in capsys.readouterr().out
+
+
+def test_printed_paths_use_forward_slashes_on_any_os(tmp_path, capsys, monkeypatch):
+    # Stand in for Windows: relative paths come back with "\" separators (#11280).
+    relative_to = Path.relative_to
+    monkeypatch.setattr(Path, "relative_to", lambda self, *other: PureWindowsPath(relative_to(self, *other)))
+    legacy = {"date": "2026-05-05", "type": "WITHDRAWAL", "amount_minor": -500, "kind": "account"}
+    _reindent(_write(tmp_path, [*SIPP_ROWS, legacy]))
+
+    assert script.main([str(tmp_path), "--dry-run"]) == 0
+
+    out = capsys.readouterr().out
+    assert "\\" not in out
+    for line in (
+        "alex/sipp_transactions.json: 2 row(s) would be classified",
+        "alex/sipp_transactions.json: 2 cash row(s) left unclassified",
+        'alex/sipp_transactions.json: 1 row(s) with legacy kind "account" left as is',
+        "  alex/sipp_transactions.json: would be rewritten and reformatted",
+    ):
+        assert line in out
 
 
 def test_missing_root_is_an_error(tmp_path):

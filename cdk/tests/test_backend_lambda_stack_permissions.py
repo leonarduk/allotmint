@@ -1863,7 +1863,12 @@ def test_backend_lambda_goals_grant_is_exactly_get_and_put_on_goals_objects() ->
     delete_resources = _resources_for_s3_action(template, role, "s3:DeleteObject")
     assert not any(_mentions_goals_prefix(r) for r in delete_resources), delete_resources
     list_conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
-    assert any(_mentions_goals_prefix(c) for c in list_conditions), list_conditions
+    list_prefixes = [
+        prefix
+        for condition in list_conditions
+        for prefix in condition.get("StringLike", {}).get("s3:prefix", [])
+    ]
+    assert {"goals", "goals/*"} <= set(list_prefixes), list_prefixes
 
 
 def test_no_other_lambda_role_is_granted_goals_objects() -> None:

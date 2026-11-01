@@ -10,6 +10,9 @@ what they leave out:
   on top of :func:`backend.common.look_through.compute_look_through`;
 * :mod:`.charges_agent` -- an LLM agent with read-only tools that *proposes*
   missing or stale ongoing charges from public issuer documents;
+* :mod:`.look_through_agent` -- the same agent loop and tools, proposing
+  look-through blocks from issuer factsheets for funds the scrapers cannot
+  resolve (#10492);
 * :mod:`.look_through_upkeep` -- the scheduled refresh of stale look-through
   blocks for held funds;
 * :mod:`.proposals` -- the review queue; only an owner's approval writes, via

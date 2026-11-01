@@ -315,7 +315,8 @@ def _run_tool(toolbox: ReadOnlyToolbox, call: Mapping[str, Any]) -> str:
         return f"Tool call failed: {exc}"
 
 
-def _final_json(content: str) -> Dict[str, Any]:
+def final_json(content: str) -> Dict[str, Any]:
+    """The JSON object in the model's final text, or :class:`proposals.ProposalRejected`."""
     match = re.search(r"\{.*\}", content or "", re.DOTALL)
     if not match:
         raise proposals.ProposalRejected("not_json")
@@ -328,12 +329,13 @@ def _final_json(content: str) -> Dict[str, Any]:
     return data
 
 
-def _conversation(llm: LlmStep, toolbox: ReadOnlyToolbox, fund: Mapping[str, Any], max_steps: int) -> str:
-    """Run the tool loop for one fund; return the model's final text."""
-    name = fund.get("name") or fund["ticker"]
-    request = f"Find the ongoing charge of {name} (ticker {fund['ticker']}, ISIN {fund.get('isin')})."
+def run_tool_loop(llm: LlmStep, toolbox: ReadOnlyToolbox, *, system_prompt: str, request: str, max_steps: int) -> str:
+    """Run the read-only tool loop for one request; return the model's final text.
+
+    Only :data:`TOOL_SPECS` (the read-only allowlist) is ever offered.
+    """
     messages: List[Dict[str, Any]] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": request},
     ]
     for _ in range(max_steps):
@@ -349,6 +351,32 @@ def _conversation(llm: LlmStep, toolbox: ReadOnlyToolbox, fund: Mapping[str, Any
     raise proposals.ProposalRejected("no_answer")
 
 
+Validator = Callable[[Dict[str, Any]], Dict[str, Any]]
+
+
+def propose(
+    llm: LlmStep, toolbox: ReadOnlyToolbox, *, system_prompt: str, request: str, validate: Validator, max_steps: int
+) -> Dict[str, Any]:
+    """Ask the agent, then hold its answer to the proposal rules.
+
+    The answer must cite a ``source_url`` the toolbox fetched during this run
+    and pass ``validate`` (a :mod:`.proposals` validator). Returns
+    ``{"status": "proposed", "proposal": ...}`` or
+    ``{"status": "not_found"|"rejected", "reason": ...}``; nothing is stored.
+    """
+    try:
+        text = run_tool_loop(llm, toolbox, system_prompt=system_prompt, request=request, max_steps=max_steps)
+        answer = final_json(text)
+        if "not_found" in answer:
+            return {"status": "not_found", "reason": str(answer["not_found"])}
+        if str(answer.get("source_url") or "") not in toolbox.fetched_urls:
+            raise proposals.ProposalRejected("unfetched_source")
+        proposal = validate(answer)
+    except proposals.ProposalRejected as exc:
+        return {"status": "rejected", "reason": proposals.rejection_reason(exc.code)}
+    return {"status": "proposed", "proposal": proposal}
+
+
 def propose_charge(
     fund: Mapping[str, Any],
     *,
@@ -358,18 +386,13 @@ def propose_charge(
     max_steps: int = MAX_STEPS,
 ) -> Dict[str, Any]:
     """``{"status": "proposed", "proposal": ...}`` or ``{"status": "not_found"|"rejected", "reason": ...}``."""
-    try:
-        answer = _final_json(_conversation(llm, toolbox, fund, max_steps))
-        if "not_found" in answer:
-            return {"status": "not_found", "reason": str(answer["not_found"])}
-        if str(answer.get("source_url") or "") not in toolbox.fetched_urls:
-            raise proposals.ProposalRejected("unfetched_source")
-        proposal = proposals.validate_charge(
-            {**answer, "ticker": fund["ticker"], "isin": fund.get("isin")}, today=today
-        )
-    except proposals.ProposalRejected as exc:
-        return {"status": "rejected", "reason": proposals.rejection_reason(exc.code)}
-    return {"status": "proposed", "proposal": proposal}
+    name = fund.get("name") or fund["ticker"]
+    request = f"Find the ongoing charge of {name} (ticker {fund['ticker']}, ISIN {fund.get('isin')})."
+
+    def validate(answer: Dict[str, Any]) -> Dict[str, Any]:
+        return proposals.validate_charge({**answer, "ticker": fund["ticker"], "isin": fund.get("isin")}, today=today)
+
+    return propose(llm, toolbox, system_prompt=SYSTEM_PROMPT, request=request, validate=validate, max_steps=max_steps)
 
 
 def needs_charge(meta: Mapping[str, Any], today: date, max_age_days: int = CHARGE_MAX_AGE_DAYS) -> bool:

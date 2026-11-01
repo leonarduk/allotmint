@@ -9,6 +9,7 @@ import requests
 
 from backend.fund_upkeep import bot, look_through_upkeep, proposals
 from tests.backend.fund_upkeep.test_charges_agent import GOOD_ANSWER, FakeSession, scripted_llm
+from tests.backend.fund_upkeep.test_look_through_agent import routed_llm
 
 TODAY = date(2026, 10, 9)
 
@@ -89,19 +90,24 @@ def stub_exposure(monkeypatch):
 def test_run_queues_a_proposal_and_writes_nothing(catalogue):
     before = (catalogue / "L" / "FUNDX.json").read_text(encoding="utf-8")
     toolbox = bot.charges_agent.ReadOnlyToolbox(session=FakeSession(), brave_api_key="k")
+    # One configured LLM serves both agents; the look-through agent finds no breakdown here.
+    llm = routed_llm(scripted_llm(GOOD_ANSWER), scripted_llm({"not_found": "no breakdown published"}))
 
     result = bot.run(
         owner="alex",
         portfolio=PORTFOLIO,
         transactions=[],
         today=TODAY,
-        llm=scripted_llm(GOOD_ANSWER),
+        llm=llm,
         toolbox=toolbox,
         refresh_kwargs={"refresh": lambda t: {"updated": False}, "sleep": lambda _s: None},
     )
 
     assert result["ongoing_charges"][0]["status"] == "queued"
     assert result["look_through"]["unresolved"] == [{"ticker": "FUNDX.L", "reason": "no source"}]
+    assert result["look_through_proposals"] == [
+        {"ticker": "FUNDX.L", "status": "not_found", "reason": "no breakdown published"}
+    ]
     assert result["pending_proposals"] == 1
     assert result["all_in_cost"]["total"]["unknown_value_gbp"] == 1000.0
     # Proposals only: the instrument file is untouched until approval.
@@ -127,6 +133,7 @@ def test_offline_run_skips_network_steps(catalogue):
 
     assert result["look_through"] == {"skipped": "offline"}
     assert result["ongoing_charges"] == {"skipped": "offline", "funds": ["FUNDX.L"]}
+    assert result["look_through_proposals"] == {"skipped": "offline", "funds": []}
     assert proposals.list_proposals() == []
 
 

@@ -5,7 +5,8 @@ import { qualifyingTrades } from '../lib/decisionJournalPrompt';
 import type { DecisionDraft, Transaction, UnloggedChange } from '../types';
 import { DraftEditor } from './DecisionJournal';
 
-const BUTTON = 'rounded bg-gray-200 px-2 py-1 text-sm text-slate-900';
+const BUTTON =
+  'rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
 const PRIMARY = 'rounded bg-blue-500 px-2 py-1 text-sm text-white';
 const gbp = new Intl.NumberFormat('en-GB', {
   style: 'currency',

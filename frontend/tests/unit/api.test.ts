@@ -25,6 +25,7 @@ import {
   clearGroupInstrumentCache,
   checkScreenerAvailable,
   getInstrumentBatch,
+  getQuotes,
   fetchInstrumentBatchWithRetry,
   getChatConversation,
   putChatConversation,
@@ -2023,5 +2024,45 @@ describe("admin scans while the backend warms its caches (#10754)", () => {
       expect(parsed.pathname.endsWith(path)).toBe(true);
       expect(parsed.searchParams.get("partial")).toBe("true");
     }
+  });
+});
+
+describe("getQuotes on the all-symbols-failed 502 (#8098)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("retries a bounded number of times, then rejects with a recoverable 502", async () => {
+    const realFetch = global.fetch;
+    // The body backend/bootstrap/middleware.py's AppError handler sends for
+    // the ProviderFailure backend/routes/quotes.py raises.
+    const mockFetch = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ detail: "Upstream provider failure" }), {
+          status: 502,
+          statusText: "Bad Gateway",
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    global.fetch = mockFetch as unknown as typeof fetch;
+    try {
+      const settled = expect(getQuotes(["AAA", "BBB"])).rejects.toMatchObject({
+        status: 502,
+        message: "The backend service is temporarily unavailable. Please try again.",
+      });
+      await vi.runAllTimersAsync();
+      await settled;
+    } finally {
+      global.fetch = realFetch;
+    }
+    // One attempt plus the two default transient retries -- no retry storm.
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(new URL(String(mockFetch.mock.calls[0]?.[0])).pathname).toMatch(/\/api\/quotes$/);
   });
 });

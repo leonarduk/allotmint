@@ -30,7 +30,7 @@ import json
 import logging
 import re
 from datetime import date, timedelta
-from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Coroutine, Dict, List, Mapping, Optional, Sequence
 
 from backend.allowance_guardian.match import AMOUNT_TOLERANCE_MINOR, EARLY_DAYS, LATE_WINDOW_DAYS, ON_TIME_GRACE_DAYS
 from backend.chat.tool_switches import is_read_only_tool_name
@@ -70,7 +70,7 @@ SYSTEM_PROMPT = (
     '{"explanations": [{"id": <the number in square brackets>, "explanation": "<text>"}]}.'
 )
 
-ChatTurn = Callable[..., Awaitable[str]]
+ChatTurn = Callable[..., Coroutine[Any, Any, str]]
 
 _MONEY_RE = re.compile(r"£\s?(\d[\d,]*(?:\.\d+)?)")
 _NUMBER_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
@@ -238,7 +238,9 @@ def interpret_reply(
     for index, row in enumerate(rows):
         explanation, note = _checked(by_id.get(index), known)
         if note in (NOTE_ADVICE, NOTE_FIGURES):
-            logger.warning("Allowance guardian explanation [%d] rejected: %s", index, note)
+            logger.warning(
+                "Allowance guardian explanation [%s] rejected: %s", sanitise_log_value(index), sanitise_log_value(note)
+            )
         entries.append(_entry(row, explanation, note))
     return entries
 
@@ -302,6 +304,10 @@ def explain_unmatched(
     try:
         reply = _ask_model(chat_turn or _default_chat_turn(), message, cfg, url, limits)
     except Exception as exc:  # noqa: BLE001 - the deterministic report stands without explanations
-        logger.warning("Allowance guardian explainer failed for %s: %s", sanitise_log_value(owner), type(exc).__name__)
+        logger.warning(
+            "Allowance guardian explainer failed for %s: %s",
+            sanitise_log_value(owner),
+            sanitise_log_value(type(exc).__name__),
+        )
         return [_entry(row, None, NOTE_FAILED) for row in rows]
     return interpret_reply(rows, reply, facts, limits)

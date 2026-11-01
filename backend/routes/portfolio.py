@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
-from backend.auth import get_current_user, owner_access_enforced_under_disable_auth
+from backend.auth import get_current_user, get_owner_check_identity, owner_access_enforced_under_disable_auth
 from backend.common import (
     constants,
     data_loader,
@@ -36,7 +36,7 @@ from backend.common import (
 )
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_models import ACCOUNT_METADATA_STEMS, OwnerSummaryRecord, PersonMetadata
-from backend.common.authz import ensure_request_owner_access
+from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
 from backend.common.errors import log_owner_not_found
 from backend.common.portfolio_cache import cached_group_portfolio, invalidate_group_portfolios
@@ -546,12 +546,14 @@ def groups():
 # Owner / group portfolios
 # --------------------------------------------------------------
 @router.get("/portfolio/{owner}")
-def portfolio(owner: str, request: Request, as_of: str | None = None):
+def portfolio(
+    owner: str, request: Request, as_of: str | None = None, identity: Optional[str] = Depends(get_owner_check_identity)
+):
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
-    ensure_request_owner_access(owner, accounts_root)
+    ensure_owner_access(identity, owner, accounts_root)
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
@@ -562,12 +564,14 @@ def portfolio(owner: str, request: Request, as_of: str | None = None):
 
 
 @router.get("/portfolio/{owner}/sectors")
-def portfolio_sectors(owner: str, request: Request, as_of: str | None = None):
+def portfolio_sectors(
+    owner: str, request: Request, as_of: str | None = None, identity: Optional[str] = Depends(get_owner_check_identity)
+):
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
-    ensure_request_owner_access(owner, accounts_root)
+    ensure_owner_access(identity, owner, accounts_root)
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
@@ -582,13 +586,15 @@ def portfolio_sectors(owner: str, request: Request, as_of: str | None = None):
 
 
 @router.get("/portfolio/{owner}/currencies")
-def portfolio_currencies(owner: str, request: Request, as_of: str | None = None):
+def portfolio_currencies(
+    owner: str, request: Request, as_of: str | None = None, identity: Optional[str] = Depends(get_owner_check_identity)
+):
     """Exposure by quote currency (#9686); GBP-listed global funds count as GBP."""
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
-    ensure_request_owner_access(owner, accounts_root)
+    ensure_owner_access(identity, owner, accounts_root)
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
@@ -603,13 +609,15 @@ def portfolio_currencies(owner: str, request: Request, as_of: str | None = None)
 
 
 @router.get("/portfolio/{owner}/look-through")
-def portfolio_look_through(owner: str, request: Request, as_of: str | None = None):
+def portfolio_look_through(
+    owner: str, request: Request, as_of: str | None = None, identity: Optional[str] = Depends(get_owner_check_identity)
+):
     """Real exposure by country, sector and holding, looking through funds (#9974)."""
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
-    ensure_request_owner_access(owner, accounts_root)
+    ensure_owner_access(identity, owner, accounts_root)
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
@@ -627,6 +635,7 @@ def portfolio_look_through(owner: str, request: Request, as_of: str | None = Non
 def portfolio_var(
     owner: str,
     request: Request,
+    identity: Optional[str] = Depends(get_owner_check_identity),
     days: int = 365,
     confidence: float = 0.95,
     exclude_cash: bool = False,
@@ -636,7 +645,7 @@ def portfolio_var(
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
-    ensure_request_owner_access(owner, accounts_root)
+    ensure_owner_access(identity, owner, accounts_root)
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
     except FileNotFoundError:
@@ -656,6 +665,7 @@ def portfolio_var(
 def portfolio_var_breakdown(
     owner: str,
     request: Request,
+    identity: Optional[str] = Depends(get_owner_check_identity),
     days: int = 365,
     confidence: float = 0.95,
     exclude_cash: bool = False,
@@ -666,7 +676,7 @@ def portfolio_var_breakdown(
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
-    ensure_request_owner_access(owner, accounts_root)
+    ensure_owner_access(identity, owner, accounts_root)
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         scenario_payload = risk.compute_portfolio_var_scenarios(
@@ -705,6 +715,7 @@ def portfolio_var_breakdown(
 def portfolio_var_recompute(
     owner: str,
     request: Request,
+    identity: Optional[str] = Depends(get_owner_check_identity),
     days: int = 365,
     confidence: float = 0.95,
 ):
@@ -713,7 +724,7 @@ def portfolio_var_recompute(
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
-    ensure_request_owner_access(owner, accounts_root)
+    ensure_owner_access(identity, owner, accounts_root)
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
     except FileNotFoundError:
@@ -948,9 +959,12 @@ def group_movers(
 
 
 @router.get("/account/{owner}/{account}")
-def get_account(owner: str, account: str, request: Request):
+def get_account(
+    owner: str, account: str, request: Request, identity: Optional[str] = Depends(get_owner_check_identity)
+):
     root = resolve_accounts_root(request)
-    ensure_request_owner_access(owner, root)
+    owner_dir = resolve_owner_directory(root, owner)
+    ensure_owner_access(identity, owner_dir.name if owner_dir else owner, root)
 
     try:
         data = data_loader.load_account_record(owner, account, root).model_dump(exclude_unset=True)

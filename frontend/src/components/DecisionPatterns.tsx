@@ -85,7 +85,7 @@ export default function DecisionPatterns({ patterns }: { patterns: Patterns }) {
       aria-label={t('decisionJournal.patternsTitle')}
     >
       <h3 className="font-medium">{t('decisionJournal.patternsTitle')}</h3>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-xs text-[var(--surface-muted-color)]">
         {t(
           empty
             ? 'decisionJournal.patternsNone'

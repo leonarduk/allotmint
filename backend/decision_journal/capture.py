@@ -288,7 +288,9 @@ def trend_watch_flag(report: Optional[Mapping[str, Any]], ticker: str, on: str) 
     ``None`` when there is no report or it was run after ``on`` (the trade
     date): a later run says nothing about what the list showed at the time.
     """
-    run_date = str((report or {}).get("run_date") or "")
+    if report is None:
+        return None
+    run_date = str(report.get("run_date") or "")
     if not run_date or run_date > on:
         return None
     flagged = any(str(item.get("ticker") or "").upper() == ticker.upper() for item in report.get("items") or [])

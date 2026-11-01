@@ -13,7 +13,9 @@
 #   exit 0, prints the id    -- found
 #   exit 0, prints nothing   -- the stack does not exist, or nothing matched
 #   exit 1, error on stderr  -- the aws call failed for any other reason
-#                               (throttling, expired credentials, network)
+#                               (throttling, expired credentials, network),
+#                               or mktemp could not create the file that
+#                               captures its stderr
 #
 # Callers that fall back when nothing is found must not fall back on exit 1:
 # a failed call says nothing about whether the resource exists (#11095).
@@ -27,7 +29,13 @@
 # and, unlike head -1, reads all input so pipefail never sees a SIGPIPE.
 cfn_resource_id() {
   local stack="$1" query="$2" output err_file status=0
-  err_file="$(mktemp)"
+  # Without a capture file the redirect below would be 2>"", which fails with
+  # an opaque shell error instead of naming the cause (#11151). Fail before
+  # calling aws: with no stderr there is no telling a missing stack apart.
+  if ! err_file="$(mktemp)" || [ -z "$err_file" ]; then
+    echo "cfn_resource_id: mktemp failed to create a file for aws stderr (TMPDIR=${TMPDIR:-<unset>}); cannot look up $stack resources" >&2
+    return 1
+  fi
   # "|| status=$?" keeps a failed call from tripping a caller's set -e here.
   output="$(aws cloudformation list-stack-resources \
     --stack-name "$stack" --query "$query" --output text 2>"$err_file")" || status=$?

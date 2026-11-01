@@ -1016,6 +1016,11 @@ class BackendLambdaStack(Stack):
             # since they carry read-only/owner-scoping semantics the gateway
             # authorizer does not itself enforce (see docs/AUTH.md).
             "DISABLE_AUTH": "true",
+            # Per-owner access (#11087): with DISABLE_AUTH set, the owner/
+            # email/viewers checks in person.json only run when this is "true".
+            # Off until every person.json's email/viewers has been audited --
+            # see the rollout checklist in docs/AUTH.md, then flip to "true".
+            "ENFORCE_OWNER_ACCESS": "false",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
             # Writable per-owner account documents are persisted under this S3

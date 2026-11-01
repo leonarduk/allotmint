@@ -506,6 +506,59 @@ def _resolve_identity_when_auth_disabled(token: str | None) -> str | None:
     return identity
 
 
+def owner_access_enforced_under_disable_auth() -> bool:
+    """Return whether per-owner checks must run although ``disable_auth`` is set (#11087).
+
+    True only when both ``config.disable_auth`` and
+    ``config.enforce_owner_access`` are on -- the deployed Lambda, once the
+    flag is flipped. With ``disable_auth`` off the checks already run, and with
+    the flag off ``disable_auth`` keeps its old meaning of "no per-owner
+    checks", so this is the single switch every stand-down consults.
+    """
+
+    return bool(config.disable_auth) and bool(getattr(config, "enforce_owner_access", False))
+
+
+def request_identity() -> str | None:
+    """Return the identity bound to the current request, if any.
+
+    Set by ``demo_scope_gate`` middleware for every request while
+    :func:`owner_access_enforced_under_disable_auth` is true, and by
+    :func:`get_current_user`/:func:`get_active_user` whenever they run. Routes
+    that never resolve identity themselves (the ``/portfolio-group`` family,
+    ``/owners`` with ``disable_auth``) read it through here.
+    """
+
+    return current_user.get()
+
+
+def resolve_gateway_identity(token: str | None) -> str | None:
+    """Return the caller's identity for owner checks under ``disable_auth``, or ``None``.
+
+    The same resolution :func:`_resolve_identity_when_auth_disabled` does --
+    an app-signed backend JWT, else the ``email``/``sub`` claim of the Cognito
+    ID token API Gateway's authorizer already verified, else (no token) the
+    configured local login -- but it never raises and does not re-check the
+    allowed-emails list: it only names the caller, and the owner's
+    ``email``/``viewers`` check that follows is stricter than that list. Any
+    token it cannot read yields ``None``, which every owner check treats as
+    "no access".
+    """
+
+    if not token:
+        return local_login_identity()
+    try:
+        user = decode_token(token)
+    except HTTPException:
+        return None
+    if user:
+        return user
+    email = _identity_from_unverified_token(token)
+    if email is not None and email.lower() == DISABLE_AUTH_STUB_EMAIL:
+        return local_login_identity()
+    return email
+
+
 def _resolve_demo_request(token: str | None) -> str | None:
     """If ``token`` is a demo-scoped token, validate and resolve it.
 

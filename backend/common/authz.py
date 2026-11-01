@@ -12,7 +12,11 @@ but not authorized (e.g. ``/user-config/<owner>`` and
 When ``config.disable_auth`` is truthy the API runs in local/demo mode where
 the ``/owners`` listing exposes every owner and no identity is enforced; these
 helpers deliberately no-op in that mode so anonymous requests for the demo
-owner (including its approvals) are not rejected with a 403.
+owner (including its approvals) are not rejected with a 403 -- unless
+``config.enforce_owner_access`` is also on (#11087). The AWS Lambda runs with
+``disable_auth`` because API Gateway does the sign-in; with the flag on the
+checks run there against the gateway-verified identity, and a request with no
+identity is denied. See "Per-owner access on AWS" in docs/AUTH.md.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ import logging
 from pathlib import Path
 from typing import Any, Mapping, Optional, Set
 
+from backend import auth as auth_module
 from backend.auth import is_demo_request
 from backend.common.data_loader import load_person_meta
 from backend.common.errors import PermissionDeniedError
@@ -84,7 +89,10 @@ def ensure_owner_access(
     ``person.json`` ``viewers`` data, so a ``viewers`` entry that happens to
     equal the demo owner id cannot widen demo access.
 
-    Otherwise, no-op when authentication is disabled (local/demo mode).
+    Otherwise, no-op when authentication is disabled (local/demo mode),
+    unless ``config.enforce_owner_access`` is on (#11087): then the check
+    below runs, using the request-scoped identity when the caller passed
+    none, and a request with no identity at all is denied.
     Otherwise the owner's person metadata is consulted and the caller must
     match the owner id, the owner's email, or a listed viewer.
 
@@ -106,7 +114,10 @@ def ensure_owner_access(
         raise PermissionDeniedError(_FORBIDDEN_DETAIL, safe_detail=_FORBIDDEN_DETAIL)
 
     if config.disable_auth:
-        return
+        if not auth_module.owner_access_enforced_under_disable_auth():
+            return
+        if identity is None:
+            identity = auth_module.request_identity()
 
     meta = load_person_meta(owner, accounts_root)
     if not identity_can_access_owner(identity, owner, meta):
@@ -117,3 +128,17 @@ def ensure_owner_access(
             len(_allowed_identities(owner, meta)),
         )
         raise PermissionDeniedError(_FORBIDDEN_DETAIL, safe_detail=_FORBIDDEN_DETAIL)
+
+
+def ensure_request_owner_access(owner: str, accounts_root: Optional[Path] = None) -> None:
+    """Check ``owner`` access on a route that never resolves identity itself (#11087).
+
+    Acts only while ``config.enforce_owner_access`` is on with ``disable_auth``
+    -- the deployed Lambda once the flag is flipped -- taking the caller from
+    the identity ``demo_scope_gate`` binds to the request. Otherwise it does
+    nothing, so these routes behave exactly as before with the flag off.
+    """
+
+    if not auth_module.owner_access_enforced_under_disable_auth():
+        return
+    ensure_owner_access(auth_module.request_identity(), owner, accounts_root)

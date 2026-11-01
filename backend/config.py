@@ -177,6 +177,13 @@ class Config:
     offline_mode: Optional[bool] = None
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
+    # Per-owner access checks while ``disable_auth`` is set (#11087). The AWS
+    # backend Lambda runs with ``disable_auth`` because API Gateway does the
+    # sign-in, which used to switch the owner/email/``viewers`` checks off as
+    # well. With this on they run against the gateway-verified identity. Off by
+    # default so a deploy cannot lock anyone out before each ``person.json``
+    # lists the right ``email``/``viewers``; see docs/AUTH.md.
+    enforce_owner_access: bool = False
     # Match build_config()'s fallback for an unset key (and demo_identity()'s
     # default): "steve", with smoke_identity following demo_identity (#7672).
     demo_identity: str = "steve"
@@ -534,6 +541,10 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
     if disable_auth_env is not None:
         data["disable_auth"] = disable_auth_env
 
+    enforce_owner_access_env = _env_flag("ENFORCE_OWNER_ACCESS")
+    if enforce_owner_access_env is not None:
+        data["enforce_owner_access"] = enforce_owner_access_env
+
     skip_snapshot_warm_env = _env_flag("SKIP_SNAPSHOT_WARM")
     if skip_snapshot_warm_env is not None:
         data["skip_snapshot_warm"] = skip_snapshot_warm_env
@@ -750,6 +761,11 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         error_summary=_parse_error_summary(data.get("error_summary")),
         offline_mode=data.get("offline_mode"),
         disable_auth=data.get("disable_auth"),
+        enforce_owner_access=_coerce_bool_with_default(
+            data.get("enforce_owner_access"),
+            key="enforce_owner_access",
+            default=False,
+        ),
         google_auth_enabled=google_auth_enabled,
         google_client_id=google_client_id,
         allowed_emails=allowed_emails,

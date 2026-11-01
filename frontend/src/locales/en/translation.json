@@ -1890,6 +1890,7 @@
         "offline_mode": "Use cached data only and make no calls to external price or data providers.",
         "google_auth_enabled": "Require Google sign-in to use the app.",
         "disable_auth": "Turn off authentication entirely (local use only).",
+        "enforce_owner_access": "Check each owner's email and viewers even when authentication is turned off (for deployments behind a sign-in gateway).",
         "demo_identity": "Owner shown when the app runs in local or demo mode without sign-in.",
         "smoke_identity": "Owner the automated smoke tests run as.",
         "demo_link_enabled": "Allow shareable read-only demo links to be created (master switch).",

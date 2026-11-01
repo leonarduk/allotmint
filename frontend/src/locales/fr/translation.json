@@ -1896,6 +1896,7 @@
         "offline_mode": "Utilise uniquement les données en cache et n'effectue aucun appel aux fournisseurs externes de prix ou de données.",
         "google_auth_enabled": "Exige une connexion Google pour utiliser l'application.",
         "disable_auth": "Désactive complètement l'authentification (usage local uniquement).",
+        "enforce_owner_access": "Vérifie l'e-mail et les lecteurs de chaque titulaire même lorsque l'authentification est désactivée (pour les déploiements derrière une passerelle de connexion).",
         "demo_identity": "Titulaire affiché lorsque l'application s'exécute en mode local ou démo sans connexion.",
         "smoke_identity": "Titulaire sous lequel s'exécutent les tests smoke automatisés.",
         "demo_link_enabled": "Autorise la création de liens de démo partageables en lecture seule (interrupteur général).",

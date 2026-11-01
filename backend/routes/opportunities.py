@@ -12,6 +12,7 @@ from backend.agent import trading_agent
 from backend.agent.models import TradingSignal
 from backend.auth import decode_token, is_demo_request
 from backend.common import instrument_api
+from backend.common.portfolio_cache import access_scope
 from backend.common.ttl_cache import TTLCache
 from backend.config import config
 from backend.routes.portfolio import _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS
@@ -175,7 +176,10 @@ def get_opportunities(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required",
             )
-        cache_key = ("group", group, days, limit, min_weight)
+        # The group's members depend on the caller (demo scope, and viewer
+        # filtering under ENFORCE_OWNER_ACCESS, #11087), so the cached
+        # response must too -- same scope as the group portfolio cache.
+        cache_key = ("group", group, days, limit, min_weight, access_scope())
 
         def _build() -> OpportunitiesResponse:
             movers = _group_opportunities(group, days=days, limit=limit, min_weight=min_weight)

@@ -33,13 +33,16 @@ const POLL_INTERVAL_MS = 2000;
 // run still "running" by then crashed without updating its record.
 const POLL_MAX_MS = 20 * 60 * 1000;
 
+// Status badge colours (green/amber/red/blue) are intentionally theme-independent:
+// the -100 fill with -800 text keeps its contrast in both themes. Neutral states
+// use the surface tokens.
 const STATUS_CLASSES: Record<BotRunStatus | 'never', string> = {
   ok: 'bg-green-100 text-green-800',
   partial: 'bg-amber-100 text-amber-800',
   failed: 'bg-red-100 text-red-800',
-  skipped: 'bg-gray-100 text-gray-700',
+  skipped: 'bg-[var(--surface-muted-bg)] text-[var(--surface-muted-color)]',
   running: 'bg-blue-100 text-blue-800',
-  never: 'bg-gray-100 text-gray-500',
+  never: 'bg-[var(--surface-muted-bg)] text-[var(--surface-muted-color)]',
 };
 
 function errorMessage(e: unknown): string {

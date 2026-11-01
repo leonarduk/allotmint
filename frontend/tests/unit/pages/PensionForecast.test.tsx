@@ -201,6 +201,14 @@ describe("PensionForecast page", () => {
     expect(screen.queryByText(/42\.7/)).not.toBeInTheDocument();
     // With no known age, the retirement-age input keeps its default floor.
     expect(screen.getByLabelText(/^retirement age$/i)).toHaveAttribute("min", "40");
+    // Focus ring uses a dedicated token that contrasts in both themes, not the
+    // --surface-muted-bg fill (near-invisible on dark cards) (#11189).
+    expect(screen.getByLabelText(/^retirement age$/i)).toHaveClass(
+      "focus:ring-[var(--focus-ring-color)]",
+    );
+    expect(screen.getByLabelText(/^retirement age$/i)).not.toHaveClass(
+      "focus:ring-[var(--surface-muted-bg)]",
+    );
   });
 
   it("shows a whole-number current age, never the raw fractional value", async () => {
@@ -1011,6 +1019,14 @@ describe("PensionForecast page", () => {
       "aria-pressed",
       "true",
     );
+    // Selected card keeps the blue accent border but uses theme tokens for its
+    // fill/text so it stays legible in dark mode (#11188).
+    expect(screen.getByRole("button", { name: /^moderate/i })).toHaveClass(
+      "border-blue-500",
+      "bg-[var(--surface-muted-bg)]",
+      "text-[var(--surface-card-color)]",
+    );
+    expect(screen.getByRole("button", { name: /^moderate/i })).not.toHaveClass("bg-blue-50");
 
     await userEvent.click(screen.getByRole("button", { name: /^couple$/i }));
     await userEvent.click(screen.getByRole("button", { name: /^comfortable/i }));

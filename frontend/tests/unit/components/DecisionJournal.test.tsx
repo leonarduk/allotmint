@@ -171,6 +171,19 @@ describe('DecisionJournal', () => {
     );
   });
 
+  it('shows the patterns summary from the journal response', async () => {
+    api.getDecisionJournal.mockResolvedValue({
+      ...journal,
+      patterns: { min_reviewed: 5, reviewed_entries: 1, groups: [] },
+    });
+    render(<DecisionJournal owner="alex" />);
+    expect(
+      await screen.findByText(
+        'No count has 5 or more comparisons behind it yet. Decisions reviewed so far: 1.'
+      )
+    ).toBeInTheDocument();
+  });
+
   it('offers to log a plan target change', async () => {
     const handled = vi.fn();
     render(

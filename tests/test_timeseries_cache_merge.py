@@ -393,6 +393,28 @@ def test_pre_epoch_mask_matches_to_datetime_reference(dates):
     assert cache._pre_epoch_mask(df).tolist() == reference.tolist() == [True, True, False, False]
 
 
+@pytest.mark.parametrize("tz", ["UTC", "Europe/London"])
+def test_pre_epoch_mask_tz_aware_matches_to_datetime_reference(tz):
+    """#11187: a tz-aware ``Date`` column skips the coerce path (#11182) but
+    behaves exactly like the old ``pd.to_datetime(..., errors="coerce")``
+    reference: both raise the same TypeError comparing against the tz-naive
+    :data:`_EPOCH_DATE`. Only ``_ensure_schema``'s tz strip makes such a column
+    safe, so its output must give the expected mask."""
+    cache = import_cache()
+    naive = pd.to_datetime(["1969-12-31", "1970-01-01", "1970-01-02", "2024-05-01"])
+    df = pd.DataFrame({"Date": pd.Series(naive).dt.tz_localize(tz)})
+
+    with pytest.raises(TypeError) as reference_error:
+        pd.to_datetime(df["Date"], errors="coerce") <= cache._EPOCH_DATE
+    with pytest.raises(TypeError) as mask_error:
+        cache._pre_epoch_mask(df)
+    assert str(mask_error.value) == str(reference_error.value)
+
+    schema_df = cache._ensure_schema(df.copy())
+    assert schema_df["Date"].dt.tz is None
+    assert cache._pre_epoch_mask(schema_df).tolist() == [True, True, False, False]
+
+
 def test_pre_epoch_mask_skips_to_datetime_for_datetime64_column(monkeypatch):
     """#8105: pd.to_datetime iterates every row of an already-datetime64 column
     in its should_cache heuristic, which was the largest single cost of a

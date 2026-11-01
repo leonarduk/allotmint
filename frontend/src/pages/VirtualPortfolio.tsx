@@ -393,7 +393,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
         <h1 className="text-2xl font-semibold md:text-4xl">
           {t("virtualPortfolio.title")}
         </h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-[var(--surface-muted-color)]">
           {t("virtualPortfolio.intro")}
         </p>
       </header>
@@ -438,12 +438,12 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="commit-draft-title"
-          className="rounded border border-slate-300 bg-white p-4 shadow-lg"
+          className="rounded border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 shadow-lg"
         >
           <h2 id="commit-draft-title" className="text-lg font-semibold">
             {t("virtualPortfolio.confirm.title")}
           </h2>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-[var(--surface-muted-color)]">
             {t('virtualPortfolio.confirm.body', {
               count: committableAccounts.length,
             })}
@@ -462,7 +462,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
             <button
               type="button"
               disabled={isCommitting}
-              className="rounded border border-slate-300 px-4 py-2 disabled:opacity-50"
+              className="rounded border border-[var(--surface-card-border)] px-4 py-2 disabled:opacity-50"
               onClick={() => setShowCommitConfirmation(false)}
             >
               {t("virtualPortfolio.confirm.cancel")}
@@ -478,13 +478,13 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
       )}
 
       <form
-        className="rounded border border-slate-200 p-4"
+        className="rounded border border-[var(--surface-card-border)] p-4"
         onSubmit={addAccount}
       >
         <h2 className="text-lg font-medium">{t("virtualPortfolio.addAccount.title")}</h2>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
-            className="w-full rounded border border-slate-300 px-3 py-2"
+            className="w-full rounded border border-[var(--surface-card-border)] px-3 py-2"
             type="text"
             placeholder={t("virtualPortfolio.addAccount.placeholder")}
             value={newAccountName}
@@ -502,18 +502,18 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
 
       <section className="space-y-4">
         {accounts.length === 0 && (
-          <p className="rounded border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+          <p className="rounded border border-dashed border-[var(--surface-card-border)] p-4 text-sm text-[var(--surface-muted-color)]">
             {t("virtualPortfolio.empty")}
           </p>
         )}
         {accounts.map((account) => (
           <article
             key={account.id}
-            className="rounded border border-slate-200 p-4"
+            className="rounded border border-[var(--surface-card-border)] p-4"
           >
             <div className="mb-3 flex items-center justify-between gap-3">
               <input
-                className="w-full rounded border border-slate-300 px-3 py-2"
+                className="w-full rounded border border-[var(--surface-card-border)] px-3 py-2"
                 type="text"
                 // Use draft value while editing; fall back to persisted name otherwise.
                 value={draftNames[account.id] ?? account.name}
@@ -535,7 +535,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[680px] border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-left">
+                  <tr className="border-b border-[var(--surface-card-border)] text-left">
                     <th className="px-2 py-2">{t("virtualPortfolio.columns.ticker")}</th>
                     <th className="px-2 py-2">{t("virtualPortfolio.columns.totalValue")}</th>
                     <th className="px-2 py-2">{t("virtualPortfolio.columns.units")}</th>
@@ -549,11 +549,11 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
                   {account.holdings.map((holding) => (
                     <tr
                       key={holding.id}
-                      className="border-b border-slate-100 align-top"
+                      className="border-b border-[var(--surface-card-border)] align-top"
                     >
                       <td className="px-2 py-2">
                         <input
-                          className="w-full rounded border border-slate-300 px-2 py-1"
+                          className="w-full rounded border border-[var(--surface-card-border)] px-2 py-1"
                           type="text"
                           value={holding.ticker}
                           onChange={(e) =>
@@ -569,7 +569,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
                       </td>
                       <td className="px-2 py-2">
                         <input
-                          className="w-full rounded border border-slate-300 px-2 py-1"
+                          className="w-full rounded border border-[var(--surface-card-border)] px-2 py-1"
                           type="number"
                           step="any"
                           value={holding.totalValue}
@@ -586,7 +586,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
                       </td>
                       <td className="px-2 py-2">
                         <input
-                          className="w-full rounded border border-slate-300 px-2 py-1"
+                          className="w-full rounded border border-[var(--surface-card-border)] px-2 py-1"
                           type="number"
                           step="any"
                           value={holding.units}
@@ -603,7 +603,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
                       </td>
                       <td className="px-2 py-2">
                         <input
-                          className="w-full rounded border border-slate-300 px-2 py-1"
+                          className="w-full rounded border border-[var(--surface-card-border)] px-2 py-1"
                           type="number"
                           step="any"
                           value={holding.price}
@@ -621,7 +621,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
                       <td className="px-2 py-2">
                         <button
                           type="button"
-                          className="rounded border border-slate-300 px-2 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="rounded border border-[var(--surface-card-border)] px-2 py-1 disabled:cursor-not-allowed disabled:opacity-40"
                           disabled={account.holdings.length <= 1}
                           onClick={() => removeHolding(account.id, holding.id)}
                           aria-label={t("virtualPortfolio.removeHolding")}
@@ -637,7 +637,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
 
             <button
               type="button"
-              className="mt-3 rounded border border-slate-300 px-3 py-2 text-sm"
+              className="mt-3 rounded border border-[var(--surface-card-border)] px-3 py-2 text-sm"
               onClick={() => addHolding(account.id)}
             >
               {t("virtualPortfolio.addHolding")}
@@ -646,11 +646,11 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
         ))}
       </section>
 
-      <details className="rounded border border-slate-200 p-3">
+      <details className="rounded border border-[var(--surface-card-border)] p-3">
         <summary className="cursor-pointer text-sm font-medium">
           {t("virtualPortfolio.preview")}
         </summary>
-        <pre className="mt-2 overflow-x-auto rounded bg-slate-50 p-3 text-xs">
+        <pre className="mt-2 overflow-x-auto rounded bg-[var(--surface-muted-bg)] p-3 text-xs">
           {JSON.stringify({ accounts: normalizedPreview }, null, 2)}
         </pre>
       </details>

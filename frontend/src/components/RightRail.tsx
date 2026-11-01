@@ -62,7 +62,7 @@ export default function RightRail({ owner }: RightRailProps) {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <p className="text-sm text-gray-500">{t("rightRail.noData")}</p>
+          <p className="text-sm text-[var(--surface-muted-color)]">{t("rightRail.noData")}</p>
         )}
       </div>
       <div>
@@ -76,7 +76,7 @@ export default function RightRail({ owner }: RightRailProps) {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-gray-500">{t("rightRail.noAlerts")}</p>
+          <p className="text-sm text-[var(--surface-muted-color)]">{t("rightRail.noAlerts")}</p>
         )}
       </div>
       <div className="flex flex-col space-y-1 text-sm">
@@ -108,9 +108,9 @@ export default function RightRail({ owner }: RightRailProps) {
             className="absolute inset-0 bg-black/50"
             onClick={() => setOpen(false)}
           />
-          <div className="relative w-full rounded-t-lg bg-white p-4">
+          <div className="relative w-full rounded-t-lg bg-[var(--surface-card-bg)] p-4">
             <button
-              className="mb-2 text-sm text-gray-600"
+              className="mb-2 text-sm text-[var(--surface-muted-color)]"
               onClick={() => setOpen(false)}
             >
               {t("common.close")}

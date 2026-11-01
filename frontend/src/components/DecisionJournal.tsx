@@ -18,9 +18,11 @@ import type {
   InvestmentPlanDecision,
   UnloggedChange,
 } from '../types';
+import DecisionPatterns from './DecisionPatterns';
 
 const INPUT = 'w-full border p-1 text-sm';
-const BUTTON = 'rounded bg-gray-200 px-2 py-1 text-sm text-slate-900';
+const BUTTON =
+  'rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
 const PRIMARY =
   'rounded bg-blue-500 px-2 py-1 text-sm text-white disabled:opacity-50';
 const gbp = new Intl.NumberFormat('en-GB', {
@@ -202,7 +204,7 @@ function LegsEditor({
       <legend className="text-sm font-medium">
         {t('decisionJournal.legs')}
       </legend>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-xs text-[var(--surface-muted-color)]">
         {t('decisionJournal.legsHelp')}
       </p>
       {form.legs.map((leg, i) => (
@@ -424,7 +426,7 @@ function EntryItem({
         </div>
       ))}
       {pending.length > 0 && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-[var(--surface-muted-color)]">
           {t('decisionJournal.reviewsDue', { dates: pending.join(', ') })}
         </p>
       )}
@@ -542,7 +544,7 @@ export default function DecisionJournal({
           {t('decisionJournal.runNow')}
         </button>
       </div>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('decisionJournal.subtitle', {
           threshold: gbp.format(data?.settings.threshold_gbp ?? 0),
         })}
@@ -574,6 +576,7 @@ export default function DecisionJournal({
         />
       )}
       {error && <p className="break-words text-sm text-red-600">{error}</p>}
+      {data?.patterns && <DecisionPatterns patterns={data.patterns} />}
       {data && data.entries.length > 0 && (
         <ul className="text-sm" aria-label={t('decisionJournal.entries')}>
           {data.entries.map((entry) => (

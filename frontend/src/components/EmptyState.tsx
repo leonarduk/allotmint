@@ -14,7 +14,7 @@ interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
 
 export function EmptyState({ message, actions = [], children, ...divProps }: EmptyStateProps) {
   return (
-    <div className="p-4 text-center text-gray-500" {...divProps}>
+    <div className="p-4 text-center text-[var(--surface-muted-color)]" {...divProps}>
       <p>{message}</p>
       {actions.length > 0 && (
         <div className="mt-4 flex justify-center gap-2">

@@ -30,7 +30,8 @@ import type {
 } from '../types';
 
 const INPUT = 'w-full border p-1 text-sm';
-const SMALL_BUTTON = 'rounded bg-gray-200 px-2 py-1 text-sm text-slate-900';
+const SMALL_BUTTON =
+  'rounded bg-[var(--surface-muted-bg)] px-2 py-1 text-sm text-[var(--surface-card-color)]';
 const pct = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 
 const today = () => localDateISO();
@@ -120,9 +121,7 @@ function RowList<T extends object>({
     <fieldset className="mb-4">
       <legend className="font-medium">{title}</legend>
       {hint && (
-        <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
-          {hint}
-        </p>
+        <p className="mb-1 text-xs text-[var(--surface-muted-color)]">{hint}</p>
       )}
       {rows.map((row, i) => (
         <div key={i} className="mb-1 flex items-start gap-2">
@@ -587,7 +586,7 @@ function ProfileSection({
   return (
     <fieldset className="mb-4">
       <legend className="font-medium">{t('planEditor.profileTitle')}</legend>
-      <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-1 text-xs text-[var(--surface-muted-color)]">
         {t('planEditor.profileHint')}
       </p>
       <div className="mb-2 grid gap-2 sm:grid-cols-2">
@@ -771,7 +770,7 @@ export default function PlanEditor({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded bg-gray-200 px-3 py-1 text-slate-900"
+          className="rounded bg-[var(--surface-muted-bg)] px-3 py-1 text-[var(--surface-card-color)]"
         >
           {t('planEditor.cancel')}
         </button>

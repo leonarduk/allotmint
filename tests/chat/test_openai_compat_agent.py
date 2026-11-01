@@ -319,6 +319,27 @@ async def test_run_chat_turn_returns_tool_results_when_loop_does_not_converge(mo
     assert 'list_owners:\n["steve"]' in reply
 
 
+async def test_run_chat_turn_cap_reply_includes_refused_tool_call_text(monkeypatch):
+    # A refused call's refusal text must reach the cap reply, not just executed results (#11165).
+    refusal = "REFUSED: cannot do that"
+    session = FakeSession(tools=[FakeTool("list_owners")], tool_results={})
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    monkeypatch.setattr(openai_compat_agent, "call_refusal", lambda name, policy: refusal)
+    looping = _completion(
+        {"role": "assistant", "content": "", "tool_calls": [_tool_call("call-1", "list_owners", "{}")]}
+    )
+    requests = _patch_http(monkeypatch, [looping] * openai_compat_agent.MAX_TOOL_ITERATIONS)
+
+    reply = await openai_compat_agent.run_chat_turn(
+        "loop", [], mcp_server_url="http://localhost:8001/mcp", base_url="http://x/v1", model="m"
+    )
+
+    assert len(requests) == openai_compat_agent.MAX_TOOL_ITERATIONS
+    assert session.calls == []
+    assert f"tool-call limit for this turn ({openai_compat_agent.MAX_TOOL_ITERATIONS} steps)" in reply
+    assert f"list_owners:\nTool call failed: {refusal}" in reply
+
+
 async def test_run_chat_turn_prepends_system_prompt(monkeypatch):
     session = FakeSession(tools=[FakeTool("list_owners")])
     monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))

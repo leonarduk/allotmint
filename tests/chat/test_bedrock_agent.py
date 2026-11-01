@@ -339,6 +339,31 @@ async def test_run_chat_turn_returns_tool_results_after_max_iterations(monkeypat
     assert 'get_live_prices:\n{"VOD.L": 72.1}' in reply
 
 
+async def test_run_chat_turn_cap_reply_includes_refused_tool_call_text(monkeypatch):
+    # A refused call's refusal text must reach the cap reply, not just executed results (#11165).
+    refusal = "REFUSED: cannot do that"
+    session = FakeSession(tools=[FakeTool("get_live_prices")], tool_results={})
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    monkeypatch.setattr(bedrock_agent, "call_refusal", lambda name, policy: refusal)
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            return _assistant_tool_use("tool-loop", "get_live_prices", {})
+
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+
+    reply = await bedrock_agent.run_chat_turn(
+        "loop forever",
+        [],
+        mcp_server_url="https://example.com/mcp",
+        bedrock_model_id="amazon.nova-lite-v1:0",
+    )
+
+    assert session.calls == []
+    assert f"tool-call limit for this turn ({bedrock_agent.MAX_TOOL_ITERATIONS} steps)" in reply
+    assert f"get_live_prices:\n{refusal}" in reply
+
+
 async def test_run_chat_turn_with_no_iterations_returns_cap_reply(monkeypatch):
     # A non-positive limit means the loop never runs; the cap reply must still be returned.
     from backend.chat.turn_limits import TurnLimits
@@ -366,6 +391,12 @@ def test_iteration_cap_reply_raises_when_limits_ask_for_it():
     with pytest.raises(RuntimeError, match="did not converge after 6 iterations"):
         bedrock_agent.iteration_cap_reply(6, [("get_market_rates", "{}")], TurnLimits(raise_at_cap=True))
     assert "get_market_rates:\n{}" in bedrock_agent.iteration_cap_reply(6, [("get_market_rates", "{}")], TurnLimits())
+
+
+def test_iteration_cap_reply_includes_refusal_text():
+    reply = bedrock_agent.iteration_cap_reply(2, [("get_market_rates", "REFUSED: cannot do that")])
+
+    assert "get_market_rates:\nREFUSED: cannot do that" in reply
 
 
 def test_iteration_cap_reply_bounds_results():

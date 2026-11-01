@@ -131,6 +131,14 @@ RETIREMENT_READINESS_PREFIX = "retirement_readiness"
 # plan or journal entry is lost on the next cold start.
 PLANS_PREFIX = "plans"
 DECISION_JOURNAL_PREFIX = "decision_journal"
+# Savings goals and their recorded progress (backend/common/goals.py). Each
+# store is ONE JSON object (get_storage treats an s3:// URI as an object key,
+# not a prefix), so GOALS_STORAGE_URI / GOAL_HISTORY_STORAGE_URI name these keys.
+# Without them both stores default to file:///var/task/data/*.json on the
+# read-only image and no goal survives (#11292).
+GOALS_PREFIX = "goals"
+GOALS_KEY = f"{GOALS_PREFIX}/goals.json"
+GOAL_HISTORY_KEY = f"{GOALS_PREFIX}/goal_history.json"
 # Per-user "last visit" records for the since-last-visit digest, one
 # <email-hash>.json each (#11195, backend/common/last_visit.py). Must match
 # backend.common.last_visit.S3_PREFIX, its fallback when LAST_VISIT_STORAGE_URI
@@ -388,6 +396,36 @@ class BackendLambdaStack(Stack):
                         "s3:prefix": [CHAT_HISTORY_PREFIX, f"{CHAT_HISTORY_PREFIX}/*"]
                     }
                 },
+            )
+        )
+
+    @staticmethod
+    def _grant_goals_access(fn: _lambda.DockerImageFunction, *, bucket: s3.IBucket) -> None:
+        """Get/Put on goals/* only, for the goals and goal-history stores (#11292).
+
+        Audited (backend/common/goals.py builds both stores with get_storage →
+        storage.py:S3JSONStorage):
+        - s3:GetObject: S3JSONStorage.load (get_object), via goals.py:_load_raw
+          (load_goals, save_goals, add_goal, delete_goal, load_all_goals) and
+          goals.py:_load_history_raw (load_goal_history, record_goal_amount,
+          rename_goal_history, delete_goal_history). Callers:
+          routes/goals.py (every /goals route) and quests/trail.py:
+          _build_once_tasks / get_tasks → load_goals (/trail routes).
+        - s3:PutObject: S3JSONStorage.save (put_object), via goals.py:_save_raw
+          (save_goals, add_goal, delete_goal) and _HISTORY_STORAGE.save in
+          record_goal_amount, rename_goal_history and delete_goal_history.
+        s3:ListBucket on goals/ is granted through the backend's
+        lambda_list_prefixes (not here): the write paths read with
+        S3JSONStorage.load_existing (#11299), which treats only NoSuchKey as
+        "not yet saved"; without ListBucket a missing goals.json is a 403 and
+        the first goal write would fail.
+        No DeleteObject: deleting a goal rewrites the JSON object.
+        """
+
+        fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:GetObject", "s3:PutObject"],
+                resources=[bucket.arn_for_objects(f"{GOALS_PREFIX}/*")],
             )
         )
 
@@ -833,6 +871,11 @@ class BackendLambdaStack(Stack):
                 # nobody could save a first plan or journal entry.
                 PLANS_PREFIX,
                 DECISION_JOURNAL_PREFIX,
+                # Goals and goal history (#11292, #11299): goals.py write paths
+                # read through S3JSONStorage.load_existing, which needs a
+                # not-yet-created goals/goals.json to be a NoSuchKey rather
+                # than the 403 S3 returns without ListBucket.
+                GOALS_PREFIX,
                 # Last-visit records (#11195): routes/last_visit.py:
                 # record_visit/dismiss_visit → common/last_visit.py:
                 # record_visit/dismiss_visit → _update →
@@ -1007,6 +1050,10 @@ class BackendLambdaStack(Stack):
             "PLANS_URI": f"s3://{bucket_name}/{PLANS_PREFIX}",
             "DECISION_JOURNAL_URI": f"s3://{bucket_name}/{DECISION_JOURNAL_PREFIX}",
             "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
+            # Goals and goal history (#11292): read by backend/common/goals.py at
+            # import; granted by _grant_goals_access below.
+            "GOALS_STORAGE_URI": f"s3://{bucket_name}/{GOALS_KEY}",
+            "GOAL_HISTORY_STORAGE_URI": f"s3://{bucket_name}/{GOAL_HISTORY_KEY}",
             # POST /last-visit/{slug}[/dismiss] (#11195): last_visit.py
             # _default_uri reads it, so the store's location and its
             # lambda_list_prefixes["backend"] entry share one constant.
@@ -1107,6 +1154,9 @@ class BackendLambdaStack(Stack):
         )
         self._grant_timeseries_cache_access(backend_fn, bucket=data_bucket, allow_put=True)
         self._grant_chat_history_access(backend_fn, bucket=data_bucket)
+        # Explicit goals/* grant (#11292). It overlaps the bucket-wide grant above
+        # today, but pins what the goals routes need if that grant is ever narrowed.
+        self._grant_goals_access(backend_fn, bucket=data_bucket)
 
         # Lets GET /logs (backend/routes/logs.py::_read_cloudwatch_logs()) read
         # the Lambda's own recent output on AWS, where there is no writable

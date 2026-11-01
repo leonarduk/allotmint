@@ -34,8 +34,8 @@ function FxResultsTable({
 }) {
   const { t } = useTranslation();
   return (
-    <table className="min-w-full border border-slate-200 text-sm">
-      <thead className="bg-slate-50">
+    <table className="min-w-full border border-[var(--surface-card-border)] text-sm">
+      <thead className="bg-[var(--surface-muted-bg)]">
         <tr>
           <th className="p-2 text-left">{t('scenarioFx.owner')}</th>
           <th className="p-2 text-right">
@@ -74,7 +74,7 @@ function FxResultNotes({ results }: { results: FxScenarioResult[] }) {
   const unconverted = results.flatMap((r) => r.unconverted_holdings);
   const skipped = results.reduce((n, r) => n + r.skipped_unknown_currency, 0);
   return (
-    <div className="mt-2 flex flex-col gap-1 text-xs text-slate-500">
+    <div className="mt-2 flex flex-col gap-1 text-xs text-[var(--surface-muted-color)]">
       {unconverted.length > 0 && (
         <p className="text-amber-700">
           {t('scenarioFx.unconverted', {
@@ -113,7 +113,7 @@ function FxShockForm({
           value={currency}
           maxLength={3}
           onChange={(e) => onCurrency(e.target.value.toUpperCase())}
-          className="w-24 rounded border border-slate-300 px-2 py-1 uppercase"
+          className="w-24 rounded border border-[var(--surface-card-border)] px-2 py-1 uppercase"
         />
       </label>
       <div className="flex flex-wrap gap-1">
@@ -125,8 +125,9 @@ function FxShockForm({
             aria-pressed={currency === c}
             className={`rounded px-2 py-1 text-xs ${
               currency === c
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? // Active state: intentionally theme-independent accent colour.
+                  'bg-indigo-600 text-white'
+                : 'bg-[var(--surface-muted-bg)] text-[var(--surface-muted-color)] hover:bg-[var(--menu-hover-bg)]'
             }`}
           >
             {c}
@@ -140,7 +141,7 @@ function FxShockForm({
           value={pct}
           step={1}
           onChange={(e) => onPct(e.target.value)}
-          className="w-28 rounded border border-slate-300 px-2 py-1 text-right"
+          className="w-28 rounded border border-[var(--surface-card-border)] px-2 py-1 text-right"
         />
       </label>
     </div>
@@ -175,9 +176,9 @@ export function FxShockPanel() {
   }
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+    <section className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 text-[var(--surface-card-color)] shadow-sm">
       <h2 className="mb-3 text-lg font-semibold">{t('scenarioFx.title')}</h2>
-      <p className="mb-4 text-sm text-slate-600">
+      <p className="mb-4 text-sm text-[var(--surface-muted-color)]">
         {t('scenarioFx.description')}
       </p>
       <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:gap-4">
@@ -197,11 +198,11 @@ export function FxShockPanel() {
         </button>
       </div>
       {invalid && currency !== '' && (
-        <p className="mb-3 text-sm text-slate-500">
+        <p className="mb-3 text-sm text-[var(--surface-muted-color)]">
           {t(`scenarioFx.errors.${invalid}`)}
         </p>
       )}
-      <p className="mb-3 text-xs text-slate-500">
+      <p className="mb-3 text-xs text-[var(--surface-muted-color)]">
         {t('scenarioFx.signConvention', { currency: currency || 'XXX' })}
       </p>
       {error && <div className="mb-3 text-sm text-red-500">{error}</div>}

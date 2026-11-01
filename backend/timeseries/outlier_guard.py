@@ -151,7 +151,12 @@ def drop_zero_volume_spikes(df: pd.DataFrame, *, ticker: str, exchange: str) -> 
     """
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
         return df
-    order = np.argsort(pd.to_datetime(df["Date"]).to_numpy(), kind="stable")
+    dates = df["Date"]
+    # Skip pd.to_datetime for an already-datetime64 column: same values, but
+    # its should_cache heuristic iterates every row of the full history (#8105).
+    if not pd.api.types.is_datetime64_any_dtype(dates):
+        dates = pd.to_datetime(dates)
+    order = np.argsort(dates.to_numpy(), kind="stable")
     raw_close = pd.to_numeric(df["Close"], errors="coerce").to_numpy(dtype=float)
     flat = _flat_bars(df, raw_close)[order]
     close = raw_close[order]

@@ -714,6 +714,17 @@ describe('TransactionsPage', () => {
       .closest('p');
     expect(intro).toHaveClass(surface.surfaceMuted);
     expect(card?.outerHTML).not.toMatch(/bg-slate-50|text-slate-[567]00/);
+    // #8168: no light-only palette classes anywhere in the card (the fixed
+    // bg-slate-900/text-white save button is readable in both themes), and the
+    // field labels carry no colour class so they inherit the theme text colour.
+    expect(card?.outerHTML).not.toMatch(
+      /\b(?:bg-(?:slate|gray)-(?:50|100|200)|text-(?:slate|gray)-[5-9]00|(?:border|divide)-(?:slate|gray)-[1-3]00)\b/
+    );
+    const labels = Array.from(card?.querySelectorAll('label') ?? []);
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      expect(label.className).not.toMatch(/\btext-(?:slate|gray|white|black)/);
+    }
   });
 
   it("defaults the manual owner input to the logged-in user's owner", async () => {

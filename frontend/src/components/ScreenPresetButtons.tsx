@@ -34,8 +34,9 @@ export function ScreenPresetButtons({ activeId, onPick }: Props) {
               onClick={() => onPick(preset)}
               className={`rounded px-2 py-1 text-sm ${
                 pressed
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  ? // Active state: intentionally theme-independent accent colour.
+                    'bg-indigo-600 text-white'
+                  : 'bg-[var(--surface-muted-bg)] text-[var(--surface-muted-color)] hover:bg-[var(--menu-hover-bg)]'
               }`}
             >
               {preset.name}

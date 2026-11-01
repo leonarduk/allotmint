@@ -104,7 +104,7 @@ function DiffActions({
       );
     case 'dismissed':
       return (
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-[var(--surface-muted-color)]">
           {t('statementReconcile.dismissedWith', { reason: state.reason })}
         </span>
       );
@@ -246,7 +246,7 @@ function ReconciliationResult({
     <div
       role="status"
       aria-label={t('statementReconcile.resultTitle')}
-      className="mt-3 space-y-3 border-t border-gray-800 pt-3"
+      className="mt-3 space-y-3 border-t border-[var(--surface-card-border)] pt-3"
     >
       <p className="text-sm text-gray-300">
         {t('statementReconcile.summary', {
@@ -294,7 +294,7 @@ function ReconciliationResult({
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className="divide-y divide-[var(--surface-card-border)]">
               {result.diffs.map((diff, index) => (
                 <DiffRow
                   key={`${diff.kind}-${diff.statement_index ?? ''}-${diff.ledger_id ?? ''}-${index}`}
@@ -310,7 +310,7 @@ function ReconciliationResult({
         </div>
       )}
       {result.explanation && (
-        <section className="rounded border border-gray-800 p-2 text-sm">
+        <section className="rounded border border-[var(--surface-card-border)] p-2 text-sm">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-300">
             {t('statementReconcile.explanation')}
           </h4>
@@ -384,7 +384,7 @@ export function StatementReconcilePanel({
 
   const submitting = status.kind === 'submitting';
   return (
-    <div className="rounded-lg border border-gray-800 bg-black/20 p-3">
+    <div className="rounded-lg border border-[var(--surface-card-border)] bg-black/20 p-3">
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
         {t('statementReconcile.title')}
       </p>

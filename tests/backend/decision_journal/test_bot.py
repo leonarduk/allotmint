@@ -12,6 +12,7 @@ from backend.common import investment_plan as plan_mod
 from backend.decision_journal import bot as bot_mod
 from backend.decision_journal import entries as entries_mod
 from backend.decision_journal.store import load_journal, save_journal
+from backend.lambda_api import decision_journal as lambda_handler
 from tests.backend.decision_journal.fixtures import fake_series, sell_entry
 
 PLAN = {"owner": "alex", "updated": "2026-01-01", "target": [{"class": "equity", "weight_pct": 100}]}
@@ -32,6 +33,11 @@ def test_bot_is_registered_with_the_registry():
     assert bot.scope == "system" and bot.kind == "rules"
     assert issubclass(bot.settings_model, BotSettings)
     assert bot.default_settings() == {"enabled": True, "cadence": "daily"}
+
+
+def test_default_schedule_matches_the_cdk_rule():
+    """cdk DailyDecisionJournalRun fires at 03:00 UTC daily (#10525)."""
+    assert registry.get_bot("decision-journal").default_schedule.description == "Daily at 03:00 UTC"
 
 
 def test_run_through_the_runner_reports_counts_only_and_never_writes_the_plan(tmp_path, monkeypatch):
@@ -64,3 +70,61 @@ def test_run_through_the_runner_reports_counts_only_and_never_writes_the_plan(tm
     assert raw["as_of"] == date(2026, 7, 2).isoformat()
     assert (tmp_path / "plans" / "alex.json").read_text(encoding="utf-8") == before
     assert load_journal("alex", tmp_path).entries[0].reviews[0].horizon_months == 6
+
+
+def _capture_store(monkeypatch):
+    seen = {}
+
+    def fake_load_all_transactions(store=None):
+        seen["store"] = store
+        return []
+
+    monkeypatch.setattr("backend.routes.transactions.load_all_transactions", fake_load_all_transactions)
+    return seen
+
+
+def test_transactions_include_the_writable_s3_store_on_aws(monkeypatch):
+    """On AWS the owners' transactions are in writable-accounts/, not the empty /tmp/data (#11159)."""
+    from backend.common.accounts_store import S3AccountsStore
+
+    seen = _capture_store(monkeypatch)
+    monkeypatch.setattr(bot_mod.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv("DATA_BUCKET", "data-bucket")
+
+    assert bot_mod._all_transactions() == []
+    assert isinstance(seen["store"], S3AccountsStore) and seen["store"].bucket == "data-bucket"
+
+
+def test_transactions_read_only_the_local_dataset_off_aws(monkeypatch):
+    seen = _capture_store(monkeypatch)
+    monkeypatch.setattr(bot_mod.config, "app_env", "local", raising=False)
+    monkeypatch.setenv("DATA_BUCKET", "data-bucket")
+
+    bot_mod._all_transactions()
+    assert seen["store"] is None
+
+
+def test_lambda_handler_runs_the_bot_through_the_runner(monkeypatch):
+    seen = []
+
+    def fake_handle(bot_id, event, *, reraise=False):
+        seen.append((bot_id, event, reraise))
+        return {"bot": bot_id}
+
+    monkeypatch.setattr(lambda_handler, "handle_lambda_event", fake_handle)
+
+    event = {"bot_run_id": "r1"}
+    assert lambda_handler.lambda_handler(event, None) == {"status": "ok"}
+    assert seen == [("decision-journal", event, True)]
+
+
+def test_lambda_handler_reports_a_skipped_scheduled_run(monkeypatch):
+    monkeypatch.setattr(
+        lambda_handler,
+        "handle_lambda_event",
+        lambda bot_id, event, *, reraise=False: {"skipped": True, "reason": "Disabled", "run_id": "r1"},
+    )
+
+    result = lambda_handler.lambda_handler({"source": "aws.events"}, None)
+
+    assert result == {"status": "skipped", "reason": "Disabled"}

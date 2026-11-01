@@ -40,7 +40,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
-import { renderPieLabelLine, withSmallSliceLabelsHidden } from "../lib/pieLabels";
+import { createPieLabelRenderers } from "../lib/pieLabels";
 
 const COLORS = [
   "#8884d8",
@@ -543,6 +543,15 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
       ? `${labelName}: ${percentValue.toFixed(2)}%`
       : `${labelName}: ${reporting.format(numericValue)} (${percentValue.toFixed(2)}%)`;
   };
+  // Collision- and edge-aware inline labels (#10313); each pie places its labels as a whole.
+  const innerLabels = createPieLabelRenderers(
+    chartData.map((d) => d.value),
+    formatSliceLabel,
+  );
+  const outerLabels = createPieLabelRenderers(
+    (outerRing ?? []).map((d) => d.value),
+    (props) => formatSliceLabel({ ...props, name: shortLabel(String(props.name ?? "")) }),
+  );
   const contributionParams = new URLSearchParams({ group: resolvedSlug });
   if (activeOwner) contributionParams.set("owner", activeOwner);
   if (activeAccountType) contributionParams.set("account", activeAccountType);
@@ -555,7 +564,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         </h1>
         <RelativeViewToggle />
       </div>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-[var(--surface-muted-color)]">
         {t("allocation.allocationDescription")}{" "}
         <Link
           className="text-blue-600 underline"
@@ -602,7 +611,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         </label>
       )}
       {isLookThroughView && (
-        <p className="mb-2 text-sm text-gray-600" data-testid="look-through-note">
+        <p className="mb-2 text-sm text-[var(--surface-muted-color)]" data-testid="look-through-note">
           {t("lookThrough.note")}
         </p>
       )}
@@ -614,12 +623,12 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         />
       )}
       {isCurrencyView && (
-        <p className="mb-4 text-sm text-gray-600" data-testid="currency-exposure-note">
+        <p className="mb-4 text-sm text-[var(--surface-muted-color)]" data-testid="currency-exposure-note">
           {t("allocation.currencyNote")}
         </p>
       )}
       {view === "region" && (
-        <div className="mb-4 text-sm text-gray-600" data-testid="region-exposure-note">
+        <div className="mb-4 text-sm text-[var(--surface-muted-color)]" data-testid="region-exposure-note">
           <p>{t("allocation.regionNote")}</p>
           {Object.entries(domicileDiffs)
             .sort(([a], [b]) => a.localeCompare(b))
@@ -634,7 +643,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         </div>
       )}
       {view === "sleeve" && (
-        <p className="mb-4 text-sm text-gray-600" data-testid="sleeve-note">
+        <p className="mb-4 text-sm text-[var(--surface-muted-color)]" data-testid="sleeve-note">
           {t("allocation.sleeveNote")}
         </p>
       )}
@@ -679,10 +688,8 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
                   cy="50%"
                   // With the holdings ring on, the groups sit inside it and the legend names them.
                   outerRadius={outerRing ? "52%" : "80%"}
-                  labelLine={showInlinePieLabels && !outerRing && renderPieLabelLine}
-                  label={
-                    showInlinePieLabels && !outerRing && withSmallSliceLabelsHidden(formatSliceLabel)
-                  }
+                  labelLine={showInlinePieLabels && !outerRing && innerLabels.labelLine}
+                  label={showInlinePieLabels && !outerRing && innerLabels.label}
                 >
                   {chartData.map((_, index) => (
                     <Cell
@@ -701,13 +708,8 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
                     innerRadius="54%"
                     outerRadius="80%"
                     legendType="none"
-                    labelLine={showInlinePieLabels && renderPieLabelLine}
-                    label={
-                      showInlinePieLabels &&
-                      withSmallSliceLabelsHidden((props) =>
-                        formatSliceLabel({ ...props, name: shortLabel(String(props.name ?? "")) }),
-                      )
-                    }
+                    labelLine={showInlinePieLabels && outerLabels.labelLine}
+                    label={showInlinePieLabels && outerLabels.label}
                   >
                     {outerRing.map((slice, index) => (
                       <Cell
@@ -741,7 +743,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
           ) : (
             <div
               data-testid="allocation-chart-fallback"
-              className="flex h-full items-center justify-center rounded border border-dashed border-gray-300 bg-gray-50 p-4 text-center text-sm text-gray-600"
+              className="flex h-full items-center justify-center rounded border border-dashed border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 text-center text-sm text-[var(--surface-muted-color)]"
             >
               {t("allocation.chartsUnavailable", {
                 defaultValue: "Charts are unavailable in this environment.",

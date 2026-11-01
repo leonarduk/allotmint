@@ -203,7 +203,7 @@ export function AddPositionForm({
       id={controlsId}
       onSubmit={handleSubmit}
       aria-label={t('addPosition.title')}
-      className="mb-6 rounded-lg border border-gray-800 bg-black/20 p-4"
+      className="mb-6 rounded-lg border border-[var(--surface-card-border)] bg-black/20 p-4"
     >
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-base font-semibold text-white">

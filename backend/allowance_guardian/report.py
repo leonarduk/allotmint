@@ -4,8 +4,8 @@ Facts and arithmetic only. Every report carries :data:`NOT_MODELLED` and
 :data:`ADVISER_NOTE`, whatever the figures say. Read-only: it loads transactions
 and the saved schedule and writes nothing.
 
-The #10477 bot registry does not exist yet; when it lands, the guardian registers
-there as a monthly bot whose ``run`` calls :func:`run` and stores the result.
+:mod:`backend.allowance_guardian.bot` registers the guardian with the #10477 bot
+registry; each bot run calls :func:`run` per owner (#10495).
 """
 
 from __future__ import annotations
@@ -135,7 +135,7 @@ def _pension_alerts(pension: Dict[str, Any]) -> List[Dict[str, str]]:
     return alerts
 
 
-def _isa_alerts(isa: Dict[str, Any]) -> List[Dict[str, str]]:
+def _isa_alerts(isa: Dict[str, Any], reminder_days: int) -> List[Dict[str, str]]:
     if not isa.get("available"):
         return []
     alerts = []
@@ -143,7 +143,7 @@ def _isa_alerts(isa: Dict[str, Any]) -> List[Dict[str, str]]:
         total, limit = _gbp(isa["projected_total_minor"]), _gbp(isa["limit_minor"])
         message = f"Recorded and scheduled ISA subscriptions total {total}, over the {limit} limit."
         alerts.append({"level": "critical", "code": "isa_over_limit", "message": message})
-    if isa["days_to_deadline"] <= ISA_DEADLINE_REMINDER_DAYS:
+    if isa["days_to_deadline"] <= reminder_days:
         message = (
             f"{isa['days_to_deadline']} days until the ISA allowance resets on {isa['deadline']}; "
             f"{_gbp(isa['remaining_minor'])} of this year's limit is unused."
@@ -160,6 +160,7 @@ def run(
     transactions: Optional[List[Any]] = None,
     schedule: Optional[Sequence[ScheduledContribution]] = None,
     allowances: Any = _DEFAULT,
+    isa_reminder_days: int = ISA_DEADLINE_REMINDER_DAYS,
 ) -> Dict[str, Any]:
     """Build ``owner``'s contribution and allowance report.
 
@@ -167,6 +168,7 @@ def run(
     ``Transaction``-like rows), ``schedule`` and ``allowances`` (an object with
     allotmint-pro's ``carry_forward_view`` and ``annual_allowance_info``; None when
     unavailable) default to the stored data and the installed allotmint-pro.
+    ``isa_reminder_days`` is how close to 5 April the ``isa_deadline`` alert starts.
     """
     today = today or london_today()
     if transactions is None:
@@ -187,7 +189,9 @@ def run(
         "contributions": contributions,
         "pension_allowance": pension,
         "isa_allowance": isa,
-        "alerts": _contribution_alerts(contributions["counts"]) + _pension_alerts(pension) + _isa_alerts(isa),
+        "alerts": _contribution_alerts(contributions["counts"])
+        + _pension_alerts(pension)
+        + _isa_alerts(isa, isa_reminder_days),
         "not_modelled": list(NOT_MODELLED),
         "assumptions": list(ASSUMPTIONS),
         "adviser_note": ADVISER_NOTE,

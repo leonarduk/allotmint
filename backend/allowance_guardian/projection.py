@@ -20,7 +20,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from backend.allowance_guardian.schedule import ScheduledContribution, expected_dates, is_isa_account
+from backend.allowance_guardian.schedule import ScheduledContribution, expected_dates
+from backend.common.cash_kind import ISA_SUBSCRIPTION, ISA_TRANSFER_IN, is_isa_account
 
 
 def tax_year_bounds(today: date) -> Tuple[date, date]:
@@ -147,19 +148,31 @@ def project_pension_allowance(
     }
 
 
+def _is_isa_transfer(tx: Any) -> bool:
+    """Whether an ISA DEPOSIT is a transfer from another ISA: ``kind`` when set, else the comment."""
+    kind = getattr(tx, "kind", None)
+    if kind == ISA_TRANSFER_IN:
+        return True
+    if kind == ISA_SUBSCRIPTION:
+        return False
+    return "transfer" in (tx.comments or "").lower()
+
+
 def isa_subscribed_minor(transactions: Iterable[Any], today: date) -> int:
     """Pence paid into ISA accounts this tax year up to ``today`` (transfers between ISAs excluded).
 
     A negative DEPOSIT is a reversed subscription, so the year's deposits are
     summed signed and the total clamped at zero (#10794). Withdrawals never
-    restore allowance: flexible ISAs are not modelled.
+    restore allowance: flexible ISAs are not modelled. A row's ``kind``
+    decides whether it is a subscription or a transfer between ISAs when it is
+    one of those two (#10797); otherwise the comment rule applies.
     """
     start, _ = tax_year_bounds(today)
     total = 0
     for tx in transactions:
         if (tx.type or "").strip().upper() != "DEPOSIT" or tx.amount_minor is None or not tx.date:
             continue
-        if not is_isa_account(tx.account) or "transfer" in (tx.comments or "").lower():
+        if not is_isa_account(tx.account) or _is_isa_transfer(tx):
             continue
         if (tx.currency or "GBP").strip().upper() == "GBP" and start <= date.fromisoformat(str(tx.date)[:10]) <= today:
             total += int(round(tx.amount_minor))

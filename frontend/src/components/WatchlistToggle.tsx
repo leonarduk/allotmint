@@ -97,7 +97,7 @@ export default function WatchlistToggle({ ticker, variant = "star" }: Props) {
           id={menuId}
           role="group"
           aria-label={label}
-          className="absolute left-0 z-20 mt-1 min-w-48 rounded border bg-white p-2 text-left text-sm shadow-lg dark:bg-gray-800"
+          className="absolute left-0 z-20 mt-1 min-w-48 rounded border bg-[var(--surface-card-bg)] p-2 text-left text-sm shadow-lg"
         >
           {lists.map((l) => (
             <label

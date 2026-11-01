@@ -215,6 +215,17 @@ def _near_miss(row: StatementRow, comparison: _Comparison) -> bool:
     return comparison.units_ok if row.type in TRADE_TYPES else True
 
 
+def _add_stamp_duty(body: Dict[str, Any], row: StatementRow) -> None:
+    """Record the statement's stamp duty as part of ``fees`` when it shows one (#10493).
+
+    The extractor guarantees ``stamp_duty_minor <= fees_minor`` (see
+    ``extract._normalise_row``), so ``body["stamp_duty"]`` is always a part
+    of ``body["fees"]`` and the request cannot fail the breakdown check.
+    """
+    if row.stamp_duty_minor is not None:
+        body["stamp_duty"] = minor_to_pounds(row.stamp_duty_minor)
+
+
 def _create_request(row: StatementRow, ticker: Optional[str], ctx: _Context) -> Optional[SuggestedRequest]:
     body: Dict[str, Any] = {
         "owner": ctx.owner,
@@ -233,6 +244,7 @@ def _create_request(row: StatementRow, ticker: Optional[str], ctx: _Context) -> 
             price_gbp=round(minor_to_pounds(row.consideration_minor) / row.units, 6),
             fees=minor_to_pounds(row.fees_minor),
         )
+        _add_stamp_duty(body, row)
     else:
         if not row.amount_minor:
             return None
@@ -281,6 +293,7 @@ def _fee_update_request(row: StatementRow, ledger: LedgerRow, ctx: _Context) -> 
         "reason": raw.get("reason") or RECONCILIATION_REASON,
         "comments": raw.get("comments"),
     }
+    _add_stamp_duty(body, row)
     return SuggestedRequest(method="PUT", path=f"/transactions/{ledger.id}", body=body)
 
 

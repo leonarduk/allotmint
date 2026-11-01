@@ -47,7 +47,9 @@ function StatusSummary({ status }: { status: AppUpdateStatus }) {
           })}
         </p>
       )}
-      {status.reason && <p className="text-gray-600">{status.reason}</p>}
+      {status.reason && (
+        <p className="text-[var(--surface-muted-color)]">{status.reason}</p>
+      )}
     </div>
   );
 }
@@ -98,7 +100,7 @@ function UpdateResult({ result }: { result: AppUpdateResult }) {
       <button
         type="button"
         onClick={() => window.location.reload()}
-        className="rounded bg-gray-200 px-2 py-1"
+        className="rounded bg-[var(--surface-muted-bg)] px-2 py-1"
       >
         {t('support.appUpdate.reload', 'Reload page')}
       </button>
@@ -177,7 +179,7 @@ export default function AppUpdateSection() {
 
   return (
     <SectionCard title={t('support.appUpdate.title', 'Update app')}>
-      <p className="mb-2 text-sm text-gray-600">
+      <p className="mb-2 text-sm text-[var(--surface-muted-color)]">
         {t(
           'support.appUpdate.description',
           'Fast-forward this local checkout to the latest commit on its upstream branch. Only available for local deployments.'

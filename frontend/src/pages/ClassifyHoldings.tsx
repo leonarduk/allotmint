@@ -97,7 +97,7 @@ function ClassifyRow({
           {row.ticker}
         </Link>
         {row.name && (
-          <span className="ml-2 text-slate-600 dark:text-slate-300">
+          <span className="ml-2 text-[var(--surface-muted-color)]">
             {row.name}
           </span>
         )}
@@ -169,7 +169,7 @@ export default function ClassifyHoldings() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl md:text-4xl">{t('classify.title')}</h1>
-      <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+      <p className="mb-4 text-sm text-[var(--surface-muted-color)]">
         {t('classify.intro')}
       </p>
       <p className="mb-4">

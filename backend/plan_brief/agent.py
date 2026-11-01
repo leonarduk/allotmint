@@ -293,8 +293,13 @@ async def run_agent(
     """Evaluate triggers/assumptions and write the prose; never raises for an LLM failure."""
     if not mcp_server_url:
         return _offline(plan, facts, "The brief agent is not configured (MCP_SERVER_URL unset).")
+    # raise_at_cap: a cap-hit reply holds raw tool results, not the JSON verdicts
+    # parsed below, so fall back to the deterministic brief instead (#7623).
     limits = TurnLimits(
-        allowed_tools=READ_ONLY_TOOLS, max_iterations=MAX_TOOL_CALL_ROUNDS, max_tokens=MAX_OUTPUT_TOKENS
+        allowed_tools=READ_ONLY_TOOLS,
+        max_iterations=MAX_TOOL_CALL_ROUNDS,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        raise_at_cap=True,
     )
     try:
         reply = await (chat_turn or run_configured_chat_turn)(

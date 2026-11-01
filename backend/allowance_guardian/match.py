@@ -25,16 +25,14 @@ from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
 from backend.allowance_guardian.schedule import ScheduledContribution, expected_dates
+from backend.common.cash_kind import EMPLOYER_COMMENT_TAGS
 
 EARLY_DAYS = 5
 ON_TIME_GRACE_DAYS = 2
 LATE_WINDOW_DAYS = 14
 AMOUNT_TOLERANCE_MINOR = 100
 
-# Whole-word comment tags marking an employer or salary-sacrifice DEPOSIT. Mirrors
-# allotmint_pro.mcp_server.transaction_summary.EMPLOYER_COMMENT_TAGS, which decides
-# what counts towards the annual allowance; kept here so matching works without it.
-EMPLOYER_COMMENT_TAGS = ("employer", "salary sacrifice", "salary exchange")
+# Whole-word employer/salary-sacrifice comment tags; defined with the cash kind rules.
 _EMPLOYER_TAG_RE = re.compile(r"\b(?:" + "|".join(EMPLOYER_COMMENT_TAGS) + r")\b")
 # Relief top-ups, transfers, refunds, reversals, repayments and corrections are not
 # contributions the owner scheduled, so they are never matched.

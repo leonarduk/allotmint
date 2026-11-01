@@ -53,7 +53,7 @@ def test_deployed_schedules_nothing_itself_but_reports_eventbridge(env):
 
 
 def test_event_driven_bot_is_never_scheduled():
-    assert not local_scheduler.is_scheduled_here(get_bot("decision-journal"), _cfg(bots=["decision-journal"]))
+    assert not local_scheduler.is_scheduled_here(get_bot("cash-deployment"), _cfg(bots=["cash-deployment"]))
 
 
 def test_start_is_a_noop_in_tests_and_lambda(monkeypatch):

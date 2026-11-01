@@ -18,15 +18,25 @@ const valueStyle = { fontSize: '1.2rem', fontWeight: 'bold' } as const;
 const noteStyle = { fontSize: '0.8rem', color: 'var(--summary-card-label)' };
 
 /**
+ * All fees paid: trade fees (dealing plus the stamp duty and FX charges split
+ * out of them, #10493) and account charges. Each trade fee is counted once.
+ */
+function feesPaid(part: AllInCostPart): number {
+  return (
+    part.dealing_fees_gbp +
+    (part.stamp_duty_gbp ?? 0) +
+    (part.fx_charges_gbp ?? 0) +
+    part.account_charges_gbp
+  );
+}
+
+/**
  * True when no part of the cost is known: every holding lacks a charge and no
  * fees were paid. ``known_cost_gbp`` is then 0 only because nothing was
  * counted, so it is shown as unknown rather than as GBP 0 (#10482).
  */
 function nothingKnown(part: AllInCostPart): boolean {
-  return (
-    part.fund_charges_gbp === null &&
-    part.dealing_fees_gbp + part.account_charges_gbp === 0
-  );
+  return part.fund_charges_gbp === null && feesPaid(part) === 0;
 }
 
 function CostFigure({ part }: { part: AllInCostPart }) {
@@ -51,7 +61,9 @@ function AllInCostBlock({
 }) {
   const { t } = useTranslation();
   const reporting = useReportingCurrency();
-  const fees = part.dealing_fees_gbp + part.account_charges_gbp;
+  const fees = feesPaid(part);
+  const stampDuty = part.stamp_duty_gbp ?? 0;
+  const fxCharges = part.fx_charges_gbp ?? 0;
   const missing: string[] = [];
   if (part.unknown_count > 0)
     missing.push(
@@ -84,6 +96,16 @@ function AllInCostBlock({
               fees: reporting.format(fees),
             })}
       </div>
+      {(stampDuty > 0 || fxCharges > 0) && (
+        <div style={noteStyle} data-testid="fund-charges-all-in-fees-split">
+          {t('fundCharges.allInFeesSplit', {
+            dealing: reporting.format(part.dealing_fees_gbp),
+            stampDuty: reporting.format(stampDuty),
+            fx: reporting.format(fxCharges),
+            account: reporting.format(part.account_charges_gbp),
+          })}
+        </div>
+      )}
       {missing.length > 0 && (
         <div style={noteStyle} data-testid="fund-charges-all-in-unknown">
           {t('fundCharges.allInNotIncluded', { items: missing.join('; ') })}

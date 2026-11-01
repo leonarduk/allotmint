@@ -55,7 +55,7 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
   const openPosition = () => { setShowPosition(true); positionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
   const buttonClass = "rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent";
 
-  return <section className="mb-6 rounded-lg border border-gray-800 bg-gray-900/70 p-4">
+  return <section className="mb-6 rounded-lg border border-[var(--surface-card-border)] bg-gray-900/70 p-4">
     {accounts.length > 0 && <div className="mb-4 flex flex-wrap items-center gap-2">
       {!familyMvpEnabled && <>
         <button type="button" onClick={() => downloadPortfolioCsv(portfolio)} aria-label={t("ownerPortfolioActions.exportCsvAria")} className={buttonClass}>{t("ownerPortfolioActions.exportCsv")}</button>
@@ -72,6 +72,6 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
     {showAccount && <div className="mb-6"><AddAccountForm owner={owner} onCreated={finishMutation} onCancel={() => setShowAccount(false)} /></div>}
     {hasWarnings && <div className="mb-4"><Link to={`/compliance/${owner}`} className="text-blue-400 hover:text-blue-300">{t("ownerPortfolioActions.viewCompliance")}</Link></div>}
     {complianceError && <p role="alert" className="mb-4 text-sm text-red-400">{t("ownerPortfolioActions.complianceError")}</p>}
-    {enableAdvancedAnalytics && <div className="rounded-lg border border-gray-800 bg-black/30 p-4"><ValueAtRisk owner={owner} onDateChange={onDateChange} portfolioValue={portfolioValue} /></div>}
+    {enableAdvancedAnalytics && <div className="rounded-lg border border-[var(--surface-card-border)] bg-black/30 p-4"><ValueAtRisk owner={owner} onDateChange={onDateChange} portfolioValue={portfolioValue} /></div>}
   </section>;
 }

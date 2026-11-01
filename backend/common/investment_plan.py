@@ -4,7 +4,9 @@ A plan is the owner's own statement of a target allocation and the reasoning
 behind it: assumptions, decisions taken (and alternatives rejected), a dated
 evidence snapshot, open questions and review triggers. It lives at
 ``<data_root>/plans/<owner>.json``; the data root is a private git repo, so
-every edit is versioned there rather than here.
+every edit is versioned there rather than here. On AWS, where ``data_root`` is
+the Lambda's ephemeral ``/tmp/data``, ``PLANS_URI`` (``s3://<bucket>/plans``)
+holds them instead (#11159).
 
 Target ``class`` keys share one vocabulary with the rebalance sub-asset
 classes (#9543) and allotmint-pro's ``backtest_portfolio`` blocks. Rolled up
@@ -14,11 +16,8 @@ targets stored by :mod:`backend.common.allocation_policy`.
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import re
-import tempfile
 from datetime import date
 from pathlib import Path
 from typing import Literal, Optional, Union
@@ -28,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from backend.common.allocation_policy import AllocationPolicy, parse_policy
 from backend.common.instrument_classification import ASSET_CLASSES
 from backend.common.instruments import get_instrument_meta
-from backend.common.path_utils import safe_join
+from backend.common.owner_documents import OwnerDocumentStore
 from backend.common.pension import _age_from_dob
 from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT, legacy_target_key, policy_targets
 from backend.config import config
@@ -37,6 +36,8 @@ from backend.logging_setup import sanitise_log_value
 logger = logging.getLogger(__name__)
 
 PLANS_DIRNAME = "plans"
+#: ``s3://<bucket>/<prefix>`` for plans on AWS; unset means ``plans_dir()``.
+PLANS_URI_ENV = "PLANS_URI"
 #: Accepted slack when checking that target weights sum to 100%.
 TARGET_SUM_TOLERANCE_PCT = 0.01
 DEFAULT_DISCLAIMER = "Owner's own decisions; attached analysis is historical information, not regulated advice."
@@ -278,11 +279,18 @@ def plans_dir(data_root: Optional[Path] = None) -> Path:
     return Path(root) / PLANS_DIRNAME
 
 
-def _plan_path(owner: str, data_root: Optional[Path]) -> Path:
+_PLANS = OwnerDocumentStore(uri_env=PLANS_URI_ENV, local_dir=plans_dir)
+
+
+def _check_owner(owner: str) -> str:
     if not _OWNER_RE.match(owner or ""):
         raise ValueError(f"Invalid owner id {owner!r}")
-    directory = plans_dir(data_root)
-    return safe_join(directory, f"{owner}.json")
+    return owner
+
+
+def plan_owners(data_root: Optional[Path] = None) -> set[str]:
+    """Owners with a saved plan, from ``PLANS_URI`` when set, else ``plans_dir()``."""
+    return _PLANS.owners(data_root)
 
 
 def parse_plan(data: object, owner: str) -> InvestmentPlan:
@@ -294,27 +302,18 @@ def parse_plan(data: object, owner: str) -> InvestmentPlan:
 
 
 def load_plan(owner: str, data_root: Optional[Path] = None) -> InvestmentPlan:
-    path = _plan_path(owner, data_root)
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise PlanNotFoundError(f"No investment plan saved for {owner}") from exc
+    raw = _PLANS.read(_check_owner(owner), data_root)
+    if raw is None:
+        raise PlanNotFoundError(f"No investment plan saved for {owner}")
     return parse_plan(raw, owner)
 
 
-def save_plan(plan: InvestmentPlan, data_root: Optional[Path] = None) -> Path:
-    """Write ``plan`` atomically to ``<data_root>/plans/<owner>.json``."""
-    path = _plan_path(plan.owner, data_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(plan.to_dict(), indent=2, ensure_ascii=False) + "\n"
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{plan.owner}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(payload)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
+def save_plan(plan: InvestmentPlan, data_root: Optional[Path] = None) -> Optional[Path]:
+    """Write ``plan`` to ``PLANS_URI`` when set, else atomically to ``<data_root>/plans/<owner>.json``.
+
+    Returns the local path, or ``None`` when the plan was written to S3.
+    """
+    path = _PLANS.write(_check_owner(plan.owner), plan.to_dict(), data_root)
     logger.info("Saved investment plan for %s", sanitise_log_value(plan.owner))
     return path
 

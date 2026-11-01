@@ -13,6 +13,7 @@ from backend.allowance_guardian.projection import (
     tax_year_bounds,
 )
 from backend.allowance_guardian.schedule import ScheduledContribution
+from backend.common.cash_kind import classify_cash_kind
 from backend.routes.transactions import Transaction
 
 TODAY = date(2026, 10, 9)  # tax year 2026-2027
@@ -204,3 +205,35 @@ def test_isa_reversal_nets_against_subscriptions():
 def test_isa_lone_reversal_never_goes_negative():
     rows = [Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-05-03", amount_minor=-30_000)]
     assert isa_subscribed_minor(rows, TODAY) == 0
+
+
+def test_isa_kind_overrides_the_comment_rule():
+    """``kind`` decides subscription vs ISA transfer when set; other rows keep the comment rule (#10797)."""
+    rows = [
+        # A subscription whose comment mentions a transfer from the bank: the comment rule excludes it.
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-05-01", amount_minor=100_000,
+                    comments="Transfer from bank", kind="isa_subscription"),
+        # An ISA-to-ISA transfer with an unhelpful comment: the comment rule would count it.
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-05-02", amount_minor=900_000,
+                    comments="Payment", kind="isa_transfer_in"),
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-05-03", amount_minor=20_000),
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-05-04", amount_minor=40_000,
+                    comments="Transfer from bank", kind="account"),
+    ]  # fmt: skip
+    assert isa_subscribed_minor(rows, TODAY) == 120_000
+
+
+def test_isa_backfilled_kinds_give_the_same_total_as_comments():
+    """Kinds the backfill rules give leave the ISA total unchanged (#10797)."""
+    rows = [
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-05-01", amount_minor=1_000_000),
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-06-01", amount_minor=500_000,
+                    comments="ISA transfer in from another provider"),
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-06-02", amount_minor=70_000,
+                    comments="Transfer from bank"),
+        Transaction(owner="alex", account="isa", type="DEPOSIT", date="2026-06-03", amount_minor=-30_000),
+    ]  # fmt: skip
+    before = isa_subscribed_minor(rows, TODAY)
+    classified = [row.model_copy(update={"kind": classify_cash_kind(row.model_dump(), row.account)}) for row in rows]
+    assert [row.kind for row in classified] == ["isa_subscription", "isa_transfer_in", None, "isa_subscription"]
+    assert isa_subscribed_minor(classified, TODAY) == before == 970_000

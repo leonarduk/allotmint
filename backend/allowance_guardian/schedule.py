@@ -23,6 +23,7 @@ from typing import Iterator, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from backend.common.cash_kind import is_isa_account
 from backend.common.path_utils import safe_join
 
 SCHEDULES_DIRNAME = "contribution_schedules"
@@ -84,10 +85,6 @@ class ContributionSchedule(BaseModel):
 
     owner: str
     contributions: List[ScheduledContribution] = Field(default_factory=list, max_length=50)
-
-
-def is_isa_account(account: str) -> bool:
-    return "isa" in (account or "").lower()
 
 
 def _clamped(year: int, month: int, day: int) -> date:

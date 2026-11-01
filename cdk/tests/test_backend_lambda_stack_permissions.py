@@ -46,6 +46,10 @@ BACKEND_LIST_PREFIXES = (
     "trend_watch",
     # Saved watchlists (#10713): missing-vs-denied for backend/common/watchlists.py.
     "watchlists",
+    # Investment plans and decision journals (#11159): owner listing and
+    # missing-vs-denied for backend/common/owner_documents.py.
+    "plans",
+    "decision_journal",
     # Writable per-owner account documents (manual holdings / transactions);
     # separate from the read-only accounts/ demo prefix (issue #4275).
     WRITABLE_ACCOUNTS_PREFIX,
@@ -72,6 +76,10 @@ DIVIDEND_REFRESH_LIST_PREFIXES = (WRITABLE_ACCOUNTS_PREFIX,)
 # bots_digest: owner discovery (accounts/) plus run records, digest settings
 # and saved digests under bots/ (backend/lambda_api/bots_digest.py, #10501).
 BOTS_DIGEST_LIST_PREFIXES = ("accounts", "bots")
+# decision_journal: owner listing on plans/ and decision_journal/
+# (OwnerDocumentStore.owners), missing-vs-denied for load_journal, and the
+# writable transactions store (S3AccountsStore.iter_transaction_documents) (#10525).
+DECISION_JOURNAL_LIST_PREFIXES = ("plans", "decision_journal", WRITABLE_ACCOUNTS_PREFIX)
 
 
 def _stack_template() -> dict:
@@ -731,6 +739,7 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
         "DividendRefreshLambda",
         "DataStewardLambda",
         "TrendWatchLambda",
+        "DecisionJournalLambda",
     ]
     forbidden = {"s3:DeleteObject", "s3:DeleteObjectVersion"}
 
@@ -1264,6 +1273,9 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # BOTS_PREFIX is not duplicated either: the backend's only fallback is a local
 # file:// path and it learns the S3 location from BOTS_STORAGE_URI (#10477),
 # which test_bot_lambdas_share_the_bots_storage_prefix checks.
+# PLANS_PREFIX and DECISION_JOURNAL_PREFIX reach the backend only via PLANS_URI
+# and DECISION_JOURNAL_URI (#11159); their names match the backend's local
+# directory names, checked by test_plans_and_decision_journal_live_in_s3.
 # DATA_STEWARD_REPORTS_PREFIX likewise: backend/data_steward/store.py has no S3
 # fallback and learns the location from DATA_STEWARD_REPORTS_URI (#10471), which
 # test_data_steward_lambda_is_read_only_except_its_reports checks.
@@ -1276,6 +1288,8 @@ _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
         "RETIREMENT_READINESS_PREFIX",
         "BOTS_PREFIX",
         "DATA_STEWARD_REPORTS_PREFIX",
+        "PLANS_PREFIX",
+        "DECISION_JOURNAL_PREFIX",
     }
 )
 
@@ -1394,6 +1408,7 @@ def test_bot_lambdas_share_the_bots_storage_prefix() -> None:
         "PensionReportLambda",
         "DataStewardLambda",
         "TrendWatchLambda",
+        "DecisionJournalLambda",
     ):
         parts = _lambda_env(template, fragment)["BOTS_STORAGE_URI"]["Fn::Join"][1]
         assert parts[0] == "s3://" and parts[-1] == "/bots", fragment
@@ -1409,6 +1424,7 @@ def test_bot_lambdas_can_read_and_write_their_run_records() -> None:
         "PensionReportLambda",
         "DataStewardLambda",
         "TrendWatchLambda",
+        "DecisionJournalLambda",
     ):
         role = _role_logical_id_for_lambda(template, fragment)
         reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
@@ -1429,6 +1445,7 @@ def test_backend_lambda_can_start_each_bot_lambda() -> None:
         "pension-report",
         "data-steward",
         "trend-watch",
+        "decision-journal",
     ):
         assert bot_id in mapping
     backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
@@ -1539,8 +1556,18 @@ def test_plan_brief_lambda_writes_only_under_plan_briefs() -> None:
 
     assert _s3_actions_for_role(template, role) == {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
     assert _conditions_for_s3_action(template, role, "s3:ListBucket") == [
-        {"StringLike": {"s3:prefix": ["accounts", "accounts/*"]}}
+        {"StringLike": {"s3:prefix": ["accounts", "accounts/*", "plans", "plans/*"]}}
     ]
+
+
+def test_plan_brief_lambda_reads_plans_from_s3() -> None:
+    """load_plan reads PLANS_URI on AWS (#11159); PlanBriefLambda gets it, read-only (#10525)."""
+    template = _stack_template()
+    parts = _lambda_env(template, "PlanBriefLambda")["PLANS_URI"]["Fn::Join"][1]
+    assert parts[0] == "s3://" and parts[-1] == "/plans"
+    role = _role_logical_id_for_lambda(template, "PlanBriefLambda")
+    writes = [str(r) for r in _resources_for_s3_action(template, role, "s3:PutObject")]
+    assert not any("/plans/" in r or r.endswith("'/*']]}") for r in writes), writes
 
 
 def test_plan_brief_monthly_rule_targets_the_lambda() -> None:
@@ -1629,3 +1656,120 @@ def test_backend_lambda_gets_the_deploy_app_version(monkeypatch) -> None:
     assert _lambda_env(_stack_template(), "BackendLambda")["APP_VERSION"] == "v9.9.9 (abc1234)"
     monkeypatch.delenv("APP_VERSION")
     assert _lambda_env(_stack_template(), "BackendLambda")["APP_VERSION"] == "dev"
+
+
+@pytest.mark.parametrize(
+    ("env_var", "constant", "backend_file", "dirname_constant"),
+    [
+        ("PLANS_URI", "PLANS_PREFIX", ("common", "investment_plan.py"), "PLANS_DIRNAME"),
+        (
+            "DECISION_JOURNAL_URI",
+            "DECISION_JOURNAL_PREFIX",
+            ("decision_journal", "store.py"),
+            "JOURNAL_DIRNAME",
+        ),
+    ],
+)
+def test_plans_and_decision_journal_live_in_s3(
+    env_var, constant, backend_file, dirname_constant
+) -> None:
+    """The backend Lambda keeps plans and journals in S3, not its ephemeral /tmp/data (#11159).
+
+    The URI points at the prefix the backend uses locally, GetObject/PutObject
+    come from the bucket-wide grant, and ListBucket on the prefix lets owner
+    discovery list it and makes a missing document a NoSuchKey (not a 403).
+    """
+    import stacks.backend_lambda_stack as stack_mod
+
+    prefix = getattr(stack_mod, constant)
+    # Parsed, not imported: the CDK test env has no backend runtime deps.
+    source = _backend_common_dir().parent.joinpath(*backend_file)
+    assert prefix == _fallback_string_literal(source, dirname_constant)
+
+    template = _stack_template()
+    parts = _lambda_env(template, "BackendLambda")[env_var]["Fn::Join"][1]
+    assert parts[0] == "s3://" and parts[-1] == f"/{prefix}"
+
+    role = _role_logical_id_for_lambda(template, "BackendLambda")
+    for action in ("s3:GetObject", "s3:PutObject"):
+        resources = _resources_for_s3_action(template, role, action)
+        assert any("'/*'" in r for r in resources), (
+            f"{action} does not cover {prefix}/: {resources}"
+        )
+    conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
+    assert any(
+        {prefix, f"{prefix}/*"} <= set(condition.get("StringLike", {}).get("s3:prefix", []))
+        for condition in conditions
+    ), f"BackendLambda s3:ListBucket must include {prefix}/"
+
+
+
+# ---------------------------------------------------------------------------
+# DecisionJournalLambda (issue #10525)
+# ---------------------------------------------------------------------------
+
+
+def test_decision_journal_lambda_env_points_at_its_stores() -> None:
+    template = _stack_template()
+    env = _lambda_env(template, "DecisionJournalLambda")
+    for key, suffix in (
+        ("PLANS_URI", "/plans"),
+        ("DECISION_JOURNAL_URI", "/decision_journal"),
+        ("BOTS_STORAGE_URI", "/bots"),
+        ("TIMESERIES_CACHE_BASE", "/timeseries"),
+    ):
+        parts = env[key]["Fn::Join"][1]
+        assert parts[0] == "s3://" and parts[-1] == suffix, key
+    assert env["WRITABLE_ACCOUNTS_PREFIX"] == WRITABLE_ACCOUNTS_PREFIX
+    assert env["APP_ENV"] == "aws"
+    assert "DATA_BUCKET" in env and "JWT_SECRET" in env
+
+
+def test_decision_journal_lambda_writes_only_journals_and_run_records() -> None:
+    """PutObject on decision_journal/* and bots/* only: never plans/ (#10525)."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "DecisionJournalLambda")
+
+    writes = sorted(str(r) for r in _resources_for_s3_action(template, role, "s3:PutObject"))
+    assert len(writes) == 2, writes
+    assert any("'/decision_journal/*']]}" in r for r in writes), writes
+    assert any("'/bots/*']]}" in r for r in writes), writes
+    assert not any("plans" in r for r in writes), writes
+    assert _s3_actions_for_role(template, role) == {
+        "s3:GetObject",
+        "s3:HeadObject",
+        "s3:PutObject",
+        "s3:ListBucket",
+    }
+
+
+def test_decision_journal_lambda_reads_only_what_its_call_chain_reads() -> None:
+    """GetObject on its stores and the timeseries cache; no bucket-wide read, no plan reads."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "DecisionJournalLambda")
+
+    reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
+    for prefix in ("decision_journal", WRITABLE_ACCOUNTS_PREFIX, "bots", "timeseries"):
+        assert any(f"'/{prefix}/*']]}}" in r for r in reads), (prefix, reads)
+    assert len(reads) == 4, reads
+    assert not any(r.endswith("'/*']]}") for r in reads), reads
+
+    conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
+    assert _expected_prefix_condition(DECISION_JOURNAL_LIST_PREFIXES) in conditions
+    assert {"StringLike": {"s3:prefix": ["timeseries", "timeseries/*"]}} in conditions
+    assert len(conditions) == 2, conditions
+
+
+def test_decision_journal_runs_daily_at_three_utc() -> None:
+    """Matches DecisionJournalBot.default_schedule (backend/decision_journal/bot.py)."""
+    template = _stack_template()
+    rules = [
+        resource["Properties"]
+        for resource in template["Resources"].values()
+        if resource.get("Type") == "AWS::Events::Rule"
+        and any(
+            "DecisionJournalLambda" in str(target.get("Arn"))
+            for target in resource["Properties"].get("Targets", [])
+        )
+    ]
+    assert [rule["ScheduleExpression"] for rule in rules] == ["cron(0 3 * * ? *)"]

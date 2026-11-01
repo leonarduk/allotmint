@@ -80,7 +80,7 @@ function ReturnCell({ value }: { value: StrategyStressHorizon | undefined }) {
     const missing = missingLabels(value?.missing ?? []);
     return (
       <td
-        className="px-2 py-1 text-right text-slate-500 dark:text-slate-400"
+        className="px-2 py-1 text-right text-[var(--surface-muted-color)]"
         title={
           missing ? t('strategyStress.missingTitle', { missing }) : undefined
         }
@@ -101,7 +101,7 @@ function ReturnCell({ value }: { value: StrategyStressHorizon | undefined }) {
         <span title={t('strategyStress.priceOnlyTitle')}>†</span>
       )}
       {partial && (
-        <span className="block text-xs text-slate-500 dark:text-slate-400">
+        <span className="block text-xs text-[var(--surface-muted-color)]">
           {t('strategyStress.priced', { pct: value.coverage_pct?.toFixed(0) })}
         </span>
       )}
@@ -208,7 +208,7 @@ function ResultTable({
         </thead>
         <tbody>
           {result.portfolio && (
-            <tr className="border-t bg-slate-50 font-medium dark:bg-slate-800">
+            <tr className="border-t bg-[var(--surface-muted-bg)] font-medium">
               <td className="px-2 py-1">{t('strategyStress.portfolio')}</td>
               {result.horizons.map((h) => (
                 <ReturnCell key={h} value={result.portfolio?.horizons[h]} />
@@ -220,7 +220,7 @@ function ResultTable({
             <tr key={row.id} className="border-t">
               <td className="px-2 py-1">
                 {row.name}
-                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                <span className="block text-xs text-[var(--surface-muted-color)]">
                   {seriesLine(row)}
                 </span>
                 {rowMissing(row) && (
@@ -253,7 +253,7 @@ function ResultTable({
           ))}
         </tbody>
       </table>
-      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-xs text-[var(--surface-muted-color)]">
         {t('strategyStress.footnote')} {result.disclaimer}
       </p>
     </div>
@@ -292,8 +292,9 @@ function FactorChips({
             onClick={() => onToggle(f)}
             className={`rounded-full border px-3 py-0.5 text-sm ${
               on
-                ? 'border-blue-600 bg-blue-600 text-white'
-                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+                ? // Active state: intentionally theme-independent accent colour.
+                  'border-blue-600 bg-blue-600 text-white'
+                : 'border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] text-[var(--surface-muted-color)] hover:bg-[var(--menu-hover-bg)]'
             }`}
           >
             {t(`strategyStress.factor.${f}`)}
@@ -305,7 +306,7 @@ function FactorChips({
           {t('strategyStress.clearFactors')}
         </button>
       )}
-      <span className="text-xs text-slate-500 dark:text-slate-400">
+      <span className="text-xs text-[var(--surface-muted-color)]">
         {t('strategyStress.factorsHelp')}
       </span>
     </div>
@@ -404,7 +405,7 @@ function BatchTable({
             <tr key={event.id} className="border-t">
               <td className="px-2 py-1">
                 {event.name}
-                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                <span className="block text-xs text-[var(--surface-muted-color)]">
                   {factorLabels(event)}
                 </span>
               </td>
@@ -436,7 +437,7 @@ function BatchTable({
           ))}
         </tbody>
       </table>
-      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-xs text-[var(--surface-muted-color)]">
         {t('strategyStress.batchFootnote')}
       </p>
     </div>
@@ -565,7 +566,7 @@ export default function StrategyStressPanel({
   return (
     <section className="mb-6" aria-label={t('strategyStress.title')}>
       <h2 className="mb-2 text-xl">{t('strategyStress.title')}</h2>
-      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mb-2 text-xs text-[var(--surface-muted-color)]">
         {t('strategyStress.help')}
       </p>
       <FactorChips

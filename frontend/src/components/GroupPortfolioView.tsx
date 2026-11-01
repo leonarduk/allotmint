@@ -85,11 +85,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { renderPieLabelLine, withSmallSliceLabelsHidden } from "../lib/pieLabels";
+import { createPieLabelRenderers } from "../lib/pieLabels";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
 import { FirstRunHelpBanner } from "./FirstRunHelpBanner";
+import { SinceLastVisitDigest } from "./SinceLastVisitDigest";
 import { PricingAsOf } from "./PricingAsOf";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
@@ -1077,6 +1078,16 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     );
   };
 
+  // Collision- and edge-aware inline labels for the type pie (#10313).
+  const typePieLabels = createPieLabelRenderers(
+    typeRows.map((row) => row.value),
+    (props) => {
+      const { name, percent: slicePercent } = props;
+      const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
+      return `${labelName} ${percent((slicePercent ?? 0) * 100)}`;
+    },
+  );
+
   const pricingDate = portfolio?.as_of
     ? formatDateISO(new Date(portfolio.as_of))
     : null;
@@ -1139,6 +1150,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   return (
     <div style={{ marginTop: "1rem" }}>
       <FirstRunHelpBanner />
+      {/* Fetches only once the portfolio has loaded, never before first paint (#7835). */}
+      {isAllPositions && !asOfOverride && (
+        <SinceLastVisitDigest slug={slug} accounts={portfolio?.accounts ?? null} />
+      )}
       <div
         className="flex-wrap-row"
         style={{
@@ -1401,12 +1416,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               <Pie
                 dataKey="value"
                 data={typeRows}
-                labelLine={showInlinePieLabels && renderPieLabelLine}
-                label={showInlinePieLabels && withSmallSliceLabelsHidden((props) => {
-                  const { name, percent: slicePercent } = props;
-                  const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
-                  return `${labelName} ${percent((slicePercent ?? 0) * 100)}`;
-                })}
+                labelLine={showInlinePieLabels && typePieLabels.labelLine}
+                label={showInlinePieLabels && typePieLabels.label}
               >
                 {typeRows.map((_, idx) => (
                   <Cell

@@ -611,17 +611,17 @@ export default function PensionForecast() {
       </section>
       <div className="grid gap-6 md:grid-cols-2">
         <section
-          className="flex h-full flex-col gap-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+          className="flex h-full flex-col gap-6 rounded-3xl border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-6 shadow-sm"
           aria-labelledby="pension-now-heading"
         >
           <header className="space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[var(--surface-muted-color)]">
               {t("pensionForecast.now.kicker", "Now")}
             </p>
-            <h2 id="pension-now-heading" className="text-2xl font-semibold text-slate-900">
+            <h2 id="pension-now-heading" className="text-2xl font-semibold text-[var(--surface-card-color)]">
               {t("pensionForecast.now.heading", "Adjust the plan to match your life today")}
             </h2>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-[var(--surface-muted-color)]">
               {t(
                 "pensionForecast.now.description",
                 "Move the sliders to see how changes to your savings and spending affect your retirement outlook.",
@@ -682,7 +682,7 @@ export default function PensionForecast() {
               className={`text-xs ${
                 totalMonthlyContribution >= PENSION_MONTHLY_ALLOWANCE_GBP
                   ? "font-medium text-amber-700"
-                  : "text-slate-500"
+                  : "text-[var(--surface-muted-color)]"
               }`}
               role="note"
             >
@@ -708,13 +708,13 @@ export default function PensionForecast() {
                 getValueText={(value) => currencyFormatter.format(value)}
               />
               <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-slate-600">
+                <legend className="text-xs font-medium text-[var(--surface-muted-color)]">
                   {t("pensionForecast.livingStandards.legend", {
                     year: UK_PENSION_FIGURES_TAX_YEAR,
                   })}
                 </legend>
                 <div
-                  className="inline-flex rounded-full border border-slate-300 p-0.5 text-xs"
+                  className="inline-flex rounded-full border border-[var(--surface-card-border)] p-0.5 text-xs"
                   role="group"
                   aria-label={t("pensionForecast.livingStandards.householdLabel")}
                 >
@@ -726,8 +726,10 @@ export default function PensionForecast() {
                       onClick={() => setHousehold(h)}
                       className={`rounded-full px-3 py-1 font-medium transition ${
                         household === h
-                          ? "bg-slate-900 text-white"
-                          : "bg-transparent text-slate-600 hover:bg-slate-100"
+                          ? // Active state: intentionally theme-independent dark pill,
+                            // readable in both themes (like the other accent active states).
+                            "bg-slate-900 text-white"
+                          : "bg-transparent text-[var(--surface-muted-color)] hover:bg-[var(--menu-hover-bg)]"
                       }`}
                     >
                       {t(`pensionForecast.livingStandards.household.${h}`)}
@@ -746,8 +748,10 @@ export default function PensionForecast() {
                         onClick={() => setMonthlySpending(monthly)}
                         className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
                           selected
-                            ? "border-blue-500 bg-blue-50 text-blue-900"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
+                            ? // Selected state: theme-independent blue accent border on
+                            // theme-aware surface fill/text so it stays legible in dark mode.
+                            "border-blue-500 bg-[var(--surface-muted-bg)] text-[var(--surface-card-color)]"
+                            : "border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] text-[var(--surface-muted-color)] hover:border-[var(--surface-muted-color)]"
                         }`}
                       >
                         <span className="block font-semibold">
@@ -765,23 +769,23 @@ export default function PensionForecast() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--surface-muted-color)]">
                   {t("pensionForecast.livingStandards.helper")}
                 </p>
               </fieldset>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <p className="block text-sm font-medium text-slate-700" id="age-now-label">
+                <p className="block text-sm font-medium text-[var(--surface-muted-color)]" id="age-now-label">
                   {t("pensionForecast.ages.ageNowLabel")}
                 </p>
                 <p
-                  className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900"
+                  className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-muted-bg)] px-3 py-2 text-sm text-[var(--surface-card-color)]"
                   aria-labelledby="age-now-label"
                 >
                   {displayedWholeAge ?? "—"}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--surface-muted-color)]">
                   {displayedDob
                     ? t("pensionForecast.ages.ageNowHelper", { dob: displayedDob })
                     : profileError
@@ -792,13 +796,13 @@ export default function PensionForecast() {
                 </p>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700" htmlFor="retirement-age">
+                <label className="block text-sm font-medium text-[var(--surface-muted-color)]" htmlFor="retirement-age">
                   {t("pensionForecast.ages.retirementAgeLabel")}
                 </label>
                 <input
                   id="retirement-age"
                   type="number"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color)]"
                   value={plannedRetirementAge}
                   onChange={(e) => setPlannedRetirementAge(e.target.value)}
                   min={displayedWholeAge ?? 40}
@@ -807,7 +811,7 @@ export default function PensionForecast() {
                   placeholder={t("pensionForecast.ages.retirementAgePlaceholder")}
                   aria-describedby="retirement-age-description"
                 />
-                <p id="retirement-age-description" className="text-xs text-slate-500">
+                <p id="retirement-age-description" className="text-xs text-[var(--surface-muted-color)]">
                   {displayedStatePensionAge != null
                     ? t("pensionForecast.ages.retirementAgeHelper", {
                         spa: displayedStatePensionAge,
@@ -822,13 +826,13 @@ export default function PensionForecast() {
                     audience -- to "Plan until age" (#7211). The underlying
                     field/param name (`deathAge`) is unchanged, so error
                     messages that already reference it (#7134) still work. */}
-                <label className="block text-sm font-medium text-slate-700" htmlFor="death-age">
+                <label className="block text-sm font-medium text-[var(--surface-muted-color)]" htmlFor="death-age">
                   {t("pensionForecast.header.deathAgeLabel")}
                 </label>
                 <input
                   id="death-age"
                   type="number"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color)]"
                   value={deathAge}
                   onChange={(e) => setDeathAge(Number(e.target.value))}
                   required
@@ -836,24 +840,24 @@ export default function PensionForecast() {
                   max={120}
                   aria-describedby="death-age-description"
                 />
-                <p id="death-age-description" className="text-xs text-slate-500">
+                <p id="death-age-description" className="text-xs text-[var(--surface-muted-color)]">
                   {t("pensionForecast.header.deathAgeHelper")}
                 </p>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700" htmlFor="state-pension">
+                <label className="block text-sm font-medium text-[var(--surface-muted-color)]" htmlFor="state-pension">
                   {t("pensionForecast.statePensionLabel", "State pension (£/yr)")}
                 </label>
                 <input
                   id="state-pension"
                   type="number"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  className="w-full rounded-md border border-[var(--surface-card-border)] px-3 py-2 text-sm shadow-sm focus:border-[var(--surface-muted-color)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color)]"
                   value={statePension}
                   onChange={(e) => setStatePension(e.target.value)}
                   min={0}
                   aria-describedby="state-pension-description"
                 />
-                <p id="state-pension-description" className="text-xs text-slate-500">
+                <p id="state-pension-description" className="text-xs text-[var(--surface-muted-color)]">
                   {t("pensionForecast.header.statePensionHelper", {
                     year: UK_PENSION_FIGURES_TAX_YEAR,
                     weekly: currencyFormatter.format(FULL_NEW_STATE_PENSION_WEEKLY_GBP),
@@ -873,14 +877,14 @@ export default function PensionForecast() {
           </div>
         </section>
         <section
-          className="flex h-full flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-6"
+          className="flex h-full flex-col gap-4 rounded-3xl border border-[var(--surface-card-border)] bg-[var(--surface-muted-bg)] p-6"
           aria-labelledby="pension-future-heading"
         >
           <header className="space-y-1">
-            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[var(--surface-muted-color)]">
               {t("pensionForecast.future.kicker", "Future you")}
             </p>
-            <h2 id="pension-future-heading" className="text-2xl font-semibold text-slate-900">
+            <h2 id="pension-future-heading" className="text-2xl font-semibold text-[var(--surface-card-color)]">
               {t("pensionForecast.future.heading", "See what retirement could look like")}
             </h2>
           </header>
@@ -893,7 +897,7 @@ export default function PensionForecast() {
               {banner.message}
             </div>
           )}
-          <div className="space-y-3 text-sm text-slate-700">
+          <div className="space-y-3 text-sm text-[var(--surface-muted-color)]">
             {currentAge !== null && dob && forecastWholeAge !== null && (
               <InfoLine
                 label={t("pensionForecast.currentAge", {
@@ -923,38 +927,38 @@ export default function PensionForecast() {
             )}
           </div>
           {retirementIncomeBreakdown && (
-            <div className="overflow-x-auto rounded-2xl bg-white p-4 shadow-sm">
-              <h3 className="mb-3 text-lg font-semibold text-slate-900">
+            <div className="overflow-x-auto rounded-2xl bg-[var(--surface-card-bg)] p-4 shadow-sm">
+              <h3 className="mb-3 text-lg font-semibold text-[var(--surface-card-color)]">
                 {t("pensionForecast.incomeBreakdownHeading")}
               </h3>
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <table className="min-w-full divide-y divide-[var(--surface-card-border)] text-sm">
                 <thead>
-                  <tr className="bg-slate-100 text-left">
-                    <th className="px-3 py-2 font-semibold text-slate-700">
+                  <tr className="bg-[var(--surface-muted-bg)] text-left">
+                    <th className="px-3 py-2 font-semibold text-[var(--surface-muted-color)]">
                       {t("pensionForecast.incomeTable.source")}
                     </th>
-                    <th className="px-3 py-2 text-right font-semibold text-slate-700">
+                    <th className="px-3 py-2 text-right font-semibold text-[var(--surface-muted-color)]">
                       {t("pensionForecast.incomeTable.annual")}
                     </th>
-                    <th className="px-3 py-2 text-right font-semibold text-slate-700">
+                    <th className="px-3 py-2 text-right font-semibold text-[var(--surface-muted-color)]">
                       {t("pensionForecast.incomeTable.monthly")}
                     </th>
-                    <th className="px-3 py-2 text-right font-semibold text-slate-700">
+                    <th className="px-3 py-2 text-right font-semibold text-[var(--surface-muted-color)]">
                       {t("pensionForecast.incomeTable.share")}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {breakdownEntries.map(({ key, label, annual, monthly, share }) => (
-                    <tr key={String(key)} className="odd:bg-white even:bg-slate-50">
-                      <td className="px-3 py-2 text-slate-700">{label}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right text-slate-900">
+                    <tr key={String(key)} className="odd:bg-transparent even:bg-[var(--surface-muted-bg)]">
+                      <td className="px-3 py-2 text-[var(--surface-muted-color)]">{label}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-[var(--surface-card-color)]">
                         {currencyFormatter.format(annual)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right text-slate-900">
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-[var(--surface-card-color)]">
                         {currencyFormatter.format(monthly)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right text-slate-900">
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-[var(--surface-card-color)]">
                         {share}
                       </td>
                     </tr>
@@ -962,7 +966,7 @@ export default function PensionForecast() {
                 </tbody>
               </table>
               {statePensionStartsLater && (
-                <p className="mt-3 text-xs text-slate-600">
+                <p className="mt-3 text-xs text-[var(--surface-muted-color)]">
                   {t("pensionForecast.ages.statePensionStartsLater", {
                     retirementAge,
                     spa: forecastStatePensionAge,
@@ -972,22 +976,22 @@ export default function PensionForecast() {
             </div>
           )}
           {!retirementIncomeBreakdown && retirementIncomeTotal != null && (
-            <p className="rounded-2xl bg-white p-4 text-sm text-slate-600 shadow-sm">
+            <p className="rounded-2xl bg-[var(--surface-card-bg)] p-4 text-sm text-[var(--surface-muted-color)] shadow-sm">
               {t("pensionForecast.prediction.noBreakdown")}
             </p>
           )}
           {retirementIncomeTotal != null && (
-            <div className="rounded-2xl bg-white p-4 text-sm shadow-sm">
-              <p className="font-medium text-slate-900">
+            <div className="rounded-2xl bg-[var(--surface-card-bg)] p-4 text-sm shadow-sm">
+              <p className="font-medium text-[var(--surface-card-color)]">
                 {t("pensionForecast.totalAnnualIncome")}: {totalAnnualIncomeFormatted}
               </p>
-              <p className="text-slate-700">
+              <p className="text-[var(--surface-muted-color)]">
                 {t("pensionForecast.totalMonthlyIncome")}: {totalMonthlyIncomeFormatted}
               </p>
             </div>
           )}
           {data.length > 0 && (
-            <div className="h-72 rounded-2xl bg-white p-4 shadow-sm">
+            <div className="h-72 rounded-2xl bg-[var(--surface-card-bg)] p-4 shadow-sm">
               <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                 <LineChart data={data}>
                   <XAxis dataKey="age" />
@@ -1055,10 +1059,10 @@ function SliderControl({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <label className="text-sm font-medium text-slate-700" htmlFor={id}>
+        <label className="text-sm font-medium text-[var(--surface-muted-color)]" htmlFor={id}>
           {label}
         </label>
-        <span className="text-sm font-semibold text-slate-900">{displayValue}</span>
+        <span className="text-sm font-semibold text-[var(--surface-card-color)]">{displayValue}</span>
       </div>
       <input
         id={id}
@@ -1073,14 +1077,14 @@ function SliderControl({
         aria-describedby={descriptionId}
       />
       {marks && marks.length > 0 && (
-        <div className="flex justify-between text-xs text-slate-500">
+        <div className="flex justify-between text-xs text-[var(--surface-muted-color)]">
           {marks.map((mark) => (
             <span key={`${id}-${mark.value}`}>{mark.label}</span>
           ))}
         </div>
       )}
       {helper && (
-        <p id={descriptionId} className="text-xs text-slate-500">
+        <p id={descriptionId} className="text-xs text-[var(--surface-muted-color)]">
           {helper}
         </p>
       )}
@@ -1096,9 +1100,9 @@ function InfoLine({
   value?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl bg-white p-3 shadow-sm">
-      <p className="text-sm font-medium text-slate-900">{label}</p>
-      {value && <p className="text-xs text-slate-600">{value}</p>}
+    <div className="rounded-xl bg-[var(--surface-card-bg)] p-3 shadow-sm">
+      <p className="text-sm font-medium text-[var(--surface-card-color)]">{label}</p>
+      {value && <p className="text-xs text-[var(--surface-muted-color)]">{value}</p>}
     </div>
   );
 }

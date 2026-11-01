@@ -183,7 +183,7 @@ export function LookThroughCoverageNote({
     .sort();
   return (
     <div
-      className="mb-4 text-sm text-gray-600"
+      className="mb-4 text-sm text-[var(--surface-muted-color)]"
       data-testid="look-through-coverage"
     >
       <p>

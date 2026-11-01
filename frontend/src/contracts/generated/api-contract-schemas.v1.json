@@ -1108,6 +1108,18 @@
                 "null"
               ]
             },
+            "stamp_duty": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "fx_charge": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
             "comments": {
               "type": [
                 "string",

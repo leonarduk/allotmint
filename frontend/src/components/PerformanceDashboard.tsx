@@ -62,7 +62,7 @@ type Props = {
 const BENCHMARK_TICKER = "VWRL.L";
 // Muted metric labels that still meet WCAG AA on both themes (#7824): the
 // old #aaa/#777 greys were ~2.3:1 / ~4.5:1 on the light background.
-const METRIC_LABEL_CLASS = "text-slate-600 dark:text-slate-400";
+const METRIC_LABEL_CLASS = "text-[var(--surface-muted-color)]";
 
 // Distinct hue and dash so the benchmark never reads as the portfolio line (#7833).
 const PORTFOLIO_LINE_COLOUR = "#82ca9d";

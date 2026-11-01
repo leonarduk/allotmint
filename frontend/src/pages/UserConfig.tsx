@@ -212,7 +212,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
       {/* No "learn more" link here (#8350): there is no published compliance
        * documentation to point at, and a placeholder URL rendered as a dead
        * external link. The per-field help text below explains each rule. */}
-      <p className="text-gray-800 dark:text-gray-200">
+      <p className="text-[var(--surface-card-color)]">
         {t(
           'userConfig.subtitle',
           'The compliance rules that govern how this account can trade, and the tickers pre-approved to bypass them.'
@@ -242,17 +242,17 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
           )}
           {user.name && <div className="text-xl">{user.name}</div>}
           {user.email && (
-            <div className="text-gray-800 dark:text-gray-200">{user.email}</div>
+            <div className="text-[var(--surface-card-color)]">{user.email}</div>
           )}
         </section>
       )}
       <WorkspaceTabsToggle />
       {ownersLoading ? (
-        <p className="text-gray-800 dark:text-gray-200">
+        <p className="text-[var(--surface-card-color)]">
           {t('userConfig.loadingOwners', 'Loading owners...')}
         </p>
       ) : owners.length === 0 ? (
-        <p className="text-gray-800 dark:text-gray-200">
+        <p className="text-[var(--surface-card-color)]">
           {t(
             'userConfig.noOwners',
             'No accounts are available for your account. Contact an administrator if you believe this is an error.'
@@ -267,7 +267,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
            * explicit prompt whenever no owner is selected yet, without
            * changing how owner resolution itself works. */}
           {ownerResolutionAttempted && !owner && (
-            <p className="text-gray-800 dark:text-gray-200">
+            <p className="text-[var(--surface-card-color)]">
               {t('userConfig.chooseOwnerPrompt', 'Choose whose settings to edit.')}
             </p>
           )}
@@ -286,7 +286,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
         </>
       )}
       {!owner && !ownersLoading && owners.length > 0 && (
-        <p role="status" className="text-gray-800 dark:text-gray-200">
+        <p role="status" className="text-[var(--surface-card-color)]">
           {t(
             'userConfig.selectOwnerPrompt',
             'Select an account holder to view their settings.'
@@ -305,7 +305,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               </label>
               <p
                 id="userConfig-holdDays-help"
-                className="text-xs text-gray-600 dark:text-gray-400"
+                className="text-xs text-[var(--surface-muted-color)]"
               >
                 {t(
                   'userConfig.holdDaysHelp',
@@ -346,7 +346,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               </label>
               <p
                 id="userConfig-maxTrades-help"
-                className="text-xs text-gray-600 dark:text-gray-400"
+                className="text-xs text-[var(--surface-muted-color)]"
               >
                 {t(
                   'userConfig.maxTradesHelp',
@@ -390,7 +390,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               </label>
               <p
                 id="userConfig-exemptTickers-help"
-                className="text-xs text-gray-600 dark:text-gray-400"
+                className="text-xs text-[var(--surface-muted-color)]"
               >
                 {t(
                   'userConfig.exemptTickersHelp',
@@ -425,7 +425,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               </label>
               <p
                 id="userConfig-exemptTypes-help"
-                className="text-xs text-gray-600 dark:text-gray-400"
+                className="text-xs text-[var(--surface-muted-color)]"
               >
                 {t(
                   'userConfig.exemptTypesHelp',
@@ -482,7 +482,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             <h2 className="text-xl">
               {t('userConfig.approvals', 'Approvals')}
             </h2>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
+            <p className="text-xs text-[var(--surface-muted-color)]">
               {t(
                 'userConfig.approvalsHelp',
                 "Tickers explicitly cleared to trade outside the exemptions above. Each approval is only valid for the deployment's configured approval window in trading days, starting from the date shown -- if no window is configured, it is valid only on the day it's granted."
@@ -502,7 +502,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
              * renders on its own, regardless of which branch this picks. */}
             {approvals.length === 0 ? (
               !approvalsError && (
-                <p className="text-gray-800 dark:text-gray-200">
+                <p className="text-[var(--surface-card-color)]">
                   {t(
                     'userConfig.approvalsEmpty',
                     'No approvals yet. Add one below if a trade needs to go ahead outside the rules above.'

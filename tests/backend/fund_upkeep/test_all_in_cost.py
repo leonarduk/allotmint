@@ -138,3 +138,28 @@ def test_refund_larger_than_fees_never_makes_a_negative_cost():
 
     assert _row(result, "isa")["account_charges_gbp"] == 0.0
     assert result["total"]["known_cost_gbp"] == 0.0
+
+
+def test_stamp_duty_and_fx_are_split_out_of_fees_and_counted_once():
+    # #10493: fees is the total; stamp duty and FX are parts of it.
+    txs = [
+        {"account": "isa", "type": "BUY", "date": "2026-03-01", "fees": 20.0, "stamp_duty": 5.0, "fx_charge": 2.0},
+        {"account": "isa", "type": "BUY", "date": "2026-03-02", "fees": 9.95},  # legacy: all dealing
+    ]
+
+    total = compute_all_in_cost({"accounts": []}, txs, today=TODAY)["total"]
+
+    assert total["dealing_fees_gbp"] == 22.95  # 13.00 + 9.95
+    assert total["stamp_duty_gbp"] == 5.0
+    assert total["fx_charges_gbp"] == 2.0
+    assert total["known_cost_gbp"] == 29.95  # 20.00 + 9.95, not 36.95
+    assert total["complete"] is True
+
+
+def test_breakdown_exceeding_fees_counts_the_fees_as_dealing(caplog):
+    txs = [{"account": "isa", "type": "BUY", "date": "2026-03-01", "fees": 4.0, "stamp_duty": 5.0}]
+
+    total = compute_all_in_cost({"accounts": []}, txs, today=TODAY)["total"]
+
+    assert (total["dealing_fees_gbp"], total["stamp_duty_gbp"], total["known_cost_gbp"]) == (4.0, 0.0, 4.0)
+    assert "exceed fees" in caplog.text

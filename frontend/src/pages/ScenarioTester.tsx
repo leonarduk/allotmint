@@ -467,7 +467,7 @@ export default function ScenarioTester() {
                                 e.target.value,
                               )
                             }
-                            className="w-24 rounded border border-slate-300 px-2 py-1"
+                            className="w-24 rounded border border-[var(--surface-card-border)] px-2 py-1"
                           />
                         </td>
                         <td className="p-2 align-top">
@@ -481,7 +481,7 @@ export default function ScenarioTester() {
                                 e.target.value,
                               )
                             }
-                            className="w-40 rounded border border-slate-300 px-2 py-1"
+                            className="w-40 rounded border border-[var(--surface-card-border)] px-2 py-1"
                           />
                         </td>
                         <td className="p-2 text-right align-top">
@@ -495,7 +495,7 @@ export default function ScenarioTester() {
                                 e.target.value,
                               )
                             }
-                            className="w-24 rounded border border-slate-300 px-2 py-1 text-right"
+                            className="w-24 rounded border border-[var(--surface-card-border)] px-2 py-1 text-right"
                           />
                         </td>
                         <td className="p-2 text-right align-top">
@@ -509,7 +509,7 @@ export default function ScenarioTester() {
                                 e.target.value,
                               )
                             }
-                            className="w-24 rounded border border-slate-300 px-2 py-1 text-right"
+                            className="w-24 rounded border border-[var(--surface-card-border)] px-2 py-1 text-right"
                             placeholder={t("scenarioTester.pricePlaceholder")}
                           />
                         </td>
@@ -618,7 +618,7 @@ export default function ScenarioTester() {
             <select
               value={effectiveStressOwner}
               onChange={(e) => setStressOwner(e.target.value)}
-              className="rounded border border-slate-300 px-2 py-1"
+              className="rounded border border-[var(--surface-card-border)] px-2 py-1"
             >
               {owners.map((o) => (
                 <option key={o.owner} value={o.owner}>

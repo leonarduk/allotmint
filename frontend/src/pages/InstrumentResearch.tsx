@@ -10,6 +10,7 @@ import {
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
 import { parseCompareParam } from "../components/instrumentCompare";
 import { InstrumentTradeSection } from "../components/InstrumentTradeSection";
+import { InstrumentSleevePicker } from "../components/InstrumentSleevePicker";
 import { InstrumentCreditRiskPanel } from "../components/InstrumentCreditRiskPanel";
 import { InstrumentValuationPanel } from "../components/InstrumentValuationPanel";
 import { InstrumentTechnicalsPanel } from "../components/InstrumentTechnicalsPanel";
@@ -2005,6 +2006,10 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             mutedColor={standalonePalette.muted}
           />
         )
+      )}
+
+      {activeTab === "positions" && !detailError && !detailLoading && (
+        <InstrumentSleevePicker ticker={tkr} positions={positions} />
       )}
 
       {activeTab === "positions" && (

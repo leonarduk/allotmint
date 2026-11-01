@@ -119,6 +119,7 @@ import {
 import { clearFetchCache } from "./utils/fetchCache";
 import { emitAuthChange } from "./authEvents";
 import type { WatchlistsState } from "./lib/watchlistStore";
+import type { GoalDetail } from "./lib/goalProgress";
 
 const cleanOptionalString = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -3329,10 +3330,21 @@ export const createGoal = (goal: Goal) =>
     body: JSON.stringify(goal),
   });
 
-export const getGoal = (name: string, current: number) =>
-  fetchJson<Goal & { progress: number; trades: any[] }>(
-    `${API_BASE}/goals/${encodeURIComponent(name)}?current_amount=${current}`,
+/** Goal detail; without ``current`` the backend uses the latest recorded amount. */
+export const getGoal = (name: string, current?: number) =>
+  fetchJson<GoalDetail>(
+    `${API_BASE}/goals/${encodeURIComponent(name)}${
+      current === undefined ? "" : `?current_amount=${current}`
+    }`,
   );
+
+/** Record today's amount saved toward a goal; returns the updated detail. */
+export const recordGoalProgress = (name: string, amount: number) =>
+  fetchJson<GoalDetail>(`${API_BASE}/goals/${encodeURIComponent(name)}/progress`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amount }),
+  });
 
 export const updateGoal = (name: string, goal: Goal) =>
   fetchJson<Goal>(`${API_BASE}/goals/${encodeURIComponent(name)}`, {
@@ -3964,6 +3976,8 @@ export interface StatementRow {
   price_gbp: number | null;
   consideration_minor: number | null;
   fees_minor: number;
+  /** Stamp duty included in `fees_minor`, when the statement shows it (#10493). */
+  stamp_duty_minor?: number | null;
   amount_minor: number | null;
   flags: string[];
 }

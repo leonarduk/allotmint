@@ -5,6 +5,9 @@ fastapi~=0.143.2
 slowapi~=0.1.10
 mangum~=0.22.0
 mcp~=2.2.0
+# A floor, not a pin: >= lets pip resolve boto3 against the botocore pin below
+# (#2810). When bumping botocore, raise this floor to the same patch version;
+# test_boto3_and_botocore_share_a_patch_version fails until you do.
 boto3>=1.43.118
 pandas~=3.0.6
 yfinance~=1.7.0
@@ -53,6 +56,7 @@ redis~=8.1.0
 python-json-logger~=4.2.0
 annotated-types~=0.8.0
 anyio~=4.15.1
+# Bump together with the boto3 floor above, to the same patch version.
 botocore~=1.43.118
 curl-cffi>=0.16.3,<0.17  # yfinance~=1.5.1 requires curl_cffi>=0.15
 frozendict~=2.4.7

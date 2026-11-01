@@ -45,6 +45,12 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
+    groups:
+      # boto3 and botocore are released in lockstep; one PR bumps both.
+      aws-sdk:
+        patterns:
+          - "boto3"
+          - "botocore"
 
   # CDK Python dependencies: infrastructure requirements in cdk/.
   - package-ecosystem: "pip"
@@ -63,3 +69,9 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
+    groups:
+      # boto3 and botocore are released in lockstep; one PR bumps both.
+      aws-sdk:
+        patterns:
+          - "boto3"
+          - "botocore"

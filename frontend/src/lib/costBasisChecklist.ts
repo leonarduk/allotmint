@@ -54,6 +54,39 @@ export function topValueShare(gaps: CostBasisGap[], count: number): number {
   return top / total;
 }
 
+/** Columns of the purchase-price CSV that POST /holdings/cost-basis/import reads (#10095). */
+export const COST_BASIS_CSV_HEADERS = [
+  'owner',
+  'account',
+  'ticker',
+  'date',
+  'units',
+  'unit_cost',
+] as const;
+
+const csvCell = (value: string | number): string => {
+  const text = String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+};
+
+/**
+ * A purchase-price CSV with one row per gap, owner/account/ticker/units filled
+ * and date/unit_cost left blank for the user to complete. A holding bought in
+ * several lots can be split into several rows whose units add up to the total.
+ */
+export function buildCostBasisTemplateCsv(gaps: CostBasisGap[]): string {
+  const rows = gaps.map((g) =>
+    [g.owner, g.account, g.ticker, '', g.units, ''].map(csvCell).join(',')
+  );
+  return `${[COST_BASIS_CSV_HEADERS.join(','), ...rows].join('\r\n')}\r\n`;
+}
+
+/** The one owner every gap belongs to, else undefined (the CSV's owner column decides). */
+export function singleGapOwner(gaps: CostBasisGap[]): string | undefined {
+  const owners = new Set(gaps.map((g) => g.owner).filter(Boolean));
+  return owners.size === 1 ? [...owners][0] : undefined;
+}
+
 /**
  * Link to the set-holding form on /input, prefilled for this holding. Saving
  * there with a unit price records a priced transfer-in, which the holdings

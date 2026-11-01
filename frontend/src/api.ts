@@ -3963,6 +3963,46 @@ export const importHoldingsCsv = (
     body: createHoldingsCsvFormData(owner, account, provider, file),
   });
 
+// ───────────── Purchase-price (cost basis) CSV import (#10095) ─────────────
+export interface CostBasisImportUpdate {
+  owner: string;
+  account: string;
+  ticker: string;
+  units: number;
+  cost_basis_gbp: number;
+  lots: number;
+}
+
+export interface CostBasisImportSkip {
+  line: number;
+  ticker: string | null;
+  account: string | null;
+  skip_reason: string;
+}
+
+export interface CostBasisImportResponse {
+  updated: CostBasisImportUpdate[];
+  skipped: CostBasisImportSkip[];
+}
+
+/**
+ * Upload a CSV of purchase lots (ticker, date, units, unit_cost and optional
+ * owner/account columns) to give holdings already on file a recorded cost.
+ * `owner` is the default for rows without an owner column.
+ */
+export const importCostBasisCsv = (
+  file: File,
+  owner?: string,
+): Promise<CostBasisImportResponse> => {
+  const formData = new FormData();
+  if (owner) formData.append("owner", owner);
+  formData.append("file", file);
+  return fetchJson<CostBasisImportResponse>(
+    `${API_BASE}/holdings/cost-basis/import`,
+    { method: "POST", body: formData },
+  );
+};
+
 // Statement reconciliation (#10474). Amounts are integer pence (`*_minor`).
 
 export type StatementDiffKind =

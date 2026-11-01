@@ -2544,7 +2544,17 @@
     "suspect": "El coste registrado parece erróneo",
     "addCost": "Añadir coste",
     "showAll": "Mostrar las {{count}}",
-    "showTop": "Mostrar solo las {{count}} primeras"
+    "showTop": "Mostrar solo las {{count}} primeras",
+    "importHelp": "¿Muchas por completar? Descargue la lista como CSV, añada la fecha de compra y el precio pagado por unidad (GBP) de cada una y súbala. Divida una posición comprada en varios lotes en una fila por lote; sus filas deben sumar las unidades que posee.",
+    "downloadTemplate": "Descargar plantilla CSV",
+    "uploadLabel": "Subir CSV de precios de compra",
+    "importing": "Importando precios de compra…",
+    "importFailed": "Error en la importación: {{message}}",
+    "importUpdated_one": "Se registró el coste de {{count}} posición.",
+    "importUpdated_other": "Se registró el coste de {{count}} posiciones.",
+    "importSkipped_one": "{{count}} fila omitida.",
+    "importSkipped_other": "{{count}} filas omitidas.",
+    "importSkippedRow": "Línea {{line}} ({{ticker}}): {{reason}}"
   },
   "portfolioSentence": {
     "valueOnly": "Su cartera vale {{value}}.",

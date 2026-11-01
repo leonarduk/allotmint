@@ -27,6 +27,12 @@ from backend.common.accounts_store import (
 from backend.common.authz import ensure_owner_access
 from backend.common.cash_kind import classify_cash_kind
 from backend.common.core_optional import require_core
+from backend.common.cost_basis_import import (
+    CostBasisCsvError,
+    PurchaseLot,
+    parse_purchase_lots,
+    plan_cost_basis_lots,
+)
 from backend.common.currency import CurrencyNormaliser
 from backend.common.instruments import get_instrument_meta
 from backend.common.ledger_transfers import OPENING_BALANCE_REASON as OPENING_BALANCE_REASON
@@ -36,7 +42,7 @@ from backend.common.ledger_transfers import offset_transaction as _opening_balan
 from backend.common.ledger_transfers import replayed_units as _replayed_units
 from backend.common.prices import get_price_gbp
 from backend.common.realised_gains import compute_disposal_gains
-from backend.common.ticker_utils import normalise_filter_ticker, split_ticker
+from backend.common.ticker_utils import canonical_ticker, normalise_filter_ticker, split_ticker
 from backend.common.trade_fees import FEE_BREAKDOWN_FIELDS, breakdown_error
 from backend.config import config
 from backend.integrations.moneyhub_api import MoneyhubClient, MoneyhubNotConfiguredError
@@ -1433,6 +1439,204 @@ async def reconcile_holdings(
     except Exception as exc:  # pragma: no cover - parsing errors
         raise HTTPException(status_code=400, detail=f"Failed to reconcile file: {exc}")
     return {"owner": owner, "account": account, "provider": provider, **diff}
+
+
+# (owner, account slug) -> canonical ticker -> that holding's lots.
+_LotGroups = Dict[Tuple[str, str], Dict[str, List[PurchaseLot]]]
+
+
+def _lot_skip(lot: PurchaseLot, reason: str, account: Optional[str] = None) -> Dict[str, Any]:
+    return {"line": lot.line, "ticker": lot.ticker, "account": account or lot.account, "skip_reason": reason}
+
+
+def _group_purchase_lots(
+    lots: List[PurchaseLot], owner: Optional[str], account: Optional[str], skipped: List[Dict[str, Any]]
+) -> _LotGroups:
+    """Group lots by destination holding; a row with no usable owner/account goes to ``skipped``."""
+    groups: _LotGroups = {}
+    for lot in lots:
+        lot_owner, lot_account = lot.owner or owner, lot.account or account
+        if not lot_owner or not lot_account:
+            skipped.append(_lot_skip(lot, "missing owner/account"))
+            continue
+        if not _SAFE_COMPONENT_RE.fullmatch(lot_owner) or not _SAFE_COMPONENT_RE.fullmatch(lot_account):
+            skipped.append(_lot_skip(lot, "Invalid owner or account"))
+            continue
+        target = (lot_owner, _normalise_account_file_name(lot_account))
+        groups.setdefault(target, {}).setdefault(canonical_ticker(lot.ticker), []).append(lot)
+    return groups
+
+
+# The ledger and holdings an account's import was planned against.
+_PlannedState = Tuple[List[Any], List[Any]]
+
+
+def _read_holdings(store: "AccountsStore", owner: str, account: str) -> List[Any]:
+    return list((store.read_document(owner, f"{account}.json") or {}).get("holdings") or [])
+
+
+def _plan_account_lots(
+    store: "AccountsStore", owner: str, account: str, by_ticker: Dict[str, List[PurchaseLot]]
+) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], _PlannedState]:
+    """``(transactions account, rows to append, updated holdings, skipped rows, state planned against)``."""
+    tx_account = _transactions_account_name(owner, account, store)
+    tx_doc = store.read_document(owner, f"{tx_account}_transactions.json") or {}
+    transactions = list(tx_doc.get("transactions") or [])
+    holdings = _read_holdings(store, owner, account)
+    rows: List[Dict[str, Any]] = []
+    updated: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, Any]] = []
+    for lots in by_ticker.values():
+        txs, reason = plan_cost_basis_lots(transactions, holdings, lots[0].ticker, lots)
+        if reason:
+            skipped.extend(_lot_skip(lot, reason, account) for lot in lots)
+            continue
+        rows.extend(txs)
+        updated.append(
+            {
+                "owner": owner,
+                "account": account,
+                "ticker": txs[0]["ticker"],
+                "units": sum(tx["units"] for tx in txs),
+                "cost_basis_gbp": round(sum(tx["units"] * tx["price_gbp"] for tx in txs), 2),
+                "lots": len(txs),
+            }
+        )
+    return tx_account, rows, updated, skipped, (transactions, holdings)
+
+
+def _append_and_rebuild(
+    store: "AccountsStore",
+    owner: str,
+    account: str,
+    tx_account: str,
+    rows: List[Dict[str, Any]],
+    planned: _PlannedState,
+) -> int:
+    """Append ``rows`` to the account's ledger in one write, rebuild, and return the first new index.
+
+    ``planned`` is the ledger and holdings the rows were planned against. If
+    either changed before the lock was taken (another write landed in
+    between), the "holding not yet tracked" or "lots add up to the units
+    held" check may be stale, so the import is refused with a 409 instead.
+    Holdings are re-read too because a manual holding edit changes units
+    without adding a transaction. A failed rebuild removes the rows again
+    before re-raising.
+    """
+    planned_transactions, planned_holdings = planned
+    store.ensure_owner(owner)
+    with _locked_transactions_data(owner, tx_account, store) as (data, _file):
+        transactions = data["transactions"]
+        if transactions != planned_transactions or _read_holdings(store, owner, account) != planned_holdings:
+            raise HTTPException(
+                status_code=409,
+                detail=f"The {account} account changed during the import; nothing was written. Try again.",
+            )
+        start = len(transactions)
+        transactions.extend(rows)
+    try:
+        _rebuild_portfolio(owner, tx_account, store)
+    except Exception:
+        _remove_appended(store, owner, tx_account, start, rows)
+        try:
+            # The failed rebuild may have written part of the holdings; bring them back in line.
+            _rebuild_portfolio(owner, tx_account, store)
+        except Exception:
+            logger.exception(
+                "Could not rebuild %s/%s after rolling back a cost-basis import",
+                sanitise_log_value(owner),
+                sanitise_log_value(tx_account),
+            )
+        raise
+    return start
+
+
+def _find_appended(transactions: List[Any], start: int, rows: List[Dict[str, Any]]) -> Optional[int]:
+    """Where ``rows`` sit in ``transactions``: at ``start`` if still there, else their last run, else None."""
+    count = len(rows)
+    if transactions[start : start + count] == rows:
+        return start
+    for index in range(len(transactions) - count, -1, -1):
+        if transactions[index : index + count] == rows:
+            return index
+    return None
+
+
+def _remove_appended(
+    store: "AccountsStore", owner: str, tx_account: str, start: int, rows: List[Dict[str, Any]]
+) -> None:
+    """Remove exactly the ``rows`` an import appended, matched by content rather than position.
+
+    Another write may have edited or deleted an earlier row since the append,
+    shifting indexes, so a positional slice could delete someone else's rows.
+    If the rows can't be found they are left in place and the failure logged.
+    """
+    with _locked_transactions_data(owner, tx_account, store) as (data, _file):
+        transactions = data["transactions"]
+        index = _find_appended(transactions, start, rows)
+        if index is None:
+            logger.error(
+                "Could not find the rows a cost-basis import appended to %s/%s; not removing them",
+                sanitise_log_value(owner),
+                sanitise_log_value(tx_account),
+            )
+            return
+        del transactions[index : index + len(rows)]
+
+
+@router.post("/holdings/cost-basis/import")
+async def import_cost_basis(
+    request: Request,
+    file: UploadFile = File(...),
+    owner: str | None = Form(default=None),
+    account: str | None = Form(default=None),
+    identity: str | None = Depends(get_active_user),
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Give holdings already on file a recorded cost from a CSV of purchase lots (#10095).
+
+    Columns: ``ticker``, ``date``, ``units``, ``unit_cost`` (GBP per unit),
+    and optionally ``owner``/``account``, which default to the form fields.
+    Each matched holding's lots are written as priced ``TRANSFER_IN`` rows and
+    the account rebuilt; see :mod:`backend.common.cost_basis_import` for which
+    holdings qualify. Units held never change. Returns the holdings
+    ``updated`` and the CSV rows ``skipped``, each with a reason.
+
+    The caller must be authorised for every owner the CSV writes to
+    (:func:`ensure_owner_access`, as for ``/transactions/import/moneyhub``);
+    it is checked for all of them before anything is written.
+    """
+    try:
+        lots, skipped = parse_purchase_lots(await file.read())
+    except CostBasisCsvError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    groups = _group_purchase_lots(lots, owner, account, skipped)
+    if not groups:
+        return {"updated": [], "skipped": skipped}
+
+    accounts_root = resolve_accounts_root(request)
+    for lot_owner in sorted({lot_owner for lot_owner, _account in groups}):
+        ensure_owner_access(identity, lot_owner, accounts_root)
+
+    store = _require_writable_store(request)
+    updated: List[Dict[str, Any]] = []
+    written: List[Tuple[str, str, int, List[Dict[str, Any]]]] = []
+    try:
+        for (lot_owner, lot_account), by_ticker in groups.items():
+            tx_account, rows, account_updated, account_skipped, planned = _plan_account_lots(
+                store, lot_owner, lot_account, by_ticker
+            )
+            skipped.extend(account_skipped)
+            if rows:
+                start = _append_and_rebuild(store, lot_owner, lot_account, tx_account, rows, planned)
+                written.append((lot_owner, tx_account, start, rows))
+                updated.extend(account_updated)
+    except Exception:
+        # All or nothing across accounts, like /transactions/import.
+        for lot_owner, tx_account, start, appended in reversed(written):
+            _remove_appended(store, lot_owner, tx_account, start, appended)
+            _rebuild_portfolio(lot_owner, tx_account, store)
+        raise
+    return {"updated": updated, "skipped": skipped}
 
 
 # A manual price this many times above (or below) the last close is rejected

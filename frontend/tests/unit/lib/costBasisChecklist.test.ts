@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCostBasisChecklist,
+  buildCostBasisTemplateCsv,
   costBasisFillHref,
+  singleGapOwner,
   topValueShare,
+  type CostBasisGap,
 } from '@/lib/costBasisChecklist';
 import type { Account, Holding } from '@/types';
 
@@ -129,5 +132,34 @@ describe('costBasisFillHref', () => {
       ticker: 'VUSA.L',
       units: '12.5',
     });
+  });
+});
+
+describe('buildCostBasisTemplateCsv', () => {
+  const gap = (overrides: Partial<CostBasisGap>): CostBasisGap => ({
+    owner: 'alex',
+    account: 'isa',
+    ticker: 'ABC.L',
+    name: 'Test',
+    units: 10,
+    marketValue: 100,
+    source: 'unknown',
+    ...overrides,
+  });
+
+  it('lists each gap with date and unit cost left blank', () => {
+    expect(
+      buildCostBasisTemplateCsv([gap({}), gap({ account: 'a,b', units: 2.5 })])
+    ).toBe(
+      'owner,account,ticker,date,units,unit_cost\r\n' +
+        'alex,isa,ABC.L,,10,\r\n' +
+        'alex,"a,b",ABC.L,,2.5,\r\n'
+    );
+  });
+
+  it('names the owner only when every gap shares one', () => {
+    expect(singleGapOwner([gap({}), gap({ ticker: 'X.L' })])).toBe('alex');
+    expect(singleGapOwner([gap({}), gap({ owner: 'sam' })])).toBeUndefined();
+    expect(singleGapOwner([gap({ owner: '' })])).toBeUndefined();
   });
 });

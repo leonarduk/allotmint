@@ -41,9 +41,9 @@ from backend.common.accounts_store import LocalAccountsStore, S3AccountsStore
 from backend.common.holdings_rebuild import (
     CASH_TICKER,
     TRADE_CASH_FLAG,
-    _tracked_instruments,
     name_aliases,
     replay_transactions,
+    tracked_instruments,
 )
 from backend.config import config
 from backend.routes import transactions as tx_routes
@@ -98,7 +98,7 @@ def opening_transfers(
 ) -> tuple[list[dict[str, Any]], list[tuple[str, str]]]:
     """Opening rows for the holdings no transaction mentions, and the ones skipped with why."""
     aliases = name_aliases(transactions, holdings)
-    tracked = _tracked_instruments(transactions, aliases)
+    tracked = tracked_instruments(transactions, aliases)
     # The rebuild's own test for "cash comes from transactions" (a cash row, or
     # a settled trade when the account opts into trade_cash_effects).
     if replay_transactions(transactions, trade_cash=trade_cash, aliases=aliases, warn=False).cash_seen:

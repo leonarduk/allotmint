@@ -2544,7 +2544,17 @@
     "suspect": "Le coût enregistré semble erroné",
     "addCost": "Ajouter le coût",
     "showAll": "Tout afficher ({{count}})",
-    "showTop": "Afficher seulement les {{count}} premières"
+    "showTop": "Afficher seulement les {{count}} premières",
+    "importHelp": "Beaucoup à compléter ? Téléchargez la liste au format CSV, ajoutez pour chaque ligne la date d'achat et le prix payé par unité (GBP), puis importez-la. Répartissez une position achetée en plusieurs fois sur une ligne par achat ; ses lignes doivent totaliser les unités détenues.",
+    "downloadTemplate": "Télécharger le modèle CSV",
+    "uploadLabel": "Importer le CSV des prix d'achat",
+    "importing": "Import des prix d'achat…",
+    "importFailed": "Échec de l'import : {{message}}",
+    "importUpdated_one": "Coût enregistré pour {{count}} position.",
+    "importUpdated_other": "Coût enregistré pour {{count}} positions.",
+    "importSkipped_one": "{{count}} ligne ignorée.",
+    "importSkipped_other": "{{count}} lignes ignorées.",
+    "importSkippedRow": "Ligne {{line}} ({{ticker}}) : {{reason}}"
   },
   "portfolioSentence": {
     "valueOnly": "Votre portefeuille vaut {{value}}.",

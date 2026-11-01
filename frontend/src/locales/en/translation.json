@@ -2537,7 +2537,17 @@
     "suspect": "Recorded cost looks wrong",
     "addCost": "Add cost",
     "showAll": "Show all {{count}}",
-    "showTop": "Show top {{count}} only"
+    "showTop": "Show top {{count}} only",
+    "importHelp": "Many to fill? Download the list as a CSV, add the purchase date and the price you paid per unit (GBP) for each, then upload it. Split a holding bought in several lots into one row per lot; its rows must add up to the units held.",
+    "downloadTemplate": "Download CSV template",
+    "uploadLabel": "Upload purchase prices CSV",
+    "importing": "Importing purchase prices…",
+    "importFailed": "Import failed: {{message}}",
+    "importUpdated_one": "Recorded a cost for {{count}} holding.",
+    "importUpdated_other": "Recorded a cost for {{count}} holdings.",
+    "importSkipped_one": "{{count}} row skipped.",
+    "importSkipped_other": "{{count}} rows skipped.",
+    "importSkippedRow": "Line {{line}} ({{ticker}}): {{reason}}"
   },
   "portfolioSentence": {
     "valueOnly": "Your portfolio is worth {{value}}.",

@@ -2544,7 +2544,17 @@
     "suspect": "Il costo registrato sembra errato",
     "addCost": "Aggiungi costo",
     "showAll": "Mostra tutte ({{count}})",
-    "showTop": "Mostra solo le prime {{count}}"
+    "showTop": "Mostra solo le prime {{count}}",
+    "importHelp": "Molte da compilare? Scarica l'elenco in CSV, aggiungi per ciascuna la data di acquisto e il prezzo pagato per unità (GBP), poi caricalo. Dividi una posizione acquistata in più lotti in una riga per lotto; le sue righe devono sommare le unità detenute.",
+    "downloadTemplate": "Scarica modello CSV",
+    "uploadLabel": "Carica CSV dei prezzi di acquisto",
+    "importing": "Importazione dei prezzi di acquisto…",
+    "importFailed": "Importazione non riuscita: {{message}}",
+    "importUpdated_one": "Costo registrato per {{count}} posizione.",
+    "importUpdated_other": "Costo registrato per {{count}} posizioni.",
+    "importSkipped_one": "{{count}} riga ignorata.",
+    "importSkipped_other": "{{count}} righe ignorate.",
+    "importSkippedRow": "Riga {{line}} ({{ticker}}): {{reason}}"
   },
   "portfolioSentence": {
     "valueOnly": "Il tuo portafoglio vale {{value}}.",

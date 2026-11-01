@@ -20,6 +20,7 @@ from typing import Any, Callable, Iterable, Mapping, Optional
 
 import pandas as pd
 
+from backend.common.holdings_rebuild import transaction_quantity
 from backend.common.investment_plan import InvestmentPlan
 from backend.decision_journal.prices import SeriesLoader, load_return_series
 
@@ -56,8 +57,12 @@ def new_decision_id() -> str:
 
 
 def trade_amount_gbp(tx: Mapping[str, Any]) -> Optional[float]:
-    """``|units * price_gbp|`` for a trade, or ``None`` when either is missing."""
-    units = tx.get("units") if tx.get("units") is not None else tx.get("shares")
+    """``|units * price_gbp|`` for a trade, or ``None`` when either is missing.
+
+    Units come from :func:`transaction_quantity`, so a Portfolio Performance
+    row's fixed-point ``shares`` (real units x 10^8) is scaled down (#11222).
+    """
+    units = transaction_quantity(tx)
     price = tx.get("price_gbp")
     if units is None or price is None:
         return None

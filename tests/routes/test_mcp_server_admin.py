@@ -287,17 +287,19 @@ def _fake_powershell(monkeypatch: pytest.MonkeyPatch, stdout: str) -> list[list[
 
 
 def test_windows_lookup_selects_sockets_with_no_remote_end_not_by_state(monkeypatch):
-    monkeypatch.setattr(mcp_process, "port_listening", lambda port: True)
+    probed: list[int] = []
+    monkeypatch.setattr(mcp_process, "port_listening", lambda port: probed.append(port) or True)
     row = {"pid": 200, "ppid": 50, "command_line": MCP_COMMAND, "started": 1_700_000_000}
     spawned = _fake_powershell(monkeypatch, json.dumps({"listeners": [200], "processes": [row]}))
 
     owners = mcp_process._windows_owners(8001)
 
     assert [owner.process.pid for owner in owners] == [200]
+    assert probed == [8001]
     script = spawned[0][-1]
     assert "$_.RemotePort -eq 0" in script
     assert "-LocalPort 8001" in script
-    assert "-State" not in script
+    assert "-State Listen" not in script
 
 
 def test_windows_lookup_ignores_rows_when_nothing_accepts_connections(monkeypatch):
@@ -340,6 +342,8 @@ def test_restart_stops_server_found_by_windows_lookup(env, calls, monkeypatch):
 
 
 def test_port_listening_is_a_connect_probe():
+    # Real sockets, no mocks: fails if port_listening ever switches to a TCP-table
+    # state check, which misses live listeners on some Windows machines (#11124, #11128).
     with socket.socket() as listener, socket.socket() as bound_only:
         listener.bind(("127.0.0.1", 0))
         listener.listen()

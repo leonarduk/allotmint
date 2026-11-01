@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ReturnBasisNote from '@/components/ReturnBasisNote';
-import type { PortfolioReturnBasisFields } from '@/types';
+import type { PortfolioReturnBasisFields, UnpricedHolding } from '@/types';
 
 const renderNote = (fields: PortfolioReturnBasisFields | null) =>
   render(<ReturnBasisNote fields={fields} />);
@@ -34,8 +34,13 @@ describe('ReturnBasisNote', () => {
       portfolio_price_basis_share: 0.5,
       portfolio_unpriced_holdings: [
         { ticker: 'ABC.L', return_basis: 'price' },
-        // Cast: the backend may send a basis newer than this build's types.
-        { ticker: 'NEW.L', return_basis: 'some_new_basis' as 'price' },
+        // Cast through unknown: deliberately outside the known union, as a
+        // backend newer than this build's types may send.
+        {
+          ticker: 'NEW.L',
+          return_basis:
+            'some_new_basis' as unknown as UnpricedHolding['return_basis'],
+        },
       ],
     });
 

@@ -13,7 +13,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Literal, Mapping, Optional, Tuple, get_args
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_core import PydanticCustomError
 
@@ -108,6 +108,10 @@ def _get_moneyhub_client() -> MoneyhubClient:
 # Set only by the dividend refresh bot (#11086), never taken from a request body.
 # Every write route excludes these: create, import, and the PUT update, which
 # keeps whatever the stored row already has (#11097).
+# A body that sends them gets a normal response with the fields dropped, not a
+# 4xx (#11143). The body models ignore every unknown key, and GET returns rows
+# that carry these flags, so a client that edits a row it just read must not be
+# rejected for sending them back.
 _BOT_ONLY_FIELDS = frozenset({"estimated", "attribution_only"})
 
 
@@ -366,7 +370,7 @@ class TransactionUpdate(BaseModel):
     type: Optional[ManualTradeType] = None
     price_gbp: Optional[float] = Field(default=None, gt=0)
     units: Optional[float] = Field(default=None, gt=0)
-    fees: Optional[float] = None
+    fees: Optional[float] = Field(default=None, ge=0)
     # Omitted keeps the stored value while ``fees`` is unchanged; a new
     # ``fees`` drops an omitted part, as the old split no longer applies.
     stamp_duty: Optional[float] = Field(default=None, ge=0)
@@ -557,6 +561,11 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
     ``stamp_duty``/``fx_charge`` are not managed like ``fees``: the trade
     editors do not show them, so an omitted part is kept while ``fees`` is
     unchanged and dropped (back to unknown) when ``fees`` changes (#10493).
+
+    So a caller that changes ``fees`` must resend every breakdown part it
+    wants to keep: ``fees=3.0`` alone drops both stored parts, and
+    ``fees=3.0, stamp_duty=1.0`` keeps the new stamp duty but drops a stored
+    ``fx_charge``.
     """
     managed_fields = {"ticker", "date", "price_gbp", "units", "fees", "comments", "reason"}
     updated = dict(existing)
@@ -564,6 +573,7 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
     for field in managed_fields:
         if field not in update or update.get(field) is None:
             updated.pop(field, None)
+    # A new ``fees`` drops each part not resent; see the docstring.
     for field in FEE_BREAKDOWN_FIELDS:
         if fees_changed and update.get(field) is None:
             updated.pop(field, None)
@@ -1175,9 +1185,21 @@ def _missing_ledger_fields(row: Transaction) -> str:
     return "/".join(missing)
 
 
+def _schedule_guardian_run(
+    background_tasks: BackgroundTasks, persisted: List[Dict[str, Any]], actor: str | None
+) -> None:
+    """Run the allowance guardian bot after the response once an import persisted rows (#10495)."""
+    if not persisted:
+        return
+    from backend.allowance_guardian.bot import run_after_import
+
+    background_tasks.add_task(run_after_import, actor)
+
+
 @router.post("/transactions/import")
 async def import_transactions(
     request: Request,
+    background_tasks: BackgroundTasks,
     provider: str = Form(...),
     file: UploadFile = File(...),
     owner: str | None = Form(default=None),
@@ -1194,6 +1216,9 @@ async def import_transactions(
     the caller must supply the destination explicitly). Rows for which no
     owner/account can be resolved are reported in ``skipped`` rather than
     persisted or silently dropped.
+
+    When any row was persisted the allowance guardian bot runs afterwards
+    (#10495).
     """
 
     data = await file.read()
@@ -1260,6 +1285,7 @@ async def import_transactions(
             _rollback_import(store, persisted)
             raise
 
+    _schedule_guardian_run(background_tasks, persisted, None)
     return {"persisted": persisted, "skipped": skipped}
 
 
@@ -1272,6 +1298,7 @@ async def import_transactions(
 )
 def import_moneyhub_transactions(
     request: Request,
+    background_tasks: BackgroundTasks,
     owner: str = Form(...),
     identity: str | None = Depends(get_active_user),
 ) -> Dict[str, List[Dict[str, Any]]]:
@@ -1343,6 +1370,7 @@ def import_moneyhub_transactions(
             file_accounts[row_account] = _transactions_account_name(owner, row_account, store)
         persisted.append(_persist_transaction(store, owner, file_accounts[row_account], tx_data))
 
+    _schedule_guardian_run(background_tasks, persisted, identity)
     return {"persisted": persisted, "skipped": skipped}
 
 

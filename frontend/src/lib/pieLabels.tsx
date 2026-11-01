@@ -5,6 +5,14 @@ import {
   pieSliceMidAngles,
   type PieLabelPlacement,
 } from "./pieLabelLayout";
+import {
+  CollisionAwarePieLabel,
+  CollisionAwarePieLabelLine,
+  type ChartBounds,
+  type LabelResolver,
+  type PieLabelLineProps,
+  type SliceGeometryProps,
+} from "./pieLabelElements";
 
 /**
  * Slices below this share of the pie (as a 0–1 fraction) get no inline label
@@ -17,12 +25,6 @@ export const MIN_INLINE_PIE_LABEL_FRACTION = 0.05;
 export function isPieSliceLabelable(fraction: number | undefined): boolean {
   return (fraction ?? 0) >= MIN_INLINE_PIE_LABEL_FRACTION;
 }
-
-type PieLabelLineProps = {
-  percent?: number;
-  points?: ReadonlyArray<{ x: number; y: number }>;
-  stroke?: string;
-};
 
 /** `labelLine` renderer that draws the leader line only for labelable slices. */
 export function renderPieLabelLine(props: PieLabelLineProps) {
@@ -60,15 +62,6 @@ export const INLINE_PIE_LABEL_LINE_HEIGHT = Math.ceil(INLINE_PIE_LABEL_FONT_SIZE
 /** recharts' default distance between the pie edge and the label anchor. */
 const RECHARTS_LABEL_OFFSET = 20;
 
-type SliceGeometryProps = {
-  cx?: number;
-  cy?: number;
-  outerRadius?: number;
-  index?: number;
-};
-
-type ResolvedLabel = { placement: PieLabelPlacement; text: string };
-
 /**
  * Collision-aware `label` / `labelLine` renderers for one recharts `<Pie>` (#10313).
  *
@@ -79,8 +72,9 @@ type ResolvedLabel = { placement: PieLabelPlacement; text: string };
  * edge. The Legend and Tooltip remain the full identification path for any
  * hidden or truncated label.
  *
- * The container is taken to be `2·cx × 2·cy`, which holds for a pie centred
- * with recharts' default `cx`/`cy` of 50% and symmetric chart margins.
+ * The container is the chart's actual width × height, read from the recharts
+ * chart context (#11181), so an off-centre pie or asymmetric chart margins are
+ * fitted against the real edges rather than an assumed `2·cx × 2·cy`.
  */
 export function createPieLabelRenderers(
   values: ReadonlyArray<number>,
@@ -89,15 +83,20 @@ export function createPieLabelRenderers(
   const slices = pieSliceMidAngles(values);
   let cache: { key: string; placements: PieLabelPlacement[] } | null = null;
 
-  const placementsFor = (cx: number, cy: number, outerRadius: number) => {
-    const key = `${cx}|${cy}|${outerRadius}`;
+  const placementsFor = (
+    cx: number,
+    cy: number,
+    outerRadius: number,
+    bounds: ChartBounds,
+  ) => {
+    const key = `${cx}|${cy}|${outerRadius}|${bounds.width}|${bounds.height}`;
     if (cache?.key !== key) {
       const placements = layoutPieLabels(slices, {
         cx,
         cy,
         radius: outerRadius + RECHARTS_LABEL_OFFSET,
-        width: cx * 2,
-        height: cy * 2,
+        width: bounds.width,
+        height: bounds.height,
         lineHeight: INLINE_PIE_LABEL_LINE_HEIGHT,
         minFraction: MIN_INLINE_PIE_LABEL_FRACTION,
       });
@@ -106,51 +105,31 @@ export function createPieLabelRenderers(
     return cache.placements;
   };
 
-  const resolve = (props: SliceGeometryProps): ResolvedLabel | null => {
+  const resolve: LabelResolver = (props, bounds) => {
     const { cx, cy, outerRadius, index } = props;
-    if (cx == null || cy == null || outerRadius == null || index == null) return null;
-    const placement = placementsFor(cx, cy, outerRadius)[index];
+    if (!bounds || cx == null || cy == null || outerRadius == null || index == null) {
+      return null;
+    }
+    const placement = placementsFor(cx, cy, outerRadius, bounds)[index];
     if (!placement?.visible) return null;
     const text = fitPieLabelText(format(props as PieLabelRenderProps), placement, {
-      width: cx * 2,
+      width: bounds.width,
       charWidth: INLINE_PIE_LABEL_CHAR_WIDTH,
     });
     return text === null ? null : { placement, text };
   };
 
-  const label = (props: PieLabelRenderProps) => {
-    const resolved = resolve(props);
-    if (!resolved) return <g />;
-    const { placement, text } = resolved;
-    return (
-      <text
-        className="recharts-pie-label-text"
-        x={placement.x}
-        y={placement.y}
-        textAnchor={placement.side === "right" ? "start" : "end"}
-        dominantBaseline="central"
-        fontSize={INLINE_PIE_LABEL_FONT_SIZE}
-        fill={props.fill}
-      >
-        {text}
-      </text>
-    );
-  };
+  const label = (props: PieLabelRenderProps) => (
+    <CollisionAwarePieLabel
+      sliceProps={props}
+      resolve={resolve}
+      fontSize={INLINE_PIE_LABEL_FONT_SIZE}
+    />
+  );
 
-  const labelLine = (props: PieLabelLineProps & SliceGeometryProps) => {
-    const resolved = resolve(props);
-    const start = props.points?.[0];
-    if (!resolved || !start) return <g />;
-    const end = resolved.placement;
-    return (
-      <polyline
-        className="recharts-pie-label-line"
-        points={`${start.x},${start.y} ${end.x},${end.y}`}
-        fill="none"
-        stroke={props.stroke}
-      />
-    );
-  };
+  const labelLine = (props: PieLabelLineProps & SliceGeometryProps) => (
+    <CollisionAwarePieLabelLine sliceProps={props} resolve={resolve} />
+  );
 
   return { label, labelLine };
 }

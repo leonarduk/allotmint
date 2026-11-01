@@ -51,6 +51,8 @@ function Write-GhaError($msg) {
     }
 }
 
+. (Join-Path $PSScriptRoot 'lib\cfn-resource-id.ps1')
+
 # 0. Deployment environment variable validation
 Write-Host "`n=== 0. Deployment environment variable validation ==="
 & pwsh scripts/powershell/validate-deployment-env.ps1
@@ -108,15 +110,14 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
 } elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN) {
     Write-Skip "IAM simulation (requires GITHUB_DEPLOY_ROLE_ARN)"
 } else {
-    # No "|[0]": past 100 resources the CLI applies --query per page (#11091).
-    $BucketId = & aws cloudformation list-stack-resources `
-        --stack-name BackendLambdaStack `
-        --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId" `
-        --output text 2>$null |
-        ForEach-Object { $_ -split "`t" } |
-        Where-Object { $_ -and $_ -ne 'None' } |
-        Select-Object -First 1
-    if (-not $BucketId -or $BucketId -eq 'None') {
+    $BucketLookup = Get-CfnResourceId 'BackendLambdaStack' `
+        "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId"
+    $BucketId = $BucketLookup.Id
+    # A failed lookup is not "not deployed": fail rather than skip (#11095).
+    if (-not $BucketLookup.Ok) {
+        Write-Host $BucketLookup.Error -ForegroundColor Red
+        Write-Fail "IAM simulation (could not list BackendLambdaStack resources; see the error above)"
+    } elseif (-not $BucketId -or $BucketId -eq 'None') {
         Write-Skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
     } else {
         $AwsRegion = if ($env:AWS_REGION) { $env:AWS_REGION } else {

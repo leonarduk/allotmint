@@ -86,8 +86,31 @@ def test_qualifying_trades_filters_size_type_and_window():
 def test_trade_amount_treats_zero_units_as_zero_and_falls_back_to_shares_only_when_units_is_absent():
     # units=0 is a recorded value (a zero-size trade), not "unset": it never qualifies.
     assert trade_amount_gbp({"units": 0, "shares": 50, "price_gbp": 10.0}) == 0.0
-    assert trade_amount_gbp({"shares": 50, "price_gbp": 10.0}) == 500.0
     assert trade_amount_gbp({"units": 5}) is None
+
+
+def test_trade_amount_scales_portfolio_performance_shares():
+    """#11222: PP stores ``shares`` as real units x 10^8; 10 units at 50 is 500, not 5e10."""
+    assert trade_amount_gbp({"shares": 1_000_000_000, "price_gbp": 50.0}) == 500.0
+    # An app edit sets ``units`` on a PP row; it wins and is already real units.
+    assert trade_amount_gbp({"units": 3, "shares": 1_000_000_000, "price_gbp": 50.0}) == 150.0
+
+
+def test_qualifying_trades_skips_small_portfolio_performance_trade():
+    """#11222: a PP-imported trade below the threshold must not be prompted for."""
+    pp_buy = {
+        "id": "alex:isa:pp1",
+        "owner": "alex",
+        "account": "isa",
+        "date": "2026-10-05",
+        "type": "BUY",
+        "ticker": "CCC.L",
+        "shares": 1_000_000_000,
+        "price_gbp": 50.0,
+    }
+    assert qualifying_trades([pp_buy], **_window()) == []
+    found = qualifying_trades([pp_buy], **_window(threshold_gbp=100))
+    assert [c["amount_gbp"] for c in found] == [500.0]
 
 
 def test_qualifying_trades_threshold_is_configurable_and_skips_handled():

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -34,6 +35,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from backend.common.holdings_rebuild import name_aliases, tracked_instruments
 from backend.common.ticker_utils import canonical_ticker
+
+logger = logging.getLogger(__name__)
 
 COST_BASIS_IMPORT_REASON = "Purchase price from cost-basis CSV import"
 REQUIRED_COLUMNS = ("ticker", "date", "units", "unit_cost")
@@ -69,6 +72,14 @@ class CostBasisCsvError(ValueError):
     """The file as a whole cannot be read as a purchase-price CSV."""
 
 
+class _RowError(ValueError):
+    """One CSV row is unusable; the message is ours and safe to return to the caller."""
+
+
+# Reason for a row that failed some other way; the exception text is never returned.
+_UNREADABLE_ROW = "row could not be read"
+
+
 @dataclass(frozen=True)
 class PurchaseLot:
     """One parsed CSV row: ``units`` bought on ``date`` at ``unit_cost`` GBP each."""
@@ -92,9 +103,9 @@ def _positive_number(raw: str, field: str) -> float:
     try:
         value = float(text)
     except ValueError:
-        raise ValueError(f"{field} {raw!r} is not a number") from None
+        raise _RowError(f"{field} {raw!r} is not a number") from None
     if not math.isfinite(value) or value <= 0:
-        raise ValueError(f"{field} must be greater than 0")
+        raise _RowError(f"{field} must be greater than 0")
     return value
 
 
@@ -106,9 +117,9 @@ def _iso_date(raw: str, latest: date) -> str:
         except ValueError:
             continue
         if parsed > latest:
-            raise ValueError("date cannot be in the future")
+            raise _RowError("date cannot be in the future")
         return parsed.isoformat()
-    raise ValueError(f"date {raw!r} is not YYYY-MM-DD or DD/MM/YYYY")
+    raise _RowError(f"date {raw!r} is not YYYY-MM-DD or DD/MM/YYYY")
 
 
 def _optional(row: Mapping[str, Any], field: str) -> Optional[str]:
@@ -119,7 +130,7 @@ def _optional(row: Mapping[str, Any], field: str) -> Optional[str]:
 def _lot_from_row(line: int, row: Mapping[str, Any], latest: date) -> PurchaseLot:
     ticker = str(row.get("ticker") or "").strip().upper()
     if not ticker:
-        raise ValueError("ticker is required")
+        raise _RowError("ticker is required")
     return PurchaseLot(
         line=line,
         ticker=ticker,
@@ -162,8 +173,11 @@ def parse_purchase_lots(data: bytes, latest: Optional[date] = None) -> Tuple[Lis
             continue
         try:
             lots.append(_lot_from_row(line, row, latest))
-        except ValueError as exc:
+        except _RowError as exc:
             skipped.append({"line": line, "ticker": _optional(row, "ticker"), "skip_reason": str(exc)})
+        except ValueError:
+            logger.warning("Unreadable cost-basis CSV row %s", line, exc_info=True)
+            skipped.append({"line": line, "ticker": _optional(row, "ticker"), "skip_reason": _UNREADABLE_ROW})
     return lots, skipped
 
 
@@ -221,7 +235,8 @@ def plan_cost_basis_lots(
     total = sum(lot.units for lot in lots)
     if abs(total - held) > UNITS_TOLERANCE:
         return [], f"lot units add up to {total:g}, but {held:g} units are held"
-    if held - sum(lot.units for lot in lots[:-1]) <= 0:
+    # The same rounded value _lot_transactions writes, so a remainder that rounds to 0 is caught too.
+    if round(held - sum(lot.units for lot in lots[:-1]), 8) <= 0:
         # The last lot absorbs float noise; it must not end up zero or negative.
         return [], f"lot units add up to {total:g}, but the last lot would leave no units for {held:g} held"
     return _lot_transactions(str(holding.get("ticker")), lots, held), None

@@ -275,3 +275,24 @@ def test_import_refuses_when_the_ledger_changes_after_planning(client, tmp_path,
 
     assert resp.status_code == 409
     assert [t["type"] for t in json.loads(ledger.read_text())["transactions"]] == ["BUY"]
+
+
+def test_parse_hides_unexpected_row_errors(monkeypatch):
+    from backend.common import cost_basis_import as mod
+
+    def boom(*_args, **_kwargs):
+        raise ValueError("internal detail /srv/secret.py line 9")
+
+    monkeypatch.setattr(mod, "_lot_from_row", boom)
+
+    lots, skipped = parse_purchase_lots(b"ticker,date,units,unit_cost\nAAA.L,2020-01-02,1,2\n")
+
+    assert lots == []
+    assert skipped[0]["skip_reason"] == "row could not be read"
+
+
+def test_plan_skips_a_last_lot_that_rounds_to_zero():
+    txs, reason = plan_cost_basis_lots([], [{"ticker": "AAA.L", "units": 10}], "AAA.L", [_lot(10 - 1e-9), _lot(1e-9)])
+
+    assert txs == []
+    assert reason is not None and "last lot would leave no units" in reason

@@ -3,7 +3,7 @@
 * ``GET`` all-in cost / concentration / settings / proposals are page reads:
   cached prices only, no fetching, nothing stored.
 * ``POST /fund-upkeep/{owner}/run`` is the explicit bot run (look-through
-  refresh, concentration snapshot, OCF proposals). Until the #10477 bot
+  refresh, concentration snapshot, OCF and look-through proposals). Until the #10477 bot
   registry exists this, or :func:`backend.fund_upkeep.bot.run`, is how it runs.
 * Proposal approve/reject/undo: approval is the only path that writes agent
   findings, through the instrument-metadata admin update with an audit entry.

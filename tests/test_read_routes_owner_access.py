@@ -161,11 +161,5 @@ def test_auth_enabled_signed_in_user_cannot_read_another_owner(tmp_path, monkeyp
         allowed = _request(client, _ROUTES[name], "alice")
         assert denied.status_code == 403, name
         assert "owner-data" not in denied.text, name
-        if name == "compliance_validate":
-            # Passes the access check; compliance's owner discovery calls
-            # list_plots without a user, which lists nobody with auth enabled,
-            # so the route then 404s for every owner. That predates #11346.
-            assert allowed.status_code != 403, name
-        else:
-            assert allowed.status_code == 200, name
+        assert allowed.status_code == 200, name
     assert anonymous.status_code == 401

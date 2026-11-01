@@ -51,7 +51,7 @@ def test_known_owners_aggregates_plot_metadata(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module.data_loader,
         "list_plots",
-        lambda root: [
+        lambda root, current_user=None: [
             OwnerSummaryRecord(owner="Alice"),
             OwnerSummaryRecord(owner="Bob"),
             OwnerSummaryRecord(owner="ALICE"),
@@ -108,7 +108,7 @@ def test_known_owners_adds_demo_owner_when_available(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module.data_loader,
         "list_plots",
-        lambda _: [OwnerSummaryRecord(owner="Alice")],
+        lambda _, current_user=None: [OwnerSummaryRecord(owner="Alice")],
     )
     monkeypatch.setattr(
         compliance_module.data_loader,
@@ -131,7 +131,7 @@ def test_known_owners_uses_metadata_when_root_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module.data_loader,
         "list_plots",
-        lambda _: [OwnerSummaryRecord(owner="Alice")],
+        lambda _, current_user=None: [OwnerSummaryRecord(owner="Alice")],
     )
     monkeypatch.setattr(
         compliance_module.data_loader,
@@ -190,7 +190,7 @@ async def test_compliance_for_owner_missing_directory(tmp_path, monkeypatch, fas
         "resolve_owner_directory",
         lambda root, owner: None,
     )
-    monkeypatch.setattr(compliance_module, "_known_owners", lambda root: set())
+    monkeypatch.setattr(compliance_module, "_known_owners", lambda root, current_user=None: set())
 
     with pytest.raises(OwnerNotFoundError) as excinfo:
         compliance_module.compliance_for_owner("alice", request)
@@ -217,7 +217,7 @@ async def test_compliance_for_remote_owner_without_local_directory(tmp_path, mon
     monkeypatch.setattr(
         compliance_module,
         "_known_owners",
-        lambda root: {"alice"},
+        lambda root, current_user=None: {"alice"},
     )
 
     calls = []
@@ -254,7 +254,7 @@ async def test_compliance_for_owner_rejects_unknown_owner(tmp_path, monkeypatch,
     monkeypatch.setattr(
         compliance_module,
         "_known_owners",
-        lambda root: {"bob"},
+        lambda root, current_user=None: {"bob"},
     )
 
     with pytest.raises(OwnerNotFoundError) as excinfo:
@@ -283,7 +283,7 @@ async def test_compliance_for_owner_translates_missing_files(tmp_path, monkeypat
     monkeypatch.setattr(
         compliance_module,
         "_known_owners",
-        lambda root: {"alice"},
+        lambda root, current_user=None: {"alice"},
     )
 
     def raise_missing(*args, **kwargs):
@@ -356,7 +356,7 @@ async def test_validate_trade_rejects_disallowed_owner(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module,
         "_known_owners",
-        lambda root: {"bob"},
+        lambda root, current_user=None: {"bob"},
     )
 
     with pytest.raises(OwnerNotFoundError) as excinfo:
@@ -383,7 +383,7 @@ async def test_validate_trade_requires_known_directory_when_present(tmp_path, mo
     monkeypatch.setattr(
         compliance_module,
         "_known_owners",
-        lambda root: {"alice"},
+        lambda root, current_user=None: {"alice"},
     )
 
     with pytest.raises(OwnerNotFoundError) as excinfo:
@@ -420,7 +420,7 @@ async def test_validate_trade_normalises_owner_name(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module,
         "_known_owners",
-        lambda root: {"alice"},
+        lambda root, current_user=None: {"alice"},
     )
     monkeypatch.setattr(
         compliance_module.compliance,
@@ -456,7 +456,7 @@ async def test_validate_trade_translates_value_error(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module,
         "_known_owners",
-        lambda root: {"alice"},
+        lambda root, current_user=None: {"alice"},
     )
 
     def raise_value_error(*args, **kwargs):
@@ -505,7 +505,7 @@ async def test_validate_trade_scaffolds_missing_directory(tmp_path, monkeypatch,
     monkeypatch.setattr(
         compliance_module,
         "_known_owners",
-        lambda root: set(),
+        lambda root, current_user=None: set(),
     )
     monkeypatch.setattr(
         compliance_module.compliance,
@@ -567,7 +567,7 @@ async def test_validate_trade_scaffolds_when_owner_discovery_fails(tmp_path, mon
     monkeypatch.setattr(
         compliance_module,
         "_known_owners",
-        lambda root: compliance_module.KnownOwnerSet(active_root_has_entries=False),
+        lambda root, current_user=None: compliance_module.KnownOwnerSet(active_root_has_entries=False),
     )
     monkeypatch.setattr(
         compliance_module.compliance,
@@ -587,3 +587,24 @@ async def test_validate_trade_scaffolds_when_owner_discovery_fails(tmp_path, mon
     assert recorded["root"] is missing_root
     assert recorded["scaffold_missing"] is True
     assert recorded["scaffold"] == ("demo", missing_root)
+
+
+def test_known_owners_lists_plots_for_the_caller(tmp_path, monkeypatch):
+    """With auth enabled ``list_plots`` lists nobody without a user, so the caller is passed on (#11348)."""
+    seen = {}
+
+    def fake_list_plots(root, current_user=None):
+        seen["user"] = current_user
+        return [OwnerSummaryRecord(owner="alice")] if current_user == "user@example.com" else []
+
+    monkeypatch.setattr(compliance_module.data_loader, "list_plots", fake_list_plots)
+    monkeypatch.setattr(
+        compliance_module.data_loader,
+        "resolve_paths",
+        lambda *_, **__: (_ for _ in ()).throw(RuntimeError("no demo fallback")),
+    )
+
+    owners = compliance_module._known_owners(tmp_path, current_user="user@example.com")
+
+    assert seen["user"] == "user@example.com"
+    assert owners == {"alice"}

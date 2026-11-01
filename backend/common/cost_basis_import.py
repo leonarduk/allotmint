@@ -31,7 +31,7 @@ import math
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from backend.common.holdings_rebuild import name_aliases, tracked_instruments
 from backend.common.ticker_utils import canonical_ticker
@@ -73,8 +73,15 @@ class CostBasisCsvError(ValueError):
     """The file as a whole cannot be read as a purchase-price CSV."""
 
 
-class _RowError(ValueError):
-    """One CSV row is unusable; the message is ours and safe to return to the caller."""
+@dataclass(frozen=True)
+class _Invalid:
+    """Why one CSV row is unusable; ``reason`` is written by us and safe to return to the caller.
+
+    Row validation returns this instead of raising, so no exception text can
+    reach the response.
+    """
+
+    reason: str
 
 
 # Reason for a row that failed some other way; the exception text is never returned.
@@ -99,18 +106,18 @@ def _normalise_header(name: str) -> str:
     return _COLUMN_ALIASES.get(key, key)
 
 
-def _positive_number(raw: str, field: str) -> float:
+def _positive_number(raw: str, field: str) -> Union[float, _Invalid]:
     text = _NUMBER_JUNK.sub("", raw or "")
     try:
         value = float(text)
     except ValueError:
-        raise _RowError(f"{field} {raw!r} is not a number") from None
+        return _Invalid(f"{field} {raw!r} is not a number")
     if not math.isfinite(value) or value <= 0:
-        raise _RowError(f"{field} must be greater than 0")
+        return _Invalid(f"{field} must be greater than 0")
     return value
 
 
-def _iso_date(raw: str, latest: date) -> str:
+def _iso_date(raw: str, latest: date) -> Union[str, _Invalid]:
     text = (raw or "").strip()
     for fmt in _DATE_FORMATS:
         try:
@@ -118,9 +125,9 @@ def _iso_date(raw: str, latest: date) -> str:
         except ValueError:
             continue
         if parsed > latest:
-            raise _RowError("date cannot be in the future")
+            return _Invalid("date cannot be in the future")
         return parsed.isoformat()
-    raise _RowError(f"date {raw!r} is not YYYY-MM-DD or DD/MM/YYYY")
+    return _Invalid(f"date {raw!r} is not YYYY-MM-DD or DD/MM/YYYY")
 
 
 def _optional(row: Mapping[str, Any], field: str) -> Optional[str]:
@@ -128,16 +135,25 @@ def _optional(row: Mapping[str, Any], field: str) -> Optional[str]:
     return value or None
 
 
-def _lot_from_row(line: int, row: Mapping[str, Any], latest: date) -> PurchaseLot:
+def _lot_from_row(line: int, row: Mapping[str, Any], latest: date) -> Union[PurchaseLot, _Invalid]:
     ticker = str(row.get("ticker") or "").strip().upper()
     if not ticker:
-        raise _RowError("ticker is required")
+        return _Invalid("ticker is required")
+    day = _iso_date(str(row.get("date") or ""), latest)
+    units = _positive_number(str(row.get("units") or ""), "units")
+    unit_cost = _positive_number(str(row.get("unit_cost") or ""), "unit_cost")
+    if isinstance(day, _Invalid):
+        return day
+    if isinstance(units, _Invalid):
+        return units
+    if isinstance(unit_cost, _Invalid):
+        return unit_cost
     return PurchaseLot(
         line=line,
         ticker=ticker,
-        date=_iso_date(str(row.get("date") or ""), latest),
-        units=_positive_number(str(row.get("units") or ""), "units"),
-        unit_cost=_positive_number(str(row.get("unit_cost") or ""), "unit_cost"),
+        date=day,
+        units=units,
+        unit_cost=unit_cost,
         owner=_optional(row, "owner"),
         account=_optional(row, "account"),
     )
@@ -173,12 +189,16 @@ def parse_purchase_lots(data: bytes, latest: Optional[date] = None) -> Tuple[Lis
         if not any(str(v or "").strip() for v in row.values()):
             continue
         try:
-            lots.append(_lot_from_row(line, row, latest))
-        except _RowError as exc:
-            skipped.append({"line": line, "ticker": _optional(row, "ticker"), "skip_reason": str(exc)})
+            parsed = _lot_from_row(line, row, latest)
         except ValueError:
+            # Something other than the validation above; its text is never returned.
             logger.warning("Unreadable cost-basis CSV row %s", sanitise_log_value(line), exc_info=True)
             skipped.append({"line": line, "ticker": _optional(row, "ticker"), "skip_reason": _UNREADABLE_ROW})
+            continue
+        if isinstance(parsed, _Invalid):
+            skipped.append({"line": line, "ticker": _optional(row, "ticker"), "skip_reason": parsed.reason})
+        else:
+            lots.append(parsed)
     return lots, skipped
 
 

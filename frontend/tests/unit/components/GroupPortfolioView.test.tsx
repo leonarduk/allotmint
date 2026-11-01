@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act, within, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, act, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { GroupPortfolioView } from "@/components/GroupPortfolioView";
@@ -51,6 +51,11 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  // Unmount while the fetch stub is still installed. The global cleanup in
+  // setupTests runs after this hook, so without this a late effect (e.g. the
+  // one-year TWR fetch) hits the real network once unstubAllGlobals has run
+  // and its rejection lands in the next test's console.warn spy.
+  cleanup();
   expect(getRechartsDimensionWarningCalls(consoleErrorSpy.mock.calls)).toEqual(
     [],
   );

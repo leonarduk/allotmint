@@ -160,7 +160,7 @@ export default function AllowanceGuardianCard({ owner, refreshKey = 0 }: { owner
   }, [owner, refreshKey]);
 
   return (
-    <section className="mt-6 rounded border border-gray-300 p-4" aria-labelledby="allowance-guardian-title">
+    <section className="mt-6 rounded border border-[var(--surface-card-border)] p-4" aria-labelledby="allowance-guardian-title">
       <h2 id="allowance-guardian-title" className="mb-1 text-xl">
         {t("allowanceGuardian.title")}
       </h2>

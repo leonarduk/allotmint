@@ -28,6 +28,10 @@ class TurnLimits:
     allowed_tools: Optional[AbstractSet[str]] = None
     max_iterations: Optional[int] = None
     max_tokens: Optional[int] = None
+    #: Raise ``RuntimeError`` when ``max_iterations`` is used up instead of
+    #: replying with the last tool results (#7623) -- for a caller that parses
+    #: the reply as structured output and has its own fallback.
+    raise_at_cap: bool = False
     tool_log: List[Dict[str, Any]] = field(default_factory=list)
     usage: Dict[str, int] = field(default_factory=lambda: {"input_tokens": 0, "output_tokens": 0})
 

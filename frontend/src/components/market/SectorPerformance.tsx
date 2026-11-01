@@ -137,7 +137,7 @@ function SectorBody({ data, selected, onSelect }: SectorChartProps) {
   return (
     <>
       {usesBasket && (
-        <p className="mb-2 text-sm text-gray-500">
+        <p className="mb-2 text-sm text-[var(--surface-muted-color)]">
           {t('market.sectorBasketNote', {
             defaultValue:
               'Sector moves are equal-weighted baskets of representative large constituents.',

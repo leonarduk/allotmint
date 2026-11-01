@@ -91,6 +91,15 @@ describe("InstrumentSleevePicker", () => {
     // carol has only the core sleeve.
     expect(screen.queryByRole("combobox", { name: /carol/ })).not.toBeInTheDocument();
 
+    // The visible label is the only name source, and each picker has its own (#11173).
+    for (const select of [alice, bob]) {
+      expect(select).not.toHaveAttribute("aria-label");
+      const labelId = select.getAttribute("aria-labelledby");
+      expect(labelId).toBeTruthy();
+      expect(document.querySelectorAll(`[id="${labelId}"]`)).toHaveLength(1);
+    }
+    expect(alice.getAttribute("aria-labelledby")).not.toBe(bob.getAttribute("aria-labelledby"));
+
     await user.selectOptions(bob, "sleeve-bob");
     expect(mockAssign).toHaveBeenCalledTimes(1);
     expect(mockAssign).toHaveBeenCalledWith("bob", "AAA.L", "sleeve-bob");

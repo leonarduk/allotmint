@@ -31,7 +31,7 @@ export default function Help() {
         <h1 className="mb-1 text-2xl font-bold md:text-4xl">
           {t("help.title", "Help & Getting Started")}
         </h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-[var(--surface-muted-color)]">
           {t(
             "help.intro",
             "A quick guide to what each page in AllotMint is for, plus how to look up unfamiliar terms and how to report a problem.",
@@ -54,7 +54,7 @@ export default function Help() {
                   {t(entry.titleKey, entry.titleDefault)}
                 </Link>
               </dt>
-              <dd className="text-sm text-gray-600">
+              <dd className="text-sm text-[var(--surface-muted-color)]">
                 {t(entry.descriptionKey, entry.descriptionDefault)}
               </dd>
             </div>
@@ -67,7 +67,7 @@ export default function Help() {
           title={t("help.glossaryTitle", "Metrics glossary")}
           defaultOpen
         >
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[var(--surface-muted-color)]">
             {t(
               "help.glossaryDescription",
               "Not sure what a metric like Sharpe ratio, max drawdown or tracking error means? The glossary explains the terms used throughout the app.",
@@ -83,7 +83,7 @@ export default function Help() {
       )}
 
       <SectionCard title={t("help.reportTitle", "Report a problem")} defaultOpen>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-[var(--surface-muted-color)]">
           {t(
             "help.reportDescription",
             "Found a bug or something confusing? Let us know on GitHub so it can be tracked and fixed.",

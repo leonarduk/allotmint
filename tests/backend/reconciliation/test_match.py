@@ -7,6 +7,7 @@ import pytest
 from backend.reconciliation.extract import normalise_statement
 from backend.reconciliation.match import RECONCILIATION_REASON, reconcile
 from backend.reconciliation.models import RawStatement
+from backend.routes.transactions import TransactionCreate, TransactionUpdate
 
 # A synthetic quarter: a deposit, one BUY with an £11.95 fee, monthly interest.
 STATEMENT = {
@@ -324,3 +325,26 @@ def test_fee_fix_records_stamp_duty_and_trade_without_it_sends_none():
     _, diffs, _ = _reconcile(_extraction(closing_cash=None, rows=STATEMENT["rows"][1:2]), [BUY_NO_FEE])
     # Not on the statement: unknown, so nothing is sent rather than 0.
     assert "stamp_duty" not in diffs[0].suggestion.request.body
+
+
+@pytest.mark.parametrize("dealing", [None, 0])
+def test_stamp_duty_without_commission_still_makes_a_valid_create(dealing):
+    # SDRT with no dealing fee (#11168): fees is the stamp duty alone, never less.
+    row = {**STATEMENT["rows"][1], "fees": dealing, "stamp_duty": 5.00, "amount": 1005.00}
+    extraction = _extraction(closing_cash=None, rows=[row])
+    assert extraction.rows[0].stamp_duty_minor == extraction.rows[0].fees_minor == 500
+
+    _, diffs, _ = _reconcile(extraction, [])
+    assert diffs[0].suggestion.request.method == "POST"
+    body = diffs[0].suggestion.request.body
+    assert body["fees"] == body["stamp_duty"] == 5.0
+    TransactionCreate.model_validate(body)  # would raise on a 422-shaped breakdown
+
+
+def test_stamp_duty_without_commission_still_makes_a_valid_fee_fix():
+    row = {**STATEMENT["rows"][1], "fees": None, "stamp_duty": 5.00, "amount": 1005.00}
+    _, diffs, _ = _reconcile(_extraction(closing_cash=None, rows=[row]), [BUY_NO_FEE])
+    assert diffs[0].suggestion.request.method == "PUT"
+    body = diffs[0].suggestion.request.body
+    assert body["fees"] == body["stamp_duty"] == 5.0
+    TransactionUpdate.model_validate(body)

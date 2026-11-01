@@ -119,7 +119,7 @@ def run_bot(
     """Run the upkeep bot now. Offline mode skips every network step."""
     owner, portfolio = _owner_portfolio(owner, request, user)
     fetch = not config.offline_mode
-    llm = charges_agent.openai_compat_step(config) if fetch and (body is None or body.use_agent) else None
+    llm = charges_agent.configured_step(config) if fetch and (body is None or body.use_agent) else None
     return bot.run(
         owner=owner, portfolio=portfolio, transactions=_transactions(request, {owner.lower()}), llm=llm, fetch=fetch
     )

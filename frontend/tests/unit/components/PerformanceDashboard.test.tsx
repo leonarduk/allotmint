@@ -181,7 +181,7 @@ describe("PerformanceDashboard", () => {
       .getByRole("button", { name: "What does Alpha vs Benchmark mean?" })
       .closest("div") as HTMLElement;
     for (const el of [alphaLabel, ...subLabels]) {
-      expect(el).toHaveClass("text-slate-600");
+      expect(el).toHaveClass("text-[var(--surface-muted-color)]");
       expect(el.style.color).toBe("");
     }
     // Labels keep normal weight so values still read as the emphasis.

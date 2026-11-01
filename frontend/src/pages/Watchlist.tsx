@@ -440,7 +440,7 @@ export function Watchlist() {
         </div>
       )}
       {allClosed && (
-        <div className="mb-2 text-gray-800 dark:text-gray-200">
+        <div className="mb-2 text-[var(--surface-card-color)]">
           {t("watchlist.marketsClosed", { defaultValue: "Markets closed" })}
         </div>
       )}

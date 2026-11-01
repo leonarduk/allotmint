@@ -46,7 +46,7 @@ function TargetInput({
       />
       <span
         aria-hidden="true"
-        className="text-sm text-slate-600 dark:text-slate-300"
+        className="text-sm text-[var(--surface-muted-color)]"
       >
         %
       </span>
@@ -103,7 +103,7 @@ function TargetRows({
         </td>
         <td className="px-2 py-1">
           {isSplit ? (
-            <span className="text-sm text-slate-500 dark:text-slate-400">
+            <span className="text-sm text-[var(--surface-muted-color)]">
               {t('targetFields.subClassSum', {
                 value: pct.format(splitTotal(draft, assetClass)),
               })}

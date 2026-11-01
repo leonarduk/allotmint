@@ -217,3 +217,89 @@ def test_look_through_proposal_is_validated_by_the_shared_reader():
     assert proposal["value"]["fetched"] == "2026-10-09"
     with pytest.raises(proposals.ProposalRejected):
         proposals.validate_look_through({**raw, "look_through": {"countries": {"US": 100.0}}}, today=TODAY)
+
+
+class FakeConverseClient:
+    """A Bedrock Converse client that replays the scripted replies in Converse shape (#10494)."""
+
+    def __init__(self, final_answer):
+        self._script = scripted_llm(final_answer)
+        self.requests = []
+
+    def converse(self, **kwargs):
+        self.requests.append(kwargs)
+        reply = self._script([], [])
+        blocks = [{"text": reply["content"]}] if reply.get("content") else []
+        for call in reply.get("tool_calls") or []:
+            function = call["function"]
+            tool_use = {"toolUseId": call["id"], "name": function["name"], "input": json.loads(function["arguments"])}
+            blocks.append({"toolUse": tool_use})
+        return {"output": {"message": {"role": "assistant", "content": blocks}}}
+
+
+def _cfg(monkeypatch, provider="bedrock"):
+    from backend.config import config
+
+    monkeypatch.setattr(config, "chat_provider", provider)
+    monkeypatch.setattr(config, "bedrock_model_id", "test-model")
+    return config
+
+
+def test_bedrock_step_produces_the_same_sourced_proposal(toolbox, monkeypatch):
+    client = FakeConverseClient(GOOD_ANSWER)
+    llm = charges_agent.bedrock_step(_cfg(monkeypatch), client=client)
+
+    outcome = charges_agent.propose_charge(FUND, llm=llm, toolbox=toolbox, today=TODAY)
+
+    assert outcome["status"] == "proposed"
+    assert outcome["proposal"]["value"] == 0.22
+    assert outcome["proposal"]["source_url"] == DOC_URL
+    assert outcome["proposal"]["document_date"] == "2026-09-01"
+    assert len(client.requests) == 4
+    for request in client.requests:
+        assert request["modelId"] == "test-model"
+        assert request["system"] == [{"text": charges_agent.SYSTEM_PROMPT}]
+        # Only the read-only allowlist is ever offered to Bedrock.
+        offered = {tool["toolSpec"]["name"] for tool in request["toolConfig"]["tools"]}
+        assert offered == charges_agent.READ_ONLY_TOOLS
+    # The fetched factsheet went back to the model as a toolResult on a user turn.
+    last = client.requests[-1]["messages"]
+    assert [m["role"] for m in last] == ["user", "assistant", "user", "assistant", "user", "assistant", "user"]
+    result = last[-1]["content"][0]["toolResult"]
+    assert result["toolUseId"] == "3"
+    assert "Ongoing charges 0.22%" in result["content"][0]["text"]
+
+
+def test_bedrock_conversation_groups_parallel_tool_results_into_one_user_turn():
+    calls = [_tool_call("a", "get_instrument", ticker="FUNDX.L"), _tool_call("b", "get_fund_facts", ticker="FUNDX.L")]
+    messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "find it"},
+        {"role": "assistant", "content": "", "tool_calls": calls},
+        {"role": "tool", "tool_call_id": "a", "content": "{}"},
+        {"role": "tool", "tool_call_id": "b", "content": "{}"},
+    ]
+
+    system, converted = charges_agent._bedrock_conversation(messages)
+
+    assert system == [{"text": "sys"}]
+    assert [m["role"] for m in converted] == ["user", "assistant", "user"]
+    # An empty assistant text is dropped: Converse rejects blank text blocks.
+    assert [b["toolUse"]["toolUseId"] for b in converted[1]["content"]] == ["a", "b"]
+    assert converted[1]["content"][0]["toolUse"]["input"] == {"ticker": "FUNDX.L"}
+    assert [b["toolResult"]["toolUseId"] for b in converted[2]["content"]] == ["a", "b"]
+
+
+def test_bedrock_step_is_none_for_other_providers(monkeypatch):
+    assert charges_agent.bedrock_step(_cfg(monkeypatch, "ollama")) is None
+
+
+@pytest.mark.parametrize(("provider", "expect_bedrock"), [("bedrock", True), ("ollama", False)])
+def test_configured_step_uses_bedrock_only_for_the_bedrock_provider(monkeypatch, provider, expect_bedrock):
+    sentinel = object()
+    monkeypatch.setattr(charges_agent, "bedrock_step", lambda _cfg: sentinel)
+
+    step = charges_agent.configured_step(_cfg(monkeypatch, provider))
+
+    assert step is not None
+    assert (step is sentinel) is expect_bedrock

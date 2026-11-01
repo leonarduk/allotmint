@@ -14,6 +14,7 @@ sends no cookies or credentials, and refuses non-public hosts.
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import json
 import logging
@@ -198,6 +199,108 @@ def openai_compat_step(cfg: Config) -> Optional[LlmStep]:
         return response.json()["choices"][0]["message"]
 
     return step
+
+
+def _bedrock_assistant(message: Mapping[str, Any]) -> Dict[str, Any]:
+    """An OpenAI-shaped assistant message as a Bedrock Converse assistant message."""
+    content: List[Dict[str, Any]] = [{"text": message["content"]}] if message.get("content") else []
+    for call in message.get("tool_calls") or []:
+        function = call.get("function") or {}
+        raw = function.get("arguments")
+        arguments = raw if isinstance(raw, dict) else json.loads(raw or "{}")
+        content.append({"toolUse": {"toolUseId": call.get("id"), "name": function.get("name"), "input": arguments}})
+    return {"role": "assistant", "content": content}
+
+
+def _bedrock_conversation(messages: List[Dict[str, Any]]) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Split OpenAI-shaped ``messages`` into Bedrock ``(system, messages)``.
+
+    Consecutive ``tool`` results become one user turn of ``toolResult`` blocks,
+    so the roles alternate as Converse requires (checked by the chat agent's
+    ``_validate_message_alternation``).
+    """
+    from backend.chat.bedrock_agent import _validate_message_alternation
+
+    system: List[Dict[str, Any]] = []
+    converted: List[Dict[str, Any]] = []
+    for message in messages:
+        role = message["role"]
+        if role == "system":
+            system.append({"text": message["content"]})
+        elif role == "assistant":
+            converted.append(_bedrock_assistant(message))
+        elif role == "tool":
+            tool_result = {"toolUseId": message.get("tool_call_id"), "content": [{"text": message["content"]}]}
+            result = {"toolResult": tool_result}
+            if converted and converted[-1]["role"] == "user" and "toolResult" in converted[-1]["content"][0]:
+                converted[-1]["content"].append(result)
+            else:
+                converted.append({"role": "user", "content": [result]})
+        else:
+            converted.append({"role": "user", "content": [{"text": message["content"]}]})
+    _validate_message_alternation(converted)
+    return system, converted
+
+
+def _bedrock_tool_config(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+    specs = [
+        {
+            "toolSpec": {
+                "name": tool["function"]["name"],
+                "description": tool["function"].get("description") or tool["function"]["name"],
+                "inputSchema": {"json": tool["function"]["parameters"]},
+            }
+        }
+        for tool in tools
+    ]
+    return {"tools": specs}
+
+
+def _openai_reply(output_message: Mapping[str, Any]) -> Dict[str, Any]:
+    """A Bedrock Converse output message as an OpenAI-shaped assistant message."""
+    blocks = output_message.get("content") or []
+    text = "\n".join(block["text"] for block in blocks if "text" in block)
+    uses = [block["toolUse"] for block in blocks if "toolUse" in block]
+    calls = [
+        {
+            "id": use["toolUseId"],
+            "type": "function",
+            "function": {"name": use["name"], "arguments": json.dumps(use.get("input") or {})},
+        }
+        for use in uses
+    ]
+    return {"content": text, **({"tool_calls": calls} if calls else {})}
+
+
+def bedrock_step(cfg: Config, client: Any = None) -> Optional[LlmStep]:
+    """An :data:`LlmStep` over the Bedrock Converse API when the provider is ``bedrock``, else ``None``.
+
+    Reuses the chat agent's Bedrock client and transient-error retry. The
+    step is synchronous (the bot runs in a worker thread), so each call runs
+    the retrying coroutine on its own event loop.
+    """
+    from backend.chat import bedrock_agent
+    from backend.chat.providers import resolve_chat_provider
+
+    if resolve_chat_provider(cfg) != "bedrock":
+        return None
+    model_id = cfg.bedrock_model_id
+
+    def step(messages: List[Dict[str, Any]], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+        system, converted = _bedrock_conversation(messages)
+        kwargs: Dict[str, Any] = {"modelId": model_id, "messages": converted, "toolConfig": _bedrock_tool_config(tools)}
+        if system:
+            kwargs["system"] = system
+        bedrock = client if client is not None else bedrock_agent._bedrock_client()
+        response = asyncio.run(bedrock_agent._converse_with_retry(bedrock, **kwargs))
+        return _openai_reply(response["output"]["message"])
+
+    return step
+
+
+def configured_step(cfg: Config) -> Optional[LlmStep]:
+    """The :data:`LlmStep` for the configured chat provider, or ``None`` when none is usable."""
+    return openai_compat_step(cfg) or bedrock_step(cfg)
 
 
 def _run_tool(toolbox: ReadOnlyToolbox, call: Mapping[str, Any]) -> str:

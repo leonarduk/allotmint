@@ -686,7 +686,7 @@ export default function App({ onLogout }: AppProps) {
               {t('app.modes.instrument', { defaultValue: 'Sector Analysis' })}
             </h1>
             {selectedGroup === 'all' && instruments.length > 0 && (
-              <div className="mb-4 rounded-lg border border-gray-800 bg-black/20 p-3">
+              <div className="mb-4 rounded-lg border border-[var(--surface-card-border)] bg-black/20 p-3">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                   {t('app.exportInstruments')}
                 </p>
@@ -717,7 +717,7 @@ export default function App({ onLogout }: AppProps) {
               <>
                 <InstrumentTable rows={visibleInstruments} />
                 {instruments.length > MAX_INSTRUMENT_CATALOGUE_ROWS && (
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-[var(--surface-muted-color)]">
                     {t('app.instrumentCatalogueTruncated', {
                       shown: MAX_INSTRUMENT_CATALOGUE_ROWS.toLocaleString(),
                       total: instruments.length.toLocaleString(),

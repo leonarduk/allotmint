@@ -29,7 +29,10 @@ export default function AppVersion() {
   }, []);
 
   return (
-    <p className="mt-2 text-xs text-gray-500" data-testid="app-version">
+    <p
+      className="mt-2 text-xs text-[var(--surface-muted-color)]"
+      data-testid="app-version"
+    >
       {t('app.versionUi', 'UI')} {UI_VERSION} · {t('app.versionApi', 'API')}{' '}
       {apiVersion ?? '…'}
     </p>

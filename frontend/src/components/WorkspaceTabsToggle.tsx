@@ -18,7 +18,7 @@ export default function WorkspaceTabsToggle() {
       </label>
       <p
         id="workspaceTabs-help"
-        className="text-xs text-gray-600 dark:text-gray-400"
+        className="text-xs text-[var(--surface-muted-color)]"
       >
         {t('workspaceTabs.toggleHelp')}
       </p>

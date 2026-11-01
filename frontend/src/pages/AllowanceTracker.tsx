@@ -38,7 +38,7 @@ export default function AllowanceTracker() {
   return (
     <div>
       <h1 className="mb-4 text-2xl md:text-4xl">{t("allowanceTracker.title")}</h1>
-      <table className="min-w-full border-collapse border border-gray-300">
+      <table className="min-w-full border-collapse border border-[var(--surface-card-border)]">
         <thead>
           <tr>
             <th className="border p-2 text-left">{t("allowanceTracker.account")}</th>

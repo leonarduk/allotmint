@@ -485,6 +485,115 @@ class BackendLambdaStack(Stack):
         )
         return steward_fn
 
+    def _add_decision_journal_lambda(
+        self,
+        *,
+        project_root,
+        data_bucket: s3.Bucket,
+        env: str,
+        data_branch: str,
+        data_repo: str | None,
+        jwt_secret: str,
+    ) -> _lambda.DockerImageFunction:
+        """Daily decision-journal run (#10481, #10525) at 03:00 UTC.
+
+        After the 00:00 price refresh, 01:00 trading agent and 02:00 data
+        steward, so reviews price against the freshest cache. Must match
+        ``DecisionJournalBot.default_schedule`` (backend/decision_journal/bot.py).
+
+        Least privilege, audited along
+        lambda_api/decision_journal.py:lambda_handler →
+        bots/runner.py:handle_lambda_event → decision_journal/bot.py:
+        DecisionJournalBot.run → run():
+
+        - Run record and settings: bots/runs.py:_load/save_run and
+          bots/settings.py:load_settings → BOTS_STORAGE_URI (bots/): GetObject
+          and PutObject on bots/*. Their reads use S3JSONStorage.load, which
+          treats a 403 on a missing key as empty, so no ListBucket there (as
+          for the other bot Lambdas).
+        - Owners: bot.py:known_owners → investment_plan.py:plan_owners and
+          decision_journal/store.py:journal_owners → OwnerDocumentStore.owners
+          → storage.py:list_s3_json_stems (list_objects_v2): ListBucket on
+          plans/ and decision_journal/. The plans are never read or written:
+          no GetObject or PutObject on plans/.
+        - Journals: store.py:load_journal → S3JSONStorage.load_existing
+          (GetObject; ListBucket makes a missing <owner>.json a NoSuchKey
+          rather than a 403, which raises) and store.py:save_journal →
+          put_object: GetObject and PutObject on decision_journal/*.
+        - Transactions: bot.py:_all_transactions →
+          routes/transactions.py:load_all_transactions(S3AccountsStore) →
+          accounts_store.py:S3AccountsStore.iter_transaction_documents
+          (list_objects_v2 + get_object under writable-accounts/): ListBucket
+          and GetObject there, read-only. config.accounts_root is the empty
+          local /tmp/data/accounts, so accounts/ in S3 is never read.
+        - Prices: review.py:run_due_reviews → prices.py:load_return_series →
+          timeseries/cache.py:load_meta_timeseries_range and
+          total_return.py:total_return_frame → corporate_actions.py:
+          stored_dividends (TIMESERIES_CACHE_BASE/corporate_actions):
+          read-only timeseries cache grant. Instrument metadata comes from the
+          image (METADATA_BUCKET is unset), so no instruments/ access.
+        """
+
+        bucket_name = data_bucket.bucket_name
+        journal_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            # bot.py:_all_transactions builds S3AccountsStore, whose prefix is
+            # read from this env var at import (backend/common/accounts_store.py).
+            "WRITABLE_ACCOUNTS_PREFIX": WRITABLE_ACCOUNTS_PREFIX,
+            "PLANS_URI": f"s3://{bucket_name}/{PLANS_PREFIX}",
+            "DECISION_JOURNAL_URI": f"s3://{bucket_name}/{DECISION_JOURNAL_PREFIX}",
+            "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
+            # Same backend.auth import-time SECRET_KEY check as the other jobs.
+            "JWT_SECRET": jwt_secret,
+        }
+        if data_repo:
+            journal_env["DATA_REPO"] = data_repo
+
+        journal_fn = _lambda.DockerImageFunction(
+            self,
+            "DecisionJournalLambda",
+            code=_lambda.DockerImageCode.from_image_asset(
+                str(project_root),
+                file="backend/Dockerfile.lambda",
+                cmd=["backend.lambda_api.decision_journal.lambda_handler"],
+            ),
+            environment=journal_env,
+            log_group=self._lambda_log_group(self, "DecisionJournalLambdaLogGroup"),
+            # Matches DecisionJournalBot.timeout_minutes (a stale "running"
+            # record is treated as crashed after that long).
+            timeout=Duration.minutes(15),
+            memory_size=512,
+        )
+        journal_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:GetObject"],
+                resources=[
+                    data_bucket.arn_for_objects(f"{prefix}/*")
+                    for prefix in (DECISION_JOURNAL_PREFIX, WRITABLE_ACCOUNTS_PREFIX, BOTS_PREFIX)
+                ],
+            )
+        )
+        self._grant_bucket_access(
+            journal_fn,
+            bucket=data_bucket,
+            allow_read=False,
+            allow_put=True,
+            allow_list=True,
+            list_prefix=(PLANS_PREFIX, DECISION_JOURNAL_PREFIX, WRITABLE_ACCOUNTS_PREFIX),
+            put_prefix=(DECISION_JOURNAL_PREFIX, BOTS_PREFIX),
+        )
+        self._grant_timeseries_cache_access(journal_fn, bucket=data_bucket, allow_put=False)
+        events.Rule(
+            self,
+            "DailyDecisionJournalRun",
+            schedule=events.Schedule.cron(minute="0", hour="3"),
+            targets=[targets.LambdaFunction(journal_fn, retry_attempts=0)],
+        )
+        return journal_fn
+
     def _bedrock_model_id(self) -> str:
         return (
             self.node.try_get_context("bedrock_model_id")
@@ -772,8 +881,13 @@ class BackendLambdaStack(Stack):
             # MCP server tools read portfolios, instrument metadata, prices and
             # timeseries metadata; same prefixes as allotmint-pro's stack (#11052).
             "mcp_server": ("accounts", "instruments", "prices", "timeseries/meta"),
-            # plan_brief discovers owners the same way (#10475).
-            "plan_brief": ("accounts",),
+            # plan_brief discovers owners the same way (#10475). plans/:
+            # plan_brief/service.py:run_brief → investment_plan.py:load_plan →
+            # S3JSONStorage.load_existing, which reads a missing <owner>.json as
+            # NoSuchKey (→ PlanNotFoundError, skipped in
+            # lambda_api/plan_brief.py:_brief_owner) only with ListBucket here;
+            # a 403 would raise instead (#10525).
+            "plan_brief": ("accounts", PLANS_PREFIX),
             # bots_digest discovers owners the same way and reads run records,
             # digest settings and saved digests under bots/ (#10501).
             "bots_digest": ("accounts", BOTS_PREFIX),
@@ -1683,6 +1797,15 @@ class BackendLambdaStack(Stack):
             mcp_server_url=mcp_server_url,
         )
 
+        decision_journal_fn = self._add_decision_journal_lambda(
+            project_root=project_root,
+            data_bucket=data_bucket,
+            env=env,
+            data_branch=data_branch,
+            data_repo=data_repo,
+            jwt_secret=jwt_secret,
+        )
+
         # Scheduled function to email a pension performance report (issue #2758)
         pension_report_code = _lambda.DockerImageCode.from_image_asset(
             str(project_root),
@@ -1857,6 +1980,10 @@ class BackendLambdaStack(Stack):
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
             "PLAN_BRIEFS_URI": f"s3://{bucket_name}/{PLAN_BRIEFS_PREFIX}",
             "PLAN_BRIEF_SEND_EMAIL": plan_brief_send_email,
+            # Plans live in S3 on AWS (#11159); without this load_plan reads the
+            # empty /tmp/data/plans and every owner is "no plan" (#10525).
+            # GetObject comes from the bucket-wide read grant below.
+            "PLANS_URI": f"s3://{bucket_name}/{PLANS_PREFIX}",
             # Same backend.auth import-time SECRET_KEY check as pension_report.
             "JWT_SECRET": jwt_secret,
         }
@@ -1881,8 +2008,8 @@ class BackendLambdaStack(Stack):
             memory_size=512,
         )
 
-        # PlanBriefLambda: read-only on account data (GetObject, plus ListBucket
-        # on accounts/ only), and s3:PutObject only under plan_briefs/ -- the
+        # PlanBriefLambda: read-only on account data and plans (GetObject, plus
+        # ListBucket on accounts/ and plans/ only), and s3:PutObject only under plan_briefs/ -- the
         # brief history it saves (backend/plan_brief/store.py), plus the alerts
         # history object. It never writes plans, allocation policy or accounts.
         self._grant_bucket_access(
@@ -1946,6 +2073,7 @@ class BackendLambdaStack(Stack):
             "pension-report": pension_report_fn,
             "data-steward": steward_fn,
             "trend-watch": trend_watch_fn,
+            "decision-journal": decision_journal_fn,
         }
         for bot_fn in bot_lambdas.values():
             bot_fn.grant_invoke(backend_fn)

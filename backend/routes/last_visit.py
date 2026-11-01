@@ -60,8 +60,9 @@ def _unavailable(exc: last_visit.LastVisitUnavailable) -> JSONResponse:
     )
 
 
-def _can_store(user: Optional[str]) -> bool:
-    return bool(user) and not is_demo_request()
+def _storable_user(user: Optional[str]) -> Optional[str]:
+    """The caller's identity when their visits may be stored (signed in, not a demo session), else None."""
+    return user if user and not is_demo_request() else None
 
 
 @router.post("/{slug}")
@@ -70,11 +71,12 @@ def record_visit(
     slug: str = Path(pattern=_SLUG_PATTERN),
     user: Optional[str] = Depends(get_active_user),
 ):
-    if not _can_store(user):
+    email = _storable_user(user)
+    if email is None:
         return NOT_STORED
     seed = body.seed.model_dump() if body and body.seed else None
     try:
-        record = last_visit.record_visit(user, slug, seed=seed)
+        record = last_visit.record_visit(email, slug, seed=seed)
     except last_visit.LastVisitUnavailable as exc:
         return _unavailable(exc)
     return {"stored": True, **record.public()}
@@ -85,10 +87,11 @@ def dismiss_visit(
     slug: str = Path(pattern=_SLUG_PATTERN),
     user: Optional[str] = Depends(get_active_user),
 ):
-    if not _can_store(user):
+    email = _storable_user(user)
+    if email is None:
         return NOT_STORED
     try:
-        record = last_visit.dismiss_visit(user, slug)
+        record = last_visit.dismiss_visit(email, slug)
     except last_visit.LastVisitUnavailable as exc:
         return _unavailable(exc)
     return {"stored": True, **record.public()}

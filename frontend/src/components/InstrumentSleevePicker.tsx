@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useOwnerSleeveControl } from "../hooks/useOwnerSleeveControl";
 import type { InstrumentPosition } from "../types";
@@ -11,6 +11,8 @@ import { SleeveSelect } from "./HoldingSleeveCell";
  */
 function OwnerSleevePicker({ owner, ticker }: { owner: string; ticker: string }) {
   const { t } = useTranslation();
+  // One picker per owner on the page, so the label id must be per instance.
+  const labelId = useId();
   const control = useOwnerSleeveControl(owner);
   // Match and write with the same key the backend stores tags under.
   const key = ticker.trim().toUpperCase();
@@ -18,8 +20,11 @@ function OwnerSleevePicker({ owner, ticker }: { owner: string; ticker: string })
   const label = t("sleeves.assign.sleeveForOwner", { ticker: key, owner });
   return (
     <div style={{ marginBottom: "0.5rem" }}>
-      <span style={{ marginRight: "0.5rem" }}>{label}</span>
-      <SleeveSelect control={control} ticker={key} label={label} />
+      {/* The visible text is the select's only accessible name (#11173). */}
+      <span id={labelId} style={{ marginRight: "0.5rem" }}>
+        {label}
+      </span>
+      <SleeveSelect control={control} ticker={key} labelledBy={labelId} />
     </div>
   );
 }

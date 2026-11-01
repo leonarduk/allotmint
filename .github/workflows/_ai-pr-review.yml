@@ -324,11 +324,25 @@ jobs:
           create_label_if_missing "local-7b" "0e8a16" "Doable by a local LLM (qwen2.5-coder:7b)"
           create_label_if_missing "local-14b" "1d76db" "Doable by a local LLM (qwen2.5-coder:14b); too hard for 7b"
 
+          # File only follow-ups the review tagged [gap]: [nit], untagged and
+          # nit-worded ones (comments, docs, renames, "consider ...") are dropped
+          # so the backlog only gains real gaps. No cap on real gaps.
+          # See .github/scripts/filter_followups.py.
+          kept=$(python3 .github/scripts/filter_followups.py \
+            /tmp/${{ inputs.provider_id }}_review_body.md /tmp/${{ inputs.provider_id }}_followups_body.md)
+          if [ "$kept" = "0" ]; then
+            echo "No [gap] follow-ups in the review; filing none."
+            exit 0
+          fi
+          echo "Filing $kept [gap] follow-up(s)."
+
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
-          python3 -m cicaid_devtools.lib.followups /tmp/${{ inputs.provider_id }}_review_body.md \
+          python3 -m cicaid_devtools.lib.followups /tmp/${{ inputs.provider_id }}_followups_body.md \
             > /tmp/followups.json
+          # Give the issue creator the filtered body too, so no dropped follow-up
+          # can reach it however it uses this context argument.
           python3 -m cicaid_devtools.lib.followup_issues \
-            /tmp/followups.json "${PR_NUMBER}" /tmp/${{ inputs.provider_id }}_review_body.md
+            /tmp/followups.json "${PR_NUMBER}" /tmp/${{ inputs.provider_id }}_followups_body.md
 
       # Clear a stale 'Changes Requested' label now, while this job still has a
       # runner. sync-changes-requested-label.yml does the same after the run

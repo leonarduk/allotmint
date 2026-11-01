@@ -100,6 +100,15 @@ def test_run_without_plan_is_422(data_root):
     assert "no investment plan" in resp.json()["detail"]
 
 
+def test_run_accepts_an_explicit_fee(data_root):
+    client = _client(data_root)
+    params = {"death_age": 80, "retirement_age": 60, "fee_pct": 0.75}
+    resp = client.post("/retirement-readiness/alex/run", params=params)
+    assert resp.status_code == 200, resp.text
+    assert (resp.json()["inputs"]["fee_pct"], resp.json()["inputs"]["fee_source"]) == (0.75, "settings")
+    assert client.post("/retirement-readiness/alex/run", params={**params, "fee_pct": 11}).status_code == 422
+
+
 def test_bad_survival_levels_is_400(data_root):
     client = _client(data_root)
     assert client.post("/retirement-readiness/alex/run", params={"survival_levels": "x"}).status_code == 400

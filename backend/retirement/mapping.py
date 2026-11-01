@@ -7,6 +7,9 @@ class (e.g. corporate bonds replayed as 10-year gilts); those classes count
 towards ``proxy_share_pct``. ``fallback`` names a block used, and reported, in
 years where a primary block has no data; with no fallback such years are
 unavailable and any window touching them is dropped.
+
+``fee_pct`` (the owner's all-in annual cost, #10482) is subtracted from each
+available year's real return; 0 leaves the series gross of charges.
 """
 
 from __future__ import annotations
@@ -71,6 +74,7 @@ class PlanReturns:
     proxies: list[dict]
     fallback_years: dict[str, list[int]]
     unavailable_reasons: dict[int, list[str]]
+    fee_pct: float = 0.0
 
 
 def _normalise(weights_pct: Mapping[str, float]) -> dict[str, float]:
@@ -127,15 +131,18 @@ def _year_return(
     return (1.0 + nominal) / (1.0 + cpi) - 1.0, []
 
 
-def plan_real_returns(weights_pct: Mapping[str, float], history: LongHistory) -> PlanReturns:
-    """Real (CPI-deflated) annual return of the plan mix for every year in ``history``."""
+def plan_real_returns(weights_pct: Mapping[str, float], history: LongHistory, fee_pct: float = 0.0) -> PlanReturns:
+    """Real (CPI-deflated) annual return of the plan mix for every year in ``history``, net of ``fee_pct``."""
+    if fee_pct < 0:
+        raise ValueError("fee_pct must not be negative")
+    fee = fee_pct / 100.0
     weights = _normalise(weights_pct)
     fallback_years: dict[str, list[int]] = {}
     unavailable: dict[int, list[str]] = {}
     real: dict[int, Optional[float]] = {}
     for year in history.years:
         value, reasons = _year_return(weights, history, year, fallback_years)
-        real[year] = value
+        real[year] = None if value is None else value - fee
         if reasons:
             unavailable[year] = reasons
     proxies: list[dict[str, Any]] = [
@@ -150,6 +157,7 @@ def plan_real_returns(weights_pct: Mapping[str, float], history: LongHistory) ->
         proxies=proxies,
         fallback_years=fallback_years,
         unavailable_reasons=unavailable,
+        fee_pct=float(fee_pct),
     )
 
 

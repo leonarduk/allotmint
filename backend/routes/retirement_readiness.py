@@ -78,6 +78,9 @@ def run_now(
     contribution_annual: Annotated[Optional[float], Query(ge=0)] = None,
     investment_growth_pct: Annotated[Optional[float], Query(ge=-50, le=50)] = None,
     assumed_inflation_pct: Annotated[Optional[float], Query(ge=-10, le=50)] = None,
+    fee_pct: Annotated[
+        Optional[float], Query(ge=0, le=10, description="All-in annual fees %; default: the owner's all-in cost")
+    ] = None,
 ):
     owner = _owner(request, owner, identity)
     levels, error = _survival_levels(survival_levels)
@@ -92,6 +95,7 @@ def run_now(
         "contribution_annual": contribution_annual,
         "investment_growth_pct": investment_growth_pct,
         "assumed_inflation_pct": assumed_inflation_pct,
+        "fee_pct": fee_pct,
     }
     try:
         return run(owner, overrides=overrides, request=request)

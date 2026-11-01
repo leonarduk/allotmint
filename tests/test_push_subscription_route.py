@@ -76,12 +76,19 @@ def test_push_subscription_falls_back_to_default_dataset(client, tmp_path, monke
     assert alert_utils.get_user_push_subscription(owner) == payload
 
 
-def test_push_subscription_allows_demo_owner_without_auth(client):
+def test_push_subscription_requires_sign_in_once_auth_is_enabled(client):
+    """With auth enabled an anonymous caller can no longer register for an owner's alerts (#11351).
+
+    This used to assert a 200: with ``disable_auth`` flipped off after the app
+    was built (so the router has no ``get_current_user`` dependency) anyone
+    could point another owner's Web Push alerts at their own endpoint. The
+    route now resolves the caller and checks owner access itself.
+    """
     owner = "demo"
     payload = {"endpoint": "https://ex", "keys": {"p256dh": "pub", "auth": "secret"}}
 
     backend_config.config.disable_auth = False
 
     resp = client.post(f"/alerts/push-subscription/{owner}", json=payload)
-    assert resp.status_code == 200
-    assert alert_utils.get_user_push_subscription(owner) == payload
+    assert resp.status_code == 401
+    assert alert_utils.get_user_push_subscription(owner) is None

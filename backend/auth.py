@@ -840,6 +840,28 @@ async def get_active_user(request: Request, token: str | None = Depends(oauth2_s
     return user
 
 
+async def get_owner_check_identity(request: Request, token: str | None = Depends(oauth2_scheme)) -> str | None:
+    """Return the caller to pass to ``ensure_owner_access`` on a per-owner route (#11351).
+
+    With auth enabled this is :func:`get_active_user`: the signed-in identity,
+    a 401 with no valid token, and any test override of
+    :func:`get_current_user` applies.
+
+    With ``disable_auth`` it returns ``None`` without reading the token, and
+    ``ensure_owner_access`` decides from there. Under ``ENFORCE_OWNER_ACCESS``
+    it checks the identity ``demo_scope_gate`` bound to the request
+    (:func:`resolve_gateway_identity`, #11087). With the flag off it does
+    nothing. A demo token is confined either way, because the middleware has
+    already marked the request (#7408). Resolving the token here instead would
+    let ``_resolve_identity_when_auth_disabled`` return 401/403 for tokens
+    these routes used to accept.
+    """
+
+    if config.disable_auth:
+        return None
+    return await get_active_user(request, token)
+
+
 def _email_verified(value: Any) -> bool:
     if isinstance(value, bool):
         return value

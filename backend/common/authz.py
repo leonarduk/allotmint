@@ -128,17 +128,3 @@ def ensure_owner_access(
             len(_allowed_identities(owner, meta)),
         )
         raise PermissionDeniedError(_FORBIDDEN_DETAIL, safe_detail=_FORBIDDEN_DETAIL)
-
-
-def ensure_request_owner_access(owner: str, accounts_root: Optional[Path] = None) -> None:
-    """Check ``owner`` access on a route that never resolves identity itself (#11087).
-
-    Acts only while ``config.enforce_owner_access`` is on with ``disable_auth``
-    -- the deployed Lambda once the flag is flipped -- taking the caller from
-    the identity ``demo_scope_gate`` binds to the request. Otherwise it does
-    nothing, so these routes behave exactly as before with the flag off.
-    """
-
-    if not auth_module.owner_access_enforced_under_disable_auth():
-        return
-    ensure_owner_access(auth_module.request_identity(), owner, accounts_root)

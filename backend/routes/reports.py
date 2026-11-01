@@ -3,10 +3,12 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from backend.auth import get_owner_check_identity
+from backend.common.authz import ensure_owner_access
 from backend.common.errors import log_owner_not_found
 from backend.reports import (
     DEFAULT_TEMPLATE_ID,
@@ -20,11 +22,23 @@ from backend.reports import (
     report_to_pdf,
     update_user_template,
 )
+from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(tags=["reports"])
 
 # Same shape the /performance benchmark parameter accepts (e.g. VWRL.L).
 _BENCHMARK_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+
+
+def _ensure_report_access(owner: str, request: Request, identity: Optional[str]) -> None:
+    """Check the caller may read ``owner`` before any report is built (#11351).
+
+    Checked on the canonical owner directory name when one exists, so a
+    differently-cased slug is matched against the right ``person.json``.
+    """
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    ensure_owner_access(identity, owner_dir.name if owner_dir else owner, accounts_root)
 
 
 def _validate_benchmark(value: str) -> str:
@@ -108,6 +122,8 @@ def delete_template(template_id: str) -> Response:
 @router.get("/reports/{owner}")
 def owner_report(
     owner: str,
+    request: Request,
+    identity: Optional[str] = Depends(get_owner_check_identity),
     start: Optional[str] = None,
     end: Optional[str] = None,
     watermark: Optional[str] = None,
@@ -115,6 +131,7 @@ def owner_report(
 ):
     """Return summary report for ``owner``."""
 
+    _ensure_report_access(owner, request, identity)
     start_d = _parse_date(start)
     end_d = _parse_date(end)
     watermark_text = watermark.strip() if watermark else None
@@ -151,6 +168,8 @@ def owner_report(
 def owner_template_report(
     owner: str,
     template_id: str,
+    request: Request,
+    identity: Optional[str] = Depends(get_owner_check_identity),
     start: Optional[str] = None,
     end: Optional[str] = None,
     watermark: Optional[str] = None,
@@ -163,6 +182,7 @@ def owner_template_report(
     to the last complete month-end); ``benchmark`` overrides the configured
     ``report_benchmark`` for templates that compare against one.
     """
+    _ensure_report_access(owner, request, identity)
     start_d = _parse_date(start)
     end_d = _parse_date(end)
     watermark_text = watermark.strip() if watermark else None

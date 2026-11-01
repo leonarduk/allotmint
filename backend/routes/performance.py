@@ -5,14 +5,17 @@ from __future__ import annotations
 import datetime as dt
 import re
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, Optional, TypeVar
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from backend.auth import get_owner_check_identity
 from backend.common import portfolio_utils, risk_return
+from backend.common.authz import ensure_owner_access
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.common.portfolio_cache import sharing_performance_inputs
 from backend.config import config
+from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
 
 router = APIRouter(tags=["performance"])
@@ -55,6 +58,20 @@ def _validate_owner_slug(value: str, field_name: str) -> str:
     return candidate
 
 
+def _authorised_owner(owner: str, request: Request, identity: Optional[str]) -> str:
+    """Validate ``owner`` and check the caller may read it (#11351).
+
+    The check runs on the canonical owner directory name when one exists, so a
+    differently-cased slug is matched against the right ``person.json``.
+    Returns the validated slug unchanged for the metric computation.
+    """
+    slug = _validate_owner_slug(owner, "owner")
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, slug)
+    ensure_owner_access(identity, owner_dir.name if owner_dir else slug, accounts_root)
+    return slug
+
+
 def _validate_benchmark(value: str) -> str:
     candidate = (value or "").strip().upper()
     if (
@@ -86,12 +103,14 @@ def _resolve_as_of(as_of: str | None) -> dt.date | None:
 @_shares_performance_inputs
 def owner_alpha(
     owner: str,
+    request: Request,
+    identity: Optional[str] = Depends(get_owner_check_identity),
     benchmark: str = "VWRL.L",
     days: int = 365,
     as_of: str | None = None,
 ):
     """Return portfolio alpha vs. benchmark for ``owner``."""
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     benchmark = _validate_benchmark(benchmark)
     try:
         val, breakdown = portfolio_utils.compute_alpha_vs_benchmark(
@@ -113,12 +132,14 @@ def owner_alpha(
 @_shares_performance_inputs
 def owner_tracking_error(
     owner: str,
+    request: Request,
+    identity: Optional[str] = Depends(get_owner_check_identity),
     benchmark: str = "VWRL.L",
     days: int = 365,
     as_of: str | None = None,
 ):
     """Return tracking error vs. benchmark for ``owner``."""
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     benchmark = _validate_benchmark(benchmark)
     try:
         val, breakdown = portfolio_utils.compute_tracking_error(
@@ -138,9 +159,15 @@ def owner_tracking_error(
 @router.get("/performance/{owner}/max-drawdown")
 @handle_owner_not_found
 @_shares_performance_inputs
-def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = None):
+def owner_max_drawdown(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    as_of: str | None = None,
+    identity: Optional[str] = Depends(get_owner_check_identity),
+):
     """Return max drawdown for ``owner``."""
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     try:
         val, breakdown = portfolio_utils.compute_max_drawdown(
             owner,
@@ -158,9 +185,15 @@ def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = None):
 @router.get("/performance/{owner}/twr")
 @handle_owner_not_found
 @_shares_performance_inputs
-def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
+def owner_twr(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    as_of: str | None = None,
+    identity: Optional[str] = Depends(get_owner_check_identity),
+):
     """Return time-weighted return for ``owner``."""
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     try:
         val = portfolio_utils.compute_time_weighted_return(owner, days, pricing_date=_resolve_as_of(as_of))
         return {"owner": owner, "time_weighted_return": val}
@@ -170,12 +203,18 @@ def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
 
 @router.get("/performance/{owner}/total-return")
 @handle_owner_not_found
-def owner_total_return(owner: str, days: int = 365, as_of: str | None = None):
+def owner_total_return(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    as_of: str | None = None,
+    identity: Optional[str] = Depends(get_owner_check_identity),
+):
     """Return ``owner``'s total return (price plus income, net of deposits) over ``days`` (#10763).
 
     Both figures are ``None`` when the owner has no transaction ledger.
     """
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     try:
         result = portfolio_utils.compute_total_return(owner, days, pricing_date=_resolve_as_of(as_of))
     except FileNotFoundError:
@@ -191,9 +230,15 @@ def owner_total_return(owner: str, days: int = 365, as_of: str | None = None):
 @router.get("/performance/{owner}/xirr")
 @handle_owner_not_found
 @_shares_performance_inputs
-def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
+def owner_xirr(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    as_of: str | None = None,
+    identity: Optional[str] = Depends(get_owner_check_identity),
+):
     """Return XIRR for ``owner``."""
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     try:
         val = portfolio_utils.compute_xirr(owner, days, pricing_date=_resolve_as_of(as_of))
         return {"owner": owner, "xirr": val}
@@ -203,7 +248,13 @@ def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
 
 @router.get("/performance/{owner}/fx-attribution")
 @handle_owner_not_found
-def owner_fx_attribution(owner: str, days: int = 365, as_of: str | None = None):
+def owner_fx_attribution(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    as_of: str | None = None,
+    identity: Optional[str] = Depends(get_owner_check_identity),
+):
     """Split ``owner``'s ledger P&L over the window into local, FX, income and other (#9804).
 
     The window matches ``/performance/{owner}/twr``. ``fx_attribution`` is
@@ -211,7 +262,7 @@ def owner_fx_attribution(owner: str, days: int = 365, as_of: str | None = None):
     attributed: the ledger books every cash amount in GBP, so FX on foreign
     cash balances is not modelled (``cash_fx_modelled: false``).
     """
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     try:
         result = portfolio_utils.compute_fx_attribution(owner, days, pricing_date=_resolve_as_of(as_of))
         return {"owner": owner, "fx_attribution": result}
@@ -221,9 +272,14 @@ def owner_fx_attribution(owner: str, days: int = 365, as_of: str | None = None):
 
 @router.get("/performance/{owner}/holdings")
 @handle_owner_not_found
-def owner_holdings(owner: str, date: str):
+def owner_holdings(
+    owner: str,
+    date: str,
+    request: Request,
+    identity: Optional[str] = Depends(get_owner_check_identity),
+):
     """Return holding values for ``owner`` on a specific date."""
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     try:
         rows = portfolio_utils.portfolio_value_breakdown(owner, date)
         return {"owner": owner, "date": date, "holdings": rows}
@@ -421,6 +477,8 @@ def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
 @_shares_performance_inputs
 def performance(
     owner: str,
+    request: Request,
+    identity: Optional[str] = Depends(get_owner_check_identity),
     days: int = 365,
     exclude_cash: bool = False,
     as_of: str | None = None,
@@ -430,7 +488,7 @@ def performance(
     Set ``exclude_cash`` to true to ignore cash holdings when reconstructing the
     return series.
     """
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     try:
         result = portfolio_utils.compute_owner_performance(
             owner,
@@ -445,9 +503,14 @@ def performance(
 
 @router.get("/returns/compare")
 @handle_owner_not_found
-def compare_returns(owner: str, days: int = 365):
+def compare_returns(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    identity: Optional[str] = Depends(get_owner_check_identity),
+):
     """Return portfolio CAGR and cash APY for ``owner``."""
-    owner = _validate_owner_slug(owner, "owner")
+    owner = _authorised_owner(owner, request, identity)
     try:
         cagr = portfolio_utils.compute_cagr(owner, days)
         cash_apy = portfolio_utils.compute_cash_apy(owner, days)

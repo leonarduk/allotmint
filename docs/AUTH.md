@@ -487,10 +487,20 @@ checks already run. When it is on:
   `/groups`, `/owners`' `disable_auth` branch) read it from there.
 - **`ensure_owner_access`** runs the owner/email/`viewers` check instead of
   standing down. It uses the request's identity when the caller passed none.
-- **`/portfolio/{owner}`** and its `/sectors`, `/currencies`, `/look-through`
-  routes, plus `/var/{owner}` and `/account/{owner}/{account}`, check the
-  owner through `ensure_request_owner_access`. With the flag off that helper
-  does nothing, so these routes behave as before.
+- **Per-owner routes** (`/portfolio/{owner}` and its `/sectors`,
+  `/currencies` and `/look-through` sub-routes, `/var/{owner}`,
+  `/account/{owner}/{account}`, `/performance/{owner}/*`,
+  `/returns/compare?owner=`, `/reports/{owner}[/{template_id}]`, and
+  `/alerts/settings|push-subscription/{user}`) take the caller from
+  `Depends(get_owner_check_identity)` and call `ensure_owner_access`.
+  - **Auth enabled:** that dependency is `get_active_user`, so the check runs
+    against the signed-in identity.
+  - **`disable_auth` on:** it returns `None` without reading the token. Under
+    this flag `ensure_owner_access` then checks the identity the middleware
+    bound. With the flag off it does nothing, as before.
+  - **Demo tokens:** confined in every mode.
+
+  (#11351)
 - **Listings.** `_list_aws_plots`/`_list_local_plots` filter by the request's
   identity when the caller passed no user. `/owners` lists exactly the owners
   the caller may read, with no synthetic demo fallback. The `all` group (and

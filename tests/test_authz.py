@@ -329,17 +329,6 @@ def test_ensure_owner_access_still_no_ops_with_the_flag_off(enforced, monkeypatc
     authz.ensure_owner_access(VIEWER_A, Y)
 
 
-def test_ensure_request_owner_access_only_acts_when_enforced(enforced, monkeypatch):
-    token = auth.current_user.set(VIEWER_A)
-    try:
-        with pytest.raises(PermissionDeniedError):
-            authz.ensure_request_owner_access(Y)
-        monkeypatch.setattr(config, "enforce_owner_access", False)
-        authz.ensure_request_owner_access(Y)
-    finally:
-        auth.current_user.reset(token)
-
-
 def test_flag_needs_disable_auth_to_matter(monkeypatch):
     monkeypatch.setattr(config, "enforce_owner_access", True)
     monkeypatch.setattr(config, "disable_auth", False)

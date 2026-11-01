@@ -29,8 +29,16 @@ ALLOTMINT_REPO_PROFILE = RepoProfile(
     ),
     dimension_2_body=(
         "Blocking only: incorrect behaviour, unhandled edge cases, off-by-one "
-        "errors, or security/data-loss risks. For documentation PRs: factual "
-        "errors or dangerously misleading statements."
+        "errors, or security/data-loss risks that you can show from the diff "
+        "itself, citing the changed line. For documentation PRs: factual "
+        "errors or dangerously misleading statements. Never blocking (raise "
+        "them as a question or a follow-up instead): anything that depends on "
+        'code outside the diff that you cannot see (say "cannot verify from '
+        'the diff"); acceptance criteria the PR description explicitly scopes '
+        'out, or an issue the PR only references with "Refs" rather than '
+        '"Closes"; points the PR discussion already answers with file:line '
+        "evidence, unless you can show that evidence is wrong; and style, "
+        "naming, documentation or test-structure preferences."
     ),
     dimension_3_title="API, data, and workflow safety",
     dimension_3_body=(
@@ -72,7 +80,15 @@ ALLOTMINT_REPO_PROFILE = RepoProfile(
         "refactors, 'consider ...' ideas, extra assertions or parametrisations "
         "for behaviour that is already tested, and hardening against inputs "
         "that cannot occur. Only `[gap]` follow-ups are filed as issues, so "
-        "tag honestly and list as many real gaps as there are."
+        "tag honestly and list as many real gaps as there are.\n"
+        "- **When to REQUEST CHANGES.** Request changes only for a defect you "
+        "can demonstrate from the diff (dimension 2's blocking list). If you "
+        "would block on something you cannot see, such as a caller, a file "
+        "outside the diff or code already on `main`, APPROVE and list it under "
+        "dimension 4 or 5 instead. On a re-review, judge the current diff on "
+        "its own: do not re-raise a point the PR discussion has already "
+        "answered with evidence, and do not treat a merge commit that only "
+        "brings in `main` as new logic to block on."
     ),
 )
 

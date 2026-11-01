@@ -877,6 +877,27 @@ def test_backend_lambda_disables_app_jwt_decode_for_cognito_authorizer(template)
     )
 
 
+def test_backend_lambda_ships_with_owner_access_enforcement_off(template):
+    """ENFORCE_OWNER_ACCESS is set explicitly to "false" on the backend Lambda (#11087).
+
+    Flipping per-owner checks on is then a one-line change once each
+    person.json's email/viewers has been audited (docs/AUTH.md).
+    """
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "Environment": {
+                "Variables": assertions.Match.object_like(
+                    {
+                        "DISABLE_AUTH": "true",
+                        "ENFORCE_OWNER_ACCESS": "false",
+                    }
+                )
+            }
+        },
+    )
+
+
 def test_backend_api_has_gateway_lambda_authorizer(template):
     """API Gateway must run the demo/Cognito Lambda authorizer (#7522) before
     invoking the backend Lambda on the ANY / and ANY /{proxy+} routes.

@@ -462,6 +462,84 @@ is exercised.
 - Ships disabled by default (`demo_link_enabled: false`); this entire path is
   inert on a deployment that hasn't explicitly opted in.
 
+## Per-owner access on AWS (`ENFORCE_OWNER_ACCESS`, #11087)
+
+The gateway decides *who may use the app*; `person.json` decides *whose
+portfolio they may read* (the owner id, the owner's `email`, or an entry in
+`viewers`). The backend Lambda runs with `DISABLE_AUTH=true` because API
+Gateway does the sign-in (see "Deployed-gateway auth" above), and
+`disable_auth` used to switch the `person.json` checks off too:
+`ensure_owner_access` returned early, and `list_plots()` showed every owner in
+`/owners` and the `all` group. So any allowlisted user could read every
+owner's data.
+
+`ENFORCE_OWNER_ACCESS` (config key `enforce_owner_access`, default `false`)
+closes that. It only matters with `disable_auth` on; with auth enabled the
+checks already run. When it is on:
+
+- **Identity.** `demo_scope_gate` middleware binds the caller to every request
+  (`backend.auth.current_user`) with `resolve_gateway_identity`: our own
+  backend JWT if it verifies, else the `email` (or `sub`) claim of the Cognito
+  ID token the gateway authorizer already verified, else, with no token, the
+  configured local login. It resets that binding first on every request, so a
+  reused Lambda environment can't carry one caller into the next. Routes that
+  never resolve identity themselves (the `/portfolio-group/{slug}` family,
+  `/groups`, `/owners`' `disable_auth` branch) read it from there.
+- **`ensure_owner_access`** runs the owner/email/`viewers` check instead of
+  standing down. It uses the request's identity when the caller passed none.
+- **`/portfolio/{owner}`** and its `/sectors`, `/currencies`, `/look-through`
+  routes, plus `/var/{owner}` and `/account/{owner}/{account}`, check the
+  owner through `ensure_request_owner_access`. With the flag off that helper
+  does nothing, so these routes behave as before.
+- **Listings.** `_list_aws_plots`/`_list_local_plots` filter by the request's
+  identity when the caller passed no user. `/owners` lists exactly the owners
+  the caller may read, with no synthetic demo fallback. The `all` group (and
+  every other group) only has those owners.
+- **Caches.** Group results are cached per slug (`portfolio_cache`). The key
+  now includes the caller's scope (`portfolio_cache.access_scope()`): the demo
+  owner for a demo token, `("user", <identity>)` under this flag, else `None`.
+  So two users never share an entry. The shared performance inputs and the
+  `/opportunities?group=` response cache use the same scope.
+- **No identity means no access.** A request with no resolvable identity (no
+  token and no `local_login_email`, or a token with no readable `email`/`sub`)
+  gets `403` from per-owner routes and an empty `/owners` and groups. It never
+  falls back to "every owner". On AWS this only happens if a request reaches
+  the Lambda without a bearer token. The gateway authorizer rejects those on
+  every route except its bypass list, which serves no owner data, and
+  `config.lambda.yaml` leaves `local_login_email` empty.
+- **Unchanged:** demo tokens (#7408) are still checked first and confined to
+  `demo_link_owner`, whether the flag is on or off. Trusted system jobs
+  (`system_job_context`, the scheduled Lambdas) still list every owner.
+  Locally the flag can be turned on too: identity then comes from
+  `local_login_email` or a bearer token, and anonymous requests are denied.
+
+With the flag **off** (the default) nothing changes, on AWS or locally.
+Anonymous local `disable_auth` development keeps working.
+
+### Rollout checklist
+
+`cdk/stacks/backend_lambda_stack.py` sets `ENFORCE_OWNER_ACCESS: "false"` on
+the backend Lambda (pinned by `cdk/tests/test_backend_lambda_stack.py`).
+Before changing it:
+
+1. For every owner under `accounts/` in the data bucket, open `person.json`
+   and check `email` is the address that owner signs in to Cognito with.
+2. Add every other person who should see that owner to `viewers`, using the
+   address they sign in with (for example both parents on a child's
+   account). Matching ignores case. An owner nobody lists is visible to nobody
+   but themselves.
+3. Check the `ALLOWED_EMAILS` bootstrap allowlist. Those addresses get no
+   owner access of their own. Each one needs to appear as an `email` or
+   viewer somewhere, or they will see an empty app.
+4. Set `"ENFORCE_OWNER_ACCESS": "true"` in `backend_lambda_stack.py`, update
+   the CDK test, and deploy.
+5. Sign in as each person and check `/owners` and the "At a glance" dashboard
+   list the expected owners. To roll back, set it to `"false"` and redeploy.
+
+#10531 (a per-group access check on the group routes) depends on this: an
+`ensure_group_access` built on `ensure_owner_access` would do nothing on AWS
+with the flag off.
+
 ## Diagnosing auth failures
 
 Auth can fail at two distinct boundaries, and each is observed differently.
@@ -545,7 +623,8 @@ to use the tool (#6130).
   passes it through to the Lambda when present.
 - This is a fix, not a broadening: it is still an explicit, small allowlist —
   it does not open access to arbitrary Cognito users, and per-owner data
-  access is still gated separately by `ensure_owner_access`.
+  access is still gated separately by `ensure_owner_access` (on AWS only once
+  `ENFORCE_OWNER_ACCESS` is on; see "Per-owner access on AWS" above).
 - If the S3 owner listing fails (e.g. a transient AWS error), the bootstrap
   allowlist alone is still honoured rather than rejecting everyone, so a
   transient error can't lock the owner out.

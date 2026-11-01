@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
-from backend.auth import get_current_user
+from backend.auth import get_current_user, owner_access_enforced_under_disable_auth
 from backend.common import (
     constants,
     data_loader,
@@ -36,6 +36,7 @@ from backend.common import (
 )
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_models import ACCOUNT_METADATA_STEMS, OwnerSummaryRecord, PersonMetadata
+from backend.common.authz import ensure_request_owner_access
 from backend.common.core_optional import require_core
 from backend.common.errors import log_owner_not_found
 from backend.common.portfolio_cache import cached_group_portfolio, invalidate_group_portfolios
@@ -491,6 +492,12 @@ def _list_owner_summaries(request: Request, current_user: Optional[str] = None) 
         if normalised:
             summaries.append(normalised)
 
+    if owner_access_enforced_under_disable_auth():
+        # The synthetic demo fallbacks below are for local/demo mode. With
+        # owner access enforced (#11087) the listing is exactly the owners the
+        # caller may read -- empty for a caller with none, or no identity.
+        return [OwnerSummary(**summary) for summary in summaries]
+
     def _append_demo_summary() -> None:
         summaries.append(_build_demo_summary(accounts_root))
 
@@ -544,6 +551,7 @@ def portfolio(owner: str, request: Request, as_of: str | None = None):
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
+    ensure_request_owner_access(owner, accounts_root)
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
@@ -559,6 +567,7 @@ def portfolio_sectors(owner: str, request: Request, as_of: str | None = None):
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
+    ensure_request_owner_access(owner, accounts_root)
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
@@ -579,6 +588,7 @@ def portfolio_currencies(owner: str, request: Request, as_of: str | None = None)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
+    ensure_request_owner_access(owner, accounts_root)
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
@@ -599,6 +609,7 @@ def portfolio_look_through(owner: str, request: Request, as_of: str | None = Non
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
+    ensure_request_owner_access(owner, accounts_root)
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
@@ -625,6 +636,7 @@ def portfolio_var(
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
+    ensure_request_owner_access(owner, accounts_root)
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
     except FileNotFoundError:
@@ -654,6 +666,7 @@ def portfolio_var_breakdown(
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
+    ensure_request_owner_access(owner, accounts_root)
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         scenario_payload = risk.compute_portfolio_var_scenarios(
@@ -700,6 +713,7 @@ def portfolio_var_recompute(
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
+    ensure_request_owner_access(owner, accounts_root)
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
     except FileNotFoundError:
@@ -936,6 +950,7 @@ def group_movers(
 @router.get("/account/{owner}/{account}")
 def get_account(owner: str, account: str, request: Request):
     root = resolve_accounts_root(request)
+    ensure_request_owner_access(owner, root)
 
     try:
         data = data_loader.load_account_record(owner, account, root).model_dump(exclude_unset=True)

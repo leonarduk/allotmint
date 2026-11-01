@@ -512,6 +512,25 @@ def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> No
     base.update(validated.model_dump(exclude_none=True, exclude_defaults=True))
 
 
+def _owner_access_enforced() -> bool:
+    """Return whether owner listings filter by viewer under ``disable_auth`` (#11087).
+
+    Imported lazily because ``backend.auth`` imports back into this module.
+    """
+
+    from backend.auth import owner_access_enforced_under_disable_auth
+
+    return owner_access_enforced_under_disable_auth()
+
+
+def _request_identity() -> Optional[str]:
+    """Return the identity bound to the current request (see ``backend.auth.request_identity``)."""
+
+    from backend.auth import request_identity
+
+    return request_identity()
+
+
 def _list_local_plots(
     data_root: Optional[Path] = None,
     current_user: Optional[str] = None,
@@ -530,6 +549,9 @@ def _list_local_plots(
     """
 
     user = current_user.get(None) if hasattr(current_user, "get") else current_user
+    enforce_owner_access = _owner_access_enforced()
+    if user is None and enforce_owner_access:
+        user = _request_identity()
 
     demo_aliases = demo_identity_aliases()
     demo_identity = get_demo_identity()
@@ -555,7 +577,7 @@ def _list_local_plots(
         if user is None and is_system_job():
             return True
 
-        if config.disable_auth:
+        if config.disable_auth and not enforce_owner_access:
             if user is None:
                 return True
             # Fall back to the identity checks below when a caller supplies a
@@ -563,7 +585,9 @@ def _list_local_plots(
             # emulate logged-in views and still respect per-account viewer
             # permissions.
 
-        if config.disable_auth is False and user is None:
+        # With ENFORCE_OWNER_ACCESS on (#11087) a request with no identity sees
+        # nobody, exactly as with auth enabled.
+        if (config.disable_auth is False or enforce_owner_access) and user is None:
             return False
 
         if isinstance(user, str):
@@ -865,6 +889,13 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
             return []
         return [_build_owner_summary(demo_owner, owners[demo_owner], load_person_meta(demo_owner))]
 
+    # With ENFORCE_OWNER_ACCESS on (#11087) a caller that passed no user is
+    # filtered as the identity bound to the request, and sees nobody without one.
+    enforce_owner_access = _owner_access_enforced()
+    if current_user is None and enforce_owner_access:
+        current_user = _request_identity()
+        user = current_user
+
     system_job = current_user is None and is_system_job()
     results: List[Dict[str, Any]] = []
     for owner, accounts in sorted(owners.items()):
@@ -874,7 +905,7 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
         # treating that as "auth disabled" avoids filtering everything.
         # Trusted system jobs are the exception: they have no user but must
         # see every owner (#8805).
-        if config.disable_auth is False and current_user is None and not system_job:
+        if (config.disable_auth is False or enforce_owner_access) and current_user is None and not system_job:
             continue
         meta = load_person_meta(owner)
         if current_user:

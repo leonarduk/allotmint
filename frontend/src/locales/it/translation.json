@@ -1896,6 +1896,7 @@
         "offline_mode": "Usa solo i dati in cache e non effettua chiamate a fornitori esterni di prezzi o dati.",
         "google_auth_enabled": "Richiede l'accesso con Google per usare l'app.",
         "disable_auth": "Disattiva completamente l'autenticazione (solo uso locale).",
+        "enforce_owner_access": "Controlla l'email e i visualizzatori di ogni titolare anche con l'autenticazione disattivata (per installazioni dietro un gateway di accesso).",
         "demo_identity": "Titolare mostrato quando l'app è in modalità locale o demo senza accesso.",
         "smoke_identity": "Titolare con cui vengono eseguiti i test smoke automatici.",
         "demo_link_enabled": "Consente di creare link demo condivisibili di sola lettura (interruttore generale).",

@@ -1896,6 +1896,7 @@
         "offline_mode": "Usa solo datos en caché y no realiza llamadas a proveedores externos de precios o datos.",
         "google_auth_enabled": "Exige iniciar sesión con Google para usar la aplicación.",
         "disable_auth": "Desactiva por completo la autenticación (solo para uso local).",
+        "enforce_owner_access": "Comprueba el correo y los lectores de cada titular aunque la autenticación esté desactivada (para despliegues tras una pasarela de inicio de sesión).",
         "demo_identity": "Titular mostrado cuando la aplicación se ejecuta en modo local o demo sin iniciar sesión.",
         "smoke_identity": "Titular con el que se ejecutan las pruebas de humo automatizadas.",
         "demo_link_enabled": "Permite crear enlaces demo compartibles de solo lectura (interruptor general).",

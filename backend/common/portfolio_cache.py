@@ -32,8 +32,13 @@ alone when :func:`backend.auth.is_demo_request` is true (see the #7408 note in
 ``_list_local_plots``). Caching one caller's result under a key that ignores
 that would serve a demo-link visitor every real owner's holdings -- exactly
 the leak #7402 closed. :func:`group_portfolio_cache_key` therefore folds the
-demo scope in, and every caller must use it rather than assembling a key of
-its own.
+caller's scope in (:func:`access_scope`), and every caller must use it rather
+than assembling a key of its own.
+
+With ``ENFORCE_OWNER_ACCESS`` on (#11087) ``list_plots()`` also filters a real
+user's owners by ``email``/``viewers``, so the scope then names the
+request's identity too: two users with different viewer rights never share
+an entry, and a request with no identity gets its own (empty) one.
 
 Shared performance inputs (#10755)
 ----------------------------------
@@ -55,7 +60,7 @@ from __future__ import annotations
 import datetime as dt
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Callable, Dict, Iterator, Optional, TypeVar
+from typing import Any, Callable, Dict, Hashable, Iterator, Optional, TypeVar
 
 from backend.common.ttl_cache import CacheKey, TTLCache
 
@@ -101,10 +106,32 @@ def _demo_scope() -> Optional[str]:
     return demo_owner if isinstance(demo_owner, str) else "<unresolved-demo-owner>"
 
 
+def access_scope() -> Hashable:
+    """Return what a group build's owner list depends on for the current caller.
+
+    ``None`` for an unscoped request (every caller sees the same owners), the
+    demo owner for a demo-scoped request, and -- only while owner access is
+    enforced under ``disable_auth`` (#11087) -- ``("user", <identity>)``, with
+    ``None`` as the identity for an anonymous request. The tuple can never
+    equal a demo owner string, so the two scopes cannot collide.
+    """
+
+    demo = _demo_scope()
+    if demo is not None:
+        return demo
+
+    from backend.auth import owner_access_enforced_under_disable_auth, request_identity
+
+    if not owner_access_enforced_under_disable_auth():
+        return None
+    identity = request_identity()
+    return ("user", identity.strip().lower() if isinstance(identity, str) and identity.strip() else None)
+
+
 def group_portfolio_cache_key(slug: str, pricing_date: dt.date | None) -> CacheKey:
     """Build the cache key for a group portfolio, including the caller's scope."""
 
-    return (slug, pricing_date.isoformat() if pricing_date else None, _demo_scope())
+    return (slug, pricing_date.isoformat() if pricing_date else None, access_scope())
 
 
 def cached_group_portfolio(
@@ -147,7 +174,7 @@ def memoised(key: CacheKey, build: Callable[[], _T]) -> _T:
 
     Outside that block ``build`` simply runs. Inside it the result is cached
     for :data:`PERFORMANCE_INPUTS_TTL_SECONDS` under ``key`` plus the caller's
-    demo scope and the timeseries cache-only mode (both change what a build
+    scope (:func:`access_scope`) and the timeseries cache-only mode (both change what a build
     reads), and concurrent misses for one key run a single build. ``key`` must
     name every other input the build varies on.
 
@@ -162,7 +189,7 @@ def memoised(key: CacheKey, build: Callable[[], _T]) -> _T:
         return build()
     from backend.timeseries.cache import is_cache_only
 
-    scoped_key = (*key, _demo_scope(), is_cache_only())
+    scoped_key = (*key, access_scope(), is_cache_only())
     return _PERFORMANCE_INPUTS_CACHE.get_or_build(scoped_key, build)
 
 
@@ -174,6 +201,7 @@ def invalidate_performance_inputs() -> None:
 
 __all__ = [
     "GROUP_PORTFOLIO_TTL_SECONDS",
+    "access_scope",
     "PERFORMANCE_INPUTS_TTL_SECONDS",
     "cached_group_portfolio",
     "group_portfolio_cache_key",

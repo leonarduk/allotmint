@@ -344,6 +344,25 @@ def test_smoke_identity_override(monkeypatch, tmp_path):
         reload_config()
 
 
+def test_enforce_owner_access_defaults_off(monkeypatch):
+    """Off unless asked for, so a deploy never locks owners out (#11087)."""
+    monkeypatch.delenv("ENFORCE_OWNER_ACCESS", raising=False)
+    assert build_config({}, check_google_auth=False).enforce_owner_access is False
+
+
+@pytest.mark.parametrize(("raw", "expected"), [("true", True), ("1", True), ("false", False), ("0", False)])
+def test_enforce_owner_access_env_overrides_the_file(monkeypatch, raw, expected):
+    monkeypatch.setenv("ENFORCE_OWNER_ACCESS", raw)
+    cfg = build_config({"enforce_owner_access": not expected}, check_google_auth=False)
+    assert cfg.enforce_owner_access is expected
+
+
+def test_enforce_owner_access_rejects_non_boolean(monkeypatch):
+    monkeypatch.delenv("ENFORCE_OWNER_ACCESS", raising=False)
+    with pytest.raises(ConfigValidationError):
+        build_config({"enforce_owner_access": "yes"}, check_google_auth=False)
+
+
 def test_demo_link_defaults_when_keys_absent(monkeypatch, tmp_path):
     """A missing `demo_link_*` block must never mean the demo link is on."""
     config_path = tmp_path / "config.yaml"

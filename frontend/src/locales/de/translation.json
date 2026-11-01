@@ -1896,6 +1896,7 @@
         "offline_mode": "Nur zwischengespeicherte Daten verwenden und keine Aufrufe an externe Kurs- oder Datenanbieter senden.",
         "google_auth_enabled": "Google-Anmeldung zur Nutzung der App verlangen.",
         "disable_auth": "Authentifizierung vollständig deaktivieren (nur lokale Nutzung).",
+        "enforce_owner_access": "E-Mail und Betrachter jedes Eigentümers auch bei deaktivierter Authentifizierung prüfen (für Bereitstellungen hinter einem Anmelde-Gateway).",
         "demo_identity": "Inhaber, der angezeigt wird, wenn die App ohne Anmeldung im lokalen oder Demo-Modus läuft.",
         "smoke_identity": "Inhaber, als der die automatisierten Smoke-Tests laufen.",
         "demo_link_enabled": "Erstellen teilbarer schreibgeschützter Demo-Links erlauben (Hauptschalter).",

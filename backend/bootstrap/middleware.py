@@ -19,7 +19,13 @@ from slowapi.util import get_remote_address
 from starlette.datastructures import Headers
 from starlette.types import Receive, Scope, Send
 
-from backend.auth import _resolve_demo_request, decode_demo_token
+from backend.auth import (
+    _resolve_demo_request,
+    decode_demo_token,
+    owner_access_enforced_under_disable_auth,
+    resolve_gateway_identity,
+)
+from backend.auth import current_user as current_user_var
 from backend.auth import demo_readonly as demo_readonly_var
 from backend.common.admin_cache_state import WARMING_HEADER
 from backend.common.errors import AppError, log_app_error
@@ -188,6 +194,9 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
                 content={"detail": _DEMO_WRITE_BLOCKED_DETAIL},
             )
 
+        if owner_access_enforced_under_disable_auth():
+            _bind_gateway_identity(token if scheme.lower() == "bearer" else None, is_demo_token, request.method)
+
         # OPTIONS (CORS preflight) is deliberately excluded from identity
         # resolution, not just the write-block above: browsers never attach
         # real credentials to a preflight, and API Gateway's own OPTIONS
@@ -222,6 +231,24 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     # Added last so it is the outermost middleware and times the whole stack,
     # including rate limiting, CORS and the demo-scope gate (#10359).
     app.add_middleware(RequestMetricsMiddleware)
+
+
+def _bind_gateway_identity(token: str | None, is_demo_token: bool, method: str) -> None:
+    """Bind the caller's identity to this request for per-owner checks (#11087).
+
+    Only called while ``ENFORCE_OWNER_ACCESS`` is on with ``disable_auth``.
+    Routes such as ``/portfolio-group/{slug}`` and ``/owners`` never resolve
+    identity themselves, so ``list_plots``/``ensure_owner_access`` read it from
+    ``current_user`` instead. It is reset first on every request so a reused
+    Lambda environment cannot carry one caller's identity into the next. A demo
+    token is left to ``_resolve_demo_request`` below, and a preflight carries no
+    credentials, so both stay unbound here.
+    """
+
+    current_user_var.set(None)
+    if is_demo_token or method == "OPTIONS":
+        return
+    current_user_var.set(resolve_gateway_identity(token))
 
 
 class _CORSPlainTextResponse(PlainTextResponse):

@@ -66,7 +66,10 @@ def _fake_aws_env(tmp_path: Path, stdout: str, stderr: str, exit_code: int) -> d
 
 
 def _lookup(tmp_path: Path, stdout: str = "", stderr: str = "", exit_code: int = 0) -> subprocess.CompletedProcess:
-    env = _fake_aws_env(tmp_path, stdout, stderr, exit_code)
+    return _run_helper(_fake_aws_env(tmp_path, stdout, stderr, exit_code))
+
+
+def _run_helper(env: dict[str, str]) -> subprocess.CompletedProcess:
     # Same shell options as the workflow steps, plus inherit_errexit so a
     # failure inside the helper would abort here if it weren't contained.
     script = f'set -euo pipefail; shopt -s inherit_errexit; source "{HELPER}"; cfn_resource_id BackendLambdaStack "$1"'
@@ -149,6 +152,29 @@ def test_other_aws_failures_fail_with_the_cli_error(tmp_path, stderr):
     assert result.stdout == ""
     assert "list-stack-resources --stack-name BackendLambdaStack failed (exit 255)" in result.stderr
     assert stderr.strip() in result.stderr
+
+
+@needs_bash
+@pytest.mark.parametrize(
+    "fake_mktemp",
+    [
+        "echo 'mktemp: failed to create file via template' >&2\nexit 1\n",
+        # A "successful" mktemp that prints no path must not become 2>"".
+        "exit 0\n",
+    ],
+)
+def test_mktemp_failure_fails_with_a_clear_error_before_calling_aws(tmp_path, fake_mktemp):
+    env = _fake_aws_env(tmp_path, stdout="bucket-1\n", stderr="", exit_code=0)
+    (tmp_path / "bin" / "mktemp").write_text(f"#!/usr/bin/env bash\n{fake_mktemp}", encoding="utf-8")
+    (tmp_path / "bin" / "mktemp").chmod(0o755)
+
+    result = _run_helper(env)
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "cfn_resource_id: mktemp failed to create a file for aws stderr" in result.stderr
+    assert "ambiguous redirect" not in result.stderr
+    assert not (tmp_path / "args").exists(), "aws must not be called without a stderr capture file"
 
 
 def _run_steps_using_helper() -> dict[str, str]:

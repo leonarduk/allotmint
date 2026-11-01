@@ -113,6 +113,27 @@ def test_file_with_nothing_to_classify_is_not_touched(tmp_path):
     assert path.read_bytes() == before
 
 
+def test_legacy_account_kind_is_kept_and_counted(tmp_path, capsys):
+    rows = [
+        # Would classify as personal_contribution / withdrawal if kind were null.
+        {"date": "2026-05-01", "type": "DEPOSIT", "amount_minor": 1_000, "comments": "Personal contribution",
+         "kind": "account"},
+        {"date": "2026-05-02", "type": "WITHDRAWAL", "amount_minor": -500, "kind": "account"},
+        {"date": "2026-05-03", "type": "income", "amount_minor": 200, "kind": "account"},
+        {"date": "2026-05-04", "type": "DEPOSIT", "amount_minor": 1_000, "comments": "Tax relief"},
+    ]  # fmt: skip
+    path = _write(tmp_path, rows)
+
+    for _ in range(2):
+        assert script.main([str(tmp_path)]) == 0
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert [row.get("kind") for row in data["transactions"]] == ["account", "account", "account", "tax_relief"]
+
+    out = capsys.readouterr().out
+    assert out.count('alex/sipp_transactions.json: 3 row(s) with legacy kind "account" left as is') == 2
+    assert out.count('3 row(s) with legacy kind "account" left as is (not a cash classification)') == 2
+
+
 def _reindent(path):
     path.write_text(path.read_text(encoding="utf-8").replace("  ", "    "), encoding="utf-8")
 

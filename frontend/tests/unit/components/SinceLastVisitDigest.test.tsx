@@ -120,7 +120,7 @@ describe('SinceLastVisitDigest', () => {
 
       const card = await screen.findByRole('region', { name: title() });
       expect(card).not.toHaveTextContent('VOD.L crossed your threshold');
-      expect(card).toHaveTextContent(i18n.t('sinceLastVisit.nothingChanged'));
+      expect(card).toHaveTextContent(i18n.t('sinceLastVisit.nothingChanged', { days: 7 }));
     });
 
     it('explains an empty digest instead of rendering blank', async () => {
@@ -130,7 +130,35 @@ describe('SinceLastVisitDigest', () => {
       render(<SinceLastVisitDigest slug="family" accounts={accounts} />);
 
       const card = await screen.findByRole('region', { name: title() });
-      expect(card).toHaveTextContent(i18n.t('sinceLastVisit.nothingChanged'));
+      expect(card).toHaveTextContent(i18n.t('sinceLastVisit.nothingChanged', { days: 7 }));
+    });
+
+    it('labels movers with their own window rather than the visit date', async () => {
+      const lastVisit = Date.now() - 2 * DAY;
+      storeLocalVisit(lastVisit);
+      render(<SinceLastVisitDigest slug="family" accounts={accounts} />);
+
+      const card = await screen.findByRole('region', { name: title() });
+      expect(mocks.getGroupMovers).toHaveBeenCalledWith('family', 7, 10);
+      const moversLine = screen.getByText(/VOD\.L \+4\.50%/);
+      expect(moversLine).toHaveTextContent('last 7 days');
+      expect(moversLine).not.toHaveTextContent(new Date(lastVisit).toLocaleString());
+      expect(moversLine).not.toHaveTextContent(/since/i);
+      // The header names the visit without claiming every section starts there.
+      expect(card).toHaveTextContent(
+        i18n.t('sinceLastVisit.since', { date: new Date(lastVisit).toLocaleString() })
+      );
+      expect(card).not.toHaveTextContent(/changes since/i);
+    });
+
+    it('states the movers window when no holding moved much', async () => {
+      storeLocalVisit(Date.now() - 3 * DAY);
+      mocks.getGroupMovers.mockResolvedValue({ gainers: [], losers: [] });
+      render(<SinceLastVisitDigest slug="family" accounts={accounts} />);
+
+      await screen.findByRole('region', { name: title() });
+      const line = screen.getByText(i18n.t('sinceLastVisit.noMovers', { days: 7 }));
+      expect(line).toHaveTextContent('last 7 days');
     });
 
     it('says when a source failed rather than hiding it', async () => {

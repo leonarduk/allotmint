@@ -26,7 +26,13 @@ from backend.decision_journal.prices import SeriesLoader, load_return_series
 
 #: The only tools capture may call. All of them read; none writes anywhere.
 READ_ONLY_CONTEXT_TOOLS: frozenset[str] = frozenset(
-    {"get_live_prices", "get_instrument_technicals", "get_instrument_valuation", "get_allocation"}
+    {
+        "get_live_prices",
+        "get_instrument_technicals",
+        "get_instrument_valuation",
+        "get_allocation",
+        "get_trend_watch_flag",
+    }
 )
 #: Trade types that can qualify for a prompt.
 QUALIFYING_TRADE_TYPES = frozenset({"BUY", "SELL"})
@@ -184,6 +190,7 @@ def trade_draft(
         "latest_prices": tools.call("get_live_prices", tickers=[ticker]),
         "technicals": tools.call("get_instrument_technicals", ticker=ticker),
         "valuation": tools.call("get_instrument_valuation", ticker=ticker),
+        "trend_watch": tools.call("get_trend_watch_flag", ticker=ticker, on=change["date"]),
     }
     legs = _suggested_legs(change)
     return {
@@ -275,6 +282,30 @@ def _allocation(owner: str, accounts_root: Optional[Path]) -> dict[str, Any]:
     return {"total_value_gbp": round(float(portfolio.get("total_value_estimate_gbp") or 0.0), 2), "values_gbp": values}
 
 
+def trend_watch_flag(report: Optional[Mapping[str, Any]], ticker: str, on: str) -> Optional[dict[str, Any]]:
+    """Whether ``report`` (a trend-watch run, #10476) listed ``ticker`` as flagged.
+
+    ``None`` when there is no report or it was run after ``on`` (the trade
+    date): a later run says nothing about what the list showed at the time.
+    """
+    if report is None:
+        return None
+    run_date = str(report.get("run_date") or "")
+    if not run_date or run_date > on:
+        return None
+    flagged = any(str(item.get("ticker") or "").upper() == ticker.upper() for item in report.get("items") or [])
+    return {"flagged": flagged, "report_date": run_date}
+
+
+def _latest_trend_watch(owner: str) -> Optional[dict[str, Any]]:
+    from backend.trend_watch import storage
+
+    try:
+        return storage.load_latest(owner)
+    except storage.InvalidOwner:
+        return None  # an owner id trend watch cannot store under has no reports
+
+
 def default_context_tools(
     owner: str,
     accounts_root: Optional[Path],
@@ -289,5 +320,6 @@ def default_context_tools(
             "get_allocation": lambda: _allocation(owner, accounts_root),
             "get_live_prices": lambda tickers: _latest_prices(tickers, load_series, day),
             "get_instrument_technicals": lambda ticker: _technicals(ticker, load_series, day),
+            "get_trend_watch_flag": lambda ticker, on: trend_watch_flag(_latest_trend_watch(owner), ticker, on),
         }
     )

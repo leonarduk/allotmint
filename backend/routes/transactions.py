@@ -1535,6 +1535,7 @@ async def import_cost_basis(
     file: UploadFile = File(...),
     owner: str | None = Form(default=None),
     account: str | None = Form(default=None),
+    identity: str | None = Depends(get_active_user),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Give holdings already on file a recorded cost from a CSV of purchase lots (#10095).
 
@@ -1544,6 +1545,10 @@ async def import_cost_basis(
     the account rebuilt; see :mod:`backend.common.cost_basis_import` for which
     holdings qualify. Units held never change. Returns the holdings
     ``updated`` and the CSV rows ``skipped``, each with a reason.
+
+    The caller must be authorised for every owner the CSV writes to
+    (:func:`ensure_owner_access`, as for ``/transactions/import/moneyhub``);
+    it is checked for all of them before anything is written.
     """
     try:
         lots, skipped = parse_purchase_lots(await file.read())
@@ -1552,6 +1557,10 @@ async def import_cost_basis(
     groups = _group_purchase_lots(lots, owner, account, skipped)
     if not groups:
         return {"updated": [], "skipped": skipped}
+
+    accounts_root = resolve_accounts_root(request)
+    for lot_owner in sorted({lot_owner for lot_owner, _account in groups}):
+        ensure_owner_access(identity, lot_owner, accounts_root)
 
     store = _require_writable_store(request)
     updated: List[Dict[str, Any]] = []

@@ -335,3 +335,26 @@ def test_find_appended_prefers_the_recorded_index_then_searches_from_the_end():
     assert transactions._find_appended([other, rows[0]], 1, rows) == 1
     assert transactions._find_appended([rows[0], other], 1, rows) == 0
     assert transactions._find_appended([other], 1, rows) is None
+
+
+def test_import_checks_owner_access_for_every_owner_before_writing(client, tmp_path, monkeypatch):
+    from backend.common.errors import PermissionDeniedError
+
+    _write_account(tmp_path, "alex", "isa", [{"ticker": "AAA.L", "units": 1}])
+    _write_account(tmp_path, "bob", "isa", [{"ticker": "BBB.L", "units": 1}])
+    checked = []
+
+    def deny_bob(identity, owner, accounts_root=None):
+        checked.append(owner)
+        if owner == "bob":
+            raise PermissionDeniedError("nope")
+
+    monkeypatch.setattr(transactions, "ensure_owner_access", deny_bob)
+    csv = "owner,account,ticker,date,units,unit_cost\nalex,isa,AAA.L,2020-01-02,1,5\nbob,isa,BBB.L,2020-01-02,1,7\n"
+
+    resp = _post(client, csv)
+
+    assert resp.status_code == 403
+    assert checked == ["alex", "bob"]
+    # Nothing is written for the permitted owner either: access is checked first.
+    assert not (tmp_path / "alex" / "isa_transactions.json").exists()

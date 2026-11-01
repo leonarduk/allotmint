@@ -3,15 +3,17 @@ from __future__ import annotations
 import logging
 from typing import Any, List
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from backend.auth import get_active_user
 from backend.common import data_loader
+from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
 from backend.common.tax import harvest_losses
 from backend.config import demo_identity
 from backend.logging_setup import sanitise_log_value
+from backend.routes._accounts import resolve_accounts_root
 
 try:
     from backend.common.allowances import current_tax_year, remaining_allowances
@@ -44,15 +46,20 @@ def harvest(req: HarvestRequest) -> dict:
 
 
 @router.get("/allowances")
-async def allowances(request: Request, owner: str | None = Query(None)) -> dict:
+def allowances(
+    request: Request,
+    owner: str | None = Query(None),
+    active_user: str | None = Depends(get_active_user),
+) -> dict:
     """Return remaining ISA and pension allowances for ``owner``.
 
     When auth is enabled and ``owner`` is not provided, the authenticated user
-    is used.  When auth is disabled, the configured demo account is used.
+    is used.  When auth is disabled, the configured demo account is used. The
+    caller must be authorised for the resolved owner (:func:`ensure_owner_access`,
+    #11346).
     """
     require_core(current_tax_year, "Tax allowances")
 
-    active_user = await get_active_user(request)
     if owner is None:
         if active_user is not None:
             owner = active_user
@@ -60,6 +67,7 @@ async def allowances(request: Request, owner: str | None = Query(None)) -> dict:
             aliases = data_loader.demo_identity_aliases()
             preferred = next((a for a in aliases if a.lower() == "demo"), None)
             owner = preferred or (aliases[0] if aliases else demo_identity())
+    ensure_owner_access(active_user, owner, resolve_accounts_root(request))
     tax_year = current_tax_year()
     data = _derived_allowances(owner, tax_year)
     return {"owner": owner, "tax_year": tax_year, "allowances": data}

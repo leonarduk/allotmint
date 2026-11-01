@@ -339,8 +339,10 @@ jobs:
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
           python3 -m cicaid_devtools.lib.followups /tmp/${{ inputs.provider_id }}_followups_body.md \
             > /tmp/followups.json
+          # Give the issue creator the filtered body too, so no dropped follow-up
+          # can reach it however it uses this context argument.
           python3 -m cicaid_devtools.lib.followup_issues \
-            /tmp/followups.json "${PR_NUMBER}" /tmp/${{ inputs.provider_id }}_review_body.md
+            /tmp/followups.json "${PR_NUMBER}" /tmp/${{ inputs.provider_id }}_followups_body.md
 
       # Clear a stale 'Changes Requested' label now, while this job still has a
       # runner. sync-changes-requested-label.yml does the same after the run

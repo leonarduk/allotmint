@@ -296,3 +296,42 @@ def test_plan_skips_a_last_lot_that_rounds_to_zero():
 
     assert txs == []
     assert reason is not None and "last lot would leave no units" in reason
+
+
+def test_rollback_removes_only_the_import_rows_after_an_earlier_row_is_deleted(client, tmp_path, monkeypatch):
+    _write_account(tmp_path, "testowner", "isa", [{"ticker": "AAA.L", "units": 1}])
+    ledger = tmp_path / "testowner" / "isa_transactions.json"
+    other = {"type": "DIVIDEND", "ticker": "ZZZ.L", "date": "2019-05-01", "amount_minor": 100}
+    kept = {"type": "DIVIDEND", "ticker": "YYY.L", "date": "2019-06-01", "amount_minor": 200}
+    ledger.write_text(json.dumps({"transactions": [other, kept]}))
+    real_rebuild = transactions._rebuild_portfolio
+    calls = []
+
+    def delete_earlier_row_then_fail(owner, account, store):
+        calls.append(account)
+        if len(calls) == 1:
+            # Another request deletes an earlier row after the import appended its rows,
+            # so the import's rows no longer start at the index it recorded.
+            data = json.loads(ledger.read_text())
+            data["transactions"].pop(0)
+            ledger.write_text(json.dumps(data))
+            raise RuntimeError("boom")
+        real_rebuild(owner, account, store)
+
+    monkeypatch.setattr(transactions, "_rebuild_portfolio", delete_earlier_row_then_fail)
+    csv = "ticker,date,units,unit_cost\nAAA.L,2020-01-02,1,5\n"
+
+    with pytest.raises(RuntimeError, match="boom"):
+        _post(client, csv, owner="testowner", account="isa")
+
+    # The unrelated row survives; only the import's TRANSFER_IN is removed.
+    assert json.loads(ledger.read_text())["transactions"] == [kept]
+
+
+def test_find_appended_prefers_the_recorded_index_then_searches_from_the_end():
+    rows = [{"type": "TRANSFER_IN", "ticker": "AAA.L"}]
+    other = {"type": "BUY", "ticker": "BBB.L"}
+
+    assert transactions._find_appended([other, rows[0]], 1, rows) == 1
+    assert transactions._find_appended([rows[0], other], 1, rows) == 0
+    assert transactions._find_appended([other], 1, rows) is None

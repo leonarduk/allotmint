@@ -1482,7 +1482,7 @@ def _append_and_rebuild(
     try:
         _rebuild_portfolio(owner, tx_account, store)
     except Exception:
-        _remove_appended(store, owner, tx_account, start, len(rows))
+        _remove_appended(store, owner, tx_account, start, rows)
         try:
             # The failed rebuild may have written part of the holdings; bring them back in line.
             _rebuild_portfolio(owner, tx_account, store)
@@ -1496,9 +1496,37 @@ def _append_and_rebuild(
     return start
 
 
-def _remove_appended(store: "AccountsStore", owner: str, tx_account: str, start: int, count: int) -> None:
+def _find_appended(transactions: List[Any], start: int, rows: List[Dict[str, Any]]) -> Optional[int]:
+    """Where ``rows`` sit in ``transactions``: at ``start`` if still there, else their last run, else None."""
+    count = len(rows)
+    if transactions[start : start + count] == rows:
+        return start
+    for index in range(len(transactions) - count, -1, -1):
+        if transactions[index : index + count] == rows:
+            return index
+    return None
+
+
+def _remove_appended(
+    store: "AccountsStore", owner: str, tx_account: str, start: int, rows: List[Dict[str, Any]]
+) -> None:
+    """Remove exactly the ``rows`` an import appended, matched by content rather than position.
+
+    Another write may have edited or deleted an earlier row since the append,
+    shifting indexes, so a positional slice could delete someone else's rows.
+    If the rows can't be found they are left in place and the failure logged.
+    """
     with _locked_transactions_data(owner, tx_account, store) as (data, _file):
-        del data["transactions"][start : start + count]
+        transactions = data["transactions"]
+        index = _find_appended(transactions, start, rows)
+        if index is None:
+            logger.error(
+                "Could not find the rows a cost-basis import appended to %s/%s; not removing them",
+                sanitise_log_value(owner),
+                sanitise_log_value(tx_account),
+            )
+            return
+        del transactions[index : index + len(rows)]
 
 
 @router.post("/holdings/cost-basis/import")
@@ -1527,7 +1555,7 @@ async def import_cost_basis(
 
     store = _require_writable_store(request)
     updated: List[Dict[str, Any]] = []
-    written: List[Tuple[str, str, int, int]] = []
+    written: List[Tuple[str, str, int, List[Dict[str, Any]]]] = []
     try:
         for (lot_owner, lot_account), by_ticker in groups.items():
             tx_account, rows, account_updated, account_skipped, planned = _plan_account_lots(
@@ -1536,12 +1564,12 @@ async def import_cost_basis(
             skipped.extend(account_skipped)
             if rows:
                 start = _append_and_rebuild(store, lot_owner, tx_account, rows, planned)
-                written.append((lot_owner, tx_account, start, len(rows)))
+                written.append((lot_owner, tx_account, start, rows))
                 updated.extend(account_updated)
     except Exception:
         # All or nothing across accounts, like /transactions/import.
-        for lot_owner, tx_account, start, count in reversed(written):
-            _remove_appended(store, lot_owner, tx_account, start, count)
+        for lot_owner, tx_account, start, appended in reversed(written):
+            _remove_appended(store, lot_owner, tx_account, start, appended)
             _rebuild_portfolio(lot_owner, tx_account, store)
         raise
     return {"updated": updated, "skipped": skipped}

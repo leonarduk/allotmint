@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
-    "@capacitor/core": "^8.5.3",
+    "@capacitor/core": "^8.6.0",
     "@capacitor/ios": "^8.5.3",
     "yaml": "^2.9.1"
   },

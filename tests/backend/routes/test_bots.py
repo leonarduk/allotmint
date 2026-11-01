@@ -195,7 +195,10 @@ def test_owner_scoped_runs_filtered_by_owner_access(monkeypatch):
 
 
 def test_digest_items_about_other_owners_are_hidden(monkeypatch):
-    """A run over every owner is visible to all, but each owner's digest items only to that owner (#10502)."""
+    """A run over every owner is visible to all, but each owner's digest items only to that owner (#10502).
+
+    System-wide items (owner None) go to admins only, as in GET /bots/digest.
+    """
 
     from backend.bots.digest_models import Severity
     from backend.bots.run_records import digest_item
@@ -217,17 +220,23 @@ def test_digest_items_about_other_owners_are_hidden(monkeypatch):
             raise PermissionDeniedError("no")
 
     monkeypatch.setattr(bots_route, "ensure_owner_access", fake_access)
+    monkeypatch.setattr(bots_route, "is_admin", lambda identity: False)
     client = _client(monkeypatch, identity=USER, disable_auth=False)
 
     def owners(run):
         return [i["owner"] for i in run["report"]["digest_items"]]
 
     [listed] = client.get("/bots/decision-journal/runs").json()
-    assert owners(listed) == ["viewer", None]
+    assert owners(listed) == ["viewer"]
     assert listed["report"]["owners"] == 2
-    assert owners(client.get("/bots/decision-journal/runs/all").json()) == ["viewer", None]
+    assert owners(client.get("/bots/decision-journal/runs/all").json()) == ["viewer"]
     summary = next(b for b in client.get("/bots").json() if b["id"] == "decision-journal")
-    assert owners(summary["last_run"]) == ["viewer", None]
+    assert owners(summary["last_run"]) == ["viewer"]
+
+    # An admin also sees the system-wide item.
+    monkeypatch.setattr(bots_route, "is_admin", lambda identity: True)
+    [listed] = client.get("/bots/decision-journal/runs").json()
+    assert owners(listed) == ["viewer", None]
     # The stored record is unchanged.
     assert len(runs.get_run("decision-journal", "all").report["digest_items"]) == 4
 

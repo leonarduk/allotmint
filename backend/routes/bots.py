@@ -32,6 +32,7 @@ from backend.common.authz import ensure_owner_access
 from backend.common.errors import PermissionDeniedError
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
+from backend.routes.bots_digest import is_admin
 
 logger = logging.getLogger(__name__)
 
@@ -122,20 +123,24 @@ def _redacted(record: RunRecord, identity: Optional[str]) -> RunRecord:
 
     A run over every owner is visible to everyone, but its ``digest_items``
     name owners (#10502): each owner's items are served only to callers with
-    access to that owner, like the digest itself. System-wide items stay.
+    access to that owner, and system-wide items (``owner`` is None) only to
+    admins, the same rule as ``GET /bots/digest`` (``bots_digest.is_admin``).
     """
 
     items = record.report.get(DIGEST_ITEMS_KEY) if record.report else None
     if not isinstance(items, list):
         return record
     access: Dict[str, bool] = {}
+    admin: List[bool] = []
 
     def visible(item: Any) -> bool:
         if not isinstance(item, dict):
             return False
         owner = item.get("owner")
         if owner is None:
-            return True
+            if not admin:
+                admin.append(is_admin(identity))
+            return admin[0]
         if not isinstance(owner, str):
             return False
         if owner not in access:

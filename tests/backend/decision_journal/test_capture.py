@@ -229,6 +229,32 @@ def test_default_trend_watch_tool_reads_the_latest_report(monkeypatch):
     assert spaced.call("get_trend_watch_flag", ticker="AAA.L", on="2026-10-01") is None
 
 
+class _AccessDenied(Exception):
+    """Stands in for a storage error such as an S3 AccessDenied."""
+
+
+@pytest.mark.parametrize("error", [_AccessDenied("AccessDenied\nforged line"), OSError("disk"), ValueError("bad")])
+def test_unreadable_trend_watch_store_leaves_the_flag_unknown(monkeypatch, caplog, error):
+    """#11270: a failed trend-watch read must not abort draft capture."""
+    from backend.trend_watch import storage
+
+    def fail(owner):
+        raise error
+
+    monkeypatch.setattr(storage, "load_latest", fail)
+    monkeypatch.setattr(capture, "_allocation", lambda owner, root: {"total_value_gbp": 0.0, "values_gbp": {}})
+    tools = default_context_tools("alex", None, load_series=fake_series, today=date(2026, 10, 2))
+
+    with caplog.at_level("WARNING", logger=capture.__name__):
+        draft = trade_draft(trade_change(TXS[0]), tools, today=date(2026, 10, 2))
+
+    assert draft["decision"] == "Sold £10,000 of AAA.L"
+    assert "trend_watch" not in draft["snapshot"]  # unknown, as with no report
+    warning = next(r for r in caplog.records if "trend-watch" in r.getMessage())
+    assert type(error).__name__ in warning.getMessage()
+    assert "forged line" not in warning.getMessage()
+
+
 @pytest.mark.parametrize("name", ["save_plan", "post_transaction", "update_allocation_policy"])
 def test_context_tools_refuse_anything_outside_the_allowlist(name):
     with pytest.raises(ValueError, match="Not read-only"):

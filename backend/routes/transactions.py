@@ -332,7 +332,8 @@ class TransactionCreate(BaseModel):
     price_gbp: Optional[float] = Field(default=None, gt=0)
     units: Optional[float] = Field(default=None, gt=0)
     amount_minor: Optional[int] = Field(default=None, gt=0)
-    fees: Optional[float] = None
+    # Same constraint as ``TransactionUpdate.fees`` (#11268); omitted stays unknown, not 0.
+    fees: Optional[float] = Field(default=None, ge=0)
     # Parts of ``fees`` (GBP), not added to it; see backend.common.trade_fees.
     stamp_duty: Optional[float] = Field(default=None, ge=0)
     fx_charge: Optional[float] = Field(default=None, ge=0)
@@ -1521,7 +1522,8 @@ def _append_and_rebuild(
     held" check may be stale, so the import is refused with a 409 instead.
     Holdings are re-read too because a manual holding edit changes units
     without adding a transaction. A failed rebuild removes the rows again
-    before re-raising.
+    before re-raising and puts the account's holdings back in line with the
+    restored ledger (see :func:`_restore_planned_holdings`).
     """
     planned_transactions, planned_holdings = planned
     store.ensure_owner(owner)
@@ -1540,7 +1542,7 @@ def _append_and_rebuild(
         _remove_appended(store, owner, tx_account, start, rows)
         try:
             # The failed rebuild may have written part of the holdings; bring them back in line.
-            _rebuild_portfolio(owner, tx_account, store)
+            _restore_planned_holdings(store, owner, account, tx_account, planned_holdings)
         except Exception:
             logger.exception(
                 "Could not rebuild %s/%s after rolling back a cost-basis import",
@@ -1549,6 +1551,21 @@ def _append_and_rebuild(
             )
         raise
     return start
+
+
+def _restore_planned_holdings(
+    store: "AccountsStore", owner: str, account: str, tx_account: str, planned_holdings: List[Any]
+) -> None:
+    """Put back the holdings an import was planned against, then rebuild from the ledger.
+
+    Call after the import's rows are removed. A rebuild alone cannot undo the
+    import: it carries the cost of units the ledger does not explain forward
+    from the current holdings document, which by then holds the import's cost
+    (#11227). Positions still come from the ledger replay.
+    """
+    with _locked_account_holdings_data(owner, account, store) as (doc, _file):
+        doc["holdings"] = json.loads(json.dumps(planned_holdings))
+    _rebuild_portfolio(owner, tx_account, store)
 
 
 def _find_appended(transactions: List[Any], start: int, rows: List[Dict[str, Any]]) -> Optional[int]:
@@ -1619,7 +1636,7 @@ async def import_cost_basis(
 
     store = _require_writable_store(request)
     updated: List[Dict[str, Any]] = []
-    written: List[Tuple[str, str, int, List[Dict[str, Any]]]] = []
+    written: List[Tuple[str, str, str, int, List[Dict[str, Any]], List[Any]]] = []
     try:
         for (lot_owner, lot_account), by_ticker in groups.items():
             tx_account, rows, account_updated, account_skipped, planned = _plan_account_lots(
@@ -1628,13 +1645,23 @@ async def import_cost_basis(
             skipped.extend(account_skipped)
             if rows:
                 start = _append_and_rebuild(store, lot_owner, lot_account, tx_account, rows, planned)
-                written.append((lot_owner, tx_account, start, rows))
+                written.append((lot_owner, lot_account, tx_account, start, rows, planned[1]))
                 updated.extend(account_updated)
     except Exception:
         # All or nothing across accounts, like /transactions/import.
-        for lot_owner, tx_account, start, appended in reversed(written):
-            _remove_appended(store, lot_owner, tx_account, start, appended)
-            _rebuild_portfolio(lot_owner, tx_account, store)
+        # One account's failed rollback must not leave the others written, so
+        # each is undone on its own and failures are logged; the original
+        # error is what the caller sees.
+        for lot_owner, lot_account, tx_account, start, appended, planned_holdings in reversed(written):
+            try:
+                _remove_appended(store, lot_owner, tx_account, start, appended)
+                _restore_planned_holdings(store, lot_owner, lot_account, tx_account, planned_holdings)
+            except Exception:
+                logger.exception(
+                    "Could not roll back %s/%s after a failed cost-basis import",
+                    sanitise_log_value(lot_owner),
+                    sanitise_log_value(tx_account),
+                )
         raise
     return {"updated": updated, "skipped": skipped}
 

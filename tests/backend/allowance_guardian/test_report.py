@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import json
-import re
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,26 +13,10 @@ import pytest
 import backend.allowance_guardian as guardian
 from backend.allowance_guardian import report
 from backend.allowance_guardian.schedule import ContributionSchedule, ScheduledContribution, save_schedule
+from backend.common.advice_wording import ADVICE_PATTERNS, advice_phrases  # noqa: F401 - re-exported
 from backend.routes.transactions import Transaction
 
 TODAY = date(2026, 10, 9)
-
-# Imperative or recommending wording the report must never contain.
-ADVICE_PATTERNS = [
-    r"\byou should\b",
-    r"\bshould (?:you )?(?:contribute|pay|use|increase|reduce|consider)\b",
-    r"\b(?:we )?recommend",
-    r"\bconsider (?:using|paying|contributing|increasing|reducing)\b",
-    r"\buse (?:your )?carry[- ]forward\b",
-    r"\bcontribute (?:£|up to|more|less|another)",
-    r"\b(?:increase|reduce|top up|stop|pause) your\b",
-    r"\bbest to\b",
-    r"\bmake sure\b",
-]
-
-
-def advice_phrases(text: str) -> list[str]:
-    return [p for p in ADVICE_PATTERNS if re.search(p, text, flags=re.IGNORECASE)]
 
 
 def _fake_allowances(view: dict) -> SimpleNamespace:

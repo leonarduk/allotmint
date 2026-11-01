@@ -748,8 +748,9 @@ export default function PensionForecast() {
                         onClick={() => setMonthlySpending(monthly)}
                         className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
                           selected
-                            ? // Selected state: intentionally theme-independent accent colour.
-                            "border-blue-500 bg-blue-50 text-blue-900"
+                            ? // Selected state: theme-independent blue accent border on
+                            // theme-aware surface fill/text so it stays legible in dark mode.
+                            "border-blue-500 bg-[var(--surface-muted-bg)] text-[var(--surface-card-color)]"
                             : "border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] text-[var(--surface-muted-color)] hover:border-[var(--surface-muted-color)]"
                         }`}
                       >

@@ -1011,6 +1011,14 @@ describe("PensionForecast page", () => {
       "aria-pressed",
       "true",
     );
+    // Selected card keeps the blue accent border but uses theme tokens for its
+    // fill/text so it stays legible in dark mode (#11188).
+    expect(screen.getByRole("button", { name: /^moderate/i })).toHaveClass(
+      "border-blue-500",
+      "bg-[var(--surface-muted-bg)]",
+      "text-[var(--surface-card-color)]",
+    );
+    expect(screen.getByRole("button", { name: /^moderate/i })).not.toHaveClass("bg-blue-50");
 
     await userEvent.click(screen.getByRole("button", { name: /^couple$/i }));
     await userEvent.click(screen.getByRole("button", { name: /^comfortable/i }));

@@ -1279,6 +1279,9 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # DATA_STEWARD_REPORTS_PREFIX likewise: backend/data_steward/store.py has no S3
 # fallback and learns the location from DATA_STEWARD_REPORTS_URI (#10471), which
 # test_data_steward_lambda_is_read_only_except_its_reports checks.
+# GOALS_PREFIX likewise: backend/common/goals.py falls back to local file:// paths
+# and learns the S3 objects from GOALS_STORAGE_URI / GOAL_HISTORY_STORAGE_URI
+# (#11292), which test_backend_lambda_goals_env_points_at_goals_objects checks.
 _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
     {
         "WRITABLE_ACCOUNTS_PREFIX",
@@ -1290,6 +1293,7 @@ _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
         "DATA_STEWARD_REPORTS_PREFIX",
         "PLANS_PREFIX",
         "DECISION_JOURNAL_PREFIX",
+        "GOALS_PREFIX",
     }
 )
 
@@ -1773,3 +1777,101 @@ def test_decision_journal_runs_daily_at_three_utc() -> None:
         )
     ]
     assert [rule["ScheduleExpression"] for rule in rules] == ["cron(0 3 * * ? *)"]
+
+
+# ---------------------------------------------------------------------------
+# Goals and goal history (issue #11292)
+# ---------------------------------------------------------------------------
+
+_GOALS_ENV_VARS = {
+    "GOALS_STORAGE_URI": "/goals/goals.json",
+    "GOAL_HISTORY_STORAGE_URI": "/goals/goal_history.json",
+}
+
+
+def _s3_statements_for_role(template: dict, role_logical_id: str) -> list[dict]:
+    """Every inline policy statement attached to ``role_logical_id`` that grants an s3: action."""
+    statements: list[dict] = []
+    for resource in template["Resources"].values():
+        if resource.get("Type") != "AWS::IAM::Policy":
+            continue
+        roles = resource.get("Properties", {}).get("Roles", [])
+        if role_logical_id not in {r.get("Ref") for r in roles if isinstance(r, dict)}:
+            continue
+        for statement in resource["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = statement.get("Action", [])
+            actions = [actions] if isinstance(actions, str) else actions
+            if any(a.startswith("s3:") for a in actions):
+                statements.append(statement)
+    return statements
+
+
+def _mentions_goals_prefix(value: object) -> bool:
+    return "/goals/" in str(value) or "'goals" in str(value)
+
+
+def test_backend_lambda_goals_env_points_at_goals_objects() -> None:
+    """Both goals stores are single S3 objects under goals/ in the data bucket (#11292).
+
+    backend/common/goals.py passes each URI to get_storage, which treats an
+    s3:// URI as one object key, so each must name a .json key, not a prefix.
+    """
+    template = _stack_template()
+    env = _lambda_env(template, "BackendLambda")
+    bucket_ref = env["DATA_BUCKET"]
+    for key, suffix in _GOALS_ENV_VARS.items():
+        assert env[key] == {"Fn::Join": ["", ["s3://", bucket_ref, suffix]]}, key
+
+
+def test_goals_env_vars_are_set_only_on_the_backend_lambda() -> None:
+    """Only BackendLambda serves the /goals and /trail routes; no job Lambda imports goals."""
+    template = _stack_template()
+    for logical_id, resource in template["Resources"].items():
+        if resource.get("Type") != "AWS::Lambda::Function" or "BackendLambda" in logical_id:
+            continue
+        variables = resource["Properties"].get("Environment", {}).get("Variables", {})
+        assert not set(_GOALS_ENV_VARS) & set(variables), logical_id
+
+
+def test_backend_lambda_goals_grant_is_exactly_get_and_put_on_goals_objects() -> None:
+    """One statement: GetObject + PutObject on goals/*, unconditioned (#11292).
+
+    S3JSONStorage.load (get_object) and .save (put_object) are the only calls
+    the goals stores make, so no ListBucket and no DeleteObject reach goals/.
+    """
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "BackendLambda")
+
+    goals_statements = [
+        statement
+        for statement in _s3_statements_for_role(template, role)
+        if _mentions_goals_prefix(statement.get("Resource"))
+        or _mentions_goals_prefix(statement.get("Condition"))
+    ]
+    assert len(goals_statements) == 1, goals_statements
+    statement = goals_statements[0]
+    assert statement["Effect"] == "Allow"
+    assert sorted(statement["Action"]) == ["s3:GetObject", "s3:PutObject"]
+    assert "Condition" not in statement
+    resource = statement["Resource"]
+    assert isinstance(resource, dict), resource
+    assert str(resource).endswith("'/goals/*']]}"), resource
+
+    delete_resources = _resources_for_s3_action(template, role, "s3:DeleteObject")
+    assert not any(_mentions_goals_prefix(r) for r in delete_resources), delete_resources
+    list_conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
+    assert not any(_mentions_goals_prefix(c) for c in list_conditions), list_conditions
+
+
+def test_no_other_lambda_role_is_granted_goals_objects() -> None:
+    """The goals grant is the backend's alone; job Lambdas never touch goals/ (#11292)."""
+    template = _stack_template()
+    backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
+    for logical_id, resource in template["Resources"].items():
+        if resource.get("Type") != "AWS::Lambda::Function":
+            continue
+        role_att = resource.get("Properties", {}).get("Role", {}).get("Fn::GetAtt")
+        if not role_att or role_att[0] == backend_role:
+            continue
+        for statement in _s3_statements_for_role(template, role_att[0]):
+            assert not _mentions_goals_prefix(statement.get("Resource")), (logical_id, statement)

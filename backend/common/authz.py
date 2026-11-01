@@ -25,7 +25,8 @@ import logging
 from pathlib import Path
 from typing import Any, Mapping, Optional, Set
 
-from backend.auth import is_demo_request, owner_access_enforced_under_disable_auth, request_identity
+from backend import auth as auth_module
+from backend.auth import is_demo_request
 from backend.common.data_loader import load_person_meta
 from backend.common.errors import PermissionDeniedError
 from backend.config import config
@@ -113,10 +114,10 @@ def ensure_owner_access(
         raise PermissionDeniedError(_FORBIDDEN_DETAIL, safe_detail=_FORBIDDEN_DETAIL)
 
     if config.disable_auth:
-        if not owner_access_enforced_under_disable_auth():
+        if not auth_module.owner_access_enforced_under_disable_auth():
             return
         if identity is None:
-            identity = request_identity()
+            identity = auth_module.request_identity()
 
     meta = load_person_meta(owner, accounts_root)
     if not identity_can_access_owner(identity, owner, meta):
@@ -138,6 +139,6 @@ def ensure_request_owner_access(owner: str, accounts_root: Optional[Path] = None
     nothing, so these routes behave exactly as before with the flag off.
     """
 
-    if not owner_access_enforced_under_disable_auth():
+    if not auth_module.owner_access_enforced_under_disable_auth():
         return
-    ensure_owner_access(request_identity(), owner, accounts_root)
+    ensure_owner_access(auth_module.request_identity(), owner, accounts_root)

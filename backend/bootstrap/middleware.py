@@ -19,13 +19,8 @@ from slowapi.util import get_remote_address
 from starlette.datastructures import Headers
 from starlette.types import Receive, Scope, Send
 
-from backend.auth import (
-    _resolve_demo_request,
-    decode_demo_token,
-    owner_access_enforced_under_disable_auth,
-    resolve_gateway_identity,
-)
-from backend.auth import current_user as current_user_var
+from backend import auth as auth_module
+from backend.auth import _resolve_demo_request, decode_demo_token
 from backend.auth import demo_readonly as demo_readonly_var
 from backend.common.admin_cache_state import WARMING_HEADER
 from backend.common.errors import AppError, log_app_error
@@ -194,7 +189,7 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
                 content={"detail": _DEMO_WRITE_BLOCKED_DETAIL},
             )
 
-        if owner_access_enforced_under_disable_auth():
+        if auth_module.owner_access_enforced_under_disable_auth():
             _bind_gateway_identity(token if scheme.lower() == "bearer" else None, is_demo_token, request.method)
 
         # OPTIONS (CORS preflight) is deliberately excluded from identity
@@ -243,12 +238,15 @@ def _bind_gateway_identity(token: str | None, is_demo_token: bool, method: str) 
     Lambda environment cannot carry one caller's identity into the next. A demo
     token is left to ``_resolve_demo_request`` below, and a preflight carries no
     credentials, so both stay unbound here.
+
+    ``backend.auth`` is read at call time, not bound at import, so this sets
+    the same ``current_user`` the readers (which import it lazily) see.
     """
 
-    current_user_var.set(None)
+    auth_module.current_user.set(None)
     if is_demo_token or method == "OPTIONS":
         return
-    current_user_var.set(resolve_gateway_identity(token))
+    auth_module.current_user.set(auth_module.resolve_gateway_identity(token))
 
 
 class _CORSPlainTextResponse(PlainTextResponse):

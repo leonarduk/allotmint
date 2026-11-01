@@ -270,3 +270,6 @@ if ($Fail -gt 0) {
     exit 1
 }
 Write-Host "All checks passed." -ForegroundColor Green
+# Exit explicitly: otherwise a caller reading $LASTEXITCODE after `& pre-deploy-check.ps1`
+# sees the last native command's code (e.g. a skipped aws lookup), not success.
+exit 0

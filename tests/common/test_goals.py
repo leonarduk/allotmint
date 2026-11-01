@@ -260,6 +260,43 @@ def test_failed_s3_read_raises_and_writes_nothing(s3_goal_stores, monkeypatch, w
     assert s3_goal_stores.objects == stored
 
 
+class _LoadOnlyStorage:
+    """A File/SSM-like store: ``load``/``save`` only, no ``load_existing`` (#11307)."""
+
+    def __init__(self, data):
+        self.data = data
+        self.loads = 0
+
+    def load(self):
+        self.loads += 1
+        return copy.deepcopy(self.data)
+
+    def save(self, data):
+        self.data = copy.deepcopy(data)
+
+
+def test_writes_fall_back_to_load_on_stores_without_load_existing(monkeypatch):
+    goal_store = _LoadOnlyStorage({"bob": [{"name": "House", "target_amount": 3000, "target_date": "2025-01-01"}]})
+    history_store = _LoadOnlyStorage({"bob": {"House": [{"date": "2026-01-01", "amount": 5.0}]}})
+    assert not hasattr(goal_store, "load_existing") and not hasattr(history_store, "load_existing")
+    monkeypatch.setattr(goals_mod, "_STORAGE", goal_store)
+    monkeypatch.setattr(goals_mod, "_HISTORY_STORAGE", history_store)
+
+    goals_mod.save_goals("alice", [goals_mod.Goal("Car", 5000.0, date(2025, 1, 1))])
+    goals_mod.record_goal_amount("alice", "Car", 10.0, date(2026, 1, 1))
+
+    # Each write read through ``load()`` and kept the other owner's data it returned.
+    assert goal_store.loads == 1 and history_store.loads == 1
+    assert goal_store.data == {
+        "bob": [{"name": "House", "target_amount": 3000, "target_date": "2025-01-01"}],
+        "alice": [{"name": "Car", "target_amount": 5000.0, "target_date": "2025-01-01"}],
+    }
+    assert history_store.data == {
+        "bob": {"House": [{"date": "2026-01-01", "amount": 5.0}]},
+        "alice": {"Car": [{"date": "2026-01-01", "amount": 10.0}]},
+    }
+
+
 def test_failed_s3_read_keeps_display_reads_tolerant(s3_goal_stores):
     s3_goal_stores.fail_with = "SlowDown"
     assert goals_mod.load_goals("alice") == []

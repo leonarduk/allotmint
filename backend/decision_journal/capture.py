@@ -13,6 +13,7 @@ read-only tools in :data:`READ_ONLY_CONTEXT_TOOLS`.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import date, timedelta
 from pathlib import Path
@@ -23,6 +24,9 @@ import pandas as pd
 from backend.common.holdings_rebuild import transaction_quantity
 from backend.common.investment_plan import InvestmentPlan
 from backend.decision_journal.prices import SeriesLoader, load_return_series
+from backend.logging_setup import sanitise_log_value
+
+logger = logging.getLogger(__name__)
 
 #: The only tools capture may call. All of them read; none writes anywhere.
 READ_ONLY_CONTEXT_TOOLS: frozenset[str] = frozenset(
@@ -298,12 +302,25 @@ def trend_watch_flag(report: Optional[Mapping[str, Any]], ticker: str, on: str) 
 
 
 def _latest_trend_watch(owner: str) -> Optional[dict[str, Any]]:
+    """The owner's latest trend-watch report, or ``None`` when there is none or it can't be read.
+
+    The flag is optional context for a draft, so a storage failure (an S3
+    AccessDenied, an unreadable document, ...) leaves it unknown rather than
+    aborting capture (#11270). Only the read is guarded.
+    """
     from backend.trend_watch import storage
 
     try:
         return storage.load_latest(owner)
     except storage.InvalidOwner:
         return None  # an owner id trend watch cannot store under has no reports
+    except Exception as exc:
+        logger.warning(
+            "Could not read the latest trend-watch report for %s (%s); leaving the flag unknown",
+            sanitise_log_value(owner),
+            sanitise_log_value(type(exc).__name__),
+        )
+        return None
 
 
 def default_context_tools(

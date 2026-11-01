@@ -196,3 +196,21 @@ def test_update_accepts_non_negative_or_unknown_fees(client, tmp_path, fees):
     resp = client.put(f"/transactions/{created['id']}", json=_payload(fees=fees))
     assert resp.status_code == 200
     assert _stored(tmp_path)[0].get("fees") == fees
+
+
+@pytest.mark.parametrize("breakdown", [{}, {"stamp_duty": 0.5}])
+def test_create_rejects_negative_fees_at_the_field(client, tmp_path, breakdown):
+    resp = client.post("/transactions", json=_payload(fees=-1.0, **breakdown))
+    assert resp.status_code == 422
+    # Rejected by the field's ``ge=0`` (#11268), not only by the breakdown check.
+    assert any(err["loc"][-1] == "fees" for err in resp.json()["detail"])
+    assert not (tmp_path / "alice" / "isa_transactions.json").exists()
+
+
+@pytest.mark.parametrize("fees", [0.0, None, 7.5])
+def test_create_accepts_non_negative_or_unknown_fees(client, tmp_path, fees):
+    resp = client.post("/transactions", json=_payload(fees=fees))
+    assert resp.status_code == 201
+    stored = _stored(tmp_path)[0]
+    # Unknown stays an explicit ``None``, distinct from a recorded 0.
+    assert "fees" in stored and stored["fees"] == fees

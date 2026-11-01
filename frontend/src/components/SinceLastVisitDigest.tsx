@@ -5,43 +5,14 @@ import { getAlerts, getDividends, getGroupMovers } from '../api';
 import { holdingsFromAccounts } from '../lib/dividends';
 import { money, signedPercent } from '../lib/money';
 import {
-  advanceVisitRecord,
   buildSinceLastVisitDigest,
-  dismissVisitRecord,
   moversWindowDays,
   visitDay,
   type SinceLastVisitDigest as Digest,
-  type VisitRecord,
 } from '../lib/sinceLastVisit';
-import { loadJSON, saveJSON } from '../utils/storage';
+import { recordDismissal, recordVisit, type VisitSource } from '../lib/lastVisitStore';
 
-export const LAST_VISIT_KEY_PREFIX = 'allotmint.lastVisit.';
 const MOVERS_FETCH_LIMIT = 10;
-
-/**
- * Record this visit for ``slug`` and return the previous one (epoch ms), or
- * null on a first visit. Storage can be blocked; the digest then just never
- * shows, which is the same as a first visit.
- */
-function recordVisit(slug: string, now: number): number | null {
-  const key = `${LAST_VISIT_KEY_PREFIX}${slug}`;
-  const record = advanceVisitRecord(loadJSON<VisitRecord | null>(key, null), now);
-  persistVisit(key, record);
-  return record.previous;
-}
-
-/** Mark everything up to ``now`` as seen for ``slug`` (the card was dismissed). */
-function recordDismissal(slug: string, now: number): void {
-  persistVisit(`${LAST_VISIT_KEY_PREFIX}${slug}`, dismissVisitRecord(now));
-}
-
-function persistVisit(key: string, record: VisitRecord): void {
-  try {
-    saveJSON(key, record);
-  } catch (err) {
-    console.warn('Could not persist last-visit timestamp', err);
-  }
-}
 
 const ownersFromAccounts = (accounts: Account[]): string[] =>
   Array.from(
@@ -61,13 +32,26 @@ type Props = {
 export function SinceLastVisitDigest({ slug, accounts }: Props) {
   const { t } = useTranslation();
   const [since, setSince] = useState<number | null>(null);
+  const [source, setSource] = useState<VisitSource>('local');
   const [digest, setDigest] = useState<Digest | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
+  // Recorded on mount, in parallel with the portfolio load, so the card's
+  // own fetches below still wait only on ``accounts`` and ``since`` (#11195).
   useEffect(() => {
     setDigest(null);
     setDismissed(false);
-    setSince(slug ? recordVisit(slug, Date.now()) : null);
+    setSince(null);
+    if (!slug) return;
+    let cancelled = false;
+    void recordVisit(slug, Date.now()).then((visit) => {
+      if (cancelled) return;
+      setSource(visit.source);
+      setSince(visit.since);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [slug]);
 
   const owners = useMemo(() => (accounts ? ownersFromAccounts(accounts) : []), [accounts]);
@@ -116,7 +100,8 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
   if (dismissed || since === null || !digest) return null;
 
   const dismiss = () => {
-    recordDismissal(slug, Date.now());
+    // recordDismissal never rejects: a server failure falls back to localStorage.
+    void recordDismissal(slug, Date.now(), source);
     setDismissed(true);
   };
   const title = t('sinceLastVisit.title', 'Since you were last here');
@@ -137,8 +122,10 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2" style={{ flex: '1 1 16rem', minWidth: 0 }}>
           <h2 className="text-base font-semibold">{title}</h2>
+          {/* Window-neutral on purpose: alerts and dividends are cut at the
+              visit, but movers cover the last `days` days (#11196). */}
           <p>
-            {t('sinceLastVisit.since', 'Changes since {{date}}.', {
+            {t('sinceLastVisit.since', 'Your last visit was on {{date}}.', {
               date: new Date(since).toLocaleString(),
             })}
           </p>
@@ -146,7 +133,8 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
             <p>
               {t(
                 'sinceLastVisit.nothingChanged',
-                'Nothing notable since then: no big movers, alerts or dividends.'
+                'Nothing notable: no big movers over the last {{days}} days, and no alerts or dividends since your last visit.',
+                { days }
               )}
             </p>
           ) : (
@@ -155,7 +143,11 @@ export function SinceLastVisitDigest({ slug, accounts }: Props) {
                 {digest.movers === null
                   ? t('sinceLastVisit.moversUnavailable', 'Movers are unavailable right now.')
                   : digest.movers.length === 0
-                    ? t('sinceLastVisit.noMovers', 'No big movers among your holdings.')
+                    ? t(
+                        'sinceLastVisit.noMovers',
+                        'No big movers among your holdings over the last {{days}} days.',
+                        { days }
+                      )
                     : t('sinceLastVisit.movers', 'Biggest movers over the last {{days}} days: {{list}}', {
                         days,
                         list: digest.movers

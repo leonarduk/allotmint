@@ -4,9 +4,11 @@ import copy
 from datetime import date, timedelta
 
 import pytest
+from botocore.exceptions import ClientError
 
 from backend.common import goals as goals_mod
-from backend.common.storage import get_storage
+from backend.common.storage import S3JSONStorage, get_storage
+from tests.backend.fake_s3 import FakeS3
 
 
 @pytest.fixture
@@ -203,3 +205,63 @@ def test_record_goal_amount_interleaved_writes_lose_earlier_snapshot(history_sto
     assert goals_mod.load_goal_history("alice", "Car") == points
     # ...but B's earlier write was overwritten.
     assert goals_mod.load_goal_history("bob", "Van") == []
+
+
+# S3 read failures on write paths (#11299) -------------------------------------
+
+
+@pytest.fixture
+def s3_goal_stores(monkeypatch):
+    """Both goal stores as S3 objects on one in-memory client; returns the client."""
+    fake = FakeS3()
+    monkeypatch.setattr(goals_mod, "_STORAGE", S3JSONStorage(bucket="b", key="goals/goals.json", client=fake))
+    monkeypatch.setattr(
+        goals_mod, "_HISTORY_STORAGE", S3JSONStorage(bucket="b", key="goals/goal_history.json", client=fake)
+    )
+    return fake
+
+
+def test_missing_s3_objects_read_as_empty_and_first_writes_succeed(s3_goal_stores):
+    goal = goals_mod.Goal("Car", 5000.0, date(2025, 1, 1))
+    goals_mod.add_goal("alice", goal)
+    goals_mod.record_goal_amount("alice", "Car", 10.0, date(2026, 1, 1))
+
+    assert goals_mod.load_goals("alice") == [goal]
+    assert goals_mod.load_goal_history("alice", "Car") == [(date(2026, 1, 1), 10.0)]
+    assert set(s3_goal_stores.objects) == {("b", "goals/goals.json"), ("b", "goals/goal_history.json")}
+
+
+_WRITES = {
+    "save_goals": lambda: goals_mod.save_goals("alice", [goals_mod.Goal("Car", 1.0, date(2025, 1, 1))]),
+    "add_goal": lambda: goals_mod.add_goal("alice", goals_mod.Goal("Car", 1.0, date(2025, 1, 1))),
+    "delete_goal": lambda: goals_mod.delete_goal("bob", "House"),
+    "record_goal_amount": lambda: goals_mod.record_goal_amount("alice", "Car", 1.0, date(2026, 1, 1)),
+    "rename_goal_history": lambda: goals_mod.rename_goal_history("bob", "House", "Flat"),
+    "delete_goal_history": lambda: goals_mod.delete_goal_history("bob", "House"),
+}
+
+
+@pytest.mark.parametrize("error_code", ["SlowDown", "InternalError", "AccessDenied"])
+@pytest.mark.parametrize("write", sorted(_WRITES))
+def test_failed_s3_read_raises_and_writes_nothing(s3_goal_stores, monkeypatch, write, error_code):
+    stored = {
+        ("b", "goals/goals.json"): b'{"bob": [{"name": "House", "target_amount": 3000, "target_date": "2025-01-01"}]}',
+        ("b", "goals/goal_history.json"): b'{"bob": {"House": [{"date": "2026-01-01", "amount": 5.0}]}}',
+    }
+    s3_goal_stores.objects.update(stored)
+    s3_goal_stores.fail_with = error_code
+
+    def fail_put(**kwargs):  # pragma: no cover - the assertion this test exists for
+        pytest.fail(f"put_object called after a failed read: {kwargs['Key']}")
+
+    monkeypatch.setattr(s3_goal_stores, "put_object", fail_put)
+    with pytest.raises(ClientError):
+        _WRITES[write]()
+    assert s3_goal_stores.objects == stored
+
+
+def test_failed_s3_read_keeps_display_reads_tolerant(s3_goal_stores):
+    s3_goal_stores.fail_with = "SlowDown"
+    assert goals_mod.load_goals("alice") == []
+    assert goals_mod.load_all_goals() == {}
+    assert goals_mod.load_goal_history("alice", "Car") == []

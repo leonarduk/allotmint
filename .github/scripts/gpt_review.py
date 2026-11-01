@@ -62,7 +62,17 @@ ALLOTMINT_REPO_PROFILE = RepoProfile(
         "- **`frontend/package-lock.json` contains Linux-specific optional "
         "peer deps** (e.g. `@emnapi/core`, `@emnapi/runtime`) that do not "
         "appear when the lock file is regenerated on Windows. Do not suggest "
-        "regenerating or normalising the lock file on a non-Linux machine."
+        "regenerating or normalising the lock file on a non-Linux machine.\n"
+        "- **Tag every suggested follow-up in section 5.** Start each follow-up "
+        "bullet with exactly one tag, `[gap]` or `[nit]`. `[gap]` means a real "
+        "defect, a data-loss or security risk, a behaviour the linked issue's "
+        "acceptance criteria require but the PR leaves out, or an untested code "
+        "path that could realistically regress. Everything else is `[nit]`: "
+        "comments, docstrings, documentation, renames, rewording, style, "
+        "refactors, 'consider ...' ideas, extra assertions or parametrisations "
+        "for behaviour that is already tested, and hardening against inputs "
+        "that cannot occur. Only `[gap]` follow-ups are filed as issues, so "
+        "tag honestly and list as many real gaps as there are."
     ),
 )
 

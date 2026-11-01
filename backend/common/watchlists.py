@@ -31,17 +31,14 @@ import hashlib
 import json
 import logging
 import os
-import tempfile
-import threading
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol
-from urllib.parse import urlparse
+from typing import Any, Dict, List, Optional
 
-from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from backend.common import conditional_store
+from backend.common.conditional_store import ConditionalStore, PreconditionFailed, Stored
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -70,10 +67,6 @@ class WatchlistsConflict(Exception):
     def __init__(self, current: Dict[str, Any]):
         super().__init__("Watchlists were changed elsewhere")
         self.current = current
-
-
-class _PreconditionFailed(Exception):
-    """A conditional write lost to a concurrent write."""
 
 
 class NamedWatchlist(BaseModel):
@@ -117,140 +110,27 @@ class WatchlistsState(BaseModel):
         return self
 
 
-@dataclass(frozen=True)
-class _Stored:
-    data: bytes
-    tag: str
+# The stores (shared with backend.common.last_visit) raise WatchlistsUnavailable here.
+WatchlistsStore = ConditionalStore
 
 
-class WatchlistsStore(Protocol):
-    def read(self, key: str) -> Optional[_Stored]:
-        """Return the object at ``key``, or ``None`` if it does not exist."""
-
-    def write(self, key: str, data: bytes, *, expect_tag: Optional[str]) -> None:
-        """Write ``key`` if its tag is still ``expect_tag`` (``None``: it must not exist)."""
-
-
-@dataclass
-class FileWatchlistsStore:
+class FileWatchlistsStore(conditional_store.FileStore):
     """Local-file store; one lock serialises the conditional writes."""
 
-    root: Path
-    # Class-wide on purpose: get_watchlists_store() builds a store per request,
-    # so a per-instance lock would serialise nothing. One process only, which
-    # is all the local dev server runs; Lambda uses S3WatchlistsStore.
-    _lock = threading.Lock()
-
-    @staticmethod
-    def _tag(data: bytes) -> str:
-        return hashlib.sha256(data).hexdigest()
-
-    def read(self, key: str) -> Optional[_Stored]:
-        try:
-            data = (self.root / key).read_bytes()
-        except FileNotFoundError:
-            return None
-        except OSError as exc:
-            raise WatchlistsUnavailable(str(exc)) from exc
-        return _Stored(data, self._tag(data))
-
-    def write(self, key: str, data: bytes, *, expect_tag: Optional[str]) -> None:
-        with self._lock:
-            existing = self.read(key)
-            if (existing.tag if existing else None) != expect_tag:
-                raise _PreconditionFailed()
-            self._replace(self.root / key, data)
-
-    @staticmethod
-    def _replace(path: Path, data: bytes) -> None:
-        """Write ``path`` atomically, so a crash never leaves a half-written document."""
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.stem}.", suffix=".tmp")
-            try:
-                with os.fdopen(fd, "wb") as handle:
-                    handle.write(data)
-                os.replace(tmp, path)
-            except BaseException:
-                Path(tmp).unlink(missing_ok=True)
-                raise
-        except OSError as exc:
-            raise WatchlistsUnavailable(str(exc)) from exc
+    unavailable = WatchlistsUnavailable
 
 
-@dataclass
-class S3WatchlistsStore:
-    bucket: str
-    prefix: str
-    client: Any | None = None
-
-    def _client(self):
-        if self.client is None:
-            import boto3  # type: ignore
-
-            self.client = boto3.client("s3")
-        return self.client
-
-    def _key(self, key: str) -> str:
-        return f"{self.prefix}/{key}" if self.prefix else key
-
-    def _unavailable(self, action: str, key: str, exc: Exception) -> WatchlistsUnavailable:
-        logger.warning(
-            "Watchlists S3 %s failed for %s/%s: %s",
-            sanitise_log_value(action),
-            sanitise_log_value(self.bucket),
-            sanitise_log_value(self._key(key)),
-            sanitise_log_value(exc),
-        )
-        return WatchlistsUnavailable(f"S3 {action} failed")
-
-    def read(self, key: str) -> Optional[_Stored]:
-        try:
-            obj = self._client().get_object(Bucket=self.bucket, Key=self._key(key))
-            return _Stored(obj["Body"].read(), obj["ETag"])
-        except ClientError as exc:
-            # Without s3:ListBucket on the prefix a missing key is a 403, which
-            # must not read as "nothing saved"; the Lambda is granted it.
-            if exc.response.get("Error", {}).get("Code") in {"NoSuchKey", "404"}:
-                return None
-            raise self._unavailable("read", key, exc) from exc
-        except BotoCoreError as exc:
-            raise self._unavailable("read", key, exc) from exc
-
-    def write(self, key: str, data: bytes, *, expect_tag: Optional[str]) -> None:
-        condition = {"IfMatch": expect_tag} if expect_tag else {"IfNoneMatch": "*"}
-        try:
-            self._client().put_object(
-                Bucket=self.bucket,
-                Key=self._key(key),
-                Body=data,
-                ContentType="application/json",
-                **condition,
-            )
-        except ClientError as exc:
-            # 412: the object changed since it was read. 409: S3 reports a
-            # conditional write racing another write to the same key.
-            code = exc.response.get("Error", {}).get("Code")
-            if code in {"PreconditionFailed", "ConditionalRequestConflict"}:
-                raise _PreconditionFailed() from exc
-            raise self._unavailable("write", key, exc) from exc
-        except BotoCoreError as exc:
-            raise self._unavailable("write", key, exc) from exc
+class S3WatchlistsStore(conditional_store.S3Store):
+    unavailable = WatchlistsUnavailable
+    label = "Watchlists"
 
 
-def store_from_uri(uri: str) -> WatchlistsStore:
+def store_from_uri(uri: str) -> FileWatchlistsStore | S3WatchlistsStore:
     """Return the store for a ``s3://bucket/prefix`` or ``file://`` / plain path base."""
 
-    parsed = urlparse(uri)
-    if parsed.scheme == "s3":
-        return S3WatchlistsStore(bucket=parsed.netloc, prefix=parsed.path.strip("/"))
-    # A Windows path such as D:\data\watchlists parses as scheme "d".
-    if len(parsed.scheme) == 1:
-        return FileWatchlistsStore(root=Path(uri))
-    if parsed.scheme in {"file", ""}:
-        path = os.path.join(parsed.netloc, parsed.path.lstrip("/")) if parsed.netloc else parsed.path
-        return FileWatchlistsStore(root=Path(path))
-    raise ValueError(f"Unsupported watchlists storage scheme: {parsed.scheme}")
+    return conditional_store.store_from_uri(
+        uri, file_store=FileWatchlistsStore, s3_store=S3WatchlistsStore, name="watchlists"
+    )
 
 
 def _default_uri() -> str:
@@ -291,7 +171,7 @@ def _public(revision: int, state: Optional[WatchlistsState]) -> Dict[str, Any]:
     return {"revision": revision, "state": state.model_dump() if state else None}
 
 
-def _decode(stored: Optional[_Stored]) -> tuple[int, Optional[WatchlistsState]]:
+def _decode(stored: Optional[Stored]) -> tuple[int, Optional[WatchlistsState]]:
     """``(revision, state)``; ``(0, None)`` when nothing is saved yet."""
 
     if stored is None:
@@ -342,7 +222,7 @@ def save_watchlists(
     body = json.dumps(_document(revision, state), indent=2).encode("utf-8")
     try:
         store.write(key, body, expect_tag=stored.tag if stored else None)
-    except _PreconditionFailed:
+    except PreconditionFailed:
         raise WatchlistsConflict(_public(*_decode(store.read(key)))) from None
     logger.info("Saved watchlists revision %s", sanitise_log_value(revision))
     return revision

@@ -53,186 +53,209 @@ function Write-GhaError($msg) {
 
 . (Join-Path $PSScriptRoot 'lib\cfn-resource-id.ps1')
 
-# 0. Deployment environment variable validation
-Write-Host "`n=== 0. Deployment environment variable validation ==="
-& pwsh scripts/powershell/validate-deployment-env.ps1
-if ($LASTEXITCODE -eq 0) { Write-Pass "deployment environment variables" } else { Write-Fail "deployment environment variables" }
+# PRE_DEPLOY_CHECK_SECTIONS (e.g. "3" or "0,3") runs only the listed numbered
+# sections; unset or empty runs them all. It lets tests drive one section
+# offline without a venv, CDK, npm or a nested pytest run (#11149). Mirrors
+# section_enabled in scripts/bash/pre-deploy-check.sh.
+function Test-SectionEnabled([int]$Section) {
+    $wanted = @("$env:PRE_DEPLOY_CHECK_SECTIONS" -split '[,\s]+' | Where-Object { $_ })
+    return ($wanted.Count -eq 0) -or ($wanted -contains "$Section")
+}
 
-# 1. Dependency dry-run
-Write-Host "`n=== 1. Dependency dry-run ==="
-$venvPath = Join-Path $env:TEMP 'pre-deploy-venv'
-if (Test-Path $venvPath) { Remove-Item -Recurse -Force $venvPath }
-& $PythonBin -m venv $venvPath | Out-Null
-& "$venvPath\Scripts\pip.exe" install --dry-run -r backend/requirements.txt -q
-if ($LASTEXITCODE -eq 0) { Write-Pass "pip dependency dry-run" } else { Write-Fail "pip dependency dry-run" }
+if (Test-SectionEnabled 0) {
+    # 0. Deployment environment variable validation
+    Write-Host "`n=== 0. Deployment environment variable validation ==="
+    & pwsh scripts/powershell/validate-deployment-env.ps1
+    if ($LASTEXITCODE -eq 0) { Write-Pass "deployment environment variables" } else { Write-Fail "deployment environment variables" }
+}
 
-# 2. CDK synth + diff
-# Uses --method=changeset to match deploy-lambda.yml so replacement annotations are visible.
-Write-Host "`n=== 2. CDK synth + diff ==="
-if (-not $env:AWS_ACCESS_KEY_ID) {
-    Write-Skip "CDK diff (requires AWS credentials)"
-} elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN -or -not $env:JWT_SECRET -or -not $env:GOOGLE_CLIENT_ID -or -not $env:DATA_BUCKET) {
-    Write-Skip "CDK diff (requires GITHUB_DEPLOY_ROLE_ARN, JWT_SECRET, GOOGLE_CLIENT_ID, DATA_BUCKET)"
-} elseif (-not (Test-Path 'cdk')) {
-    Write-Fail "CDK diff (cdk/ directory not found — run from repo root)"
-} else {
-    try {
-        Push-Location cdk -ErrorAction Stop
-        # Use & to invoke npx as an external executable so arguments are passed correctly.
-        $cdkDiffOutput = & npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset 2>&1
-        $cdkDiffExit = $LASTEXITCODE
-    } finally {
-        Pop-Location
-    }
-    $cdkDiffOutput | ForEach-Object { Write-Host $_ }
-    if ($cdkDiffExit -ne 0) {
-        Write-Fail "CDK diff"
+if (Test-SectionEnabled 1) {
+    # 1. Dependency dry-run
+    Write-Host "`n=== 1. Dependency dry-run ==="
+    $venvPath = Join-Path $env:TEMP 'pre-deploy-venv'
+    if (Test-Path $venvPath) { Remove-Item -Recurse -Force $venvPath }
+    & $PythonBin -m venv $venvPath | Out-Null
+    & "$venvPath\Scripts\pip.exe" install --dry-run -r backend/requirements.txt -q
+    if ($LASTEXITCODE -eq 0) { Write-Pass "pip dependency dry-run" } else { Write-Fail "pip dependency dry-run" }
+}
+
+if (Test-SectionEnabled 2) {
+    # 2. CDK synth + diff
+    # Uses --method=changeset to match deploy-lambda.yml so replacement annotations are visible.
+    Write-Host "`n=== 2. CDK synth + diff ==="
+    if (-not $env:AWS_ACCESS_KEY_ID) {
+        Write-Skip "CDK diff (requires AWS credentials)"
+    } elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN -or -not $env:JWT_SECRET -or -not $env:GOOGLE_CLIENT_ID -or -not $env:DATA_BUCKET) {
+        Write-Skip "CDK diff (requires GITHUB_DEPLOY_ROLE_ARN, JWT_SECRET, GOOGLE_CLIENT_ID, DATA_BUCKET)"
+    } elseif (-not (Test-Path 'cdk')) {
+        Write-Fail "CDK diff (cdk/ directory not found — run from repo root)"
     } else {
-        $tmpFile = New-TemporaryFile
         try {
-            $cdkDiffOutput | Out-String | Set-Content -Path $tmpFile -Encoding utf8
-            & $PythonBin scripts/check_cdk_diff_iam_removals.py $tmpFile
-            if ($LASTEXITCODE -eq 0) {
-                Write-Pass "CDK diff"
-            } else {
-                Write-Fail "CDK diff (removes an IAM Allow grant for the deploy role — see #3741)"
-            }
+            Push-Location cdk -ErrorAction Stop
+            # Use & to invoke npx as an external executable so arguments are passed correctly.
+            $cdkDiffOutput = & npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset 2>&1
+            $cdkDiffExit = $LASTEXITCODE
         } finally {
-            Remove-Item $tmpFile -Force
+            Pop-Location
+        }
+        $cdkDiffOutput | ForEach-Object { Write-Host $_ }
+        if ($cdkDiffExit -ne 0) {
+            Write-Fail "CDK diff"
+        } else {
+            $tmpFile = New-TemporaryFile
+            try {
+                $cdkDiffOutput | Out-String | Set-Content -Path $tmpFile -Encoding utf8
+                & $PythonBin scripts/check_cdk_diff_iam_removals.py $tmpFile
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Pass "CDK diff"
+                } else {
+                    Write-Fail "CDK diff (removes an IAM Allow grant for the deploy role — see #3741)"
+                }
+            } finally {
+                Remove-Item $tmpFile -Force
+            }
         }
     }
 }
 
-# 3. IAM permission simulation
-Write-Host "`n=== 3. IAM permission simulation ==="
-if (-not $env:AWS_ACCESS_KEY_ID) {
-    Write-Skip "IAM simulation (requires AWS credentials)"
-} elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN) {
-    Write-Skip "IAM simulation (requires GITHUB_DEPLOY_ROLE_ARN)"
-} else {
-    $BucketLookup = Get-CfnResourceId 'BackendLambdaStack' `
-        "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId"
-    $BucketId = $BucketLookup.Id
-    # A failed lookup is not "not deployed": fail rather than skip (#11095).
-    if (-not $BucketLookup.Ok) {
-        Write-Host $BucketLookup.Error -ForegroundColor Red
-        Write-Fail "IAM simulation (could not list BackendLambdaStack resources; see the error above)"
-    } elseif (-not $BucketId -or $BucketId -eq 'None') {
-        Write-Skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
+if (Test-SectionEnabled 3) {
+    # 3. IAM permission simulation
+    Write-Host "`n=== 3. IAM permission simulation ==="
+    if (-not $env:AWS_ACCESS_KEY_ID) {
+        Write-Skip "IAM simulation (requires AWS credentials)"
+    } elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN) {
+        Write-Skip "IAM simulation (requires GITHUB_DEPLOY_ROLE_ARN)"
     } else {
-        $AwsRegion = if ($env:AWS_REGION) { $env:AWS_REGION } else {
-            $r = (& aws configure get region 2>$null) -replace '\s', ''
-            if ($r) { $r } else { 'us-east-1' }
-        }
-        $AwsAccount = & aws sts get-caller-identity --query Account --output text 2>$null
-        $BucketArn = "arn:aws:s3:::$BucketId"
-        # Include Lambda and CloudFormation ARNs so those action simulations are meaningful.
-        $LambdaArn = "arn:aws:lambda:${AwsRegion}:${AwsAccount}:function:*"
-        $CfnArn    = "arn:aws:cloudformation:${AwsRegion}:${AwsAccount}:stack/BackendLambdaStack/*"
-        # Map each action to its canonical resource ARN to avoid IAM returning
-        # "notApplicable" for mismatched action/resource pairs.  notApplicable means
-        # IAM could not evaluate the combination — treated as a warning, not a hard failure.
-        $ActionResources = [ordered]@{
-            's3:GetObject'                   = "$BucketArn/*"
-            's3:ListBucket'                  = $BucketArn
-            'lambda:InvokeFunction'          = $LambdaArn
-            'cloudformation:CreateChangeSet' = $CfnArn
-            'cloudformation:DescribeChangeSet' = $CfnArn
-            'cloudformation:DeleteChangeSet' = $CfnArn
-        }
-        $SimFailed      = $false
-        $SimUnavailable = $false
-        foreach ($Entry in $ActionResources.GetEnumerator()) {
-            $Action   = $Entry.Key
-            $Resource = $Entry.Value
-            $iamArgs = @(
-                'iam', 'simulate-principal-policy',
-                '--policy-source-arn', $env:GITHUB_DEPLOY_ROLE_ARN,
-                '--action-names', $Action,
-                '--resource-arns', $Resource,
-                '--query', 'EvaluationResults[0].EvalDecision',
-                '--output', 'text'
-            )
-            # Pipe through Out-String to coerce the mixed [object[]] that 2>&1 can produce
-            # (strings + ErrorRecord objects) into a single plain string so that -match
-            # always behaves as a boolean rather than returning filtered array elements.
-            $RawResult  = (& aws @iamArgs 2>&1) | Out-String
-            $AwsSuccess = ($LASTEXITCODE -eq 0)
-            # Distinguish four cases:
-            # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip.
-            # 2. Any other non-zero exit (unexpected error) → hard-fail.
-            # 3. notApplicable → warn (IAM could not evaluate the action/resource combination).
-            # 4. Any other non-"allowed" decision (explicitDeny/implicitDeny) → hard-fail.
-            if ($RawResult -match 'not authorized to perform.*iam:SimulatePrincipalPolicy|iam:SimulatePrincipalPolicy.*not authorized') {
-                Write-GhaWarning "simulate-principal-policy unavailable for $Action — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh (or equivalent) to grant it."
-                Write-Host "  AWS response: $RawResult" -ForegroundColor Yellow
-                $SimUnavailable = $true
-            } elseif (-not $AwsSuccess) {
-                Write-GhaError "simulate-principal-policy failed for $Action with an unexpected error."
-                Write-Host "  AWS response: $RawResult" -ForegroundColor Red
-                $SimFailed = $true
-            } else {
-                # Extract the decision by matching only the known EvalDecision token values.
-                # Using -split + Where-Object is immune to trailing AWS CLI deprecation lines.
-                $Result = ($RawResult -split '\r?\n' |
-                          Where-Object { $_ -match '^(allowed|explicitDeny|implicitDeny|notApplicable)$' } |
-                          Select-Object -First 1)
-                if ($Result -eq 'allowed') {
-                    # pass — no action needed
-                } elseif ($Result -eq 'notApplicable') {
-                    Write-GhaWarning "$Action returned notApplicable on $Resource — IAM could not evaluate this action/resource combination. Check resource ARN mapping."
+        $BucketLookup = Get-CfnResourceId 'BackendLambdaStack' `
+            "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId"
+        $BucketId = $BucketLookup.Id
+        # A failed lookup is not "not deployed": fail rather than skip (#11095).
+        if (-not $BucketLookup.Ok) {
+            Write-Host $BucketLookup.Error -ForegroundColor Red
+            Write-Fail "IAM simulation (could not list BackendLambdaStack resources; see the error above)"
+        } elseif (-not $BucketId -or $BucketId -eq 'None') {
+            Write-Skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
+        } else {
+            $AwsRegion = if ($env:AWS_REGION) { $env:AWS_REGION } else {
+                $r = (& aws configure get region 2>$null) -replace '\s', ''
+                if ($r) { $r } else { 'us-east-1' }
+            }
+            $AwsAccount = & aws sts get-caller-identity --query Account --output text 2>$null
+            $BucketArn = "arn:aws:s3:::$BucketId"
+            # Include Lambda and CloudFormation ARNs so those action simulations are meaningful.
+            $LambdaArn = "arn:aws:lambda:${AwsRegion}:${AwsAccount}:function:*"
+            $CfnArn    = "arn:aws:cloudformation:${AwsRegion}:${AwsAccount}:stack/BackendLambdaStack/*"
+            # Map each action to its canonical resource ARN to avoid IAM returning
+            # "notApplicable" for mismatched action/resource pairs.  notApplicable means
+            # IAM could not evaluate the combination — treated as a warning, not a hard failure.
+            $ActionResources = [ordered]@{
+                's3:GetObject'                   = "$BucketArn/*"
+                's3:ListBucket'                  = $BucketArn
+                'lambda:InvokeFunction'          = $LambdaArn
+                'cloudformation:CreateChangeSet' = $CfnArn
+                'cloudformation:DescribeChangeSet' = $CfnArn
+                'cloudformation:DeleteChangeSet' = $CfnArn
+            }
+            $SimFailed      = $false
+            $SimUnavailable = $false
+            foreach ($Entry in $ActionResources.GetEnumerator()) {
+                $Action   = $Entry.Key
+                $Resource = $Entry.Value
+                $iamArgs = @(
+                    'iam', 'simulate-principal-policy',
+                    '--policy-source-arn', $env:GITHUB_DEPLOY_ROLE_ARN,
+                    '--action-names', $Action,
+                    '--resource-arns', $Resource,
+                    '--query', 'EvaluationResults[0].EvalDecision',
+                    '--output', 'text'
+                )
+                # Pipe through Out-String to coerce the mixed [object[]] that 2>&1 can produce
+                # (strings + ErrorRecord objects) into a single plain string so that -match
+                # always behaves as a boolean rather than returning filtered array elements.
+                $RawResult  = (& aws @iamArgs 2>&1) | Out-String
+                $AwsSuccess = ($LASTEXITCODE -eq 0)
+                # Distinguish four cases:
+                # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip.
+                # 2. Any other non-zero exit (unexpected error) → hard-fail.
+                # 3. notApplicable → warn (IAM could not evaluate the action/resource combination).
+                # 4. Any other non-"allowed" decision (explicitDeny/implicitDeny) → hard-fail.
+                if ($RawResult -match 'not authorized to perform.*iam:SimulatePrincipalPolicy|iam:SimulatePrincipalPolicy.*not authorized') {
+                    Write-GhaWarning "simulate-principal-policy unavailable for $Action — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh (or equivalent) to grant it."
+                    Write-Host "  AWS response: $RawResult" -ForegroundColor Yellow
                     $SimUnavailable = $true
-                } else {
-                    $Display = if ($Result) { $Result } else { '<no decision token found>' }
-                    Write-GhaError "$Action not allowed on $Resource (got: $Display)"
+                } elseif (-not $AwsSuccess) {
+                    Write-GhaError "simulate-principal-policy failed for $Action with an unexpected error."
                     Write-Host "  AWS response: $RawResult" -ForegroundColor Red
                     $SimFailed = $true
+                } else {
+                    # Extract the decision by matching only the known EvalDecision token values.
+                    # Using -split + Where-Object is immune to trailing AWS CLI deprecation lines.
+                    $Result = ($RawResult -split '\r?\n' |
+                              Where-Object { $_ -match '^(allowed|explicitDeny|implicitDeny|notApplicable)$' } |
+                              Select-Object -First 1)
+                    if ($Result -eq 'allowed') {
+                        # pass — no action needed
+                    } elseif ($Result -eq 'notApplicable') {
+                        Write-GhaWarning "$Action returned notApplicable on $Resource — IAM could not evaluate this action/resource combination. Check resource ARN mapping."
+                        $SimUnavailable = $true
+                    } else {
+                        $Display = if ($Result) { $Result } else { '<no decision token found>' }
+                        Write-GhaError "$Action not allowed on $Resource (got: $Display)"
+                        Write-Host "  AWS response: $RawResult" -ForegroundColor Red
+                        $SimFailed = $true
+                    }
                 }
             }
-        }
-        if ($SimFailed) {
-            Write-Fail "IAM permission simulation"
-        } elseif ($SimUnavailable) {
-            Write-GhaWarning "IAM simulation skipped or incomplete — see warnings above."
-            Write-Skip "IAM permission simulation (check warnings above)"
-        } else {
-            Write-Pass "IAM permission simulation"
+            if ($SimFailed) {
+                Write-Fail "IAM permission simulation"
+            } elseif ($SimUnavailable) {
+                Write-GhaWarning "IAM simulation skipped or incomplete — see warnings above."
+                Write-Skip "IAM permission simulation (check warnings above)"
+            } else {
+                Write-Pass "IAM permission simulation"
+            }
         }
     }
 }
 
-# 4. Backend lint + tests
-Write-Host "`n=== 4. Backend lint + tests ==="
-# make is not available on Windows by default; skip with a warning if not found.
-if (-not (Get-Command make -ErrorAction SilentlyContinue)) {
-    Write-Skip "make lint (make not found — install via Chocolatey, Scoop, or use WSL)"
-} else {
-    make lint
-    if ($LASTEXITCODE -eq 0) { Write-Pass "make lint" } else { Write-Fail "make lint" }
+if (Test-SectionEnabled 4) {
+    # 4. Backend lint + tests
+    Write-Host "`n=== 4. Backend lint + tests ==="
+    # make is not available on Windows by default; skip with a warning if not found.
+    if (-not (Get-Command make -ErrorAction SilentlyContinue)) {
+        Write-Skip "make lint (make not found — install via Chocolatey, Scoop, or use WSL)"
+    } else {
+        make lint
+        if ($LASTEXITCODE -eq 0) { Write-Pass "make lint" } else { Write-Fail "make lint" }
+    }
+
+    & $PythonBin -m pytest tests/ -x -q
+    if ($LASTEXITCODE -eq 0) { Write-Pass "backend pytest" } else { Write-Fail "backend pytest" }
 }
 
-& $PythonBin -m pytest tests/ -x -q
-if ($LASTEXITCODE -eq 0) { Write-Pass "backend pytest" } else { Write-Fail "backend pytest" }
+if (Test-SectionEnabled 5) {
+    # 5. Frontend lint + tests
+    Write-Host "`n=== 5. Frontend lint + tests ==="
+    npm --prefix frontend run lint
+    if ($LASTEXITCODE -eq 0) { Write-Pass "frontend lint" } else { Write-Fail "frontend lint" }
 
-# 5. Frontend lint + tests
-Write-Host "`n=== 5. Frontend lint + tests ==="
-npm --prefix frontend run lint
-if ($LASTEXITCODE -eq 0) { Write-Pass "frontend lint" } else { Write-Fail "frontend lint" }
+    npm --prefix frontend run test -- --run
+    if ($LASTEXITCODE -eq 0) { Write-Pass "frontend tests" } else { Write-Fail "frontend tests" }
+}
 
-npm --prefix frontend run test -- --run
-if ($LASTEXITCODE -eq 0) { Write-Pass "frontend tests" } else { Write-Fail "frontend tests" }
-
-# 6. CDK tests
-Write-Host "`n=== 6. CDK tests ==="
-if (-not (Test-Path 'cdk')) {
-    Write-Fail "CDK pytest (cdk/ directory not found — run from repo root)"
-} else {
-    try {
-        Push-Location cdk -ErrorAction Stop
-        & $PythonBin -m pytest tests/ -x -q
-        if ($LASTEXITCODE -eq 0) { Write-Pass "CDK pytest" } else { Write-Fail "CDK pytest" }
-    } finally {
-        Pop-Location
+if (Test-SectionEnabled 6) {
+    # 6. CDK tests
+    Write-Host "`n=== 6. CDK tests ==="
+    if (-not (Test-Path 'cdk')) {
+        Write-Fail "CDK pytest (cdk/ directory not found — run from repo root)"
+    } else {
+        try {
+            Push-Location cdk -ErrorAction Stop
+            & $PythonBin -m pytest tests/ -x -q
+            if ($LASTEXITCODE -eq 0) { Write-Pass "CDK pytest" } else { Write-Fail "CDK pytest" }
+        } finally {
+            Pop-Location
+        }
     }
 }
 
@@ -247,3 +270,6 @@ if ($Fail -gt 0) {
     exit 1
 }
 Write-Host "All checks passed." -ForegroundColor Green
+# Exit explicitly: otherwise a caller reading $LASTEXITCODE after `& pre-deploy-check.ps1`
+# sees the last native command's code (e.g. a skipped aws lookup), not success.
+exit 0

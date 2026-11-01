@@ -7,5 +7,7 @@
   reviews) linked to the plan's ``decisions`` entry by ``id``.
 * :mod:`.review` builds the 6- and 12-month counterfactual against the
   alternatives the owner listed, labelled with its return basis.
+* :mod:`.patterns` counts how the option taken ended against each kind of
+  alternative across reviewed entries, split by return basis (#10489).
 * :mod:`.bot` is the daily run: list unlogged changes and run due reviews.
 """

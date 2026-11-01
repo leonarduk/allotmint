@@ -8,6 +8,13 @@ nothing. Cash rows (``DEPOSIT``, ``TRANSFER_IN``, ``WITHDRAWAL``,
 ``INTEREST``, ``FEES``) the rules leave unclassified are listed so they can be
 set by hand; their ``kind`` stays null and readers keep using comment rules.
 
+Rows with the legacy ``kind="account"`` (written by the Moneyhub API importer,
+``backend/importers/moneyhub_api.py``) are deliberately left alone as well:
+``"account"`` marks an account-level cash row, not a cash classification, and
+those rows carry Moneyhub's own category as their ``type``, not one of the
+types the rules are written for. They are counted per file and in total so the
+rows still without a real cash kind stay visible (#11192).
+
 The account a row belongs to is the file's ``account_type`` (as written by the
 transactions API), else its ``account``, else the file name before
 ``_transactions.json``.
@@ -39,6 +46,8 @@ from typing import Any, Dict, List, Tuple
 from backend.common.cash_kind import CASH_TYPES, classify_cash_kind
 
 _SUFFIX = "_transactions.json"
+# Legacy kind the Moneyhub API importer writes; kept as is (see the module docstring).
+_LEGACY_ACCOUNT_KIND = "account"
 
 
 def _account_name(path: Path, data: Dict[str, Any]) -> str:
@@ -63,6 +72,7 @@ def _classify_rows(rows: List[Dict[str, Any]], account: str) -> Tuple[Counter, L
     added: Counter = Counter()
     unclassified: List[Tuple[int, Dict[str, Any]]] = []
     for index, tx in enumerate(rows):
+        # Any set kind is kept, including the legacy "account" marker (#11192).
         if tx.get("kind"):
             continue
         kind = classify_cash_kind(tx, account)
@@ -74,25 +84,34 @@ def _classify_rows(rows: List[Dict[str, Any]], account: str) -> Tuple[Counter, L
     return added, unclassified
 
 
+def _legacy_account_rows(rows: List[Dict[str, Any]]) -> int:
+    return sum(1 for tx in rows if tx.get("kind") == _LEGACY_ACCOUNT_KIND)
+
+
 def _serialize(data: Any, raw: str) -> str:
     """The text a rewrite writes: 2-space indent, keeping whether ``raw`` ended with a newline."""
     return json.dumps(data, indent=2, ensure_ascii=False) + ("\n" if raw.endswith("\n") else "")
 
 
-def _process(path: Path, dry_run: bool) -> Tuple[Counter, List[Tuple[int, Dict[str, Any]]], bool]:
-    """Classify one file; return kinds set, cash rows left unclassified, and whether its layout would change."""
+def _process(path: Path, dry_run: bool) -> Tuple[Counter, List[Tuple[int, Dict[str, Any]]], int, bool]:
+    """Classify one file.
+
+    Returns kinds set, cash rows left unclassified, legacy ``"account"`` rows
+    kept, and whether its layout would change on a rewrite.
+    """
     raw = path.read_text(encoding="utf-8")
     data = json.loads(raw)
     transactions = data.get("transactions") if isinstance(data, dict) else None
     if not isinstance(transactions, list):
-        return Counter(), [], False
+        return Counter(), [], 0, False
     # Compared before classification so only layout differences count, not new kinds.
     reformat = _serialize(data, raw) != raw
     rows = [tx for tx in transactions if isinstance(tx, dict)]
+    legacy = _legacy_account_rows(rows)
     added, unclassified = _classify_rows(rows, _account_name(path, data))
     if added and not dry_run:
         path.write_text(_serialize(data, raw), encoding="utf-8")
-    return added, unclassified, reformat
+    return added, unclassified, legacy, reformat
 
 
 def _describe(index: int, tx: Dict[str, Any]) -> str:
@@ -127,17 +146,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Not a directory: {args.accounts_root}", file=sys.stderr)
         return 2
     verb = "would be classified" if args.dry_run else "classified"
-    total, left = 0, 0
+    total, left, kept = 0, 0, 0
     reformatted: List[Tuple[Path, bool]] = []
     for path in sorted(args.accounts_root.glob(f"*/*{_SUFFIX}")):
         rel = path.relative_to(args.accounts_root)
-        added, unclassified, reformat = _process(path, args.dry_run)
+        added, unclassified, legacy, reformat = _process(path, args.dry_run)
         _report(rel, added, unclassified, verb)
+        if legacy:
+            print(f'{rel}: {legacy} row(s) with legacy kind "{_LEGACY_ACCOUNT_KIND}" left as is')
         total += sum(added.values())
         left += len(unclassified)
+        kept += legacy
         if reformat:
             reformatted.append((rel, bool(added)))
     print(f"{total} row(s) {verb} in total; {left} cash row(s) left unclassified")
+    print(f'{kept} row(s) with legacy kind "{_LEGACY_ACCOUNT_KIND}" left as is (not a cash classification)')
     if args.dry_run:
         _report_layout(reformatted)
     return 0

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createGoal, getGoal, getGoals, recordGoalProgress } from "../api";
-import { money } from "../lib/money";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { EMPTY_GOAL_FORM, formatGoalDate, parseGoalForm, type Goal, type GoalForm } from "../lib/goalForm";
 import { parseCurrentAmount, progressPercent, type GoalDetail, type GoalProjection } from "../lib/goalProgress";
 
@@ -11,6 +11,7 @@ const fieldStyle = { display: "flex", flexDirection: "column" as const, gap: "0.
 /** Projection sentence plus the assumptions it rests on; nothing is projected without enough history. */
 function ProjectionNote({ projection, targetDate }: { projection: GoalProjection | null; targetDate: string }) {
   const { t, i18n } = useTranslation();
+  const reporting = useReportingCurrency();
   if (!projection) return null;
   const fmt = (iso: string | null) => (iso ? formatGoalDate(iso, i18n.language) : "");
   switch (projection.status) {
@@ -34,7 +35,7 @@ function ProjectionNote({ projection, targetDate }: { projection: GoalProjection
               {t("goals.projection.assumptions", {
                 start: fmt(projection.history_start),
                 end: fmt(projection.history_end),
-                rate: money(projection.monthly_rate, "GBP", i18n.language),
+                rate: reporting.format(projection.monthly_rate),
                 points: projection.points,
               })}
             </small>
@@ -48,6 +49,9 @@ function ProjectionNote({ projection, targetDate }: { projection: GoalProjection
 
 export default function Goals() {
   const { t, i18n } = useTranslation();
+  // Goal amounts are GBP like every other backend amount; show them in the
+  // configured base currency the same way the portfolio views do (#10035).
+  const reporting = useReportingCurrency();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [form, setForm] = useState<GoalForm>(EMPTY_GOAL_FORM);
   const [error, setError] = useState<string | null>(null);
@@ -184,7 +188,7 @@ export default function Goals() {
               <span>
                 {t("goals.goalLine", {
                   name: g.name,
-                  amount: money(g.target_amount, "GBP", i18n.language),
+                  amount: reporting.format(g.target_amount),
                   date: formatGoalDate(g.target_date, i18n.language),
                 })}
               </span>
@@ -219,8 +223,8 @@ export default function Goals() {
               />
               <p>
                 {t("goals.progressSummary", {
-                  current: money(selected.current_amount, "GBP", i18n.language),
-                  target: money(selected.target_amount, "GBP", i18n.language),
+                  current: reporting.format(selected.current_amount),
+                  target: reporting.format(selected.target_amount),
                   progress: progressPercent(selected.progress),
                 })}
               </p>
@@ -235,7 +239,7 @@ export default function Goals() {
                   <li key={i}>
                     {t("goals.trade", {
                       action: trade.action,
-                      amount: money(trade.amount, "GBP", i18n.language),
+                      amount: reporting.format(trade.amount),
                       ticker: trade.ticker,
                     })}
                   </li>

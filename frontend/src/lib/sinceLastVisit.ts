@@ -69,7 +69,13 @@ export function visitDay(since: number): string {
   return localDateISO(new Date(since));
 }
 
-/** The smallest movers window that covers the time since ``since``. */
+/**
+ * The smallest movers window that covers the time since ``since``. This is
+ * an approximation: /movers has no ``since`` parameter, so the window usually
+ * starts before the visit (2 days ago picks 7). Copy for the movers section
+ * must name this window ("last N days") rather than claim "since {{date}}"
+ * (#11196).
+ */
 export function moversWindowDays(since: number, now: number): number {
   const elapsedDays = Math.max(1, Math.ceil((now - since) / DAY_MS));
   return (

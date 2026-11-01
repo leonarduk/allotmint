@@ -1428,14 +1428,22 @@ def _group_purchase_lots(
     return groups
 
 
+# The ledger and holdings an account's import was planned against.
+_PlannedState = Tuple[List[Any], List[Any]]
+
+
+def _read_holdings(store: "AccountsStore", owner: str, account: str) -> List[Any]:
+    return list((store.read_document(owner, f"{account}.json") or {}).get("holdings") or [])
+
+
 def _plan_account_lots(
     store: "AccountsStore", owner: str, account: str, by_ticker: Dict[str, List[PurchaseLot]]
-) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[Any]]:
-    """``(transactions account, rows to append, updated holdings, skipped rows, ledger planned against)``."""
+) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], _PlannedState]:
+    """``(transactions account, rows to append, updated holdings, skipped rows, state planned against)``."""
     tx_account = _transactions_account_name(owner, account, store)
     tx_doc = store.read_document(owner, f"{tx_account}_transactions.json") or {}
     transactions = list(tx_doc.get("transactions") or [])
-    holdings = list((store.read_document(owner, f"{account}.json") or {}).get("holdings") or [])
+    holdings = _read_holdings(store, owner, account)
     rows: List[Dict[str, Any]] = []
     updated: List[Dict[str, Any]] = []
     skipped: List[Dict[str, Any]] = []
@@ -1455,27 +1463,35 @@ def _plan_account_lots(
                 "lots": len(txs),
             }
         )
-    return tx_account, rows, updated, skipped, transactions
+    return tx_account, rows, updated, skipped, (transactions, holdings)
 
 
 def _append_and_rebuild(
-    store: "AccountsStore", owner: str, tx_account: str, rows: List[Dict[str, Any]], planned: List[Any]
+    store: "AccountsStore",
+    owner: str,
+    account: str,
+    tx_account: str,
+    rows: List[Dict[str, Any]],
+    planned: _PlannedState,
 ) -> int:
     """Append ``rows`` to the account's ledger in one write, rebuild, and return the first new index.
 
-    ``planned`` is the ledger the rows were planned against. If it changed
-    before the lock was taken (another write landed in between), the
-    "holding not yet tracked" check may be stale and appending could double
-    units, so the import is refused with a 409 instead. A failed rebuild
-    removes the rows again before re-raising.
+    ``planned`` is the ledger and holdings the rows were planned against. If
+    either changed before the lock was taken (another write landed in
+    between), the "holding not yet tracked" or "lots add up to the units
+    held" check may be stale, so the import is refused with a 409 instead.
+    Holdings are re-read too because a manual holding edit changes units
+    without adding a transaction. A failed rebuild removes the rows again
+    before re-raising.
     """
+    planned_transactions, planned_holdings = planned
     store.ensure_owner(owner)
     with _locked_transactions_data(owner, tx_account, store) as (data, _file):
         transactions = data["transactions"]
-        if transactions != planned:
+        if transactions != planned_transactions or _read_holdings(store, owner, account) != planned_holdings:
             raise HTTPException(
                 status_code=409,
-                detail=f"The {tx_account} transactions changed during the import; nothing was written. Try again.",
+                detail=f"The {account} account changed during the import; nothing was written. Try again.",
             )
         start = len(transactions)
         transactions.extend(rows)
@@ -1572,7 +1588,7 @@ async def import_cost_basis(
             )
             skipped.extend(account_skipped)
             if rows:
-                start = _append_and_rebuild(store, lot_owner, tx_account, rows, planned)
+                start = _append_and_rebuild(store, lot_owner, lot_account, tx_account, rows, planned)
                 written.append((lot_owner, tx_account, start, rows))
                 updated.extend(account_updated)
     except Exception:

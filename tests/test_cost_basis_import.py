@@ -358,3 +358,23 @@ def test_import_checks_owner_access_for_every_owner_before_writing(client, tmp_p
     assert checked == ["alex", "bob"]
     # Nothing is written for the permitted owner either: access is checked first.
     assert not (tmp_path / "alex" / "isa_transactions.json").exists()
+
+
+def test_import_refuses_when_the_holdings_change_after_planning(client, tmp_path, monkeypatch):
+    _write_account(tmp_path, "testowner", "isa", [{"ticker": "AAA.L", "units": 10, "cost_basis_gbp": 0}])
+    real_plan = transactions._plan_account_lots
+
+    def plan_then_manual_holding_edit(*args, **kwargs):
+        planned = real_plan(*args, **kwargs)
+        # A manual holding edit changes units without adding a transaction.
+        _write_account(tmp_path, "testowner", "isa", [{"ticker": "AAA.L", "units": 12, "cost_basis_gbp": 0}])
+        return planned
+
+    monkeypatch.setattr(transactions, "_plan_account_lots", plan_then_manual_holding_edit)
+    csv = "ticker,date,units,unit_cost\nAAA.L,2020-01-02,10,2\n"
+
+    resp = _post(client, csv, owner="testowner", account="isa")
+
+    assert resp.status_code == 409
+    assert not (tmp_path / "testowner" / "isa_transactions.json").exists()
+    assert _holdings(tmp_path, "testowner", "isa")["AAA.L"]["units"] == 12

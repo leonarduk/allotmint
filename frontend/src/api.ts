@@ -2347,6 +2347,36 @@ export const putSavedWatchlists = (
     jsonInit("PUT", { revision, state }),
   );
 
+// Last visit to a group dashboard (#11195): one record per signed-in user on
+// the server, so the since-last-visit digest follows the user, not the browser.
+
+export type LastVisit = {
+  /** False with no signed-in user or in a demo session: keep the visit locally. */
+  stored: boolean;
+  /** UTC ISO instant of the visit the digest compares against; null on a first visit. */
+  previous: string | null;
+  current: string | null;
+};
+
+/**
+ * Record a visit to `slug` now and return the advanced record. `seed` is the
+ * browser's old localStorage record, used only when the server has none yet.
+ */
+export const recordLastVisit = (
+  slug: string,
+  seed?: { previous: string | null; current: string },
+): Promise<LastVisit> =>
+  fetchJson<LastVisit>(
+    `${API_BASE}/last-visit/${encodeURIComponent(slug)}`,
+    jsonInit("POST", seed ? { seed } : {}),
+  );
+
+/** Mark everything up to now as seen for `slug` (the digest was dismissed). */
+export const dismissLastVisit = (slug: string): Promise<LastVisit> =>
+  fetchJson<LastVisit>(`${API_BASE}/last-visit/${encodeURIComponent(slug)}/dismiss`, {
+    method: "POST",
+  });
+
 export type InstrumentNoteStance = "bullish" | "bearish" | "neutral";
 
 export interface InstrumentNote {

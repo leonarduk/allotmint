@@ -50,6 +50,8 @@ BACKEND_LIST_PREFIXES = (
     # missing-vs-denied for backend/common/owner_documents.py.
     "plans",
     "decision_journal",
+    # Last-visit records (#11195): missing-vs-denied for backend/common/last_visit.py.
+    "last_visit",
     # Writable per-owner account documents (manual holdings / transactions);
     # separate from the read-only accounts/ demo prefix (issue #4275).
     WRITABLE_ACCOUNTS_PREFIX,
@@ -1279,6 +1281,8 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # DATA_STEWARD_REPORTS_PREFIX likewise: backend/data_steward/store.py has no S3
 # fallback and learns the location from DATA_STEWARD_REPORTS_URI (#10471), which
 # test_data_steward_lambda_is_read_only_except_its_reports checks.
+# LAST_VISIT_PREFIX duplicates backend.common.last_visit.S3_PREFIX (#11195),
+# checked by test_backend_lambda_keeps_last_visit_records_under_their_own_prefix.
 _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
     {
         "WRITABLE_ACCOUNTS_PREFIX",
@@ -1290,6 +1294,7 @@ _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
         "DATA_STEWARD_REPORTS_PREFIX",
         "PLANS_PREFIX",
         "DECISION_JOURNAL_PREFIX",
+        "LAST_VISIT_PREFIX",
     }
 )
 
@@ -1373,6 +1378,31 @@ def test_backend_lambda_can_read_and_write_saved_watchlists() -> None:
         resources = _resources_for_s3_action(template, backend_role, action)
         assert any(r.endswith("'/*']]}") or r.endswith("'/watchlists/*']]}") for r in resources), (
             f"BackendLambda needs {action} on watchlists/*, got {resources}"
+        )
+
+
+def test_backend_lambda_keeps_last_visit_records_under_their_own_prefix() -> None:
+    """Last-visit records (#11195) live at last_visit/<hash>.json, not under watchlists/.
+
+    The env URI and the backend fallback name the granted prefix; Get/Put come
+    from the bucket-wide object grant and ListBucket makes a first visit a
+    NoSuchKey rather than a 403.
+    """
+    from stacks.backend_lambda_stack import LAST_VISIT_PREFIX
+
+    # Parsed, not imported: the CDK test env has no backend runtime deps.
+    source = _backend_common_dir() / "last_visit.py"
+    assert LAST_VISIT_PREFIX == _fallback_string_literal(source, "S3_PREFIX")
+
+    template = _stack_template()
+    parts = _lambda_env(template, "BackendLambda")["LAST_VISIT_STORAGE_URI"]["Fn::Join"][1]
+    assert parts[0] == "s3://" and parts[-1] == f"/{LAST_VISIT_PREFIX}"
+
+    role = _role_logical_id_for_lambda(template, "BackendLambda")
+    for action in ("s3:GetObject", "s3:PutObject"):
+        resources = _resources_for_s3_action(template, role, action)
+        assert any(r.endswith("'/*']]}") for r in resources), (
+            f"BackendLambda needs {action} on {LAST_VISIT_PREFIX}/*, got {resources}"
         )
 
 

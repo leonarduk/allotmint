@@ -191,6 +191,12 @@ def isolate_watchlists(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_last_visit(tmp_path, monkeypatch):
+    """Keep last-visit records (#11195) off ``data/`` and off any faked S3 bucket."""
+    monkeypatch.setenv("LAST_VISIT_STORAGE_URI", str(tmp_path / "last_visit"))
+
+
+@pytest.fixture(autouse=True)
 def isolate_alerts_history(tmp_path, monkeypatch):
     """Keep persisted recent alerts (#10802) off ``data/`` and off any faked S3 bucket."""
     monkeypatch.setenv("ALERTS_HISTORY_URI", f"file://{tmp_path / 'alerts' / 'recent_alerts.json'}")

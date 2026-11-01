@@ -131,6 +131,11 @@ RETIREMENT_READINESS_PREFIX = "retirement_readiness"
 # plan or journal entry is lost on the next cold start.
 PLANS_PREFIX = "plans"
 DECISION_JOURNAL_PREFIX = "decision_journal"
+# Per-user "last visit" records for the since-last-visit digest, one
+# <email-hash>.json each (#11195, backend/common/last_visit.py). Must match
+# backend.common.last_visit.S3_PREFIX, its fallback when LAST_VISIT_STORAGE_URI
+# is unset.
+LAST_VISIT_PREFIX = "last_visit"
 CHAT_HISTORY_RETENTION_DAYS = 90
 CHAT_HISTORY_NONCURRENT_DAYS = 1
 
@@ -828,6 +833,15 @@ class BackendLambdaStack(Stack):
                 # nobody could save a first plan or journal entry.
                 PLANS_PREFIX,
                 DECISION_JOURNAL_PREFIX,
+                # Last-visit records (#11195): routes/last_visit.py:
+                # record_visit/dismiss_visit → common/last_visit.py:
+                # record_visit/dismiss_visit → _update →
+                # conditional_store.py:S3Store.read (get_object) reads a
+                # NoSuchKey as "first visit"; without ListBucket a user's
+                # not-yet-written last_visit/<hash>.json is a 403, which the
+                # store raises as unavailable, so no visit could ever be
+                # recorded. Get/PutObject come from the bucket-wide grants below.
+                LAST_VISIT_PREFIX,
                 # Writable, per-owner account documents (manual holdings and
                 # transaction writes) live under a dedicated prefix that is
                 # separate from the read-only ``accounts/`` demo dataset so
@@ -993,6 +1007,10 @@ class BackendLambdaStack(Stack):
             "PLANS_URI": f"s3://{bucket_name}/{PLANS_PREFIX}",
             "DECISION_JOURNAL_URI": f"s3://{bucket_name}/{DECISION_JOURNAL_PREFIX}",
             "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
+            # POST /last-visit/{slug}[/dismiss] (#11195): last_visit.py
+            # _default_uri reads it, so the store's location and its
+            # lambda_list_prefixes["backend"] entry share one constant.
+            "LAST_VISIT_STORAGE_URI": f"s3://{bucket_name}/{LAST_VISIT_PREFIX}",
             # GET /bots shows the pension report's schedule (#10477).
             "PENSION_REPORT_CADENCE": pension_report_cadence,
         }
@@ -1077,6 +1095,7 @@ class BackendLambdaStack(Stack):
         # - timeseries/meta/ (timeseries admin listing)
         # - transactions/    (report transaction exports)
         # - plans/, decision_journal/ (owner listing, missing-vs-denied; #11159)
+        # - last_visit/      (missing-vs-denied for last-visit records; #11195)
         # - "" (root)        (Data Explorer root tree listing, issue #6110)
         self._grant_bucket_access(
             backend_fn,

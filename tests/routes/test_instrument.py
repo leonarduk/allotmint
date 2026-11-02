@@ -88,7 +88,7 @@ def _stub_owner_sources(monkeypatch, owner, raw_holdings, enriched_holdings, tot
         "accounts": [{"account_type": "isa", "holdings": enriched_holdings}],
         "total_value_estimate_gbp": total,
     }
-    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: portfolios)
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda **_: portfolios)
     monkeypatch.setattr("backend.routes.instrument.build_owner_portfolio", lambda *_a, **_k: built)
 
 
@@ -122,7 +122,7 @@ def test_positions_for_ticker_projects_enriched_rows(monkeypatch):
     ]
     _stub_owner_sources(monkeypatch, "alex", [{"ticker": "ABC.L", "units": 2}], enriched)
 
-    first, second = instrument._positions_for_ticker("ABC.L")
+    first, second = instrument._positions_for_ticker("ABC.L", None)
 
     assert first["unrealised_gain_gbp"] == first["gain_gbp"] == pytest.approx(2.0)
     assert first["cost_basis_gbp"] == pytest.approx(20.0)
@@ -152,7 +152,7 @@ def test_positions_for_ticker_suspect_book_cost_is_unknown(monkeypatch):
     ]
     _stub_owner_sources(monkeypatch, "alex", [{"ticker": "ABC.L", "units": 2}], enriched)
 
-    [position] = instrument._positions_for_ticker("ABC.L")
+    [position] = instrument._positions_for_ticker("ABC.L", None)
 
     assert position["market_value_gbp"] == pytest.approx(22.0)
     assert position["cost_basis_gbp"] is None
@@ -167,7 +167,7 @@ def test_positions_for_ticker_non_finite_values_become_none(monkeypatch):
     enriched = [{"ticker": "ABC.L", "units": 2, "market_value_gbp": float("nan"), "gain_pct": float("inf")}]
     _stub_owner_sources(monkeypatch, "alex", [{"ticker": "ABC.L", "units": 2}], enriched, total=0.0)
 
-    [position] = instrument._positions_for_ticker("ABC.L")
+    [position] = instrument._positions_for_ticker("ABC.L", None)
 
     assert position["market_value_gbp"] is None
     assert position["gain_pct"] is None

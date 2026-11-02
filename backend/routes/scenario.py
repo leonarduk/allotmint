@@ -2,10 +2,11 @@
 
 import datetime as _dt
 import re
-from typing import List
+from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from backend.auth import get_owner_check_identity
 from backend.common.data_loader import ProviderUnavailable, list_plots
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.portfolio_utils import UNCONVERTED_HOLDINGS_KEY
@@ -23,17 +24,29 @@ from backend.utils.scenario_tester import apply_historical_event_portfolio as ap
 router = APIRouter(tags=["scenario"])
 
 
+def _visible_owners(identity: Optional[str]) -> List[str]:
+    """Owners with accounts that the caller may see, else a 503 when discovery fails.
+
+    ``list_plots(current_user=identity)`` is the ``/owners`` rule (#11355):
+    every owner with ``disable_auth`` and ``ENFORCE_OWNER_ACCESS`` off, the
+    request's bound identity with the flag on, the signed-in user with auth
+    enabled, and only the demo owner for a demo token.
+    """
+    try:
+        return [p.owner for p in list_plots(current_user=identity) if p.accounts]
+    except ProviderUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
+
+
 @router.get("/scenario")
 def run_scenario(
     ticker: str = Query(..., description="Ticker symbol"),
     pct: float = Query(..., description="Percentage change"),
+    identity: Annotated[Optional[str], Depends(get_owner_check_identity)] = None,
 ):
-    """Apply a percentage price shock to all portfolios for ``ticker``."""
+    """Apply a percentage price shock for ``ticker`` to every portfolio the caller may see."""
     results = []
-    try:
-        owners = [p.owner for p in list_plots() if p.accounts]
-    except ProviderUnavailable as exc:
-        raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
+    owners = _visible_owners(identity)
     for owner in owners:
         try:
             pf = build_owner_portfolio(owner)
@@ -100,8 +113,9 @@ def run_fx_scenario(
         le=1000,
         description="Change in the GBP value of one unit of `currency`, in percent (-10 = it weakens 10% vs GBP)",
     ),
+    identity: Annotated[Optional[str], Depends(get_owner_check_identity)] = None,
 ):
-    """Revalue every owner's portfolio for ``currency`` moving ``pct`` percent against GBP (#9725).
+    """Revalue every visible owner's portfolio for ``currency`` moving ``pct`` percent against GBP (#9725).
 
     Sign convention: ``pct`` is the change in the GBP value of one unit of
     ``currency``. ``currency=USD&pct=-10`` means USD weakens 10% against GBP,
@@ -117,10 +131,7 @@ def run_fx_scenario(
     the portfolio, so no FX rate is fetched.
     """
     code = _shockable_currency(currency)
-    try:
-        owners = [p.owner for p in list_plots() if p.accounts]
-    except ProviderUnavailable as exc:
-        raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
+    owners = _visible_owners(identity)
     results = []
     for owner in owners:
         try:
@@ -183,6 +194,7 @@ def run_historical_scenario(
     event_id: str | None = Query(None, description="Historical event identifier"),
     date: str | None = Query(None, description="Event date (YYYY-MM-DD)"),
     horizons: List[str] = Query(..., description="Event horizons as day counts or tokens like '1w'"),
+    identity: Annotated[Optional[str], Depends(get_owner_check_identity)] = None,
 ):
     """Calculate shocked portfolio values for a historical event.
 
@@ -202,10 +214,7 @@ def run_historical_scenario(
     fallback = holding_fallback(_dt.date.fromisoformat(str(event["date"])[:10]), horizon_days)
 
     results = []
-    try:
-        owners = [p.owner for p in list_plots() if p.accounts]
-    except ProviderUnavailable as exc:
-        raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
+    owners = _visible_owners(identity)
     for owner in owners:
         try:
             pf = build_owner_portfolio(owner)

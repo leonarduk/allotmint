@@ -398,7 +398,7 @@ def test_custom_query_var_runs_on_total_returns(store, monkeypatch):
 
     store("PAY", "L", {DATES[1]: 5.0})
     frame = pd.DataFrame({"Date": DATES, "Close": [100.0, 95.0, 95.0, 95.0, 95.0]})
-    monkeypatch.setattr(query, "list_portfolios", lambda: [])
+    monkeypatch.setattr(query, "list_portfolios", lambda **_: [])
     monkeypatch.setattr(query, "load_meta_timeseries_range", lambda *a, **k: frame.copy())
     q = query.CustomQuery(
         start=DATES[0].date(), end=DATES[-1].date(), tickers=["PAY.L", "NOFILE.L"], metrics=[query.Metric.VAR]

@@ -26,7 +26,7 @@ def client(monkeypatch, tmp_path):
     # they name, which the fixture cache holds; the demo holdings are not in
     # it, so they used to be fetched live - and only when an earlier test had
     # already turned the cache module's OFFLINE_MODE off.
-    monkeypatch.setattr(query_module, "list_portfolios", lambda: [])
+    monkeypatch.setattr(query_module, "list_portfolios", lambda **_: [])
     from backend.app import create_app
 
     client = TestClient(create_app())

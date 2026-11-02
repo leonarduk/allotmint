@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 from datetime import date, datetime, timezone
@@ -14,7 +15,14 @@ from pydantic import ValidationError
 from backend import importers
 from backend.allowance_guardian import bot as guardian_bot
 from backend.allowance_guardian import report as guardian_report
-from backend.allowance_guardian.bot import BOT_ID, AllowanceGuardianBot, AllowanceGuardianSettings, run_after_import
+from backend.allowance_guardian.bot import (
+    BOT_ID,
+    REASON_RECONCILIATION,
+    REASON_TRANSACTION_IMPORT,
+    AllowanceGuardianBot,
+    AllowanceGuardianSettings,
+    run_after_import,
+)
 from backend.allowance_guardian.schedule import ScheduledContribution
 from backend.app import create_app
 from backend.bots import registry, runs
@@ -248,28 +256,55 @@ def test_run_after_import_stores_an_event_run_for_every_owner(monkeypatch):
     assert record.report["not_modelled"] == guardian_report.NOT_MODELLED
     assert record.report["adviser_note"] == guardian_report.ADVISER_NOTE
     assert "pension breach projected 2026-10" in record.summary
+    assert record.report["reason"] == REASON_TRANSACTION_IMPORT
 
 
+def test_run_after_reconciliation_stores_an_event_run_for_every_owner_with_its_reason(monkeypatch):
+    plots = [SimpleNamespace(owner="alex"), SimpleNamespace(owner="sam")]
+    monkeypatch.setattr("backend.common.data_loader.list_plots", lambda: plots)
+    monkeypatch.setattr(guardian_report, "run", _synthetic_run)
+
+    run_after_import("alex", REASON_RECONCILIATION)
+
+    [record] = runs.list_runs(BOT_ID)
+    assert (record.trigger, record.status, record.actor) == ("event", "ok", "alex")
+    assert [row["owner"] for row in record.report["owners"]] == ["alex", "sam"]
+    assert record.report["reason"] == REASON_RECONCILIATION
+    assert record.report["not_modelled"] == guardian_report.NOT_MODELLED
+
+
+def test_a_manual_run_or_unknown_reason_stores_no_reason(monkeypatch):
+    monkeypatch.setattr(guardian_report, "run", _synthetic_run)
+    bot = AllowanceGuardianBot()
+    context = dataclasses.replace(_context("alex"), payload={"reason": "<script>"})
+
+    assert bot.run(_context("alex"), AllowanceGuardianSettings()).report["reason"] is None
+    assert bot.run(context, AllowanceGuardianSettings()).report["reason"] is None
+
+
+@pytest.mark.parametrize("reason", [REASON_TRANSACTION_IMPORT, REASON_RECONCILIATION])
 @pytest.mark.parametrize("values", [{"enabled": False}, {"run_after_import": False}])
-def test_run_after_import_does_nothing_when_switched_off(monkeypatch, values):
+def test_run_after_import_does_nothing_when_switched_off(monkeypatch, values, reason):
     monkeypatch.setattr(guardian_report, "run", _synthetic_run)
     bot = registry.get_bot(BOT_ID)
     save_settings(bot, {**bot.default_settings(), **values})
 
-    run_after_import()
+    run_after_import(None, reason)
 
     assert runs.list_runs(BOT_ID) == []
 
 
-def test_run_after_import_never_raises(monkeypatch, caplog):
+@pytest.mark.parametrize("reason", [REASON_TRANSACTION_IMPORT, REASON_RECONCILIATION])
+def test_run_after_import_never_raises(monkeypatch, caplog, reason):
     def broken(_bot):
         raise OSError("store down")
 
     monkeypatch.setattr("backend.bots.settings.load_settings", broken)
 
-    run_after_import()
+    run_after_import(None, reason)
 
     assert "run after import failed: OSError" in caplog.text
+    assert f"(reason {reason})" in caplog.text
 
 
 def test_transaction_import_runs_the_guardian_afterwards(tmp_path, monkeypatch):

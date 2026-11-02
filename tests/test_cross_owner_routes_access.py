@@ -47,6 +47,9 @@ _FORBIDDEN = {"detail": "Not authorized for this owner"}
 @pytest.fixture
 def accounts(tmp_path, monkeypatch):
     """Three owners on disk, each holding their own ticker plus ``_SHARED``."""
+    # CI sets DATA_BUCKET, and load_person_meta reads person.json from S3
+    # whenever it is set, so the on-disk owners below would never be read.
+    monkeypatch.delenv("DATA_BUCKET", raising=False)
     monkeypatch.setattr(config, "accounts_root", tmp_path)
     for owner, person in _PEOPLE.items():
         (tmp_path / owner).mkdir()

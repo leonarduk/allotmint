@@ -504,6 +504,15 @@ checks already run. When it is on:
   - **Demo tokens:** confined in every mode.
 
   (#11351)
+- **Cross-owner routes** (`/custom-query/run`, `/scenario`, `/scenario/fx`,
+  `/scenario/historical`, and the `positions` on `/instrument/`) list owners
+  with `list_plots(current_user=<caller>)`, using the same caller as the
+  per-owner routes, so they only cover owners the caller may read. Any owner
+  named in `/custom-query/run`'s `owners` goes through `ensure_owner_access`
+  (`ensure_owners_access`), so a named owner the caller can't read is a 403
+  instead of being silently dropped. `/instrument/` uses
+  `get_optional_owner_check_identity`: with auth enabled, an anonymous caller
+  still gets the price history, just no positions. (#11355)
 - **Listings.** `_list_aws_plots`/`_list_local_plots` filter by the request's
   identity when the caller passed no user. `/owners` lists exactly the owners
   the caller may read, with no synthetic demo fallback. The `all` group (and

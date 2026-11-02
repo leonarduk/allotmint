@@ -862,6 +862,22 @@ async def get_owner_check_identity(request: Request, token: str | None = Depends
     return await get_active_user(request, token)
 
 
+async def get_optional_owner_check_identity(request: Request, token: str | None = Depends(oauth2_scheme)) -> str | None:
+    """:func:`get_owner_check_identity` for a public route that only embeds owner data (#11355).
+
+    The same, except that with auth enabled a request with no token gets
+    ``None`` instead of a 401. ``list_plots(current_user=None)`` then lists
+    nobody, so the route still serves its public part (``/instrument/``'s
+    price history) without any owner's holdings. A test override of
+    :func:`get_current_user` still applies.
+    """
+
+    if not config.disable_auth and not token:
+        has_override, override_result = await resolve_current_user_override(request, token=token)
+        return override_result if has_override else None
+    return await get_owner_check_identity(request, token)
+
+
 def _email_verified(value: Any) -> bool:
     if isinstance(value, bool):
         return value

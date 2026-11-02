@@ -414,13 +414,20 @@ def _merged_confirmed_from(stored: pd.DataFrame | None, window_start: pd.Timesta
     return min(current, window_start)
 
 
-def _replace_parquet(frame: pd.DataFrame, path: str) -> None:
+def _replace_parquet(frame: pd.DataFrame, path: str, root: str) -> None:
     """Write ``frame`` to ``path`` all-or-nothing (#9398).
 
     The parquet goes to a temp file beside ``path`` (same filesystem) and is
     then swapped in with ``os.replace``, so a failed write leaves the stored
     file untouched rather than truncated, and removes the temp file.
+
+    ``path`` is normalised and confined to ``root`` again here, in the function
+    that writes it, so path-injection analysis (CodeQL py/path-injection) sees
+    the guard on the value it writes (see ``load_corporate_actions``).
     """
+    path = os.path.normpath(path)
+    if not path.startswith(root + os.sep):
+        raise ValueError(f"Corporate actions path escapes {sanitise_log_value(root)!r}")
     fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".", suffix=".parquet.tmp")
     os.close(fd)
     try:
@@ -473,7 +480,7 @@ def record_corporate_actions(
         # An S3 PUT is all-or-nothing already; there is no rename to make it atomic.
         merged.to_parquet(path, index=False)
     else:
-        _replace_parquet(merged, path)
+        _replace_parquet(merged, path, root)
     logger.info(
         "Stored %s corporate action(s) for %s.%s",
         sanitise_log_value(len(merged)),

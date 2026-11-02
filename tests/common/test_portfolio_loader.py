@@ -254,7 +254,7 @@ def patched_portfolio_loader(monkeypatch: pytest.MonkeyPatch) -> list[OwnerSumma
         OwnerSummaryRecord(owner="beth", accounts=["sipp", "taxable"]),
     ]
 
-    def _fake_list_plots() -> list[OwnerSummaryRecord]:
+    def _fake_list_plots(**_kwargs) -> list[OwnerSummaryRecord]:
         return owners
 
     def _fake_person(owner: str) -> dict[str, str]:

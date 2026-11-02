@@ -30,7 +30,7 @@ def test_resolve_tickers(monkeypatch):
             "accounts": [{"holdings": [{"ticker": "xyz.l"}]}],
         },
     ]
-    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(query, "list_portfolios", lambda **_: portfolios)
     q = query.CustomQuery(
         start=date(2020, 1, 1),
         end=date(2020, 1, 2),
@@ -39,7 +39,7 @@ def test_resolve_tickers(monkeypatch):
     )
     # Selected tickers restrict the query; they are not unioned with every
     # holding of the selected owners (#7380).
-    assert query._resolve_tickers(q) == ["DEF.L"]
+    assert query._resolve_tickers(q, None) == ["DEF.L"]
 
 
 def test_resolve_tickers_without_filters(monkeypatch):
@@ -53,9 +53,9 @@ def test_resolve_tickers_without_filters(monkeypatch):
             "accounts": [{"holdings": [{"ticker": "xyz.l"}]}],
         },
     ]
-    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(query, "list_portfolios", lambda **_: portfolios)
     q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 1, 2))
-    assert query._resolve_tickers(q) == ["ABC.L", "XYZ.L"]
+    assert query._resolve_tickers(q, None) == ["ABC.L", "XYZ.L"]
 
 
 def test_slugify_handles_special_characters():
@@ -176,7 +176,7 @@ def test_load_query_s3_missing_body(monkeypatch):
 
 
 def _setup_run_query(monkeypatch):
-    monkeypatch.setattr(query, "_resolve_tickers", lambda q: ["ABC.L"])
+    monkeypatch.setattr(query, "_resolve_tickers", lambda q, identity: ["ABC.L"])
     monkeypatch.setattr(
         query,
         "load_meta_timeseries_range",
@@ -197,7 +197,7 @@ def test_run_query_skips_timeseries_when_no_metrics(monkeypatch):
         calls["compute"] += 1
         return 123, "total"
 
-    monkeypatch.setattr(query, "_resolve_tickers", lambda q: ["ABC.L"])
+    monkeypatch.setattr(query, "_resolve_tickers", lambda q, identity: ["ABC.L"])
     monkeypatch.setattr(query, "load_meta_timeseries_range", fake_loader)
     monkeypatch.setattr(query, "compute_var_with_basis", fake_compute)
     monkeypatch.setattr(query, "get_security_meta", lambda t: {})
@@ -319,7 +319,7 @@ def test_saved_and_load_aws(monkeypatch, mock_s3):
 
 
 def test_run_query_without_targets(monkeypatch):
-    monkeypatch.setattr(query, "_resolve_tickers", lambda q: [])
+    monkeypatch.setattr(query, "_resolve_tickers", lambda q, identity: [])
     client = make_client()
     body = {
         "start": "2020-01-01",
@@ -331,7 +331,7 @@ def test_run_query_without_targets(monkeypatch):
 
 
 def test_run_query_saves_named_query_local(monkeypatch, tmp_path):
-    monkeypatch.setattr(query, "_resolve_tickers", lambda q: ["ABC.L"])
+    monkeypatch.setattr(query, "_resolve_tickers", lambda q, identity: ["ABC.L"])
     monkeypatch.setattr(
         query,
         "load_meta_timeseries_range",
@@ -360,7 +360,7 @@ def test_run_query_saves_named_query_aws(monkeypatch):
         saved["slug"] = slug
         saved["tickers"] = ",".join(q.tickers or [])
 
-    monkeypatch.setattr(query, "_resolve_tickers", lambda q: ["ABC.L"])
+    monkeypatch.setattr(query, "_resolve_tickers", lambda q, identity: ["ABC.L"])
     monkeypatch.setattr(
         query,
         "load_meta_timeseries_range",
@@ -563,7 +563,7 @@ def _fake_load_transactions(owner):
 
 @pytest.fixture
 def holdings_env(monkeypatch):
-    monkeypatch.setattr(query, "list_portfolios", lambda: _HOLDING_PORTFOLIOS)
+    monkeypatch.setattr(query, "list_portfolios", lambda **_: _HOLDING_PORTFOLIOS)
     monkeypatch.setattr(query, "load_transactions", _fake_load_transactions)
     monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (_PRICES.get((sym, d)), None))
     monkeypatch.setattr(query, "get_security_meta", lambda t: {"name": t.lower()})
@@ -697,7 +697,7 @@ def test_top_up_inside_range_splits_start_price_and_cost(holdings_env, monkeypat
         {"date": "2020-06-01", "type": "BUY", "ticker": "TOP.L", "units": 10},
     ]
     prices = {("TOP", date(2020, 1, 1)): 1.0, ("TOP", date(2020, 12, 31)): 3.0}
-    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(query, "list_portfolios", lambda **_: portfolios)
     monkeypatch.setattr(query, "load_transactions", lambda owner: tx)
     monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
     row = query.run_query(_holding_query(metrics=[query.Metric.GAIN_GBP]))["results"][0]
@@ -787,7 +787,7 @@ def test_in_range_buys_use_what_was_paid_not_a_later_average(holdings_env, monke
         {"date": "2021-03-01", "type": "BUY", "ticker": "TOP.L", "units": 10, "amount_minor": 10000},
     ]
     prices = {("TOP", date(2020, 1, 1)): 1.0, ("TOP", date(2020, 12, 31)): 3.0}
-    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(query, "list_portfolios", lambda **_: portfolios)
     monkeypatch.setattr(query, "load_transactions", lambda owner: tx)
     monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
     row = query.run_query(_holding_query(metrics=[query.Metric.MARKET_VALUE_GBP, query.Metric.GAIN_GBP]))["results"][0]
@@ -811,7 +811,7 @@ def test_save_route_name_cannot_escape_the_queries_dir(monkeypatch, tmp_path):
 
 def test_non_sterling_cash_is_left_unvalued(holdings_env, monkeypatch):
     portfolios = [{"owner": "alice", "accounts": [{"holdings": [{"ticker": "CASH.USD", "units": 100}]}]}]
-    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(query, "list_portfolios", lambda **_: portfolios)
     row = query.run_query(_holding_query())["results"][0]
     assert row["market_value_gbp"] is None
 
@@ -850,7 +850,7 @@ def test_transfer_in_inside_range_counts_at_that_days_close(holdings_env, monkey
         {"date": "2021-03-01", "type": "BUY", "ticker": "TOP.L", "units": 10, "amount_minor": 10000},
     ]
     prices = {("TOP", date(2020, 1, 1)): 1.0, ("TOP", date(2020, 6, 1)): 2.5, ("TOP", date(2020, 12, 31)): 3.0}
-    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(query, "list_portfolios", lambda **_: portfolios)
     monkeypatch.setattr(query, "load_transactions", lambda owner: tx)
     monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
     row = query.run_query(_holding_query(metrics=[query.Metric.GAIN_GBP]))["results"][0]
@@ -860,7 +860,7 @@ def test_transfer_in_inside_range_counts_at_that_days_close(holdings_env, monkey
 
 def test_owners_only_per_ticker_query_lists_their_holdings(holdings_env):
     q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 12, 31), owners=["bob"])
-    assert query._resolve_tickers(q) == ["ABC.L"]
+    assert query._resolve_tickers(q, None) == ["ABC.L"]
 
 
 def test_position_sold_out_before_today_has_no_row(holdings_env, monkeypatch):

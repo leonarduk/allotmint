@@ -161,7 +161,7 @@ def _instrument_client(monkeypatch, df, captured: dict | None = None):
 
     monkeypatch.setattr(instr, "load_meta_timeseries_range", fake_load)
     monkeypatch.setattr(instr, "get_security_meta", lambda _t: {"name": "Test", "currency": "GBP"})
-    monkeypatch.setattr(instr, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instr, "list_portfolios", lambda **_: [])
     monkeypatch.setattr(instr, "get_scaling_override", lambda *a, **k: 1.0)
 
     from backend.app import create_app

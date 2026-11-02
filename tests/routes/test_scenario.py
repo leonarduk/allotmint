@@ -13,7 +13,7 @@ def test_run_scenario_multiple_owners_and_missing_data(monkeypatch):
         OwnerSummaryRecord(owner="dave", full_name="Dave Example"),
     ]
 
-    monkeypatch.setattr(scenario, "list_plots", lambda: plots)
+    monkeypatch.setattr(scenario, "list_plots", lambda **_: plots)
 
     built = []
 
@@ -61,7 +61,7 @@ def test_run_historical_scenario_valid_horizons(monkeypatch):
     monkeypatch.setattr(
         scenario,
         "list_plots",
-        lambda: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
+        lambda **_: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
     )
 
     def fake_build_owner_portfolio(owner, *, pricing_date=None):
@@ -185,7 +185,7 @@ def test_historical_scenario_shocks_an_unpriced_gilt_with_the_gilt_stand_in(monk
         ],
     }
     monkeypatch.setattr(
-        scenario, "list_plots", lambda: [OwnerSummaryRecord(owner="alice", full_name="A", accounts=["isa"])]
+        scenario, "list_plots", lambda **_: [OwnerSummaryRecord(owner="alice", full_name="A", accounts=["isa"])]
     )
     monkeypatch.setattr(scenario, "build_owner_portfolio", lambda owner, **_: portfolio)
     monkeypatch.setattr(strategy_stress, "PRO_SLEEVE_RETURNS", None)

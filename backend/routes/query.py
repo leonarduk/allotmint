@@ -10,14 +10,16 @@ import re
 from datetime import date, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import Annotated, Iterator, List, Optional
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field, ValidationError
 
+from backend.auth import get_owner_check_identity
 from backend.common.account_scaffold import load_transactions
+from backend.common.authz import ensure_owners_access
 from backend.common.cash_tickers import cash_ticker_currency, is_cash_ticker
 from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.common.path_utils import safe_join
@@ -96,16 +98,17 @@ def _seeded_fixture_slugs() -> set[str]:
     return {_DEMO_SLUG_FIXTURE_FILENAME, f"{demo_identity().lower()}-slug"}
 
 
-def _iter_holdings(q: CustomQuery) -> Iterator[tuple[str, str, dict]]:
+def _iter_holdings(q: CustomQuery, identity: Optional[str]) -> Iterator[tuple[str, str, dict]]:
     """Yield ``(owner, TICKER, holding)`` for every holding in the query's scope.
 
-    No owners selected means every owner; no tickers selected means every
-    ticker those owners hold. Selected tickers *restrict* the result -- they
-    are not added on top of the owners' holdings.
+    No owners selected means every owner ``identity`` may see (the
+    ``/owners`` rule, via ``list_portfolios(current_user=identity)``, #11355);
+    no tickers selected means every ticker those owners hold. Selected tickers
+    *restrict* the result -- they are not added on top of the owners' holdings.
     """
     owners_filter = {o.lower() for o in q.owners} if q.owners else None
     tickers_filter = {t.upper() for t in q.tickers} if q.tickers else None
-    for pf in list_portfolios():
+    for pf in list_portfolios(current_user=identity):
         owner_slug = (pf.get("owner") or "").lower()
         if owners_filter is not None and owner_slug not in owners_filter:
             continue
@@ -116,7 +119,7 @@ def _iter_holdings(q: CustomQuery) -> Iterator[tuple[str, str, dict]]:
                     yield owner_slug, t, h
 
 
-def _resolve_tickers(q: CustomQuery) -> List[str]:
+def _resolve_tickers(q: CustomQuery, identity: Optional[str]) -> List[str]:
     """Tickers for the per-ticker metrics.
 
     With owners selected: the tickers those owners hold, narrowed to the
@@ -126,7 +129,7 @@ def _resolve_tickers(q: CustomQuery) -> List[str]:
     """
     if q.tickers and not q.owners:
         return sorted({t.upper() for t in q.tickers})
-    return sorted({t for _owner, t, _h in _iter_holdings(q)})
+    return sorted({t for _owner, t, _h in _iter_holdings(q, identity)})
 
 
 _PRICE_LOOKBACK_DAYS = 7
@@ -260,10 +263,10 @@ def _round_or_none(value: float | None) -> float | None:
     return None if value is None else round(value, 2)
 
 
-def _aggregate_holdings(q: CustomQuery) -> dict[tuple[str, str], dict]:
+def _aggregate_holdings(q: CustomQuery, identity: Optional[str]) -> dict[tuple[str, str], dict]:
     """``(owner, ticker) -> {units, cost, holding}`` summed over the owner's accounts."""
     agg: dict[tuple[str, str], dict] = {}
-    for owner, ticker, h in _iter_holdings(q):
+    for owner, ticker, h in _iter_holdings(q, identity):
         acc = agg.setdefault((owner, ticker), {"units": 0.0, "cost": 0.0, "holding": h})
         acc["units"] += float(h.get("units") or 0)
         cost = h.get("cost_basis_gbp")
@@ -303,7 +306,7 @@ def _holding_row(owner: str, ticker: str, acc: dict, q: CustomQuery, tx_cache: d
     return row
 
 
-def _holding_rows(q: CustomQuery) -> List[dict]:
+def _holding_rows(q: CustomQuery, identity: Optional[str]) -> List[dict]:
     """One row per (owner, ticker) currently held, summing that owner's accounts.
 
     ``units`` and the values are for the position held at ``q.end`` (replayed
@@ -316,7 +319,8 @@ def _holding_rows(q: CustomQuery) -> List[dict]:
     """
     tx_cache: dict[str, dict | None] = {}
     return [
-        _holding_row(owner, ticker, acc, q, tx_cache) for (owner, ticker), acc in sorted(_aggregate_holdings(q).items())
+        _holding_row(owner, ticker, acc, q, tx_cache)
+        for (owner, ticker), acc in sorted(_aggregate_holdings(q, identity).items())
     ]
 
 
@@ -442,12 +446,17 @@ def _ticker_fields(t: str, q: CustomQuery) -> dict:
     return fields
 
 
-def _query_rows(q: CustomQuery) -> List[dict]:
-    """Rows for ``q``: per (owner, ticker) when a holding metric is asked for, else per ticker."""
+def _query_rows(q: CustomQuery, identity: Optional[str]) -> List[dict]:
+    """Rows for ``q``: per (owner, ticker) when a holding metric is asked for, else per ticker.
+
+    Owners named in ``q`` that ``identity`` may not see are a 403, as on a
+    per-owner route, rather than being dropped from the result (#11355).
+    """
+    ensure_owners_access(identity, q.owners or [])
     if any(m in q.metrics for m in HOLDING_METRICS):
-        rows = _holding_rows(q)
+        rows = _holding_rows(q, identity)
     else:
-        rows = [{"ticker": t} for t in _resolve_tickers(q)]
+        rows = [{"ticker": t} for t in _resolve_tickers(q, identity)]
     cache: dict[str, dict] = {}
     for row in rows:
         t = row["ticker"]
@@ -503,8 +512,8 @@ def _render(rows: List[dict], fmt: str | None):
 
 
 @router.post("/run")
-def run_query(q: CustomQuery):
-    rows = _query_rows(q)
+def run_query(q: CustomQuery, identity: Annotated[Optional[str], Depends(get_owner_check_identity)] = None):
+    rows = _query_rows(q, identity)
     if q.name:
         # The response is the query's results (possibly CSV/XLSX), with no
         # room for a save status; an S3 fallback is still logged.
@@ -525,6 +534,7 @@ def run_query_get(
     tickers: str | None = None,
     metrics: str | None = None,
     format: str = "json",
+    identity: Annotated[Optional[str], Depends(get_owner_check_identity)] = None,
 ):
     """``POST /run`` as a GET with comma-separated lists, so the page's export links can download."""
     try:
@@ -538,7 +548,7 @@ def run_query_get(
         )
     except ValidationError as exc:
         raise HTTPException(422, exc.errors(include_url=False, include_context=False)) from exc
-    return _render(_query_rows(q), q.format)
+    return _render(_query_rows(q, identity), q.format)
 
 
 @router.post("/save")

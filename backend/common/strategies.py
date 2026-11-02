@@ -15,6 +15,9 @@ the owner's ``allocation_policy`` and records which strategy it came from.
   :func:`~backend.common.sub_asset_class.policy_targets`).
   ``cash_bucket_60_40`` is left out: its cash share is three years of
   withdrawals divided by the portfolio value, so it has no fixed weights.
+  The definitions here are the single source for those presets:
+  allotmint-pro builds its ``PRESETS`` from :func:`backtest_presets`
+  rather than keeping its own copy (#9710).
 * **User** strategies live in the owner's ``settings.json`` under
   ``strategies``, beside ``allocation_policy``. That file is already
   owner-scoped and merge-written (:mod:`backend.common.settings_file`), and
@@ -43,6 +46,7 @@ from backend.common.allocation_policy import (
     parse_policy,
 )
 from backend.common.settings_file import SettingsUnreadableError, read_settings, settings_path
+from backend.common.sub_asset_class import BROAD_EQUITY, EQUITY, LEGACY_OTHER_COMMODITIES, OTHER_COMMODITIES
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -328,6 +332,34 @@ _BUILTIN_DEFINITIONS: tuple[Strategy, ...] = (
 
 BUILTIN_STRATEGIES: tuple[Strategy, ...] = tuple(replace(s, builtin=True) for s in _BUILTIN_DEFINITIONS)
 _BUILTINS_BY_ID: dict[str, Strategy] = {s.id: s for s in BUILTIN_STRATEGIES}
+
+#: Built-ins that are also allotmint-pro ``backtest_portfolio`` presets, in the
+#: order pro lists them. ``cash_bucket_60_40`` is pro's own variant of ``60_40``.
+BACKTEST_PRESET_IDS: tuple[str, ...] = ("60_40", "80_20", "permanent", "all_weather", "golden_butterfly")
+
+#: Policy target keys the backtest names by its block instead: the inverse of
+#: :func:`~backend.common.sub_asset_class.policy_targets`.
+_BACKTEST_BLOCK_NAMES: dict[str, str] = {BROAD_EQUITY: EQUITY, OTHER_COMMODITIES: LEGACY_OTHER_COMMODITIES}
+
+
+def backtest_weights(targets: Mapping[str, float]) -> dict[str, float]:
+    """Policy ``targets`` (percent) as backtest block weights (fractions summing to 1).
+
+    ``broad_equity`` becomes the backtest's ``equity`` block and
+    ``other_commodities`` its ``commodities`` block; other keys keep their
+    name. :func:`~backend.common.sub_asset_class.policy_targets` of the
+    result, scaled back to percent, gives ``targets`` again.
+    """
+    weights: dict[str, float] = {}
+    for key, pct in targets.items():
+        block = _BACKTEST_BLOCK_NAMES.get(key, key)
+        weights[block] = weights.get(block, 0.0) + pct / 100.0
+    return weights
+
+
+def backtest_presets() -> dict[str, dict[str, float]]:
+    """``{preset id: block weights}`` for the built-ins that are backtest presets (#9710)."""
+    return {strategy_id: backtest_weights(_BUILTINS_BY_ID[strategy_id].targets) for strategy_id in BACKTEST_PRESET_IDS}
 
 
 def same_targets(a: Mapping[str, float], b: Mapping[str, float]) -> bool:

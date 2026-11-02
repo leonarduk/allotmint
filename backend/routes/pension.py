@@ -16,7 +16,7 @@ from backend.common.pension import (
 from backend.common.portfolio import build_owner_portfolio
 from backend.routes._accounts import resolve_accounts_root
 
-__all__ = ["DEFINED_CONTRIBUTION_ACCOUNT_MARKERS", "router"]
+__all__ = ["DEFINED_CONTRIBUTION_ACCOUNT_MARKERS", "forecast_for_owner", "router"]
 
 router = APIRouter(tags=["pension"])
 
@@ -82,6 +82,41 @@ def pension_forecast(
     """Forecast ``owner``'s retirement income; the caller must be authorised for ``owner`` (#11346)."""
     accounts_root = resolve_accounts_root(request)
     ensure_owner_access(identity, owner, accounts_root)
+    return forecast_for_owner(
+        owner,
+        accounts_root,
+        death_age=death_age,
+        state_pension_annual=state_pension_annual,
+        db_income_annual=db_income_annual,
+        db_normal_retirement_age=db_normal_retirement_age,
+        contribution_annual=contribution_annual,
+        contribution_monthly=contribution_monthly,
+        investment_growth_pct=investment_growth_pct,
+        desired_income_annual=desired_income_annual,
+        retirement_age=retirement_age,
+    )
+
+
+def forecast_for_owner(
+    owner: str,
+    accounts_root,
+    *,
+    death_age: int,
+    state_pension_annual: float | None = None,
+    db_income_annual: float | None = None,
+    db_normal_retirement_age: int | None = None,
+    contribution_annual: float | None = None,
+    contribution_monthly: float | None = None,
+    investment_growth_pct: float = 5.0,
+    desired_income_annual: float | None = None,
+    retirement_age: int | None = None,
+) -> dict:
+    """The ``/pension/forecast`` result for ``owner``, without the route's owner-access check.
+
+    For callers that have already checked access or run as a system job, such
+    as the retirement readiness monitor (backend/retirement/readiness.py,
+    #10510). Raises ``HTTPException`` for bad input, as the route does.
+    """
     dob, current_age = _load_dob(owner, accounts_root)
 
     state_pension_age = state_pension_age_uk(dob)

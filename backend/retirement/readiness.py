@@ -2,9 +2,9 @@
 
 One run:
 
-1. re-runs the pension forecast through ``/pension/forecast``'s own route
-   function (with a stub request, as allotmint-pro's ``get_pension_forecast``
-   does) for the current pot, dob, ages and projected pot;
+1. re-runs the pension forecast with ``/pension/forecast``'s own code
+   (:func:`backend.routes.pension.forecast_for_owner`) for the current pot,
+   dob, ages and projected pot;
 2. converts the projected pot at retirement to today's money at the assumed
    inflation rate and replays it through every historical window of the
    owner's plan mix (:mod:`backend.retirement.drawdown`);
@@ -93,23 +93,25 @@ def _stub_request() -> Any:
 
 
 def run_forecast(owner: str, settings: ReadinessSettings, request: Any = None) -> dict:
-    """The ``/pension/forecast`` result for these settings (every parameter passed explicitly)."""
+    """The ``/pension/forecast`` result for these settings (every parameter passed explicitly).
+
+    Uses the route's own forecast without its owner-access check: the run
+    route checks access before calling :func:`run`, and the scheduled run is
+    a system job with no request user, which that check would always deny
+    once sign-in is on (#10510).
+    """
     from fastapi import HTTPException
 
-    from backend.routes.pension import pension_forecast
+    from backend.routes.pension import forecast_for_owner
 
     try:
-        return pension_forecast(
-            request or _stub_request(),
-            owner=owner,
+        return forecast_for_owner(
+            owner,
+            _accounts_root(request),
             death_age=settings.death_age,
             state_pension_annual=settings.state_pension_annual,
-            db_income_annual=None,
-            db_normal_retirement_age=None,
             contribution_annual=settings.contribution_annual,
-            contribution_monthly=None,
             investment_growth_pct=settings.investment_growth_pct,
-            desired_income_annual=None,
             retirement_age=settings.retirement_age,
         )
     except HTTPException as exc:

@@ -59,7 +59,7 @@ anyio~=4.15.1
 # Bump together with the boto3 floor above, to the same patch version.
 botocore~=1.43.122
 curl-cffi>=0.16.3,<0.17  # yfinance~=1.5.1 requires curl_cffi>=0.15
-frozendict~=2.4.7
+frozendict~=2.5.0
 google-auth-httplib2~=0.4.4
 google-auth-oauthlib~=1.5.0
 jmespath~=1.1.0

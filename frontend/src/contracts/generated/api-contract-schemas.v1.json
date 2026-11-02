@@ -1160,6 +1160,9 @@
             "attribution_only": {
               "type": "boolean"
             },
+            "cost_estimate": {
+              "type": "boolean"
+            },
             "instrument_name": {
               "type": [
                 "string",

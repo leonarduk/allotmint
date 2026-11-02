@@ -880,6 +880,8 @@ export interface Transaction {
    * covers: it attributes income to a holding but is never counted as income.
    */
   attribution_only?: boolean;
+  /** Written by "use current price as cost": the price is an estimate, not what was paid (#10095). */
+  cost_estimate?: boolean;
   /**
    * Derived by the backend for SELL rows using Section 104 average cost.
    * `realised_gain_gbp` is null when some units sold have no known cost

@@ -73,7 +73,10 @@ plain opener is used.
 | `BOTS_DIGEST_OWNERS` | all owners | Comma-separated owners for the Lambda |
 | `BOTS_DIGEST_FROM` | `no-reply@allotmint.com` | SES sender |
 
-Per-owner settings (`backend/bots/digest_settings.py`) and their defaults:
+Per-owner settings (`backend/bots/digest_settings.py`) and their defaults. They
+belong to the owner, not to a bot, so they are not in the registry's admin-only
+`PUT /bots/{id}/settings`: the owner edits them on the Bots page or through
+`PUT /bots/digest/{owner}/settings` (#10502).
 
 - `period`: `weekly` (sent Mondays). Can be `monthly` (sent on the 1st).
 - `email_enabled`: `true`.
@@ -92,8 +95,10 @@ delivers the digest.
 - `GET /bots/digest/{owner}/latest`: the latest stored digest, or 404 if there is none yet.
 - `GET /bots/digest/{owner}/history?limit=8`: stored digests, newest first.
 - `GET /bots/digest/{owner}/preview`: the digest as it would be composed now. Nothing is saved or sent.
+- `GET /bots/digest/{owner}/settings`: the owner's settings (the defaults until any are saved).
+- `PUT /bots/digest/{owner}/settings`: saves the given fields merged over the current ones. Unknown fields, unregistered bot ids in `alert_immediately_for` and out-of-range values are a 422 and nothing is saved. Other owners' settings are untouched.
 
-All three check owner access. System-wide items are returned to admins only.
+All of them check owner access; the settings routes need no admin. System-wide items are returned to admins only.
 
 ## Bots page
 
@@ -101,4 +106,6 @@ The Bots page (`frontend/src/pages/Bots.tsx`) shows the digest at the top
 (`frontend/src/components/BotsDigest.tsx`): the latest stored digest, a
 "Preview now" button and the history. It opens on the selected owner (the
 signed-in user's own owner by default) and has an owner picker when the caller
-can see more than one.
+can see more than one. A collapsed "Digest settings" panel
+(`frontend/src/components/BotsDigestSettings.tsx`) edits that owner's settings,
+including which severities of each bot alert straight away.

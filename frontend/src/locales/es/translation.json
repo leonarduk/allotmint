@@ -4340,6 +4340,7 @@
     "units": "Unidades indicativas",
     "noVehicle": "Sin vehículo en su plan",
     "keepAsCash": "Mantener en efectivo: {{amount}}",
+    "newMoneyBasis": "La cuenta tiene menos efectivo que este tramo, así que se calcula como dinero nuevo aportado además de sus posiciones.",
     "copy": "Copiar lista de órdenes",
     "copied": "Copiado"
   },

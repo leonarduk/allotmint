@@ -4340,6 +4340,7 @@
     "units": "Unità indicative",
     "noVehicle": "Nessuno strumento nel tuo piano",
     "keepAsCash": "Tieni in liquidità: {{amount}}",
+    "newMoneyBasis": "Il conto detiene meno liquidità di questa tranche, quindi è calcolata come denaro nuovo versato in aggiunta alle tue posizioni.",
     "copy": "Copia elenco ordini",
     "copied": "Copiato"
   },

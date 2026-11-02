@@ -81,6 +81,11 @@ function OrderList({ tranche }: { tranche: CashDeploymentTranche }) {
       <p className="mb-1 text-xs text-[var(--surface-muted-color)]">
         {t('cashDeployment.orderLabel')}
       </p>
+      {tranche.cash_basis === 'new_money' && (
+        <p className="mb-1 text-xs" data-testid="cash-deployment-new-money">
+          {t('cashDeployment.newMoneyBasis')}
+        </p>
+      )}
       <OrderTable tranche={tranche} />
       {tranche.keep_as_cash_minor > 0 && (
         <p className="text-xs">

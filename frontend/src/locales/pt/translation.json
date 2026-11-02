@@ -4340,6 +4340,7 @@
     "units": "Unidades indicativas",
     "noVehicle": "Sem veículo no seu plano",
     "keepAsCash": "Manter em caixa: {{amount}}",
+    "newMoneyBasis": "A conta tem menos numerário do que esta tranche, por isso é calculada como dinheiro novo depositado além das suas posições.",
     "copy": "Copiar lista de ordens",
     "copied": "Copiado"
   },

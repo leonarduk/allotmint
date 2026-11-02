@@ -484,7 +484,10 @@ checks already run. When it is on:
   configured local login. It resets that binding first on every request, so a
   reused Lambda environment can't carry one caller into the next. Routes that
   never resolve identity themselves (the `/portfolio-group/{slug}` family,
-  `/groups`, `/owners`' `disable_auth` branch) read it from there.
+  `/groups`, `/owners`' `disable_auth` branch, `/opportunities?group=`) read
+  it from there. `/opportunities?group=` does not re-verify the bearer token
+  under `disable_auth`. The gateway has already verified it, and our HS256
+  `decode_token` cannot read a Cognito RS256 token (#11354).
 - **`ensure_owner_access`** runs the owner/email/`viewers` check instead of
   standing down. It uses the request's identity when the caller passed none.
 - **Per-owner routes** (`/portfolio/{owner}` and its `/sectors`,

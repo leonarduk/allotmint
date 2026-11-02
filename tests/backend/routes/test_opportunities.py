@@ -72,6 +72,9 @@ async def test_group_requires_authentication(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_group_invalid_token(monkeypatch):
+    # Auth enabled: with disable_auth the gateway has already verified the
+    # token, so the route no longer re-checks it there (#11354).
+    monkeypatch.setattr(opportunities_module.config, "disable_auth", False)
     monkeypatch.setattr(opportunities_module, "decode_token", lambda token: None)
     monkeypatch.setattr(opportunities_module.trading_agent, "run", lambda **_: [])
     monkeypatch.setattr(

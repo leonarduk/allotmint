@@ -20,6 +20,7 @@ from typing import Any, Dict, List
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
 from backend import auth
@@ -252,6 +253,73 @@ def test_opportunities_group_cache_does_not_leak_between_users(aws_app, monkeypa
 
     assert _anomalies_as("y@example.com") == [Y]
     assert _anomalies_as(VIEWER_A) == [X]
+
+
+def _cognito_rs256_token(email: str) -> str:
+    """A Cognito-shaped ID token signed RS256 with a throwaway key, as the gateway passes it on.
+
+    The backend never holds this key, so ``decode_token`` (HS256, our secret)
+    cannot verify it -- exactly as for a real Cognito ID token on AWS, whose
+    signature API Gateway's authorizer has already checked.
+    """
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    claims = {
+        "sub": "3f0c9e1a-0000-4000-8000-000000000000",
+        "email": email,
+        "email_verified": True,
+        "token_use": "id",
+        "aud": "test-ui-client-id",
+        "iss": "https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_TEST",
+        "exp": 4102444800,
+    }
+    return jwt.encode(claims, key, algorithm="RS256", headers={"kid": "test-kid"})
+
+
+def _opportunities_members(client: TestClient, headers: Dict[str, str] | None = None) -> List[str]:
+    resp = client.get("/opportunities", params={"group": "all"}, headers=headers or {})
+    assert resp.status_code == 200, resp.text
+    return sorted(resp.json()["context"]["anomalies"])
+
+
+@pytest.fixture
+def opportunities_members(monkeypatch):
+    """Make ``/opportunities?group=`` report the group's members, so scoping is visible."""
+    from backend.routes import opportunities
+
+    monkeypatch.setattr(
+        opportunities,
+        "_group_opportunities",
+        lambda slug, **_kw: {"gainers": [], "losers": [], "anomalies": group_portfolio.group_members(slug)},
+    )
+
+
+@pytest.mark.parametrize("enforce", [False, True])
+def test_opportunities_group_accepts_a_gateway_verified_cognito_token(aws_app, opportunities_members, enforce):
+    """A real AWS user's RS256 Cognito ID token must not be re-verified as a backend JWT.
+
+    ``get_opportunities`` used to call ``decode_token`` on it, which returns
+    ``None`` for anything not signed with our HS256 secret, and answered 401.
+    """
+    client = aws_app(enforce=enforce)
+    viewer = {"Authorization": f"Bearer {_cognito_rs256_token(VIEWER_A)}"}
+
+    # Flag on: only the owners the caller may read (never widened). Flag off: unchanged.
+    assert _opportunities_members(client, viewer) == ([X] if enforce else sorted([X, Y]))
+
+
+@pytest.mark.parametrize("enforce", [False, True])
+def test_opportunities_group_keeps_demo_and_family_results_apart(aws_app, opportunities_members, enforce):
+    """Demo tokens stay confined (#7408) and the response cache keeps demo and family apart."""
+    client = aws_app(enforce=enforce)
+    demo = {"Authorization": f"Bearer {auth.create_demo_access_token(DEMO)}"}
+    family = {"Authorization": f"Bearer {_cognito_rs256_token('y@example.com')}"}
+    family_members = [Y] if enforce else sorted([X, Y])
+
+    assert _opportunities_members(client, demo) == [DEMO]
+    assert _opportunities_members(client, family) == family_members
+    assert _opportunities_members(client, demo) == [DEMO]
+    assert _opportunities_members(client, family) == family_members
 
 
 # ---- flag off: unchanged ------------------------------------------------------

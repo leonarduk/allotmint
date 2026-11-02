@@ -4313,6 +4313,24 @@
       "medium": "Media",
       "low": "Bassa",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Impostazioni del riepilogo",
+      "loading": "Caricamento impostazioni…",
+      "loadError": "Impossibile caricare le impostazioni del riepilogo.",
+      "period": "Riepilogo ogni",
+      "weekly": "Settimana",
+      "monthly": "Mese",
+      "email_enabled": "Invia il riepilogo via e-mail",
+      "telegram_enabled": "Invia il riepilogo via Telegram",
+      "include_balances": "Mostra gli importi in £ in e-mail e Telegram",
+      "send_when_empty": "Invia il riepilogo anche se non c'è nulla da fare",
+      "per_bot_cap": "Elementi per bot (1–50)",
+      "alertImmediately": "Avvisa subito",
+      "alertImmediatelyHelp": "Le gravità selezionate inviano anche un avviso appena un bot le rileva. Compaiono comunque nel riepilogo.",
+      "bot": "Bot",
+      "save": "Salva impostazioni",
+      "saved": "Impostazioni salvate."
     }
   },
   "bots": {

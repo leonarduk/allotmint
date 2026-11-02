@@ -4306,6 +4306,24 @@
       "medium": "Medium",
       "low": "Low",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Digest settings",
+      "loading": "Loading settings…",
+      "loadError": "Could not load the digest settings.",
+      "period": "Digest every",
+      "weekly": "Week",
+      "monthly": "Month",
+      "email_enabled": "Send the digest by email",
+      "telegram_enabled": "Send the digest by Telegram",
+      "include_balances": "Show £ amounts in email and Telegram",
+      "send_when_empty": "Send a digest even when nothing needs you",
+      "per_bot_cap": "Items per bot (1–50)",
+      "alertImmediately": "Alert straight away",
+      "alertImmediatelyHelp": "Ticked severities also alert as soon as a bot finds them. They still appear in the digest.",
+      "bot": "Bot",
+      "save": "Save settings",
+      "saved": "Settings saved."
     }
   },
   "bots": {

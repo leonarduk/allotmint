@@ -4313,6 +4313,24 @@
       "medium": "Media",
       "low": "Baja",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Ajustes del resumen",
+      "loading": "Cargando ajustes…",
+      "loadError": "No se pudieron cargar los ajustes del resumen.",
+      "period": "Resumen cada",
+      "weekly": "Semana",
+      "monthly": "Mes",
+      "email_enabled": "Enviar el resumen por correo",
+      "telegram_enabled": "Enviar el resumen por Telegram",
+      "include_balances": "Mostrar importes en £ en correo y Telegram",
+      "send_when_empty": "Enviar el resumen aunque no haya nada pendiente",
+      "per_bot_cap": "Elementos por bot (1–50)",
+      "alertImmediately": "Avisar al momento",
+      "alertImmediatelyHelp": "Las gravedades marcadas también avisan en cuanto un bot las detecta. Siguen apareciendo en el resumen.",
+      "bot": "Bot",
+      "save": "Guardar ajustes",
+      "saved": "Ajustes guardados."
     }
   },
   "bots": {

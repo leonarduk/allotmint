@@ -4313,6 +4313,24 @@
       "medium": "Moyenne",
       "low": "Faible",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Paramètres du récapitulatif",
+      "loading": "Chargement des paramètres…",
+      "loadError": "Impossible de charger les paramètres du récapitulatif.",
+      "period": "Récapitulatif chaque",
+      "weekly": "Semaine",
+      "monthly": "Mois",
+      "email_enabled": "Envoyer le récapitulatif par e-mail",
+      "telegram_enabled": "Envoyer le récapitulatif par Telegram",
+      "include_balances": "Afficher les montants en £ dans l'e-mail et Telegram",
+      "send_when_empty": "Envoyer un récapitulatif même sans rien à traiter",
+      "per_bot_cap": "Éléments par bot (1–50)",
+      "alertImmediately": "Alerter immédiatement",
+      "alertImmediatelyHelp": "Les niveaux cochés déclenchent aussi une alerte dès qu'un bot les détecte. Ils figurent toujours dans le récapitulatif.",
+      "bot": "Bot",
+      "save": "Enregistrer les paramètres",
+      "saved": "Paramètres enregistrés."
     }
   },
   "bots": {

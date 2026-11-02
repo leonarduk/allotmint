@@ -4313,6 +4313,24 @@
       "medium": "Média",
       "low": "Baixa",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Definições do resumo",
+      "loading": "A carregar definições…",
+      "loadError": "Não foi possível carregar as definições do resumo.",
+      "period": "Resumo a cada",
+      "weekly": "Semana",
+      "monthly": "Mês",
+      "email_enabled": "Enviar o resumo por e-mail",
+      "telegram_enabled": "Enviar o resumo por Telegram",
+      "include_balances": "Mostrar valores em £ no e-mail e no Telegram",
+      "send_when_empty": "Enviar o resumo mesmo sem nada pendente",
+      "per_bot_cap": "Itens por bot (1–50)",
+      "alertImmediately": "Alertar de imediato",
+      "alertImmediatelyHelp": "As gravidades marcadas também alertam assim que um bot as encontra. Continuam a aparecer no resumo.",
+      "bot": "Bot",
+      "save": "Guardar definições",
+      "saved": "Definições guardadas."
     }
   },
   "bots": {

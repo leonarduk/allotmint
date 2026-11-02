@@ -504,6 +504,14 @@ checks already run. When it is on:
   - **Demo tokens:** confined in every mode.
 
   (#11351)
+- **Nudges.** `POST /nudges/subscribe` and `POST /nudges/snooze` run
+  `ensure_owner_access` on the body's `user`, with the same caller as the
+  per-owner routes. A nudge's `user` is usually an owner id but may be the
+  signed-in identity itself; an identity always passes the check for itself,
+  since `ensure_owner_access` allows the owner id. `GET /nudges/` returns only
+  the nudges whose user (`id`) passes the same check, plus any nudge with no
+  user, so every id the notifications drawer offers to snooze or reschedule
+  is one the caller may act on. (#11353)
 - **Cross-owner routes** (`/custom-query/run`, `/scenario`, `/scenario/fx`,
   `/scenario/historical`, and the `positions` on `/instrument/`) list owners
   with `list_plots(current_user=<caller>)`, using the same caller as the

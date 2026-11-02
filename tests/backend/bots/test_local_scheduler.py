@@ -97,6 +97,14 @@ def test_previous_firing_monthly_day_31_spans_short_months():
     )
 
 
+def test_previous_firing_quarterly_finds_a_firing_months_back():
+    sched = Schedule(hour=9, day=1, months=(1, 4, 7, 10))
+
+    assert local_scheduler.previous_firing(sched, datetime(2030, 3, 25, tzinfo=UTC)) == datetime(
+        2030, 1, 1, 9, tzinfo=UTC
+    )
+
+
 def test_missed_firing(fake_bot):
     now = datetime(2026, 10, 15, 4, 0, tzinfo=UTC)  # fake bot fires daily at 03:00
     assert local_scheduler.missed_firing(fake_bot, now)  # never run

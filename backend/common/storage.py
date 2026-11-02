@@ -21,11 +21,12 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Dict, Optional, Protocol, Tuple
 from urllib.parse import urlparse
 
 from botocore.exceptions import BotoCoreError, ClientError
 
+from backend.common.conditional_store import PreconditionFailed
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -89,20 +90,48 @@ class S3JSONStorage:
         key reads as ``NoSuchKey`` only when the caller has ``s3:ListBucket``
         on the prefix; without it S3 answers 403, which raises here.
         """
+        return self.load_versioned()[0]
+
+    def load_versioned(self) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """:meth:`load_existing` plus the object's ETag (``None`` when the key does not exist).
+
+        Pass the ETag to :meth:`save_if_match` to write back only if nobody
+        else has written the object since this read (#11291).
+        """
         try:
             obj = self._client().get_object(Bucket=self.bucket, Key=self.key)
         except ClientError as exc:
             if exc.response.get("Error", {}).get("Code") in _MISSING_KEY_CODES:
-                return None
+                return None, None
             raise
-        return json.loads(obj["Body"].read())
+        return json.loads(obj["Body"].read()), obj.get("ETag")
 
     def save(self, data: Dict[str, Any]) -> None:
         body = json.dumps(data).encode("utf-8")
         self._client().put_object(Bucket=self.bucket, Key=self.key, Body=body)
 
+    def save_if_match(self, data: Dict[str, Any], etag: Optional[str]) -> None:
+        """Write ``data`` only if the object's ETag is still ``etag`` (``None``: it must not exist).
+
+        S3 checks the condition atomically (``IfMatch``/``IfNoneMatch``), so a
+        concurrent write between :meth:`load_versioned` and this call raises
+        :class:`~backend.common.conditional_store.PreconditionFailed` instead
+        of being overwritten. Any other failure propagates.
+        """
+        body = json.dumps(data).encode("utf-8")
+        condition = {"IfMatch": etag} if etag else {"IfNoneMatch": "*"}
+        try:
+            self._client().put_object(Bucket=self.bucket, Key=self.key, Body=body, **condition)
+        except ClientError as exc:
+            # 412: the object changed since it was read. 409: S3 reports a
+            # conditional write racing another write to the same key.
+            if exc.response.get("Error", {}).get("Code") in _PRECONDITION_CODES:
+                raise PreconditionFailed() from exc
+            raise
+
 
 _MISSING_KEY_CODES = frozenset({"NoSuchKey", "404", "NotFound"})
+_PRECONDITION_CODES = frozenset({"PreconditionFailed", "ConditionalRequestConflict"})
 
 
 def list_s3_json_stems(bucket: str, prefix: str, client: Any | None = None) -> list[str]:

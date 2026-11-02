@@ -5,7 +5,7 @@
     "@capacitor/cli": "^8.5.3",
     "aws-cdk": "2.1146.1",
     "concurrently": "^10.0.6",
-    "postcss": "^8.5.31",
+    "postcss": "^8.5.32",
     "tsx": "^4.23.15"
   },
   "dependencies": {

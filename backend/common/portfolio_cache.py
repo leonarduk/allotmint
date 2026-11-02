@@ -38,7 +38,9 @@ than assembling a key of its own.
 With ``ENFORCE_OWNER_ACCESS`` on (#11087) ``list_plots()`` also filters a real
 user's owners by ``email``/``viewers``, so the scope then names the
 request's identity too: two users with different viewer rights never share
-an entry, and a request with no identity gets its own (empty) one.
+an entry, and a request with no identity gets its own (empty) one. With auth
+enabled the scope names the identity as well, because ``build_owner_portfolio``
+looks owners up as the request's identity there (#11358).
 
 Shared performance inputs (#10755)
 ----------------------------------
@@ -110,10 +112,14 @@ def access_scope() -> Hashable:
     """Return what a group build's owner list depends on for the current caller.
 
     ``None`` for an unscoped request (every caller sees the same owners), the
-    demo owner for a demo-scoped request, and -- only while owner access is
-    enforced under ``disable_auth`` (#11087) -- ``("user", <identity>)``, with
-    ``None`` as the identity for an anonymous request. The tuple can never
-    equal a demo owner string, so the two scopes cannot collide.
+    demo owner for a demo-scoped request, and ``("user", <identity>)`` -- with
+    ``None`` as the identity for an anonymous request -- whenever owner access
+    is checked: with auth enabled, or under ``disable_auth`` while
+    ``ENFORCE_OWNER_ACCESS`` is on (#11087). With auth enabled
+    ``build_owner_portfolio`` finds only the owners the request's identity may
+    read (#11358), so a build memoised for one user must not be served to
+    another. The tuple can never equal a demo owner string, so the two scopes
+    cannot collide.
     """
 
     demo = _demo_scope()
@@ -121,8 +127,9 @@ def access_scope() -> Hashable:
         return demo
 
     from backend.auth import owner_access_enforced_under_disable_auth, request_identity
+    from backend.config import config
 
-    if not owner_access_enforced_under_disable_auth():
+    if config.disable_auth is not False and not owner_access_enforced_under_disable_auth():
         return None
     identity = request_identity()
     return ("user", identity.strip().lower() if isinstance(identity, str) and identity.strip() else None)

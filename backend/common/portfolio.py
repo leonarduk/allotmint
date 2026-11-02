@@ -17,6 +17,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend import auth as auth_module
+from backend.common.account_models import OwnerSummaryRecord
 from backend.common.approvals import load_approvals
 from backend.common.authz import identity_can_access_owner
 from backend.common.cash_tickers import is_cash_ticker
@@ -381,6 +383,30 @@ def list_owners(
 
 
 # ─────────────────────── owner-level builder ─────────────────────
+def _owner_plots(accounts_root: Optional[Path]) -> List[OwnerSummaryRecord]:
+    """List the plots ``build_owner_portfolio`` may build, scoped like ``/owners``.
+
+    With auth enabled ``list_plots`` called without a user lists nobody, so
+    every build raised ``FileNotFoundError`` -- a 404 even for the caller's
+    own portfolio (#11358). So, with auth enabled, the listing is filtered as
+    the identity ``get_current_user``/``get_active_user`` bound to the request:
+    the owners that identity may read, by the same ``identity_can_access_owner``
+    rule ``ensure_owner_access`` applies. A caller that skipped its own check
+    still cannot build an owner the signed-in user may not read.
+
+    Every other mode calls ``list_plots`` exactly as before: ``disable_auth``
+    (``ENFORCE_OWNER_ACCESS`` on or off) keeps its own rules inside
+    ``list_plots``, a demo token stays confined to the demo owner, and a
+    ``system_job_context`` job with no request identity still lists everyone.
+    """
+
+    if config.disable_auth is False:
+        identity = auth_module.request_identity()
+        if identity is not None:
+            return list_plots(accounts_root, current_user=identity)
+    return list_plots(accounts_root)
+
+
 def build_owner_portfolio(
     owner: str,
     accounts_root: Optional[Path] = None,
@@ -404,7 +430,7 @@ def build_owner_portfolio(
     today = calc.today
     pricing_date = calc.reporting_date
 
-    all_plots = list_plots(accounts_root)
+    all_plots = _owner_plots(accounts_root)
     plots = [p for p in all_plots if p.owner == owner]
     if not plots:
         # Diagnostics for #5286: performance/tracking-error and its sibling

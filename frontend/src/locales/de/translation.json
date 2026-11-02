@@ -3481,7 +3481,9 @@
       "seedStore": "Saatgutvorrat",
       "readyToSow": "{{amount}} Bargeld bereit zur Aussaat",
       "inBeds_one": "in {{count}} Beet",
-      "inBeds_other": "in {{count}} Beeten"
+      "inBeds_other": "in {{count}} Beeten",
+      "bedGain": "{{gain}} ({{pct}}) seit dem Kauf",
+      "bedGainUnknown": "Gewinn unbekannt: ein Kaufpreis fehlt"
     },
     "model": {
       "unnamedBed": "Unbenanntes Beet",
@@ -3554,6 +3556,56 @@
       "flowering": "Blühend",
       "fruiting": "Fruchtend",
       "bumper": "Rekordernte"
+    },
+    "nextJob": {
+      "title": "Nächste Aufgabe im Garten",
+      "none": "Im Garten gibt es gerade nichts zu tun.",
+      "staleReason": "Alle Werte und Gewinne auf diesen Seiten beruhen auf Kursen vom {{date}}. Prüfen Sie den Stand der Kursdaten, bevor Sie viel daraus ablesen.",
+      "staleLink": "Datenqualität prüfen",
+      "approvalTitle_one": "{{count}} Position braucht eine Freigabe, bevor sie verkauft werden kann",
+      "approvalTitle_other": "{{count}} Positionen brauchen eine Freigabe, bevor sie verkauft werden können",
+      "approvalReason": "{{tickers}}: Die Mindesthaltedauer ist vorbei, aber ein Verkauf muss nach Ihren Handelsregeln freigegeben werden.",
+      "approvalLink": "Handelsregeln ansehen",
+      "choresTitle_one": "{{count}} Aufgabe heute noch offen",
+      "choresTitle_other": "{{count}} Aufgaben heute noch offen",
+      "choresReason": "Jede öffnet die passende Seite und zählt erst, wenn Sie sie dort tatsächlich erledigt haben.",
+      "choresLink": "Zu den Aufgaben",
+      "isaTitle": "{{amount}} Ihres ISA-Freibetrags von {{limit}} sind in diesem Steuerjahr ungenutzt",
+      "isaReason": "Geld in einem ISA wächst in Großbritannien steuerfrei. Ungenutzter Freibetrag verfällt nach dem 5. April.",
+      "isaLink": "Steuerwerkzeuge ansehen",
+      "cashTitle": "{{amount}} ({{pct}} % Ihres Gartens) liegen als Bargeld",
+      "cashReason": "Bargeld ist nicht investiert und steigt oder fällt daher nicht mit den Märkten. Die Seite zur Aufteilung zeigt es neben allem anderen.",
+      "cashLink": "Aufteilung ansehen",
+      "splitTitle_one": "Sie halten {{ticker}} in {{count}} Konto",
+      "splitTitle_other": "Sie halten {{ticker}} in {{count}} Konten",
+      "splitReason": "Gehalten in {{beds}}. Für jeden Teil gelten die Steuerregeln des Kontos, in dem er liegt.",
+      "splitLink": "Pflanze ansehen"
+    },
+    "learn": {
+      "title": "Was ist das?",
+      "sector": "Sektor: {{sector}}, der Teil der Wirtschaft, in dem es sein Geld verdient.",
+      "region": "Region: {{region}}, wo es ansässig ist oder hauptsächlich investiert.",
+      "type": {
+        "equity": "Eine Aktie eines einzelnen Unternehmens: Ihr Kurs folgt dem Geschäft dieses einen Unternehmens.",
+        "etf": "Ein börsengehandelter Fonds (ETF): eine Position, die einen Korb aus vielen Anlagen besitzt und wie eine Aktie an der Börse gehandelt wird.",
+        "fund": "Ein Fonds: Geld vieler Anleger, gebündelt und auf einen Korb von Anlagen verteilt, ausgewählt von einem Manager oder nach einem Index.",
+        "bond": "Eine Anleihe: ein Kredit an einen Staat oder ein Unternehmen, der Zinsen zahlt und zu einem festen Termin zurückgezahlt wird.",
+        "investmentTrust": "Ein Investment Trust: ein börsennotiertes Unternehmen, dessen Geschäft der Besitz anderer Anlagen ist. Sein Aktienkurs kann über oder unter dem Wert dieser Anlagen liegen.",
+        "commodity": "Ein Rohstoff wie Gold oder Öl, meist über ein Produkt gehalten, das seinem Preis folgt.",
+        "property": "Immobilien: Gebäude oder Grundstücke, meist über einen Fonds oder ein börsennotiertes Immobilienunternehmen gehalten.",
+        "multiAsset": "Ein Multi-Asset-Fonds: ein Fonds, der Aktien, Anleihen und andere Anlagen mischt.",
+        "unknown": "Die Daten sagen nicht, um welche Art von Anlage es sich handelt."
+      },
+      "wrapper": {
+        "isa": "Ein ISA: Wachstum und Erträge darin sind in Großbritannien steuerfrei, bis zu einem jährlichen Einzahlungsfreibetrag.",
+        "lisa": "Ein Lifetime ISA: steuerfrei wie ein ISA, dazu ein staatlicher Bonus auf Ihre Einzahlungen. Gedacht für ein erstes Eigenheim oder das spätere Leben; andere Entnahmen kosten eine Gebühr.",
+        "jisa": "Ein Junior ISA: steuerfreies Sparen für ein Kind, das mit 18 die Kontrolle darüber erhält.",
+        "pension": "Eine Altersvorsorge (etwa ein SIPP): Einzahlungen erhalten eine Steuererleichterung, aber das Geld bleibt bis zum Rentenalter gebunden.",
+        "gia": "Ein allgemeines Anlagekonto: ohne Steuerhülle, daher können Erträge und Gewinne über Ihren jährlichen Freibeträgen besteuert werden.",
+        "company": "Von einer Kapitalgesellschaft gehalten, daher als Geld des Unternehmens besteuert, nicht als Ihres.",
+        "cash": "Ein Geldkonto: Geld, das als Bargeld gehalten und nicht investiert wird.",
+        "unknown": "Die Kontoart ist nicht erfasst."
+      }
     }
   },
   "userAvatar": {

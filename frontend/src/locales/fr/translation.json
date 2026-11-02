@@ -3481,7 +3481,9 @@
       "seedStore": "Réserve de semences",
       "readyToSow": "{{amount}} en espèces prêts à semer",
       "inBeds_one": "dans {{count}} planche",
-      "inBeds_other": "dans {{count}} planches"
+      "inBeds_other": "dans {{count}} planches",
+      "bedGain": "{{gain}} ({{pct}}) depuis l'achat",
+      "bedGainUnknown": "Plus-value inconnue : un coût d'achat manque"
     },
     "model": {
       "unnamedBed": "Planche sans nom",
@@ -3554,6 +3556,56 @@
       "flowering": "Floraison",
       "fruiting": "Fructification",
       "bumper": "Récolte record"
+    },
+    "nextJob": {
+      "title": "Prochaine tâche au potager",
+      "none": "Rien à faire au potager pour le moment.",
+      "staleReason": "Toutes les valeurs et plus-values de ces écrans reposent sur des cours du {{date}}. Vérifiez l'état des données de cours avant d'en tirer des conclusions.",
+      "staleLink": "Vérifier la qualité des données",
+      "approvalTitle_one": "{{count}} position doit être approuvée avant de pouvoir être vendue",
+      "approvalTitle_other": "{{count}} positions doivent être approuvées avant de pouvoir être vendues",
+      "approvalReason": "{{tickers}} : la durée minimale de détention est écoulée, mais une vente doit être approuvée selon vos règles de négociation.",
+      "approvalLink": "Voir les règles de négociation",
+      "choresTitle_one": "{{count}} corvée encore ouverte aujourd'hui",
+      "choresTitle_other": "{{count}} corvées encore ouvertes aujourd'hui",
+      "choresReason": "Chacune ouvre la page concernée et ne compte qu'une fois réellement faite là-bas.",
+      "choresLink": "Aller aux corvées",
+      "isaTitle": "{{amount}} de votre plafond ISA de {{limit}} reste inutilisé cette année fiscale",
+      "isaReason": "L'argent placé dans un ISA fructifie sans impôt au Royaume-Uni. Le plafond non utilisé n'est pas reporté après le 5 avril.",
+      "isaLink": "Voir les outils fiscaux",
+      "cashTitle": "{{amount}} ({{pct}} % de votre potager) est détenu en liquidités",
+      "cashReason": "Les liquidités ne sont pas investies : elles ne montent ni ne baissent avec les marchés. La page de répartition les montre à côté de tout le reste.",
+      "cashLink": "Voir la répartition",
+      "splitTitle_one": "Vous détenez {{ticker}} dans {{count}} compte",
+      "splitTitle_other": "Vous détenez {{ticker}} dans {{count}} comptes",
+      "splitReason": "Détenu dans {{beds}}. Chaque part suit les règles fiscales du compte où elle se trouve.",
+      "splitLink": "Inspecter la culture"
+    },
+    "learn": {
+      "title": "Qu'est-ce que c'est ?",
+      "sector": "Secteur : {{sector}}, la partie de l'économie dont il tire ses revenus.",
+      "region": "Région : {{region}}, là où il est établi ou investit principalement.",
+      "type": {
+        "equity": "Une action d'une seule entreprise : son cours suit la marche de cette entreprise.",
+        "etf": "Un fonds négocié en bourse (ETF) : une position qui détient un panier de nombreux placements et s'échange en bourse comme une action.",
+        "fund": "Un fonds : l'argent de nombreux investisseurs mis en commun et réparti sur un panier de placements, choisis par un gérant ou selon un indice.",
+        "bond": "Une obligation : un prêt à un État ou une entreprise qui verse des intérêts et est remboursé à une date fixée.",
+        "investmentTrust": "Un investment trust : une société cotée dont le métier est de détenir d'autres placements. Son cours peut être au-dessus ou en dessous de la valeur de ces placements.",
+        "commodity": "Une matière première comme l'or ou le pétrole, généralement détenue via un produit qui suit son prix.",
+        "property": "L'immobilier : des bâtiments ou des terrains, généralement détenus via un fonds ou une foncière cotée.",
+        "multiAsset": "Un fonds multi-actifs : un fonds qui mélange actions, obligations et autres placements.",
+        "unknown": "Les données n'indiquent pas de quel type de placement il s'agit."
+      },
+      "wrapper": {
+        "isa": "Un ISA : la croissance et les revenus qu'il contient sont exonérés d'impôt au Royaume-Uni, dans la limite d'un plafond annuel de versements.",
+        "lisa": "Un Lifetime ISA : exonéré d'impôt comme un ISA, avec en plus un bonus de l'État sur vos versements. Prévu pour un premier logement ou pour plus tard ; les autres retraits sont pénalisés.",
+        "jisa": "Un Junior ISA : une épargne exonérée d'impôt pour un enfant, qui en prend le contrôle à 18 ans.",
+        "pension": "Une épargne retraite (comme un SIPP) : vos versements bénéficient d'un allègement fiscal, mais l'argent reste bloqué jusqu'à l'âge de la retraite.",
+        "gia": "Un compte d'investissement général : sans enveloppe fiscale, les revenus et plus-values au-delà de vos abattements annuels peuvent être imposés.",
+        "company": "Détenu par une société, donc imposé comme l'argent de la société et non le vôtre.",
+        "cash": "Un compte espèces : de l'argent gardé en liquidités plutôt qu'investi.",
+        "unknown": "Le type de compte n'est pas renseigné."
+      }
     }
   },
   "userAvatar": {

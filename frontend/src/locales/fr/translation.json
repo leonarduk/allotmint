@@ -1322,20 +1322,19 @@
           "detail": "Chaque compte d'investissement est représenté par une parcelle. Chaque position de ce compte est une culture qui y est plantée."
         },
         "growthStages": {
-          "title": "Stades de croissance (Flétri → Semé → Germination → Feuillu → Bourgeonnant → Fleuri → Fructification → Récolte record)",
-          "detail": "Le stade de croissance d'une culture dépend du gain total de cette position, en pourcentage de son prix d'achat — et non de sa durée de détention.",
-          "wilting": "Flétri : gain total de -20 % ou moins",
-          "sown": "Semé : gain total entre -20 % (exclu) et 0 %",
-          "sprouting": "Germination : gain total entre 0 % (exclu) et 5 %",
-          "leafing": "Feuillu : gain total entre 5 % (exclu) et 15 %",
-          "budding": "Bourgeonnant : gain total entre 15 % (exclu) et 30 %",
-          "flowering": "Fleuri : gain total entre 30 % (exclu) et 60 %",
-          "fruiting": "Fructification : gain total entre 60 % (exclu) et 120 %",
-          "bumper": "Récolte record : gain total supérieur à 120 %"
+          "title": "Stades de croissance (Semé → Germination → Feuillaison → Bourgeonnement → Floraison → Fructification → Bien établi)",
+          "detail": "Le stade de croissance d'une culture correspond à la durée de détention de la position. Comme une vraie plante, il ne fait qu'avancer tant que vous la gardez — une baisse de prix ne la ramène jamais à Semé. Si la date d'achat est inconnue, le stade est « Âge inconnu ».",
+          "sown": "Semé : détenu depuis moins de 30 jours",
+          "sprouting": "Germination : de 30 jours à 3 mois",
+          "leafing": "Feuillaison : de 3 à 6 mois",
+          "budding": "Bourgeonnement : de 6 mois à 1 an",
+          "flowering": "Floraison : de 1 à 2 ans",
+          "fruiting": "Fructification : de 2 à 5 ans",
+          "established": "Bien établi : 5 ans ou plus"
         },
         "propagator": {
           "title": "Propagateur",
-          "detail": "Liste les cultures encore dans leur durée minimale de détention — le nombre de jours configuré pendant lequel une position doit être conservée avant de pouvoir être vendue — avec un compte à rebours jusqu'à la date à laquelle chacune la franchit. Il s'agit d'une mesure de la durée de détention, distincte du stade de croissance fondé sur le gain décrit ci-dessus."
+          "detail": "Liste les cultures encore dans leur période de détention minimale — le nombre de jours configuré pendant lequel une position doit être détenue avant de pouvoir être vendue — avec un compte à rebours jusqu'à la date où chacune en sort."
         },
         "water": {
           "title": "Eau",
@@ -1352,6 +1351,14 @@
         "growerLevel": {
           "title": "Niveau de jardinier et XP",
           "detail": "Gagné en accomplissant les tâches quotidiennes. Atteindre le niveau L demande 25 × L × (L − 1) XP au total : les premiers niveaux arrivent vite, les suivants s'allongent. Il suit votre propre progression, pas un chiffre du portefeuille, et reste donc identique sur le potager de chaque jardinier."
+        },
+        "condition": {
+          "title": "État (Fané → En difficulté → En bonne santé → Florissant)",
+          "detail": "L'état d'une culture est le gain ou la perte total de la position, en pourcentage du prix payé. Contrairement au stade de croissance, il peut s'améliorer ou se dégrader, et il fixe la couleur de la culture. Si le coût est inconnu, l'état l'est aussi.",
+          "wilting": "Fané : en baisse de 20 % ou plus",
+          "struggling": "En difficulté : en baisse, de moins de 20 %",
+          "healthy": "En bonne santé : en hausse de 0 % à moins de 20 %",
+          "thriving": "Florissant : en hausse de 20 % ou plus"
         }
       },
       "technicals": {
@@ -3316,7 +3323,9 @@
       "addFavourite": "Ajouter {{ticker}} aux favoris",
       "today": "{{pct}} aujourd'hui",
       "noDataToday": "aucune donnée aujourd'hui",
-      "shareOfPlot": "{{pct}} du potager"
+      "shareOfPlot": "{{pct}} du potager",
+      "stageTitle": "Stade de croissance : depuis combien de temps elle est détenue",
+      "conditionTitle": "État : gain ou perte total depuis l'achat"
     },
     "data": {
       "ownersError": "Impossible de charger la liste des jardiniers.",
@@ -3347,7 +3356,6 @@
       "groundwork": "Travaux préparatoires"
     },
     "crop": {
-      "growth": "Croissance",
       "gainUnknown": "Gain inconnu — aucun prix de revient enregistré",
       "gainDetail": "{{gain}} de gain latent ({{pct}})",
       "yield": "Rendement",
@@ -3387,17 +3395,18 @@
       "unknown": "inconnu",
       "openInstrument": "Ouvrir la vue complète de l'instrument →",
       "neighbours": "Cultures voisines",
-      "allCrops": "Toutes les cultures"
+      "allCrops": "Toutes les cultures",
+      "condition": "État"
     },
     "roster": {
       "sortShare": "Part du potager",
-      "sortGrowth": "Croissance",
+      "sortGrowth": "Gain",
       "sortVigour": "Vigueur",
       "sortAz": "A–Z",
       "growthStages": "Stades de croissance",
       "growthStagesLabel": "Que signifient les stades de croissance ?",
-      "growthStagesTip": "Le stade d'une culture correspond à son gain total depuis l'achat, pas à sa variation du jour — Semé/Germination signifie peu ou pas de profit pour l'instant, Fructification et Récolte record signifient un gain important.",
-      "stageNote": "Le stade provient du gain total de chaque position ; la barre montre sa part dans la valeur du potager.",
+      "growthStagesTip": "Le stade d'une culture correspond à sa durée de détention — il ne fait qu'avancer, de Semé (moins de 30 jours) à Bien établi (5 ans ou plus). Sa santé est son état, visible à sa couleur : Florissant, En bonne santé, En difficulté ou Fané.",
+      "stageNote": "Le stade provient de la durée de détention de chaque position ; la couleur et l'état, de son gain total ; la barre montre sa part dans la valeur du potager.",
       "title": "Liste des cultures ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} planche",
       "bedCount_other": "{{count}} planches",
@@ -3408,7 +3417,8 @@
       "filterCrops": "Filtrer les cultures",
       "allBeds": "Toutes les planches",
       "favourites": "Favoris ({{count}})",
-      "noMatch": "Aucune culture ne correspond à ces filtres."
+      "noMatch": "Aucune culture ne correspond à ces filtres.",
+      "conditionsLabel": "État des cultures"
     },
     "seeds": {
       "title": "Catalogue de graines",
@@ -3546,14 +3556,21 @@
       "seedlingSower": "Semeur de jeunes pousses"
     },
     "stage": {
-      "wilting": "Fané",
       "seed": "Semé",
       "sprout": "Germination",
       "leafing": "Feuillaison",
       "budding": "Bourgeonnement",
       "flowering": "Floraison",
       "fruiting": "Fructification",
-      "bumper": "Récolte record"
+      "unknown": "Âge inconnu",
+      "established": "Bien établi"
+    },
+    "condition": {
+      "unknown": "État inconnu",
+      "wilting": "Fané",
+      "struggling": "En difficulté",
+      "healthy": "En bonne santé",
+      "thriving": "Florissant"
     }
   },
   "userAvatar": {

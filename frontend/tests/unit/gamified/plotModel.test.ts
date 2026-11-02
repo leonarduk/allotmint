@@ -10,6 +10,11 @@ import {
   bedNameFor,
   clamp,
   compareGainPctDesc,
+  CONDITION_LEVEL_MAX,
+  conditionLevelFor,
+  CROP_CONDITIONS,
+  cropConditionFor,
+  cropConditionMeta,
   distinctInstruments,
   formatGbp,
   formatPct,
@@ -88,35 +93,113 @@ const portfolio: Portfolio = {
   ],
 };
 
-describe('growthStageFor', () => {
-  it('maps total gain onto the growth ladder', () => {
-    expect(growthStageFor(-40)).toBe('wilting');
-    expect(growthStageFor(-20)).toBe('wilting');
-    expect(growthStageFor(-1)).toBe('seed');
+describe('growthStageFor (#7200: stage is time held, not gain)', () => {
+  it('maps days held onto the growth ladder', () => {
     expect(growthStageFor(0)).toBe('seed');
-    expect(growthStageFor(3)).toBe('sprout');
-    expect(growthStageFor(12)).toBe('leafing');
-    expect(growthStageFor(25)).toBe('budding');
-    expect(growthStageFor(45)).toBe('flowering');
-    expect(growthStageFor(90)).toBe('fruiting');
-    expect(growthStageFor(500)).toBe('bumper');
+    expect(growthStageFor(29)).toBe('seed');
+    expect(growthStageFor(30)).toBe('sprout');
+    expect(growthStageFor(89)).toBe('sprout');
+    expect(growthStageFor(90)).toBe('leafing');
+    expect(growthStageFor(180)).toBe('budding');
+    expect(growthStageFor(365)).toBe('flowering');
+    expect(growthStageFor(730)).toBe('fruiting');
+    expect(growthStageFor(1825)).toBe('established');
+    expect(growthStageFor(10_000)).toBe('established');
   });
 
-  it('treats missing or non-finite gain as flat rather than throwing', () => {
-    expect(growthStageFor(null)).toBe('seed');
-    expect(growthStageFor(undefined)).toBe('seed');
-    expect(growthStageFor(Number.NaN)).toBe('seed');
+  it('does not call a holding held for 364 days "Sown"', () => {
+    expect(growthStageFor(364)).not.toBe('seed');
+    expect(growthStageFor(364)).toBe('budding');
+  });
+
+  it('never goes backwards as a holding is held for longer', () => {
+    const order = GROWTH_STAGES.map((stage) => stage.id);
+    let previous = order.indexOf(growthStageFor(0));
+    for (let days = 1; days <= 4_000; days += 1) {
+      const current = order.indexOf(growthStageFor(days));
+      expect(current).toBeGreaterThanOrEqual(previous);
+      previous = current;
+    }
+  });
+
+  it('ignores gain entirely: a falling price cannot un-grow a crop', () => {
+    const held = (gainPct: number) =>
+      buildPlotSnapshot({
+        portfolio: {
+          ...portfolio,
+          accounts: [
+            {
+              ...portfolio.accounts[0],
+              holdings: [
+                {
+                  ...portfolio.accounts[0].holdings[0],
+                  days_held: 400,
+                  gain_pct: gainPct,
+                },
+              ],
+            },
+          ],
+        },
+      }).crops[0];
+    expect(held(65).stage).toBe('flowering');
+    expect(held(-30).stage).toBe('flowering');
+    expect(held(65).condition).toBe('thriving');
+    expect(held(-30).condition).toBe('wilting');
+  });
+
+  it('gives an unknown age its own stage rather than "Sown"', () => {
+    expect(growthStageFor(null)).toBe('unknown');
+    expect(growthStageFor(undefined)).toBe('unknown');
+    expect(growthStageFor(Number.NaN)).toBe('unknown');
+  });
+
+  it('clamps a negative age to the first stage', () => {
+    expect(growthStageFor(-3)).toBe('seed');
   });
 });
 
 describe('growthStageMeta', () => {
   it('returns matching metadata for every stage', () => {
-    expect(growthStageMeta('bumper').label).toBe('Bumper crop');
-    expect(growthStageMeta('wilting').icon).toBe('🥀');
+    expect(growthStageMeta('established').label).toBe('Established');
+    expect(growthStageMeta('seed').label).toBe('Sown');
+    expect(growthStageMeta('unknown').label).toBe('Age unknown');
   });
 
   it('falls back to a sane stage for an unknown value', () => {
-    expect(growthStageMeta('nonsense' as never).id).toBe('seed');
+    expect(growthStageMeta('nonsense' as never).id).toBe('unknown');
+  });
+});
+
+describe('cropConditionFor (#7200: performance is condition)', () => {
+  it('maps total gain onto a two-way condition', () => {
+    expect(cropConditionFor(-40)).toBe('wilting');
+    expect(cropConditionFor(-20)).toBe('wilting');
+    expect(cropConditionFor(-19.9)).toBe('struggling');
+    expect(cropConditionFor(-0.1)).toBe('struggling');
+    expect(cropConditionFor(0)).toBe('healthy');
+    expect(cropConditionFor(19.9)).toBe('healthy');
+    expect(cropConditionFor(20)).toBe('thriving');
+    expect(cropConditionFor(500)).toBe('thriving');
+  });
+
+  it('is unknown when the gain is unknown, never a confident "healthy"', () => {
+    expect(cropConditionFor(null)).toBe('unknown');
+    expect(cropConditionFor(undefined)).toBe('unknown');
+    expect(cropConditionFor(Number.NaN)).toBe('unknown');
+  });
+
+  it('labels and colours every condition distinctly', () => {
+    expect(cropConditionMeta('thriving').label).toBe('Thriving');
+    expect(cropConditionMeta('wilting').label).toBe('Wilting');
+    expect(cropConditionMeta('nonsense' as never).id).toBe('unknown');
+    const accents = CROP_CONDITIONS.map((condition) => condition.accent);
+    expect(new Set(accents).size).toBe(accents.length);
+  });
+
+  it('levels conditions worst to best, with no level when unknown', () => {
+    expect(CROP_CONDITIONS.map((entry) => conditionLevelFor(entry.id))).toEqual(
+      [null, 1, 2, 3, CONDITION_LEVEL_MAX]
+    );
   });
 });
 
@@ -257,13 +340,17 @@ describe('buildPlotSnapshot', () => {
     const snapshot = buildPlotSnapshot({ portfolio });
     const [best, worst] = snapshot.crops;
 
+    // 400 days held; +60% since purchase.
     expect(best.stage).toBe('flowering');
+    expect(best.condition).toBe('thriving');
     expect(best).not.toHaveProperty('stars');
     expect(best.bedName).toBe('Stocks Isa');
     expect(best.share).toBeCloseTo(0.8);
     expect(best.dayChangePct).toBeCloseTo(1);
 
-    expect(worst.stage).toBe('wilting');
+    // 5 days held; -33% since purchase.
+    expect(worst.stage).toBe('seed');
+    expect(worst.condition).toBe('wilting');
     expect(worst.stale).toBe(true);
     expect(worst.freshness).toBe('stale');
     expect(worst.sellEligible).toBe(false);
@@ -975,6 +1062,8 @@ describe('distinctInstruments (#7212)', () => {
       gainGbp: 0,
       gainPct: 0,
       stage: 'seed',
+      // Recomputed from the summed gain, not inherited from the lead.
+      condition: 'healthy',
       hasMove: true,
     });
     expect(ernsGroup.combined.share).toBeCloseTo(0.4);
@@ -1234,27 +1323,19 @@ describe('portfolioAttentionReason (#8313)', () => {
 });
 
 describe('growthLevelFor', () => {
-  it('gives every stage a level, worst to best', () => {
+  it('gives every stage a level, youngest to oldest', () => {
     expect(GROWTH_STAGES.map((stage) => growthLevelFor(stage.id))).toEqual([
-      0, 0, 1, 1, 2, 3, 4, 5,
+      null, 0, 1, 1, 2, 3, 4, 5,
     ]);
   });
 
-  it('agrees with the stage chip on every band boundary', () => {
-    // The two ladders used to disagree here: growthStageFor bands with `<=`,
-    // so a crop on exactly 120% is fruiting, while a separate `>=` ladder
-    // called the same crop bumper — chip and trait level contradicted.
-    for (const boundary of [-20, 0, 5, 15, 30, 60, 120]) {
-      const stage = growthStageFor(boundary);
-      expect(growthLevelFor(stage)).toBe(
-        growthLevelFor(growthStageFor(boundary))
-      );
-    }
-    expect(growthLevelFor(growthStageFor(120))).toBe(4); // fruiting, not bumper
-    expect(growthLevelFor(growthStageFor(120.1))).toBe(5);
-    expect(growthLevelFor(growthStageFor(60))).toBe(3); // flowering
-    expect(growthLevelFor(growthStageFor(15))).toBe(1); // leafing
-    expect(growthLevelFor(growthStageFor(-40))).toBe(0); // wilting
+  it('never rates a "Sown" crop as fully hardy, or an old one as fragile', () => {
+    // #7200: the detail page showed "Leafing" beside "Hardiness 5/5" because
+    // the two came from different rules. Both now read the same ladder.
+    expect(growthLevelFor(growthStageFor(5))).toBe(0);
+    expect(growthLevelFor(growthStageFor(364))).toBe(2);
+    expect(growthLevelFor(growthStageFor(2_000))).toBe(5);
+    expect(growthLevelFor(growthStageFor(null))).toBeNull();
   });
 });
 

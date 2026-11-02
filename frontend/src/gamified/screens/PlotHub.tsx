@@ -11,7 +11,7 @@ import {
   formatPct,
   awaitingApprovalCrops,
   germinatingCrops,
-  growthStageMeta,
+  cropConditionMeta,
   neediestCrop,
   portfolioAttentionReason,
   type Crop,
@@ -78,17 +78,21 @@ function Champion({
   /** When set, replaces the stage/gain meta with the actual problem. */
   reason?: string;
 }) {
-  const stage = growthStageMeta(crop.stage);
-  const accentStyle = { '--plot-crop-accent': stage.accent } as CSSProperties;
+  // Best/worst are picked by gain, so the label is the crop's condition,
+  // not its age (#7200).
+  const condition = cropConditionMeta(crop.condition);
+  const accentStyle = {
+    '--plot-crop-accent': condition.accent,
+  } as CSSProperties;
   const meta = reason
     ? `${role} · ${reason}`
-    : `${role} · ${stage.label} · ${formatPct(crop.gainPct)}`;
+    : `${role} · ${condition.label} · ${formatPct(crop.gainPct)}`;
   return (
     <Link
       to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
       className={styles.stageChampion}
       style={accentStyle}
-      aria-label={`${role}: ${crop.ticker}, ${reason ?? `${stage.label}, ${formatPct(crop.gainPct)}`}`}
+      aria-label={`${role}: ${crop.ticker}, ${reason ?? `${condition.label}, ${formatPct(crop.gainPct)}`}`}
     >
       <span
         className={`${styles.stageGlyph} ${rival ? styles.stageGlyphRival : ''}`}

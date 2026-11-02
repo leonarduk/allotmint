@@ -38,9 +38,15 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
   value, and stay out of crop counts, shares and the Sunlight meter.
 - **Bed** — one per `Account` in the same response; the account type gives
   the bed its name and icon.
-- **Growth stage** — from `gain_pct`: wilting ≤ −20%, sown ≤ 0%,
-  sprouting ≤ 5%, leafing ≤ 15%, budding ≤ 30%, flowering ≤ 60%,
-  fruiting ≤ 120%, bumper crop above that.
+- **Growth stage (maturity)** — from `days_held`, so it only ever moves
+  forward while a holding is kept (#7200): sown < 30 days, sprouting < 90,
+  leafing < 180, budding < 365, flowering < 730, fruiting < 1825,
+  established from 1825 days (5 years). `days_held: null` is "Age unknown",
+  never "Sown". The detail screen's Hardiness level reads the same ladder.
+- **Condition (performance)** — from `gain_pct`, and allowed to go both
+  ways: wilting ≤ −20%, struggling < 0%, healthy < 20%, thriving from 20%.
+  An unknown cost basis is "Condition unknown". Condition sets the crop's
+  colour; stage sets how full the glyph is.
 - **Share of plot** — each crop's share of total plot value, shown as a
   "N% of plot" chip over a proportional bar (and as the Root depth bar on
   the crop detail screen). It is position size, not a quality rating, so it
@@ -107,9 +113,9 @@ route, exactly like any other page.
 - Each crop is drawn, not emoji: `glyphShapes.ts` holds twelve species as
   SVG paths, `cropGlyph.ts` picks one deterministically from ticker + sector
   (same idea as the old emoji pools, same FNV-1a hash), and `<CropGlyph>`
-  renders it. Colour comes from `currentColor` and the fill from a rect
-  clipped to the silhouette, so a single component reports both the crop's
-  flavour and its growth stage — one path reused from an 18px legend chip up
+  renders it. Colour comes from `currentColor` (the crop's condition) and
+  the fill from a rect clipped to the silhouette (its growth stage), so a
+  single component reports the crop's flavour, age and condition — one path reused from an 18px legend chip up
   to a 104px detail portrait. Twelve shapes are not enough to make the
   species an identifier (a real portfolio collides most of the time past a
   handful of holdings), so it is deliberately treated as flavour only; the

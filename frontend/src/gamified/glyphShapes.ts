@@ -174,18 +174,20 @@ export function glyphFillBounds(species: CropSpecies): {
 }
 
 /**
- * How much of the silhouette is filled at each growth stage.
+ * How much of the silhouette is filled at each growth stage — i.e. how long
+ * the holding has been held (#7200). The colour, not the fill, carries how
+ * well the crop is doing.
  *
- * Wilting is deliberately not zero: an empty outline reads as "no data",
- * which is a different and more alarming claim than "down 20%".
+ * "Age unknown" is deliberately not zero: an empty outline reads as "no
+ * crop here", which is a different claim from "we don't know its age".
  */
 export const STAGE_FILL: Record<GrowthStage, number> = {
-  wilting: 0.1,
+  unknown: 0.1,
   seed: 0.14,
   sprout: 0.28,
   leafing: 0.42,
   budding: 0.56,
   flowering: 0.7,
   fruiting: 0.85,
-  bumper: 1.0,
+  established: 1.0,
 };

@@ -563,7 +563,7 @@ describe('Plot mode crop roster', () => {
   it('re-sorts the roster when a sort chip is pressed', async () => {
     renderPlot('/plot/crops');
 
-    const gainChip = await screen.findByRole('button', { name: 'Growth' });
+    const gainChip = await screen.findByRole('button', { name: 'Gain' });
     fireEvent.click(gainChip);
     expect(gainChip).toHaveAttribute('aria-pressed', 'true');
 
@@ -591,16 +591,26 @@ describe('Plot mode crop detail', () => {
     // figure spelled out, not a "Lv 7/7" score that reads as quality.
     expect(screen.getByText('70.0% of total plot value')).toBeInTheDocument();
     expect(screen.queryByText('Lv 7/7')).toBeNull();
-    expect(screen.getByText('Lv 4/5')).toBeInTheDocument();
+    // #7200: 500 days held is "Flowering", and Hardiness reads the same
+    // ladder (3/5) instead of a contradictory "5/5"; +75% is the separate
+    // condition axis, "Thriving" (4/4).
+    expect(screen.getAllByText('Flowering').length).toBeGreaterThan(0);
+    expect(screen.getByText(/^Hardiness/)).toHaveTextContent(
+      'Hardiness Lv 3/5'
+    );
+    expect(screen.getAllByText('Thriving').length).toBeGreaterThan(0);
+    expect(screen.getByText(/^Condition/)).toHaveTextContent(
+      'Condition Lv 4/4'
+    );
     // The portrait's size indicator is a "% of plot" chip, never stars.
     expect(screen.getByText('70% of plot')).toBeInTheDocument();
     expect(screen.queryByLabelText(/of 7 stars/)).toBeNull();
   });
 
-  it('falls back to the Growth trait when there is no yield on record (#7019)', async () => {
+  it('falls back to the Condition trait when there is no yield on record (#7019)', async () => {
     renderPlot('/plot/crops/VUSA.L');
 
-    expect(await screen.findByText('Growth')).toBeInTheDocument();
+    expect(await screen.findByText('Condition')).toBeInTheDocument();
     expect(screen.getByText('£3.0k unrealised gain (+75.0%)')).toBeInTheDocument();
     expect(screen.queryByText('Yield')).not.toBeInTheDocument();
   });
@@ -622,8 +632,8 @@ describe('Plot mode crop detail', () => {
     expect(
       screen.getByText('3.2% trailing 12-month income yield')
     ).toBeInTheDocument();
-    // The yield replaces the Growth trait rather than sitting beside it.
-    expect(screen.queryByText('Growth')).not.toBeInTheDocument();
+    // The yield replaces the Condition trait rather than sitting beside it.
+    expect(screen.queryByText('Condition')).not.toBeInTheDocument();
     expect(
       screen.queryByText('£3.0k unrealised gain (+75.0%)')
     ).not.toBeInTheDocument();

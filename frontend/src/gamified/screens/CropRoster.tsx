@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
 import {
+  CROP_CONDITIONS,
   GROWTH_STAGES,
   compareGainPctDesc,
   hasVigourSpread,
@@ -147,6 +148,8 @@ export default function CropRoster({ basePath }: { basePath: string }) {
     const counts = new Map<string, number>();
     for (const crop of snapshot.crops) {
       counts.set(crop.stage, (counts.get(crop.stage) ?? 0) + 1);
+      const conditionKey = `condition:${crop.condition}`;
+      counts.set(conditionKey, (counts.get(conditionKey) ?? 0) + 1);
     }
     return counts;
   }, [snapshot.crops]);
@@ -168,12 +171,30 @@ export default function CropRoster({ basePath }: { basePath: string }) {
             <li
               key={stage.id}
               className={`${styles.trait} ${styles.traitStage}`}
-              style={{ '--plot-crop-accent': stage.accent } as CSSProperties}
             >
               <span className={styles.traitGlyph}>
                 <CropGlyph species="pear" stage={stage.id} />
               </span>
               {stage.label}: {stageCounts.get(stage.id) ?? 0}
+            </li>
+          ))}
+        </ul>
+        {/* Performance is its own axis (#7200): the colour of each crop,
+            counted here so the roster still reads at a glance. */}
+        <ul
+          className={styles.traitList}
+          aria-label={t('plot.roster.conditionsLabel')}
+        >
+          {CROP_CONDITIONS.map((condition) => (
+            <li
+              key={condition.id}
+              className={`${styles.trait} ${styles.traitStage}`}
+              style={
+                { '--plot-crop-accent': condition.accent } as CSSProperties
+              }
+            >
+              {condition.label}:{' '}
+              {stageCounts.get(`condition:${condition.id}`) ?? 0}
             </li>
           ))}
         </ul>

@@ -3205,6 +3205,10 @@ def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
                     "change_pct": round(change_pct, 4),
                     "message": f"{ticker} change {change_pct*100:.1f}% vs cost basis",
                 }
+                owner = pf.get("owner")
+                if isinstance(owner, str) and owner:
+                    # Owner-specific: GET /alerts/ only shows it to callers who may see this owner (#11359).
+                    alert["owner"] = owner
                 publish_alert(alert)
                 alerts.append(alert)
     return alerts

@@ -381,6 +381,8 @@ def evaluate_drift(
         publish_alert(
             {
                 "user": user,
+                # Owner-specific: GET /alerts/ only shows it to callers who may see this owner (#11359).
+                "owner": user,
                 "metric": metric,
                 "baseline": baseline,
                 "value": value,

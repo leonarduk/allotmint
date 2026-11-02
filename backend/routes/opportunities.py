@@ -162,19 +162,25 @@ def get_opportunities(
         # falls straight into the "not user" 401 instead (found live: it broke
         # the Movers page for the buffett demo account, since "Portfolio"
         # watchlist routes through GET /opportunities?group=...).
-        if is_demo_request():
+        #
+        # With disable_auth (the deployed Lambda) the token is not re-checked
+        # here, the same as get_owner_check_identity (#11351). On AWS it is the
+        # RS256 Cognito ID token API Gateway's authorizer already verified,
+        # which decode_token (HS256, our secret) can never accept, so checking
+        # it 401'd every real user (#11354). Under ENFORCE_OWNER_ACCESS the
+        # middleware has bound the caller (resolve_gateway_identity), and the
+        # group's members and access_scope() below are filtered by it.
+        if is_demo_request() or config.disable_auth:
             pass
-        elif token:
-            user = decode_token(token)
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid authentication credentials",
-                )
-        elif not config.disable_auth:
+        elif not token:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required",
+            )
+        elif not decode_token(token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
             )
         # The group's members depend on the caller (demo scope, and viewer
         # filtering under ENFORCE_OWNER_ACCESS, #11087), so the cached

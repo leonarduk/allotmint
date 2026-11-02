@@ -177,6 +177,81 @@ def test_group_allowed_for_demo_request_regardless_of_token(monkeypatch, client)
     assert response.json()["context"]["group"] == "all"
 
 
+def _empty_group(monkeypatch) -> None:
+    monkeypatch.setattr(opportunities_mod, "_PORTFOLIO_ALLOWED_DAYS", {1})
+    monkeypatch.setattr(
+        opportunities_mod,
+        "_group_opportunities",
+        lambda slug, *, days, limit, min_weight: {"gainers": [], "losers": [], "anomalies": []},
+    )
+
+
+def _foreign_rs256_token() -> str:
+    """A Cognito-shaped RS256 ID token signed with a key the backend never holds."""
+
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    claims = {"email": "someone@example.com", "token_use": "id", "exp": 4102444800}
+    return jwt.encode(claims, key, algorithm="RS256", headers={"kid": "test-kid"})
+
+
+def test_group_auth_enabled_accepts_a_backend_token(monkeypatch, client):
+    """Auth enabled: a real backend JWT still works (#11354 leaves this path alone)."""
+    from backend.auth import create_access_token
+
+    _empty_group(monkeypatch)
+    monkeypatch.setattr(opportunities_mod.config, "disable_auth", False, raising=False)
+    token = create_access_token("alice@example.com")
+
+    response = client.get(
+        "/opportunities",
+        params={"group": "all", "days": 1},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+
+def test_group_auth_enabled_still_rejects_an_unverified_token(monkeypatch, client):
+    """Auth enabled: no gateway vouches for the token, so one we cannot verify is a 401."""
+    _empty_group(monkeypatch)
+    monkeypatch.setattr(opportunities_mod.config, "disable_auth", False, raising=False)
+
+    response = client.get(
+        "/opportunities",
+        params={"group": "all", "days": 1},
+        headers={"Authorization": f"Bearer {_foreign_rs256_token()}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid authentication credentials"
+
+
+def test_group_disable_auth_accepts_a_gateway_verified_token(monkeypatch, client):
+    """disable_auth (the Lambda): the gateway already verified the RS256 token -- no 401 (#11354)."""
+    _empty_group(monkeypatch)
+    monkeypatch.setattr(opportunities_mod.config, "disable_auth", True, raising=False)
+
+    response = client.get(
+        "/opportunities",
+        params={"group": "all", "days": 1},
+        headers={"Authorization": f"Bearer {_foreign_rs256_token()}"},
+    )
+
+    assert response.status_code == 200
+
+
+def test_group_disable_auth_anonymous_local_dev_is_unchanged(monkeypatch, client):
+    _empty_group(monkeypatch)
+    monkeypatch.setattr(opportunities_mod.config, "disable_auth", True, raising=False)
+
+    response = client.get("/opportunities", params={"group": "all", "days": 1})
+
+    assert response.status_code == 200
+
+
 def test_group_success_decorates_signals(monkeypatch, client):
     """Successful group calls should decorate entries with trading signals."""
 

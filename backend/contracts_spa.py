@@ -240,6 +240,8 @@ class TransactionContract(SpaContractBase):
     # Dividend refresh estimate / covered by booked income (#11086).
     estimated: bool = False
     attribution_only: bool = False
+    # A per-holding part of a booked income sweep, attributed by the owner (#10060).
+    attributed_sweep: bool = False
     instrument_name: str | None = None
     realised_gain_gbp: float | None = None
     cost_basis_gbp: float | None = None

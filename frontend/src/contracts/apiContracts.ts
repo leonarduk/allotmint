@@ -199,6 +199,8 @@ export const transactionContractSchema = z.object({
   // stripped by Zod without these, so the Dividends page would double count.
   estimated: z.boolean().optional(),
   attribution_only: z.boolean().optional(),
+  // A per-holding part of a booked income sweep, attributed by the owner (#10060).
+  attributed_sweep: z.boolean().optional(),
   instrument_name: nullableString.optional(),
   // Realised-gain fields the backend attaches to SELL rows.  They must be
   // declared here or Zod strips them, and the transactions summary then

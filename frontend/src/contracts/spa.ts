@@ -164,6 +164,7 @@ export const transactionContractSchema = z
     synthetic: z.boolean().optional().default(false),
     estimated: z.boolean().optional().default(false),
     attribution_only: z.boolean().optional().default(false),
+    attributed_sweep: z.boolean().optional().default(false),
     instrument_name: nullableString,
     realised_gain_gbp: nullableNumber,
     cost_basis_gbp: nullableNumber,

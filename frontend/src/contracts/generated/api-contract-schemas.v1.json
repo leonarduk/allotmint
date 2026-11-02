@@ -1148,6 +1148,9 @@
             "attribution_only": {
               "type": "boolean"
             },
+            "attributed_sweep": {
+              "type": "boolean"
+            },
             "instrument_name": {
               "type": [
                 "string",

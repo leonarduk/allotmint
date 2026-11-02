@@ -3065,7 +3065,21 @@
     "holdingsUnavailable": "No se pudieron cargar las posiciones actuales, así que no se muestran las posiciones sin dividendos.",
     "skippedNoAmount": "Filas de dividendos excluidas de estos totales por no tener importe: {{count}}.",
     "attributionOnlyNote": "Las posiciones marcadas como est. incluyen dividendos estimados cuyo efectivo ya se cuenta en \"Sin posición asociada\" (las transferencias de ingresos de su bróker), por lo que no se suman dos veces a los totales.",
-    "estimatedMarker": "est."
+    "estimatedMarker": "est.",
+    "attribute": {
+      "title": "Vincular pagos sin posición ({{count}})",
+      "help": "Divida un pago que su bróker registró sin posición (p. ej. una transferencia desde una cuenta de ingresos) con las líneas por posición del extracto de ingresos de su bróker. Las partes no pueden sumar más que el pago; el resto queda sin vincular, así que sus totales no cambian.",
+      "split": "Dividir por posición",
+      "ticker": "Ticker de la posición",
+      "amount": "Importe (£)",
+      "addHolding": "Añadir posición",
+      "save": "Guardar división",
+      "remaining": "Sin vincular: {{amount}}",
+      "needPart": "Introduzca al menos una posición y un importe.",
+      "needTicker": "Cada importe necesita el ticker de una posición.",
+      "needAmount": "Cada posición necesita un importe positivo.",
+      "tooMuch": "Las partes suman más que el pago."
+    }
   },
   "dividendHistory": {
     "trendAria": "Tendencia de dividendos",

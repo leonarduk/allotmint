@@ -21,8 +21,9 @@ from __future__ import annotations
 
 import csv
 import io
-from typing import List
+from typing import List, Mapping
 
+from backend.common.ticker_utils import canonical_ticker
 from backend.routes.transactions import Transaction
 
 # Columns a Moneyhub export must have for a row to carry a meaningful
@@ -32,6 +33,9 @@ from backend.routes.transactions import Transaction
 # description/category can legitimately be blank on a real row. Matched
 # case-insensitively against the normalised (lowercased) header row.
 REQUIRED_COLUMNS = frozenset({"owner", "account", "date", "amount"})
+# Optional columns naming the instrument a row belongs to (e.g. the holding a
+# dividend came from), tried in order; a row with neither has no ticker (#10060).
+TICKER_COLUMNS = ("ticker", "symbol")
 
 
 def _to_float(value: str | None) -> float | None:
@@ -62,11 +66,21 @@ def _composite_key(date: str | None, account: str, amount: float | None, descrip
     return f"{date}|{account}|{amount:.2f}|{normalised_description}"
 
 
+def _row_ticker(row: Mapping[str, str | None]) -> str | None:
+    """The instrument an optional ``Ticker``/``Symbol`` column names, e.g. a dividend's payer (#10060)."""
+    for column in TICKER_COLUMNS:
+        value = (row.get(column) or "").strip()
+        if value:
+            return canonical_ticker(value)
+    return None
+
+
 def parse(data: bytes) -> List[Transaction]:
     """Parse a Moneyhub manual CSV export into transactions.
 
     Expected columns: ``Owner``, ``Account``, ``Date``, ``Amount``,
-    ``Description``, ``Category``, and optionally ``Id``. Header matching is
+    ``Description``, ``Category``, and optionally ``Id`` and ``Ticker`` (or
+    ``Symbol``), which links e.g. a dividend to the holding that paid it. Header matching is
     case-insensitive, so ``ID``, ``id``, and ``iD`` are all accepted.
 
     Raises:
@@ -98,6 +112,7 @@ def parse(data: bytes) -> List[Transaction]:
                 owner=row.get("owner") or "",
                 account=account,
                 date=date,
+                ticker=_row_ticker(row),
                 type=row.get("category"),
                 amount_minor=amount,
                 comments=description,

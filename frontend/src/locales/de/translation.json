@@ -3065,7 +3065,21 @@
     "holdingsUnavailable": "Aktuelle Positionen konnten nicht geladen werden, daher fehlen Positionen ohne Dividenden.",
     "skippedNoAmount": "Dividendenzeilen ohne Betrag, die in diesen Summen fehlen: {{count}}.",
     "attributionOnlyNote": "Mit „gesch.“ markierte Positionen enthalten geschätzte Dividenden, deren Geldbetrag bereits unter „Keiner Position zugeordnet“ (Ertragsüberträge Ihres Brokers) erfasst ist; sie werden daher nicht doppelt in die Summen eingerechnet.",
-    "estimatedMarker": "gesch."
+    "estimatedMarker": "gesch.",
+    "attribute": {
+      "title": "Nicht zugeordnete Zahlungen Positionen zuordnen ({{count}})",
+      "help": "Teilen Sie eine Zahlung, die Ihr Broker ohne Position gebucht hat (z. B. eine Übertragung vom Ertragskonto), anhand der Positionszeilen Ihrer Ertragsabrechnung auf. Die Teile dürfen die Zahlung nicht übersteigen; der Rest bleibt nicht zugeordnet, Ihre Summen ändern sich also nicht.",
+      "split": "Nach Position aufteilen",
+      "ticker": "Ticker der Position",
+      "amount": "Betrag (£)",
+      "addHolding": "Position hinzufügen",
+      "save": "Aufteilung speichern",
+      "remaining": "Nicht zugeordnet: {{amount}}",
+      "needPart": "Geben Sie mindestens eine Position und einen Betrag ein.",
+      "needTicker": "Jeder Betrag braucht einen Positions-Ticker.",
+      "needAmount": "Jede Position braucht einen positiven Betrag.",
+      "tooMuch": "Die Teile ergeben mehr als die Zahlung."
+    }
   },
   "dividendHistory": {
     "trendAria": "Dividendentrend",

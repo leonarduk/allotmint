@@ -39,6 +39,7 @@ from backend.common.cost_basis_import import (
     plan_cost_basis_lots,
 )
 from backend.common.currency import CurrencyNormaliser
+from backend.common.dividend_attribution import AttributionError, attribute_booked_dividend, mark_attribution_only
 from backend.common.instruments import get_instrument_meta
 from backend.common.ledger_transfers import OPENING_BALANCE_REASON as OPENING_BALANCE_REASON
 from backend.common.ledger_transfers import SET_HOLDING_REASON as SET_HOLDING_REASON
@@ -123,7 +124,9 @@ def _get_moneyhub_client() -> MoneyhubClient:
 # 4xx (#11143). The body models ignore every unknown key, and GET returns rows
 # that carry these flags, so a client that edits a row it just read must not be
 # rejected for sending them back.
-_BOT_ONLY_FIELDS = frozenset({"estimated", "attribution_only"})
+# ``attributed_sweep`` (#10060) is likewise set only by the attribute-dividend
+# route, never taken from a body.
+_BOT_ONLY_FIELDS = frozenset({"estimated", "attribution_only", "attributed_sweep"})
 
 
 class Transaction(BaseModel):
@@ -161,6 +164,8 @@ class Transaction(BaseModel):
     # only attributes income to a holding (#11086).
     estimated: bool = False
     attribution_only: bool = False
+    # A per-ticker part of a booked income sweep, attributed by the owner (#10060).
+    attributed_sweep: bool = False
     instrument_name: str | None = None
     # Derived on read for SELL transactions (Section 104 average cost); never stored.
     realised_gain_gbp: float | None = None
@@ -401,6 +406,17 @@ class TransactionSplit(BaseModel):
     """Split one transaction in two; ``units`` is the size of the first part."""
 
     units: float = Field(gt=0)
+
+
+class DividendAttributionPart(BaseModel):
+    ticker: str = Field(min_length=1, max_length=40)
+    amount_minor: int = Field(gt=0)
+
+
+class DividendAttribution(BaseModel):
+    """Body for ``POST /transactions/{id}/attribute-dividend`` (#10060)."""
+
+    parts: List[DividendAttributionPart] = Field(min_length=1, max_length=100)
 
 
 # Alias so ManualHoldingCreate can have a field named ``date`` with a default
@@ -1095,6 +1111,48 @@ def split_transaction(
             _format_transaction_response(
                 owner, account.lower(), second, _build_transaction_id(owner, account, index + 1)
             ),
+        ],
+    }
+
+
+@router.post("/transactions/{tx_id}/attribute-dividend")
+def attribute_dividend(
+    request: Request, tx_id: str, body: DividendAttribution, identity: str | None = Depends(get_active_user)
+) -> dict:
+    """Split a booked dividend with no ticker into per-holding rows (#10060).
+
+    For an income sweep such as Hargreaves Lansdown's "Transfer from Income
+    Account": the owner names, from their broker's income statement, how much
+    of it each holding paid. The rows add up to the original amount (any rest
+    stays unattributed), so income and cash totals do not change. The new rows
+    replace the original in place, so later transactions' ids shift. Estimates
+    the sweep covered stay ``attribution_only``.
+    """
+    store = _require_writable_store(request)
+    owner, account_raw, index = _parse_transaction_id(tx_id)
+    owner = _validate_component(owner, "owner")
+    _ensure_owners_access(request, identity, [owner])
+    account = _find_transaction_account(owner, _validate_component(account_raw, "account"), store)
+    parts = [(canonical_ticker(part.ticker.strip()), part.amount_minor) for part in body.parts]
+
+    with _locked_transactions_data(owner, account, store) as (data, _):
+        transactions = data.setdefault("transactions", [])
+        if index >= len(transactions) or index < 0:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        try:
+            rows = attribute_booked_dividend(transactions[index], parts)
+        except AttributionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        transactions[index : index + 1] = rows
+        _ = mark_attribution_only(transactions)  # count of re-marked estimates is not needed here
+        data["owner"] = owner
+        data["account_type"] = account
+
+    return {
+        "status": "attributed",
+        "transactions": [
+            _format_transaction_response(owner, account.lower(), row, _build_transaction_id(owner, account, index + i))
+            for i, row in enumerate(rows)
         ],
     }
 

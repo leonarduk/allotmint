@@ -562,6 +562,20 @@ Before changing it:
 `ensure_group_access` built on `ensure_owner_access` would do nothing on AWS
 with the flag off.
 
+### Auth enabled: the portfolio build (#11358)
+
+`build_owner_portfolio` finds the owner's plot by listing owners. With auth
+enabled (`disable_auth` false) it lists them as the identity
+`get_current_user`/`get_active_user` bound to the request, so it finds exactly
+the owners that identity may read, by the same `identity_can_access_owner`
+rule `ensure_owner_access` applies. Before #11358 it listed with no user,
+found nobody, and every `/portfolio/{owner}` was a 404. A caller that skipped
+its own owner check still cannot build an owner the signed-in user may not
+read. `portfolio_cache.access_scope()` is `("user", <identity>)` with auth
+enabled too, so a build shared between the parallel `/performance` requests
+is never served to another user. In every `disable_auth` mode, for demo
+tokens and in `system_job_context` jobs, the lookup is unchanged.
+
 ## Diagnosing auth failures
 
 Auth can fail at two distinct boundaries, and each is observed differently.

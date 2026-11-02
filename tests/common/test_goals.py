@@ -1,6 +1,7 @@
 """Tests for goal helpers."""
 
 import copy
+import json
 from datetime import date, timedelta
 
 import pytest
@@ -302,3 +303,106 @@ def test_failed_s3_read_keeps_display_reads_tolerant(s3_goal_stores):
     assert goals_mod.load_goals("alice") == []
     assert goals_mod.load_all_goals() == {}
     assert goals_mod.load_goal_history("alice", "Car") == []
+
+
+# Conditional history writes on S3 (#11291) ------------------------------------
+
+_HISTORY_KEY = ("b", "goals/goal_history.json")
+
+
+def _history_on(fake):
+    raw = fake.objects.get(_HISTORY_KEY)
+    return None if raw is None else json.loads(raw)
+
+
+def _put_racing_with(fake, monkeypatch, concurrent_body: bytes) -> list:
+    """Make the first put lose to a concurrent write of ``concurrent_body``; return the recorded puts."""
+    real_put = fake.put_object
+    puts: list = []
+
+    def racing_put(**kwargs):
+        puts.append(kwargs)
+        if len(puts) == 1:  # request B lands after our read, before our put
+            real_put(Bucket=_HISTORY_KEY[0], Key=_HISTORY_KEY[1], Body=concurrent_body)
+        return real_put(**kwargs)
+
+    monkeypatch.setattr(fake, "put_object", racing_put)
+    return puts
+
+
+def test_record_goal_amount_retries_when_a_concurrent_write_lands_first(s3_goal_stores, monkeypatch):
+    """Another request writes between our read and our put: we re-read and keep both snapshots."""
+    goals_mod.record_goal_amount("alice", "Car", 10.0, date(2026, 1, 1))
+    puts = _put_racing_with(
+        s3_goal_stores,
+        monkeypatch,
+        b'{"alice": {"Car": [{"date": "2026-01-01", "amount": 10.0}]},'
+        b' "bob": {"Van": [{"date": "2026-01-02", "amount": 99.0}]}}',
+    )
+
+    points = goals_mod.record_goal_amount("alice", "Car", 20.0, date(2026, 1, 3))
+
+    assert len(puts) == 2 and all("IfMatch" in p for p in puts)
+    assert points == [(date(2026, 1, 1), 10.0), (date(2026, 1, 3), 20.0)]
+    assert _history_on(s3_goal_stores) == {
+        "alice": {"Car": [{"date": "2026-01-01", "amount": 10.0}, {"date": "2026-01-03", "amount": 20.0}]},
+        "bob": {"Van": [{"date": "2026-01-02", "amount": 99.0}]},
+    }
+
+
+def test_first_history_write_is_create_only(s3_goal_stores, monkeypatch):
+    """With no document yet the put is ``IfNoneMatch="*"``, so two first writers cannot both win."""
+    puts = _put_racing_with(s3_goal_stores, monkeypatch, b'{"bob": {"Van": []}}')
+
+    goals_mod.record_goal_amount("alice", "Car", 5.0, date(2026, 1, 1))
+
+    assert puts[0].get("IfNoneMatch") == "*" and "IfMatch" in puts[1]
+    assert _history_on(s3_goal_stores) == {
+        "bob": {"Van": []},
+        "alice": {"Car": [{"date": "2026-01-01", "amount": 5.0}]},
+    }
+
+
+def test_record_goal_amount_gives_up_after_bounded_attempts(s3_goal_stores, monkeypatch):
+    goals_mod.record_goal_amount("alice", "Car", 10.0, date(2026, 1, 1))
+    before = dict(s3_goal_stores.objects)
+    attempts = []
+
+    def always_raced(**kwargs):
+        attempts.append(kwargs)
+        raise ClientError({"Error": {"Code": "PreconditionFailed", "Message": "x"}}, "PutObject")
+
+    monkeypatch.setattr(s3_goal_stores, "put_object", always_raced)
+    with pytest.raises(goals_mod.GoalHistoryWriteConflict):
+        goals_mod.record_goal_amount("alice", "Car", 20.0, date(2026, 1, 3))
+
+    assert len(attempts) == goals_mod._HISTORY_WRITE_ATTEMPTS
+    assert s3_goal_stores.objects == before
+
+
+@pytest.mark.parametrize(
+    "write",
+    [
+        lambda: goals_mod.rename_goal_history("bob", "House", "Flat"),
+        lambda: goals_mod.delete_goal_history("bob", "House"),
+    ],
+    ids=["rename", "delete"],
+)
+def test_rename_and_delete_history_use_the_conditional_write(s3_goal_stores, monkeypatch, write):
+    """An unconditional rename/delete would clobber a snapshot a conditional record just saved."""
+    s3_goal_stores.objects[_HISTORY_KEY] = b'{"bob": {"House": []}}'
+    puts = _put_racing_with(s3_goal_stores, monkeypatch, b'{"bob": {"House": []}, "carol": {"Boat": []}}')
+
+    write()
+
+    assert len(puts) == 2 and all("IfMatch" in p for p in puts)
+    assert _history_on(s3_goal_stores)["carol"] == {"Boat": []}
+
+
+def test_conditional_write_errors_other_than_a_lost_race_propagate(s3_goal_stores, monkeypatch):
+    def denied(**_kwargs):
+        raise ClientError({"Error": {"Code": "AccessDenied", "Message": "x"}}, "PutObject")
+
+    monkeypatch.setattr(s3_goal_stores, "put_object", denied)
+    with pytest.raises(ClientError):
+        goals_mod.record_goal_amount("alice", "Car", 1.0, date(2026, 1, 1))

@@ -2296,6 +2296,12 @@ export interface CashDeploymentTranche {
   label: string;
   orders: CashDeploymentOrder[];
   keep_as_cash_minor: number;
+  /**
+   * How the tranche was sized (#10507): from cash already in the account
+   * ("held_cash"), or as new money paid in because that cash falls short
+   * ("new_money"). Absent from older responses.
+   */
+  cash_basis?: 'held_cash' | 'new_money';
 }
 
 export interface CashDeploymentEntry {

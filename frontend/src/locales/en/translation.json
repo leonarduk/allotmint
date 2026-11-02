@@ -4280,6 +4280,7 @@
     "units": "Indicative units",
     "noVehicle": "No vehicle in your plan",
     "keepAsCash": "Keep as cash: {{amount}}",
+    "newMoneyBasis": "The account holds less cash than this tranche, so it is sized as new money paid in on top of your holdings.",
     "copy": "Copy order list",
     "copied": "Copied"
   },

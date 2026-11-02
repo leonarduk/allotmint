@@ -4287,6 +4287,7 @@
     "units": "Ungefähre Stückzahl",
     "noVehicle": "Kein Instrument in Ihrem Plan",
     "keepAsCash": "Als Bargeld behalten: {{amount}}",
+    "newMoneyBasis": "Das Konto hält weniger Bargeld als diese Tranche, daher wird sie als zusätzlich eingezahltes neues Geld bemessen.",
     "copy": "Orderliste kopieren",
     "copied": "Kopiert"
   },

@@ -5,6 +5,9 @@ document in memory (never saving it), extracts it with the configured LLM,
 matches it against the stored ledger and returns the differences with
 suggested changes. Applying a suggestion is a separate, user-confirmed call
 to the existing ``POST /transactions`` or ``PUT /transactions/{id}``.
+
+A successful reconciliation also runs the allowance guardian bot for every
+owner once the response is sent (#11212), as a transaction import does.
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Mapping, Sequence
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 
 from backend.auth import get_active_user
 from backend.bots import runner
@@ -145,9 +148,20 @@ def _record_run(owner: str, actor: str | None, payload: Dict[str, Any]) -> None:
         logger.error("Could not record the statement reconciliation run: %s", sanitise_log_value(type(exc).__name__))
 
 
+def _schedule_guardian_run(background_tasks: BackgroundTasks, actor: str | None) -> None:
+    """Run the allowance guardian after the response, recorded with reason ``reconciliation`` (#11212).
+
+    ``run_after_import`` never raises, so a guardian failure cannot fail the upload.
+    """
+    from backend.allowance_guardian.bot import REASON_RECONCILIATION, run_after_import
+
+    background_tasks.add_task(run_after_import, actor, REASON_RECONCILIATION)
+
+
 @router.post("/statement", response_model=ReconciliationResult)
 async def reconcile_statement(
     request: Request,
+    background_tasks: BackgroundTasks,
     owner: str = Form(...),
     account: str = Form(...),
     file: UploadFile = File(...),
@@ -157,7 +171,8 @@ async def reconcile_statement(
     """Extract a broker statement and report how it differs from the ledger. Never writes the ledger.
 
     Each upload past the access checks records one ``statement-reconciliation``
-    run (counts only) on the Bots page, whether it succeeds or fails.
+    run (counts only) on the Bots page, whether it succeeds or fails. A
+    successful one also schedules an allowance guardian run.
     """
     owner = _validate_component(owner, "owner")
     account = _validate_component(account, "account")
@@ -174,6 +189,7 @@ async def reconcile_statement(
         raise
 
     await asyncio.to_thread(_record_run, owner, identity, bot.reconciled_payload(result))
+    _schedule_guardian_run(background_tasks, identity)
     logger.info(
         "Statement reconciliation: %s matched, %s differences, %s warnings",
         sanitise_log_value(len(result.matched)),

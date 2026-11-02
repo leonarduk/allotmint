@@ -1065,3 +1065,36 @@ export function formatPct(value: number | null | undefined): string {
   const pct = value as number;
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
 }
+
+/**
+ * What a watchlist symbol is, as far as the seed shed is concerned (#7203).
+ *
+ * - `seed`: something you could buy and hold (a share, fund, ETF, crypto…),
+ *   shown as a seed packet.
+ * - `weather`: an index, currency pair or futures contract. You can't plant
+ *   one, so it is shown as the conditions the plot is growing in, never as a
+ *   packet you have "not sown yet".
+ */
+export type SeedKind = 'seed' | 'weather';
+
+/** Provider `quoteType`s that are market conditions, not holdings. */
+const WEATHER_QUOTE_TYPES = new Set(['INDEX', 'CURRENCY', 'FUTURE']);
+
+/**
+ * Classifies a watchlist quote. The provider's `quoteType` wins when it is
+ * present; otherwise the Yahoo symbol shape decides (`^FTSE` index,
+ * `USDGBP=X` FX pair, `GC=F` future). Anything unrecognised stays a seed, so
+ * a real holding is never hidden in the weather.
+ */
+export function seedKindFor(
+  symbol: string,
+  quoteType?: string | null
+): SeedKind {
+  const type = quoteType?.trim().toUpperCase();
+  if (type) return WEATHER_QUOTE_TYPES.has(type) ? 'weather' : 'seed';
+  const sym = symbol.trim().toUpperCase();
+  if (sym.startsWith('^') || sym.endsWith('=X') || sym.endsWith('=F')) {
+    return 'weather';
+  }
+  return 'seed';
+}

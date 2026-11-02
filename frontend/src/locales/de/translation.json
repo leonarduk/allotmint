@@ -3412,7 +3412,7 @@
     },
     "seeds": {
       "title": "Samenkatalog",
-      "intro": "Ihre Beobachtungsliste als Samentütchen – dieselbe Liste wie auf der klassischen Watchlist-Seite, bewertet mit Live-Kursen. Hier wird kein Handel ausgelöst.",
+      "intro": "Ihre Beobachtungsliste – dieselbe Liste wie auf der klassischen Watchlist-Seite, bewertet mit Live-Kursen. Was Sie halten könnten, sind Samentütchen; Indizes, Wechselkurse und Futures sind das Wetter, in dem Ihr Garten wächst. Hier wird kein Handel ausgelöst.",
       "loadError": "Kurse konnten nicht geladen werden: {{error}}",
       "tryAgain": "Erneut versuchen",
       "available": "Verfügbares Saatgut ({{count}})",
@@ -3421,9 +3421,15 @@
       "noQuotes": "Für die Symbole Ihrer Beobachtungsliste wurden keine Kurse geliefert. Prüfen Sie sie in der <txlink>klassischen Watchlist</txlink>.",
       "unnamed": "Unbenanntes Instrument",
       "alreadyGrowing": "Wächst bereits in Ihrem Garten",
-      "notSown": "Noch nicht gesät",
       "inspectCrop": "Pflanze ansehen",
-      "readPacket": "Tütchen lesen"
+      "readPacket": "Tütchen lesen",
+      "notInPlot": "Nicht in Ihrem Garten",
+      "availableTitle": "Verfügbares Saatgut",
+      "manage": "Symbole fügen Sie in der <txlink>klassischen Watchlist</txlink> hinzu oder entfernen sie dort.",
+      "unitUnknown": "(Einheit unbekannt)",
+      "noSeeds": "Nichts auf dieser Beobachtungsliste lässt sich halten. Es ist alles Wetter (unten).",
+      "weatherTitle": "Das Wetter ({{count}})",
+      "weatherNote": "Indizes, Wechselkurse und Futures: die Marktbedingungen, in denen Ihr Garten wächst. Es sind Messwerte, nichts, was man pflanzen kann."
     },
     "season": {
       "everyTierEarned": "Alle Stufen von „{{group}}“ erreicht",

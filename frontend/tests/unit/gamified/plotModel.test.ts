@@ -24,6 +24,7 @@ import {
   neediestCrop,
   portfolioAttentionReason,
   resourcesFromPlot,
+  seedKindFor,
   vigourFor,
   xpThresholdForLevel,
   yieldLevelFor,
@@ -1286,5 +1287,32 @@ describe('yield (#7019)', () => {
   it('bands yield into a 0-5 trait level', () => {
     expect([0, 0.5, 1.5, 3, 5, 8].map(yieldLevelFor)).toEqual([0, 1, 2, 3, 4, 5]);
     expect(yieldLevelFor(Number.NaN)).toBe(0);
+  });
+});
+
+describe('seedKindFor (#7203)', () => {
+  it('treats indices, FX pairs and futures as weather, from quoteType', () => {
+    expect(seedKindFor('^VIX', 'INDEX')).toBe('weather');
+    expect(seedKindFor('USDGBP=X', 'CURRENCY')).toBe('weather');
+    expect(seedKindFor('GC=F', 'FUTURE')).toBe('weather');
+  });
+
+  it('keeps holdable instruments as seeds, from quoteType', () => {
+    expect(seedKindFor('VUSA.L', 'ETF')).toBe('seed');
+    expect(seedKindFor('RIO.L', 'EQUITY')).toBe('seed');
+    expect(seedKindFor('BTC-USD', 'CRYPTOCURRENCY')).toBe('seed');
+    expect(seedKindFor('VWRL.L', 'mutualfund')).toBe('seed');
+  });
+
+  it('falls back to the symbol shape when quoteType is missing', () => {
+    expect(seedKindFor('^FTSE')).toBe('weather');
+    expect(seedKindFor('eurgbp=x', null)).toBe('weather');
+    expect(seedKindFor('SI=F', '')).toBe('weather');
+    expect(seedKindFor('IWDA.AS')).toBe('seed');
+    expect(seedKindFor('BTC-USD')).toBe('seed');
+  });
+
+  it('lets the provider type win over the symbol shape', () => {
+    expect(seedKindFor('^ODD', 'EQUITY')).toBe('seed');
   });
 });

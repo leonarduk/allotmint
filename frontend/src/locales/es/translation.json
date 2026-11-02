@@ -3412,7 +3412,7 @@
     },
     "seeds": {
       "title": "Catálogo de semillas",
-      "intro": "Tu lista de seguimiento como sobres de semillas: la misma lista que lee la página clásica de Watchlist, con precios de cotizaciones en vivo. Aquí no se realiza ninguna operación.",
+      "intro": "Tu lista de seguimiento, la misma que lee la página clásica de Watchlist, con precios de cotizaciones en directo. Lo que podrías tener son sobres de semillas; los índices, tipos de cambio y futuros son el clima en el que crece tu huerto. Aquí no se ejecuta ninguna operación.",
       "loadError": "No se pudieron cargar las cotizaciones: {{error}}",
       "tryAgain": "Intentar de nuevo",
       "available": "Semillas disponibles ({{count}})",
@@ -3421,9 +3421,15 @@
       "noQuotes": "No se recibieron cotizaciones para los símbolos de tu lista de seguimiento. Prueba la <txlink>watchlist clásica</txlink> para comprobarlos.",
       "unnamed": "Instrumento sin nombre",
       "alreadyGrowing": "Ya crece en tu huerto",
-      "notSown": "Aún sin sembrar",
       "inspectCrop": "Inspeccionar cultivo",
-      "readPacket": "Leer el sobre"
+      "readPacket": "Leer el sobre",
+      "notInPlot": "No está en tu huerto",
+      "availableTitle": "Semillas disponibles",
+      "manage": "Añade o quita símbolos en la <txlink>watchlist clásica</txlink>.",
+      "unitUnknown": "(unidad desconocida)",
+      "noSeeds": "Nada de esta lista de seguimiento es algo que puedas tener. Todo es clima (abajo).",
+      "weatherTitle": "El clima ({{count}})",
+      "weatherNote": "Índices, tipos de cambio y futuros: las condiciones de mercado en las que crece tu huerto. Son lecturas, no algo que se pueda plantar."
     },
     "season": {
       "everyTierEarned": "Todos los niveles de «{{group}}» conseguidos",

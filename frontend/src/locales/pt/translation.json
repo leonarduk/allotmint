@@ -3412,7 +3412,7 @@
     },
     "seeds": {
       "title": "Catálogo de sementes",
-      "intro": "A sua lista de acompanhamento como pacotes de sementes — a mesma lista que a página clássica de Watchlist lê, com preços de cotações em direto. Nada aqui executa uma operação.",
+      "intro": "A sua lista de observação, a mesma que a página Watchlist clássica lê, com preços de cotações em tempo real. O que poderia deter são pacotes de sementes; índices, taxas de câmbio e futuros são o clima em que a sua horta cresce. Nada aqui executa uma negociação.",
       "loadError": "Não foi possível carregar as cotações: {{error}}",
       "tryAgain": "Tentar novamente",
       "available": "Sementes disponíveis ({{count}})",
@@ -3421,9 +3421,15 @@
       "noQuotes": "Não foram devolvidas cotações para os símbolos da sua lista de acompanhamento. Experimente a <txlink>watchlist clássica</txlink> para os verificar.",
       "unnamed": "Instrumento sem nome",
       "alreadyGrowing": "Já está a crescer na sua horta",
-      "notSown": "Ainda não semeado",
       "inspectCrop": "Inspecionar cultura",
-      "readPacket": "Ler o pacote"
+      "readPacket": "Ler o pacote",
+      "notInPlot": "Não está na sua horta",
+      "availableTitle": "Sementes disponíveis",
+      "manage": "Adicione ou remova símbolos na <txlink>watchlist clássica</txlink>.",
+      "unitUnknown": "(unidade desconhecida)",
+      "noSeeds": "Nada nesta lista de observação é algo que possa deter. É tudo clima (abaixo).",
+      "weatherTitle": "O clima ({{count}})",
+      "weatherNote": "Índices, taxas de câmbio e futuros: as condições de mercado em que a sua horta cresce. São leituras, não coisas que se possam plantar."
     },
     "season": {
       "everyTierEarned": "Todos os níveis de «{{group}}» conquistados",

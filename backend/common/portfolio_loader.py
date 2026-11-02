@@ -96,10 +96,15 @@ def _build_owner_portfolio(owner_summary: OwnerSummaryRecord) -> dict:
 # ────────────────────────────────────────────────────────────────
 # Public API
 # ────────────────────────────────────────────────────────────────
-def list_portfolios() -> list[dict]:
-    """Discover every owner / account on disk and build a portfolio tree."""
+def list_portfolios(current_user: str | None = None) -> list[dict]:
+    """Build a portfolio tree for every owner ``list_plots`` lists for ``current_user``.
+
+    ``current_user`` is passed straight to :func:`list_plots`, so the caller
+    sees the same owners as in ``/owners`` (#11355). ``None`` keeps the old
+    behaviour, which is what system jobs need.
+    """
     portfolios: list[dict] = []
-    for owner_row in list_plots():
+    for owner_row in list_plots(current_user=current_user):
         portfolios.append(_build_owner_portfolio(owner_row))
     return portfolios
 

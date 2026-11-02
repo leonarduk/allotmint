@@ -16,12 +16,13 @@ from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
+from backend.auth import get_optional_owner_check_identity
 from backend.common import instrument_api, look_through, nav
 from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
 from backend.common.fund_charges import ongoing_charge_pct
@@ -292,11 +293,15 @@ def _position_from_holding(owner: str, account: str, h: Dict[str, Any], owner_to
     }
 
 
-def _owners_holding(tkr: str) -> List[str]:
-    """Return the owners whose raw account files hold ``tkr`` (first-seen order)."""
+def _owners_holding(tkr: str, identity: Optional[str]) -> List[str]:
+    """Return the owners visible to ``identity`` whose raw account files hold ``tkr`` (first-seen order).
+
+    ``list_portfolios(current_user=identity)`` lists the owners ``/owners``
+    would show this caller (#11355).
+    """
 
     owners: List[str] = []
-    for pf in list_portfolios():
+    for pf in list_portfolios(current_user=identity):
         owner = pf.get("owner")
         if not owner or owner in owners:
             continue
@@ -308,8 +313,8 @@ def _owners_holding(tkr: str) -> List[str]:
     return owners
 
 
-def _positions_for_ticker(tkr: str) -> List[Dict[str, Any]]:
-    """Return every holding of ``tkr`` across all owners, as the dashboard sees it.
+def _positions_for_ticker(tkr: str, identity: Optional[str]) -> List[Dict[str, Any]]:
+    """Return every holding of ``tkr`` across the owners ``identity`` may see, as the dashboard sees it.
 
     Owners are discovered from the raw account files (cheap), then each
     matching owner's portfolio is built with :func:`build_owner_portfolio` --
@@ -320,7 +325,7 @@ def _positions_for_ticker(tkr: str) -> List[Dict[str, Any]]:
     """
 
     positions: List[Dict[str, Any]] = []
-    for owner in _owners_holding(tkr):
+    for owner in _owners_holding(tkr, identity):
         try:
             pf = build_owner_portfolio(owner)
         except Exception as exc:  # noqa: BLE001 -- one bad portfolio must not 500 the page
@@ -393,6 +398,7 @@ def instrument(
         bool,
         Query(description="Also return the 7/30/180-day slices duplicated from `prices`"),
     ] = False,
+    identity: Annotated[Optional[str], Depends(get_optional_owner_check_identity)] = None,
 ):
     """Return price history and portfolio positions for a ticker.
 
@@ -442,7 +448,7 @@ def instrument(
     base_currency = (base_currency or getattr(config, "base_currency", None) or "GBP").upper()
 
     if df.empty:
-        positions = _positions_for_ticker(ticker.upper())
+        positions = _positions_for_ticker(ticker.upper(), identity)
         if format == "json":
             # Known tickers (present in portfolio or instrument metadata) with no
             # price history return an empty series with 200 so dashboard preloads
@@ -550,7 +556,7 @@ def instrument(
     # Positions come from the dashboard's enriched holdings pipeline, which
     # prices (and scales) each holding itself; they do not depend on this
     # request's price window (#8533).
-    positions = _positions_for_ticker(ticker.upper())
+    positions = _positions_for_ticker(ticker.upper(), identity)
 
     # ── JSON ───────────────────────────────────────────────────
     if format == "json":

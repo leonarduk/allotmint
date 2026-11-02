@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Mapping, Optional, Set
+from typing import Any, Iterable, Mapping, Optional, Set
 
 from backend import auth as auth_module
 from backend.auth import is_demo_request
@@ -128,3 +128,22 @@ def ensure_owner_access(
             len(_allowed_identities(owner, meta)),
         )
         raise PermissionDeniedError(_FORBIDDEN_DETAIL, safe_detail=_FORBIDDEN_DETAIL)
+
+
+def ensure_owners_access(
+    identity: Optional[str],
+    owners: Iterable[str],
+    accounts_root: Optional[Path] = None,
+) -> None:
+    """Run :func:`ensure_owner_access` for each of ``owners``.
+
+    For cross-owner routes that let the caller name owners (#11355). One
+    owner the caller may not see fails the whole request with 403, as on a
+    per-owner route, rather than being dropped from the result without a
+    word. The "every owner" path is not checked here: those routes list
+    owners with ``list_plots(current_user=identity)``, which applies the same
+    rule.
+    """
+
+    for owner in sorted({o for o in owners if isinstance(o, str)}):
+        ensure_owner_access(identity, owner, accounts_root)

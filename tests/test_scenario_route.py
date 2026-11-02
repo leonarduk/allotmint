@@ -21,7 +21,7 @@ def test_scenario_route(monkeypatch):
     monkeypatch.setattr(
         scenario_route,
         "list_plots",
-        lambda: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
+        lambda **_: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
     )
     monkeypatch.setattr(
         scenario_route,
@@ -56,7 +56,7 @@ def _patch_single_owner(monkeypatch, portfolio):
     monkeypatch.setattr(
         scenario_route,
         "list_plots",
-        lambda: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
+        lambda **_: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
     )
     monkeypatch.setattr(
         scenario_route,

@@ -245,7 +245,7 @@ def _fake_owner_builder(raw_accounts: dict[str, list[dict]], *, other_value: flo
 
 def _patch_route_sources(monkeypatch, owner: str, raw: dict[str, list[dict]], builder) -> None:
     monkeypatch.setattr("backend.routes.instrument.build_owner_portfolio", builder)
-    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: _raw_portfolios(owner, raw))
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda **_: _raw_portfolios(owner, raw))
     monkeypatch.setattr("backend.routes.instrument.load_meta_timeseries_range", lambda *a, **k: _make_df())
     monkeypatch.setattr("backend.routes.instrument.get_security_meta", lambda _t: {"currency": "GBP"})
 
@@ -415,7 +415,7 @@ def test_positions_skip_owner_whose_portfolio_fails(monkeypatch, caplog, error):
     _patch_route_sources(monkeypatch, "alex", raw, build)
     monkeypatch.setattr(
         "backend.routes.instrument.list_portfolios",
-        lambda: _raw_portfolios("ghost", raw) + _raw_portfolios("alex", raw),
+        lambda **_: _raw_portfolios("ghost", raw) + _raw_portfolios("alex", raw),
     )
 
     app = create_app()
@@ -653,7 +653,7 @@ def test_gbx_prices_scaled(monkeypatch):
 
     monkeypatch.setattr("backend.routes.instrument.load_meta_timeseries_range", lambda *args, **kwargs: df)
     monkeypatch.setattr("backend.routes.instrument.get_security_meta", lambda ticker: {"currency": "GBX"})
-    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: [])
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda **_: [])
 
     client = _auth_client(app)
     resp = client.get("/instrument?ticker=ABC.L&days=1&format=json")
@@ -675,7 +675,7 @@ def test_gbx_close_gbp_not_double_scaled_by_pence_override(monkeypatch):
 
     monkeypatch.setattr("backend.routes.instrument.load_meta_timeseries_range", lambda *args, **kwargs: df)
     monkeypatch.setattr("backend.routes.instrument.get_security_meta", lambda ticker: {"currency": "GBX"})
-    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: [])
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda **_: [])
     monkeypatch.setattr("backend.routes.instrument.get_scaling_override", lambda *_: 0.01)
 
     def _scale_close_only(df_in, scale):
@@ -706,7 +706,7 @@ def test_gbx_close_gbp_tracks_scaled_close_for_non_pence_override(monkeypatch):
 
     monkeypatch.setattr("backend.routes.instrument.load_meta_timeseries_range", lambda *args, **kwargs: df)
     monkeypatch.setattr("backend.routes.instrument.get_security_meta", lambda ticker: {"currency": "GBX"})
-    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: [])
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda **_: [])
     monkeypatch.setattr("backend.routes.instrument.get_scaling_override", lambda *_: 0.001)
 
     def _scale_close_only(df_in, scale):
@@ -732,7 +732,7 @@ def test_base_currency_fetch_failure_is_resilient(monkeypatch):
 
     monkeypatch.setattr("backend.routes.instrument.load_meta_timeseries_range", lambda *args, **kwargs: df)
     monkeypatch.setattr("backend.routes.instrument.get_security_meta", lambda ticker: {"currency": "GBP"})
-    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: [])
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda **_: [])
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("boom")

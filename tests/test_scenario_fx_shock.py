@@ -164,7 +164,7 @@ def client(monkeypatch):
     monkeypatch.setattr(
         scenario_route,
         "list_plots",
-        lambda: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
+        lambda **_: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
     )
     monkeypatch.setattr(scenario_route, "build_owner_portfolio", lambda owner, **_: _portfolio())
     test_client = TestClient(create_app())

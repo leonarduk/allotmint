@@ -103,7 +103,7 @@ async def test_instrument_empty_template(monkeypatch):
         lambda *_, **__: pd.DataFrame(columns=["Date", "Close"]),
     )
     monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: {"name": "Empty"})
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instrument, "list_portfolios", lambda **_: [])
 
     response = instrument.instrument(ticker="NONE.L", days=30, format="html", base_currency=None)
 
@@ -140,7 +140,7 @@ async def test_instrument_empty_unknown_ticker_still_404(monkeypatch):
         lambda *_, **__: pd.DataFrame(columns=["Date", "Close"]),
     )
     monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: None)
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instrument, "list_portfolios", lambda **_: [])
 
     # Genuinely unknown tickers (no metadata) keep the 404 contract.
     with pytest.raises(HTTPException) as exc:
@@ -159,7 +159,7 @@ async def test_instrument_empty_known_ticker_without_currency(monkeypatch):
         lambda *_, **__: pd.DataFrame(columns=["Date", "Close"]),
     )
     monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: {"name": "North Co"})
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instrument, "list_portfolios", lambda **_: [])
 
     response = instrument.instrument(ticker="ABC.N", days=30, format="json", base_currency=None)
 
@@ -182,7 +182,7 @@ async def test_instrument_json_gbx_and_base_currency(monkeypatch):
         "get_security_meta",
         lambda _ticker: {"name": "GBX Fund", "sector": "Growth", "currency": "GBX"},
     )
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instrument, "list_portfolios", lambda **_: [])
 
     def fake_fetch(from_ccy, to_ccy, start, end):
         rng = pd.date_range(start, end, freq="D")
@@ -243,7 +243,7 @@ async def test_instrument_json_foreign_currency_fx(monkeypatch):
         "get_security_meta",
         lambda _ticker: {"name": "EUR Fund", "sector": "Value", "currency": "EUR"},
     )
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instrument, "list_portfolios", lambda **_: [])
 
     def fake_fetch(from_ccy, to_ccy, start, end):
         rng = pd.date_range(start, end, freq="D")
@@ -306,10 +306,10 @@ async def test_instrument_json_scales_positions(monkeypatch):
         },
     ]
 
-    monkeypatch.setattr(instrument, "_positions_for_ticker", lambda ticker: positions)
+    monkeypatch.setattr(instrument, "_positions_for_ticker", lambda ticker, identity: positions)
     monkeypatch.setattr(instrument, "get_scaling_override", lambda *a, **k: 2.0)
     monkeypatch.setattr(instrument, "apply_scaling", lambda df_in, scale: df_in)
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instrument, "list_portfolios", lambda **_: [])
 
     response = instrument.instrument(
         ticker="ABC.L",
@@ -428,7 +428,7 @@ def test_instrument_json_days_zero_uses_epoch_and_usd_branch(monkeypatch):
     monkeypatch.setattr(instrument, "load_meta_timeseries_range", fake_load)
     monkeypatch.setattr(instrument, "fetch_fx_rate_range", fake_fx)
     monkeypatch.setattr(instrument, "get_security_meta", lambda _t: {"name": "Epoch", "currency": "GBP"})
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instrument, "list_portfolios", lambda **_: [])
     monkeypatch.setattr(instrument, "get_scaling_override", lambda *a, **k: 1.0)
 
     client = _auth_client(app)
@@ -539,7 +539,7 @@ async def test_instrument_empty_html_escapes_xss_in_positions(monkeypatch):
     monkeypatch.setattr(
         instrument,
         "list_portfolios",
-        lambda: [
+        lambda **_: [
             {
                 "owner": xss_owner,
                 "accounts": [

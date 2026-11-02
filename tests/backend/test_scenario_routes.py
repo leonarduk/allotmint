@@ -10,7 +10,7 @@ def _client(monkeypatch, list_plots_return, build_map=None):
     app = FastAPI()
     app.include_router(scenario.router)
     records = [OwnerSummaryRecord.model_validate(entry) for entry in list_plots_return]
-    monkeypatch.setattr("backend.routes.scenario.list_plots", lambda: records)
+    monkeypatch.setattr("backend.routes.scenario.list_plots", lambda **_: records)
 
     def build(owner):
         action = None

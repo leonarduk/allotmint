@@ -3703,6 +3703,7 @@
     "logThis": "Diese Entscheidung protokollieren?",
     "notNow": "Nicht jetzt",
     "snapshot": "Kontext-Momentaufnahme",
+    "contextSummary": "Kontext zum Zeitpunkt (KI-Zusammenfassung, nur Fakten)",
     "weights": "Gewicht {{before}}% → {{after}}%",
     "legs": "Später zu vergleichende Optionen",
     "legsHelp": "Die gewählte Option und jede Alternative, mit einem Ticker zur Bewertung; für Bargeld den Ticker leer lassen (0% angenommen).",

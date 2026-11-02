@@ -3696,6 +3696,7 @@
     "logThis": "Log this decision?",
     "notNow": "Not now",
     "snapshot": "Context snapshot",
+    "contextSummary": "Context at the time (AI summary, facts only)",
     "weights": "weight {{before}}% → {{after}}%",
     "legs": "Options to compare later",
     "legsHelp": "The option taken and each alternative, with a ticker to price it by; leave the ticker blank for cash (0% assumed).",

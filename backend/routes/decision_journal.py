@@ -39,6 +39,7 @@ from backend.decision_journal.entries import (
 )
 from backend.decision_journal.patterns import build_patterns
 from backend.decision_journal.store import load_journal
+from backend.decision_journal.summary import add_context_summary
 from backend.routes.investment_plan import _data_root, _resolve_owner, _validation_detail
 
 router = APIRouter(tags=["decision-journal"])
@@ -117,7 +118,10 @@ def create_draft(owner: str, request: Request, body: DraftRequest, identity: Opt
         if change is None:
             raise HTTPException(status_code=404, detail=f"No BUY/SELL transaction {body.source_ref} for {owner}")
         tools = default_context_tools(owner, accounts_root)
-        return trade_draft(change, tools, plan=_plan_or_none(owner, _data_root(accounts_root)))
+        trade = trade_draft(change, tools, plan=_plan_or_none(owner, _data_root(accounts_root)))
+        # A factual LLM summary of the snapshot (#10487); on any failure the draft
+        # comes back without one and ``snapshot.summary_note`` says why.
+        return add_context_summary(trade)
     if body.previous_target is not None and body.target is not None:
         draft = plan_change_draft(body.previous_target, body.target)
         if draft is None:

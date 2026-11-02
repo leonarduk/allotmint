@@ -168,6 +168,20 @@ def test_projected_breach_raises_an_owner_alert_with_the_breach_month(monkeypatc
     assert len(items) == result.report["owners"][0]["alerts"]
 
 
+def test_digest_items_come_from_the_shared_helper(monkeypatch):
+    """Built with run_records.digest_item (#11312): id == dedupe_key and whole-second timestamps."""
+    monkeypatch.setattr(guardian_report, "run", _synthetic_run)
+    started = datetime(2026, 10, 9, 9, 0, 0, 654321, tzinfo=timezone.utc)
+    context = BotRunContext(run_id="r1", bot_id=BOT_ID, trigger="manual", started_at=started, owner="alex")
+
+    items = _items(AllowanceGuardianBot().run(context, AllowanceGuardianSettings()))
+
+    assert items
+    for item in items:
+        assert item.id == item.dedupe_key and item.dedupe_key.startswith(f"{BOT_ID}:alex:")
+        assert (item.owner, item.link, item.created) == ("alex", "/bots", started.replace(microsecond=0))
+
+
 def test_alert_text_is_factual_and_amount_free():
     row = {
         "owner": "alex",

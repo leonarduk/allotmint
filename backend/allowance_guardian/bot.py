@@ -8,7 +8,8 @@ holds counts, codes, the breach month and the report's ``not_modelled``,
 ``assumptions`` and ``adviser_note``, since alert messages carry amounts.
 
 Alerts: each owner's report alerts become owner-scoped ``digest_items`` in
-the run report (:mod:`backend.bots.digest_models`), so they reach the owner
+the run report, built with the shared
+:func:`backend.bots.run_records.digest_item` helper (#11312), so they reach the owner
 through the bots digest and whatever channels (in-app, email, Telegram,
 immediate alerts) the owner chose in their digest settings. Their text is
 factual and amount-free, written here rather than copied from the report.
@@ -31,7 +32,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import Field
 
 from backend.allowance_guardian import report as guardian_report
-from backend.bots.digest_models import DigestItem, Severity
+from backend.bots.digest_models import Severity
 from backend.bots.registry import (
     BotKind,
     BotRunContext,
@@ -42,7 +43,7 @@ from backend.bots.registry import (
     RunStatus,
     Schedule,
 )
-from backend.bots.run_records import DIGEST_ITEMS_KEY
+from backend.bots.run_records import DIGEST_ITEMS_KEY, digest_item
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -134,24 +135,24 @@ def _alert_text(code: str, row: Dict[str, Any]) -> Tuple[str, str]:
 
 
 def _digest_items(row: Dict[str, Any], levels: Dict[str, str], created: datetime) -> List[Dict[str, Any]]:
+    """One owner-scoped item per alert code; ``dedupe_key`` is ``allowance-guardian:<owner>:<code>``."""
+
     items = []
     for code in row["codes"]:
         title, summary = _alert_text(code, row)
-        key = f"{BOT_ID}:{row['owner']}:{code}"
         severity = _SEVERITY.get(levels.get(code, "info"), Severity.LOW)
-        item = DigestItem(
-            id=key,
-            bot=BOT_ID,
-            owner=row["owner"],
-            severity=severity,
-            title=title,
-            summary=summary,
-            link="/bots",
-            action_required=severity in (Severity.HIGH, Severity.MEDIUM),
-            created=created,
-            dedupe_key=key,
+        items.append(
+            digest_item(
+                BOT_ID,
+                code,
+                created,
+                owner=row["owner"],
+                severity=severity,
+                title=title,
+                summary=summary,
+                action_required=severity in (Severity.HIGH, Severity.MEDIUM),
+            )
         )
-        items.append(item.model_dump(mode="json"))
     return items
 
 

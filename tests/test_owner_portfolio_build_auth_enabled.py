@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 from typing import Callable, Iterator
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -25,6 +26,7 @@ from backend.app import create_app
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_cache
 from backend.config import config
+from backend.routes import instrument as instrument_routes
 
 _ME = "user@example.com"
 # alice: the signed-in user's own owner (by email); carol: lists them as a
@@ -114,6 +116,29 @@ def test_non_viewer_still_gets_403(accounts, monkeypatch, path):
     assert resp.status_code == 403, resp.text
     assert resp.json() == {"detail": "Not authorized for this owner"}
     assert str(_CASH["bob"]) not in resp.text
+
+
+def test_scenario_fx_returns_the_callers_owners_with_real_data(accounts, monkeypatch):
+    """``/scenario/fx`` builds each visible owner's portfolio (#11355), now found with auth enabled."""
+    client = _signed_in_client(monkeypatch)
+
+    resp = client.get("/scenario/fx", params={"currency": "USD", "pct": -10})
+
+    assert resp.status_code == 200, resp.text
+    baselines = {row["owner"]: row["baseline_total_value_gbp"] for row in resp.json()}
+    assert baselines == {"alice": _CASH["alice"], "carol": _CASH["carol"]}
+
+
+def test_instrument_positions_return_the_callers_owners_with_real_data(accounts, monkeypatch):
+    """``/instrument/`` positions come from real owner builds; only the price history is stubbed."""
+    monkeypatch.setattr(instrument_routes, "load_meta_timeseries_range", lambda *a, **k: pd.DataFrame())
+    client = _signed_in_client(monkeypatch)
+
+    resp = client.get("/instrument/", params={"ticker": "CASH.GBP", "format": "json"})
+
+    assert resp.status_code == 200, resp.text
+    units = {p["owner"]: p["units"] for p in resp.json()["positions"]}
+    assert units == {"alice": _CASH["alice"], "carol": _CASH["carol"]}
 
 
 def test_anonymous_request_is_still_401(accounts, monkeypatch):

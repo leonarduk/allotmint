@@ -509,6 +509,12 @@
                           "null"
                         ]
                       },
+                      "cost_basis_estimate_date": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "asset_class": {
                         "type": [
                           "string",
@@ -944,6 +950,12 @@
                         ]
                       },
                       "cost_basis_source": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "cost_basis_estimate_date": {
                         "type": [
                           "string",
                           "null"

@@ -7,10 +7,12 @@ import { COST_BASIS_BOOK_SUSPECT } from '../lib/costBasis';
 import {
   buildCostBasisChecklist,
   costBasisFillHref,
+  countEstimatedCosts,
   topValueShare,
 } from '../lib/costBasisChecklist';
 import { useReportingCurrency } from '../hooks/useReportingCurrency';
 import { CostBasisCsvImport } from './CostBasisCsvImport';
+import { CostEstimateButton } from './CostEstimateButton';
 import tableStyles from '../styles/table.module.css';
 
 /** Rows shown before "Show all": enough to recover most of the value (#7825). */
@@ -18,7 +20,7 @@ export const CHECKLIST_TOP_COUNT = 10;
 
 type Props = {
   accounts: Account[];
-  /** Reload the portfolio after a purchase-price CSV import recorded costs (#10095). */
+  /** Reload the portfolio after a CSV import or a current-price estimate recorded costs (#10095). */
   onImported?: () => void;
 };
 
@@ -26,15 +28,27 @@ type Props = {
  * Actionable companion to the dashboard's "Excludes N holdings with no
  * reliable cost basis" note (#7825): the excluded holdings, largest market
  * value first, each linking to the set-holding form prefilled for it, plus a
- * purchase-price CSV import to fill many at once (#10095).
+ * purchase-price CSV import to fill many at once, and a "use current price as
+ * cost" fallback for a holding whose purchase price is lost (#10095).
  */
 export function CostBasisChecklist({ accounts, onImported }: Props) {
   const { t } = useTranslation();
   const reporting = useReportingCurrency();
   const [showAll, setShowAll] = useState(false);
   const gaps = useMemo(() => buildCostBasisChecklist(accounts), [accounts]);
+  const estimated = useMemo(() => countEstimatedCosts(accounts), [accounts]);
+  // Estimated costs are not gaps, but they are still not purchase prices (#10095).
+  const estimateNote =
+    estimated > 0 ? (
+      <p
+        data-testid="cost-basis-estimates"
+        style={{ fontSize: '0.85rem', color: 'var(--summary-card-label)' }}
+      >
+        {t('costBasisChecklist.estimatedCount', { count: estimated })}
+      </p>
+    ) : null;
 
-  if (gaps.length === 0) return null;
+  if (gaps.length === 0) return estimateNote;
 
   const visible = showAll ? gaps : gaps.slice(0, CHECKLIST_TOP_COUNT);
   const topCount = Math.min(CHECKLIST_TOP_COUNT, gaps.length);
@@ -101,7 +115,8 @@ export function CostBasisChecklist({ accounts, onImported }: Props) {
               <td className={tableStyles.cell}>
                 <Link to={costBasisFillHref(gap)}>
                   {t('costBasisChecklist.addCost')}
-                </Link>
+                </Link>{' '}
+                <CostEstimateButton gap={gap} onEstimated={onImported} />
               </td>
             </tr>
           ))}
@@ -119,6 +134,7 @@ export function CostBasisChecklist({ accounts, onImported }: Props) {
         </button>
       )}
       <CostBasisCsvImport gaps={gaps} onImported={onImported} />
+      {estimateNote}
     </details>
   );
 }

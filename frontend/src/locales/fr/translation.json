@@ -3703,6 +3703,7 @@
     "logThis": "Consigner cette décision ?",
     "notNow": "Pas maintenant",
     "snapshot": "Instantané du contexte",
+    "contextSummary": "Contexte à ce moment (résumé IA, faits uniquement)",
     "weights": "poids {{before}} % → {{after}} %",
     "legs": "Options à comparer plus tard",
     "legsHelp": "L'option retenue et chaque alternative, avec un ticker pour la valoriser ; laissez le ticker vide pour les liquidités (0 % supposé).",

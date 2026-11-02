@@ -265,9 +265,86 @@ def test_context_tools_refuse_anything_outside_the_allowlist(name):
 
 def test_default_tools_compute_technicals_from_stored_closes(monkeypatch):
     monkeypatch.setattr(capture, "_allocation", lambda owner, root: {"total_value_gbp": 0.0, "values_gbp": {}})
+    monkeypatch.setattr(capture, "_pro_valuation_loader", lambda: None)  # no screener installed
     tools = default_context_tools("alex", None, load_series=fake_series, today=date(2026, 7, 2))
     technicals = tools.call("get_instrument_technicals", ticker="AAA.L")
     assert technicals["return_basis"] == "total"
     assert technicals["return_3m_pct"] == pytest.approx(-5.26)  # 90 / 95 - 1
     assert tools.call("get_live_prices", tickers=["AAA.L"]) == {"AAA.L": 90.0}
     assert tools.call("get_instrument_valuation", ticker="AAA.L") is None
+
+
+# ── valuation (#10487) ──────────────────────────────────────────────────────────
+
+
+class _Profile:
+    """Stands in for allotmint-pro's ``InstrumentValuation`` (a pydantic model)."""
+
+    def __init__(self, data):
+        self._data = data
+
+    def model_dump(self):
+        return self._data
+
+
+VALUATION_PROFILE = {
+    "ticker": "AAA.L",
+    "price": 101.0,
+    "price_currency": "GBP",
+    "valuation": {"pe_ratio": 14.2, "forward_pe": 12.5, "pb_ratio": None, "ev_ebitda": 8.1},
+    "nav": {"premium_discount": None, "status": None},
+    "income": {"dividend_yield": 0.034, "payout_ratio": 0.48, "dividend_cover": 2.08},
+    "balance_sheet": {"net_debt": 1_000_000},
+    "data_quality": {"price_last_date": "2026-10-08", "warnings": []},
+}
+
+
+def test_default_tools_include_a_valuation_block_when_data_exists(monkeypatch):
+    monkeypatch.setattr(capture, "_allocation", lambda owner, root: {"total_value_gbp": 0.0, "values_gbp": {}})
+    seen = []
+
+    def load(ticker):
+        seen.append(ticker)
+        return _Profile(VALUATION_PROFILE)
+
+    tools = default_context_tools("alex", None, load_series=fake_series, load_valuation=load, today=date(2026, 10, 9))
+    draft = trade_draft(trade_change(TXS[0]), tools, today=date(2026, 10, 9))
+
+    assert seen == ["AAA.L"]
+    assert draft["snapshot"]["valuation"] == {
+        "pe_ratio": 14.2,
+        "forward_pe": 12.5,
+        "ev_ebitda": 8.1,
+        "dividend_yield": 0.034,
+        "payout_ratio": 0.48,
+        "price": 101.0,
+        "price_currency": "GBP",
+        "price_as_of": "2026-10-08",
+    }
+
+
+def test_default_tools_use_the_screener_valuation_when_installed(monkeypatch):
+    monkeypatch.setattr(capture, "_pro_valuation_loader", lambda: lambda ticker: _Profile(VALUATION_PROFILE))
+    tools = default_context_tools("alex", None, load_series=fake_series, today=date(2026, 10, 9))
+    assert tools.call("get_instrument_valuation", ticker="AAA.L")["pe_ratio"] == 14.2
+
+
+def test_valuation_without_any_figures_is_left_out():
+    empty = {"ticker": "AAA.L", "price": 101.0, "valuation": {}, "income": {}, "nav": {}}
+    assert capture._valuation("AAA.L", lambda ticker: _Profile(empty)) is None
+
+
+def test_valuation_failure_leaves_it_out_of_the_draft(monkeypatch, caplog):
+    monkeypatch.setattr(capture, "_allocation", lambda owner, root: {"total_value_gbp": 0.0, "values_gbp": {}})
+
+    def fail(ticker):
+        raise ConnectionError("provider down\nforged line")
+
+    tools = default_context_tools("alex", None, load_series=fake_series, load_valuation=fail, today=date(2026, 10, 9))
+    with caplog.at_level("WARNING", logger=capture.__name__):
+        draft = trade_draft(trade_change(TXS[0]), tools, today=date(2026, 10, 9))
+
+    assert draft["decision"] == "Sold £10,000 of AAA.L"
+    assert "valuation" not in draft["snapshot"]
+    warning = next(r for r in caplog.records if "valuation" in r.getMessage())
+    assert "ConnectionError" in warning.getMessage() and "forged line" not in warning.getMessage()

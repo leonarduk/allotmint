@@ -3703,6 +3703,7 @@
     "logThis": "¿Registrar esta decisión?",
     "notNow": "Ahora no",
     "snapshot": "Instantánea del contexto",
+    "contextSummary": "Contexto en ese momento (resumen de IA, solo hechos)",
     "weights": "peso {{before}}% → {{after}}%",
     "legs": "Opciones para comparar después",
     "legsHelp": "La opción elegida y cada alternativa, con un ticker para valorarla; deje el ticker vacío para efectivo (se supone 0%).",

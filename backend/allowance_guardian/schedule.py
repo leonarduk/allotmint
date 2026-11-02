@@ -7,16 +7,19 @@ project the annual allowance to the tax year end
 (:mod:`backend.allowance_guardian.projection`). The guardian itself never writes
 it; only the owner does, through ``PUT /allowance-guardian/{owner}/schedule``.
 
-Stored at ``<data_root>/contribution_schedules/<owner>.json``.
+Stored as ``<owner>.json`` under ``$CONTRIBUTION_SCHEDULES_URI`` (an
+``s3://<bucket>/<prefix>`` base) when it is set, else under
+``<data_root>/contribution_schedules/``, through the same
+:class:`~backend.common.owner_documents.OwnerDocumentStore` as investment plans.
+On AWS ``data_root`` is each Lambda container's empty ``/tmp/data``, so without
+the URI a saved schedule is lost on the next cold start and the scheduled
+guardian Lambda never sees it (#10495).
 """
 
 from __future__ import annotations
 
 import calendar
-import json
-import os
 import re
-import tempfile
 from datetime import date
 from pathlib import Path
 from typing import Iterator, List, Literal, Optional
@@ -24,9 +27,10 @@ from typing import Iterator, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.common.cash_kind import is_isa_account
-from backend.common.path_utils import safe_join
+from backend.common.owner_documents import OwnerDocumentStore
 
 SCHEDULES_DIRNAME = "contribution_schedules"
+SCHEDULES_URI_ENV = "CONTRIBUTION_SCHEDULES_URI"
 
 # Same owner-id shape as backend/common/investment_plan.py; safe_join guards traversal.
 _OWNER_RE = re.compile(r"^[A-Za-z0-9 _.-]{1,64}$")
@@ -106,14 +110,19 @@ def expected_dates(item: ScheduledContribution, start: date, end: date) -> Itera
         year, month = year + (month - 1) // 12, (month - 1) % 12 + 1
 
 
-def schedules_dir(data_root: Path) -> Path:
+def schedules_dir(data_root: Optional[Path]) -> Path:
+    if data_root is None:
+        raise ValueError("A data root is needed for locally stored contribution schedules")
     return Path(data_root) / SCHEDULES_DIRNAME
 
 
-def _schedule_path(owner: str, data_root: Path) -> Path:
+_SCHEDULES = OwnerDocumentStore(uri_env=SCHEDULES_URI_ENV, local_dir=schedules_dir)
+
+
+def _check_owner(owner: str) -> str:
     if not _OWNER_RE.match(owner or ""):
         raise ValueError(f"Invalid owner id {owner!r}")
-    return safe_join(schedules_dir(data_root), f"{owner}.json")
+    return owner
 
 
 def parse_schedule(data: object, owner: str) -> ContributionSchedule:
@@ -126,25 +135,15 @@ def parse_schedule(data: object, owner: str) -> ContributionSchedule:
 
 def load_schedule(owner: str, data_root: Path) -> ContributionSchedule:
     """``owner``'s saved schedule, or an empty one when none has been saved."""
-    path = _schedule_path(owner, data_root)
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    raw = _SCHEDULES.read(_check_owner(owner), data_root)
+    if raw is None:
         return ContributionSchedule(owner=owner)
     return parse_schedule(raw, owner)
 
 
-def save_schedule(schedule: ContributionSchedule, data_root: Path) -> Path:
-    """Write ``schedule`` atomically to ``<data_root>/contribution_schedules/<owner>.json``."""
-    path = _schedule_path(schedule.owner, data_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(schedule.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n"
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{schedule.owner}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(payload)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
-    return path
+def save_schedule(schedule: ContributionSchedule, data_root: Path) -> Optional[Path]:
+    """Store ``schedule``: in ``$CONTRIBUTION_SCHEDULES_URI`` when set, else atomically on disk.
+
+    Returns the local path, or ``None`` when the schedule was written to S3.
+    """
+    return _SCHEDULES.write(_check_owner(schedule.owner), schedule.model_dump(mode="json"), data_root)

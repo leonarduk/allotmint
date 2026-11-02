@@ -70,12 +70,14 @@ def _synthetic_run(owner, **kwargs):
     return REAL_RUN(owner, today=TODAY, transactions=[], schedule=_schedule(), allowances=_allowances(), **kwargs)
 
 
-def test_registered_as_an_owner_scoped_rules_bot_without_a_schedule():
+def test_registered_as_an_owner_scoped_rules_bot_with_a_monthly_schedule():
     bot = registry.get_bot(BOT_ID)
 
     assert isinstance(bot, AllowanceGuardianBot)
     assert (bot.kind, bot.scope) == ("rules", "owner")
-    assert bot.default_schedule is None
+    # cdk MonthlyAllowanceGuardianRun: cron(0 4 1 * ? *) (#10495).
+    assert bot.default_schedule == registry.Schedule(hour=4, day=1)
+    assert bot.default_schedule.description == "Monthly on day 1 at 04:00 UTC"
     settings = bot.settings_model.model_validate(bot.default_settings())
     assert settings.cadence == "monthly"
     assert settings.run_after_import and settings.alerts
@@ -288,3 +290,31 @@ def test_transaction_import_runs_the_guardian_afterwards(tmp_path, monkeypatch):
 
     assert resp.status_code == 200 and len(resp.json()["persisted"]) == 1
     assert calls == [None]
+
+
+def test_lambda_handler_runs_the_bot_through_the_runner(monkeypatch):
+    from backend.lambda_api import allowance_guardian as lambda_handler
+
+    seen = []
+
+    def fake_handle(bot_id, event, *, reraise=False):
+        seen.append((bot_id, event, reraise))
+        return {"bot": bot_id}
+
+    monkeypatch.setattr(lambda_handler, "handle_lambda_event", fake_handle)
+
+    event = {"bot_run_id": "r1"}
+    assert lambda_handler.lambda_handler(event, None) == {"status": "ok"}
+    assert seen == [(BOT_ID, event, True)]
+
+
+def test_lambda_handler_reports_a_skipped_scheduled_run(monkeypatch):
+    from backend.lambda_api import allowance_guardian as lambda_handler
+
+    monkeypatch.setattr(
+        lambda_handler,
+        "handle_lambda_event",
+        lambda bot_id, event, *, reraise=False: {"skipped": True, "reason": "Disabled", "run_id": "r1"},
+    )
+
+    assert lambda_handler.lambda_handler({"source": "aws.events"}, None) == {"status": "skipped", "reason": "Disabled"}

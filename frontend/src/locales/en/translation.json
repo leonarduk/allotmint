@@ -3415,7 +3415,7 @@
     },
     "seeds": {
       "title": "Seed catalogue",
-      "intro": "Your watchlist as seed packets — the same list the classic Watchlist page reads, priced from live quotes. Nothing here places a trade.",
+      "intro": "Your watchlist, the same list the classic Watchlist page reads, priced from live quotes. Things you could hold are seed packets; indices, currency rates and futures are the weather your plot grows in. Nothing here places a trade.",
       "loadError": "Could not load quotes: {{error}}",
       "tryAgain": "Try again",
       "available": "Available seed ({{count}})",
@@ -3424,9 +3424,15 @@
       "noQuotes": "No quotes came back for your watchlist symbols. Try the <txlink>classic watchlist</txlink> to check them.",
       "unnamed": "Unnamed instrument",
       "alreadyGrowing": "Already growing in your plot",
-      "notSown": "Not sown yet",
       "inspectCrop": "Inspect crop",
-      "readPacket": "Read the packet"
+      "readPacket": "Read the packet",
+      "notInPlot": "Not in your plot",
+      "availableTitle": "Available seed",
+      "manage": "Add or remove symbols in the <txlink>classic watchlist</txlink>.",
+      "unitUnknown": "(unit unknown)",
+      "noSeeds": "Nothing on this watchlist is something you could hold. It is all weather (below).",
+      "weatherTitle": "The weather ({{count}})",
+      "weatherNote": "Indices, currency rates and futures: the market conditions your plot is growing in. They are readings, not things you can plant."
     },
     "season": {
       "everyTierEarned": "Every {{group}} tier earned",

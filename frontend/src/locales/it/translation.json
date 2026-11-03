@@ -3422,7 +3422,7 @@
     },
     "seeds": {
       "title": "Catalogo dei semi",
-      "intro": "La tua watchlist come bustine di semi: la stessa lista letta dalla pagina Watchlist classica, con prezzi dalle quotazioni in tempo reale. Qui non viene eseguita alcuna operazione.",
+      "intro": "La tua watchlist, la stessa letta dalla pagina Watchlist classica, con prezzi dalle quotazioni in tempo reale. Ciò che potresti detenere sono bustine di semi; indici, tassi di cambio e futures sono il meteo in cui cresce il tuo orto. Qui non si effettuano operazioni.",
       "loadError": "Impossibile caricare le quotazioni: {{error}}",
       "tryAgain": "Riprova",
       "available": "Semi disponibili ({{count}})",
@@ -3431,9 +3431,15 @@
       "noQuotes": "Nessuna quotazione è arrivata per i simboli della tua watchlist. Prova la <txlink>watchlist classica</txlink> per verificarli.",
       "unnamed": "Strumento senza nome",
       "alreadyGrowing": "Già in crescita nel tuo orto",
-      "notSown": "Non ancora seminato",
       "inspectCrop": "Ispeziona coltura",
-      "readPacket": "Leggi la bustina"
+      "readPacket": "Leggi la bustina",
+      "notInPlot": "Non è nel tuo orto",
+      "availableTitle": "Semi disponibili",
+      "manage": "Aggiungi o rimuovi simboli nella <txlink>watchlist classica</txlink>.",
+      "unitUnknown": "(unità sconosciuta)",
+      "noSeeds": "Niente in questa watchlist è qualcosa che potresti detenere. È tutto meteo (sotto).",
+      "weatherTitle": "Il meteo ({{count}})",
+      "weatherNote": "Indici, tassi di cambio e futures: le condizioni di mercato in cui cresce il tuo orto. Sono rilevazioni, non cose che si possono piantare."
     },
     "season": {
       "everyTierEarned": "Tutti i livelli di «{{group}}» ottenuti",

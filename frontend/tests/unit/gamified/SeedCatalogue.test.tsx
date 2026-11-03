@@ -1,7 +1,14 @@
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Portfolio } from '@/types';
+import type { Portfolio, QuoteRow } from '@/types';
 
 const portfolio: Portfolio = {
   owner: 'steve',
@@ -66,6 +73,103 @@ beforeEach(() => {
     streak: 0,
     daily_totals: {},
     today: '2026-08-24',
+  });
+});
+
+function quote(
+  symbol: string,
+  overrides: Partial<QuoteRow> = {}
+): QuoteRow {
+  return {
+    symbol,
+    name: `${symbol} name`,
+    last: 10,
+    open: 10,
+    high: 10,
+    low: 10,
+    change: 0,
+    changePct: 0,
+    volume: 0,
+    marketTime: null,
+    marketState: 'REGULAR',
+    ...overrides,
+  };
+}
+
+describe('Seed shed: seeds vs weather (#7203)', () => {
+  it('shows indices, FX and futures as weather, not unsown seed packets', async () => {
+    mocks.getQuotes.mockResolvedValue([
+      quote('VUSA.L', { currency: 'GBX', quoteType: 'ETF', last: 92.5 }),
+      quote('^VIX', { quoteType: 'INDEX', last: 15.21 }),
+      quote('USDGBP=X', { currency: 'GBP', quoteType: 'CURRENCY', last: 0.74 }),
+      quote('GC=F', { currency: 'USD', quoteType: 'FUTURE', last: 4647.4 }),
+    ]);
+    window.localStorage.setItem('watchlistSymbols', 'VUSA.L,^VIX,USDGBP=X,GC=F');
+
+    renderSeeds();
+
+    expect(await screen.findByText('Available seed (1)')).toBeInTheDocument();
+    const weather = screen.getByRole('region', { name: 'The weather (3)' });
+    for (const symbol of ['^VIX', 'USDGBP=X', 'GC=F']) {
+      expect(within(weather).getByText(symbol)).toBeInTheDocument();
+    }
+    // No buy-adjacent framing anywhere on the screen.
+    expect(screen.queryByText(/not sown yet/i)).toBeNull();
+    expect(within(weather).queryByRole('link')).toBeNull();
+    expect(within(weather).queryByText('Not in your plot')).toBeNull();
+    expect(screen.getByText('Not in your plot')).toBeInTheDocument();
+  });
+
+  it('labels every price with its currency or unit', async () => {
+    mocks.getQuotes.mockResolvedValue([
+      quote('VUSA.L', { currency: 'GBX', quoteType: 'ETF', last: 92.5 }),
+      quote('^FTSE', { currency: 'GBP', quoteType: 'INDEX', last: 10878.12 }),
+      quote('BTC-USD', { last: 78377.15 }),
+      quote('ZZZ', { last: 3 }),
+    ]);
+    window.localStorage.setItem('watchlistSymbols', 'VUSA.L,^FTSE,BTC-USD,ZZZ');
+
+    renderSeeds();
+
+    expect(await screen.findByText('92.50 GBX')).toBeInTheDocument();
+    // An index level is points, even when the feed also sends a currency.
+    expect(screen.getByText('10878 pts')).toBeInTheDocument();
+    expect(screen.getByText('78377 USD')).toBeInTheDocument();
+    // Unknown is said out loud, never guessed.
+    expect(screen.getByText('3.00 (unit unknown)')).toBeInTheDocument();
+  });
+
+  it('keeps the way to manage the watchlist visible when rows are present', async () => {
+    mocks.getQuotes.mockResolvedValue([quote('VUSA.L', { quoteType: 'ETF' })]);
+    window.localStorage.setItem('watchlistSymbols', 'VUSA.L');
+
+    renderSeeds();
+
+    expect(await screen.findByText('VUSA.L')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'classic watchlist' })
+    ).toHaveAttribute('href', '/watchlist');
+  });
+
+  it('does not claim zero seeds while quotes are loading', async () => {
+    let resolve: (rows: QuoteRow[]) => void = () => {};
+    mocks.getQuotes.mockReturnValue(
+      new Promise<QuoteRow[]>((done) => {
+        resolve = done;
+      })
+    );
+    window.localStorage.setItem('watchlistSymbols', 'VUSA.L');
+
+    renderSeeds();
+
+    expect(await screen.findByText(/Checking the seed trays/)).toBeInTheDocument();
+    expect(screen.getByText('Available seed')).toBeInTheDocument();
+    expect(screen.queryByText('Available seed (0)')).toBeNull();
+
+    await act(async () => {
+      resolve([quote('VUSA.L', { quoteType: 'ETF' })]);
+    });
+    expect(await screen.findByText('Available seed (1)')).toBeInTheDocument();
   });
 });
 

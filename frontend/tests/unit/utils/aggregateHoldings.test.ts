@@ -118,4 +118,52 @@ describe("aggregateHoldingsByTicker", () => {
     expect(row.cost_basis_source).toBe("estimate");
     expect(row.cost_basis_estimate_date).toBe("2026-10-01");
   });
+
+  it("still marks the row an estimate when the estimated lot has no gain of its own (#11395)", () => {
+    const [row] = aggregateHoldingsByTicker(
+      [
+        lot({ cost_basis_gbp: 80, market_value_gbp: 100, gain_gbp: 20, cost_basis_source: "book" }),
+        lot({
+          cost_basis_gbp: 20,
+          gain_gbp: null,
+          cost_basis_source: "estimate",
+          cost_basis_estimate_date: "2026-10-01",
+        }),
+      ],
+      "2026-11-01",
+    );
+
+    // Only the book lot's gain is summed, but the estimated cost is in the total.
+    expect(row.gain_gbp).toBe(20);
+    expect(row.cost_basis_gbp).toBe(100);
+    expect(row.cost_basis_source).toBe("estimate");
+    expect(row.cost_basis_estimate_date).toBe("2026-10-01");
+  });
+
+  it("keeps the estimate tag and its gain beside an unreliable lot (#11395)", () => {
+    const [row] = aggregateHoldingsByTicker(
+      [
+        lot({ effective_cost_basis_gbp: 60, market_value_gbp: 60, gain_gbp: 0, cost_basis_source: "unknown" }),
+        lot({ cost_basis_gbp: 20, market_value_gbp: 25, gain_gbp: 5, cost_basis_source: "estimate" }),
+      ],
+      "2026-11-01",
+    );
+
+    // An estimate is not unreliable, so its gain is still counted, and flagged.
+    expect(row.gain_gbp).toBe(5);
+    expect(row.cost_basis_source).toBe("estimate");
+  });
+
+  it("tags an estimate row with no counted gain as an estimate (#11395)", () => {
+    const [row] = aggregateHoldingsByTicker(
+      [
+        lot({ cost_basis_gbp: 20, gain_gbp: null, cost_basis_source: "estimate" }),
+        lot({ effective_cost_basis_gbp: 30, gain_gbp: 0, cost_basis_source: "unknown" }),
+      ],
+      "2026-11-01",
+    );
+
+    expect(row.gain_gbp).toBeNull();
+    expect(row.cost_basis_source).toBe("estimate");
+  });
 });

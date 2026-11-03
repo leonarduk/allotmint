@@ -303,6 +303,8 @@ def is_trade(tx: Dict[str, Any]) -> bool:
     """
     action = str(tx.get("type") or "").strip() or str(tx.get("kind") or "").strip()
     return action.upper() in TRADE_TYPES
+
+
 _TX_SUFFIX = "_transactions.json"
 
 

@@ -238,11 +238,15 @@ export function summariseDividends(
 export function unattributedDividends(
   transactions: Transaction[]
 ): Transaction[] {
+  // Same rule as the backend's attribute_booked_dividend, so nothing listed
+  // here is refused on save.
   return transactions.filter(
     (tx) =>
       !!tx.id &&
+      ['DIVIDEND', 'DIVIDENDS'].includes((tx.type ?? '').toUpperCase()) &&
       !tx.ticker?.trim() &&
       !tx.estimated &&
+      !tx.attribution_only &&
       tx.amount_minor != null &&
       tx.amount_minor > 0
   );

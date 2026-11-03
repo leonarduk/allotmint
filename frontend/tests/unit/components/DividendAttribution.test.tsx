@@ -28,6 +28,8 @@ const ROWS: Transaction[] = [
     amount_minor: 300,
   },
   { ...SWEEP, id: null },
+  { ...SWEEP, id: 'alex:isa:4', type: 'DEPOSIT' },
+  { ...SWEEP, id: 'alex:isa:5', attribution_only: true },
 ];
 
 const openForm = () => {

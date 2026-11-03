@@ -90,15 +90,14 @@ describe("MetricsExplanation", () => {
     }
   });
 
-  it("explains growth stages by gain percentage, not holding period", () => {
+  it("explains growth stages by holding period and condition by gain (#7200)", () => {
     renderPage();
 
+    expect(screen.getByText(/held for under 30 days/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/total gain of -20% or below/i),
+      screen.getByText(/never sends it back to Sown/i),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/does not depend on how long it has been held/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Wilting: down 20% or more/i)).toBeInTheDocument();
   });
 
   it("has no accessibility violations", async () => {

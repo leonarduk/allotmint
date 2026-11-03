@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, type Mock, beforeEach } from "vitest";
@@ -520,6 +520,22 @@ describe("InstrumentDetail", () => {
         expect(na).toHaveTextContent("N/A");
         expect(na).toHaveAttribute("title", i18n.t("holdingsTable.bookCostSuspect"));
       }
+    });
+
+    it("shows an estimated cost and its gain, each marked as an estimate (#10095)", async () => {
+      await renderPositions([
+        { ...fullPosition, cost_basis_source: "estimate", cost_basis_estimate_date: "2026-10-01" },
+        { ...fullPosition, account: "ISA" },
+      ]);
+
+      const row = screen.getByText("steve – SIPP").closest("tr")!;
+      expect(rowCells(row)).not.toContain("N/A");
+      const tip = i18n.t("costBasisChecklist.estimateTitle", { date: "2026-10-01" });
+      // Avg cost, Cost, Gain £, Gain %, Total return £ and % are each marked.
+      expect(within(row).getAllByTitle(tip)).toHaveLength(6);
+      const total = screen.getByTestId("positions-total-row");
+      const included = i18n.t("costBasisChecklist.estimateIncluded", { count: 1 });
+      expect(within(total).getAllByTitle(included).length).toBeGreaterThan(0);
     });
 
     it("adds a total row when the instrument is held in several accounts", async () => {

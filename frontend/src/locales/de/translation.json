@@ -1322,20 +1322,19 @@
           "detail": "Jedes Anlagekonto wird als Beet dargestellt. Jeder Bestand in diesem Konto ist eine darin gepflanzte Kulturpflanze."
         },
         "growthStages": {
-          "title": "Wachstumsstufen (Welkend → Gesät → Keimend → Belaubt → Knospend → Blühend → Fruchtend → Rekordernte)",
-          "detail": "Die Wachstumsstufe einer Pflanze richtet sich nach dem Gesamtgewinn dieses Bestands in Prozent des Kaufpreises – nicht danach, wie lange er gehalten wird.",
-          "wilting": "Welkend: Gesamtgewinn von -20 % oder weniger",
-          "sown": "Gesät: Gesamtgewinn zwischen -20 % (exklusive) und 0 %",
-          "sprouting": "Keimend: Gesamtgewinn zwischen 0 % (exklusive) und 5 %",
-          "leafing": "Belaubt: Gesamtgewinn zwischen 5 % (exklusive) und 15 %",
-          "budding": "Knospend: Gesamtgewinn zwischen 15 % (exklusive) und 30 %",
-          "flowering": "Blühend: Gesamtgewinn zwischen 30 % (exklusive) und 60 %",
-          "fruiting": "Fruchtend: Gesamtgewinn zwischen 60 % (exklusive) und 120 %",
-          "bumper": "Rekordernte: Gesamtgewinn über 120 %"
+          "title": "Wachstumsstadien (Gesät → Keimend → Beblättert → Knospend → Blühend → Fruchtend → Etabliert)",
+          "detail": "Das Wachstumsstadium einer Pflanze gibt an, wie lange die Position gehalten wird. Wie eine echte Pflanze geht es nur vorwärts, solange Sie sie behalten – ein Kursrückgang setzt sie nie auf Gesät zurück. Ist das Kaufdatum unbekannt, lautet das Stadium „Alter unbekannt“.",
+          "sown": "Gesät: weniger als 30 Tage gehalten",
+          "sprouting": "Keimend: 30 Tage bis 3 Monate",
+          "leafing": "Beblättert: 3 bis 6 Monate",
+          "budding": "Knospend: 6 Monate bis 1 Jahr",
+          "flowering": "Blühend: 1 bis 2 Jahre",
+          "fruiting": "Fruchtend: 2 bis 5 Jahre",
+          "established": "Etabliert: 5 Jahre oder mehr"
         },
         "propagator": {
           "title": "Anzuchtkasten",
-          "detail": "Listet Pflanzen auf, die sich noch in ihrer Mindesthaltedauer befinden – der konfigurierten Anzahl von Tagen, die ein Bestand gehalten werden muss, bevor er verkauft werden darf – und zählt bis zu dem Datum herunter, an dem jede sie erfüllt. Dies ist ein Maß für die Haltedauer, getrennt von der oben beschriebenen gewinnbasierten Wachstumsstufe."
+          "detail": "Listet Pflanzen auf, die sich noch in ihrer Mindesthaltedauer befinden – der konfigurierten Anzahl von Tagen, die eine Position gehalten werden muss, bevor sie verkauft werden darf – und zählt bis zu dem Datum herunter, an dem jede sie erfüllt."
         },
         "water": {
           "title": "Wasser",
@@ -1352,6 +1351,14 @@
         "growerLevel": {
           "title": "Gärtnerstufe und XP",
           "detail": "Wird durch erledigte tägliche Aufgaben verdient. Für Stufe L sind insgesamt 25 × L × (L − 1) XP nötig, frühe Stufen kommen also schnell, spätere dauern länger. Sie misst deinen eigenen Fortschritt, keine Portfoliozahl, und ist daher auf jedem Beet gleich."
+        },
+        "condition": {
+          "title": "Zustand (Welkend → Kümmernd → Gesund → Prächtig)",
+          "detail": "Der Zustand einer Pflanze ist der Gesamtgewinn oder -verlust der Position in Prozent des Kaufpreises. Anders als das Wachstumsstadium kann er besser oder schlechter werden, und er bestimmt die Farbe der Pflanze. Sind die Kosten unbekannt, ist auch der Zustand unbekannt.",
+          "wilting": "Welkend: 20 % oder mehr im Minus",
+          "struggling": "Kümmernd: im Minus, aber weniger als 20 %",
+          "healthy": "Gesund: 0 % bis unter 20 % im Plus",
+          "thriving": "Prächtig: 20 % oder mehr im Plus"
         }
       },
       "technicals": {
@@ -2558,7 +2565,20 @@
     "importUpdated_other": "Einstandskosten für {{count}} Positionen erfasst.",
     "importSkipped_one": "{{count}} Zeile übersprungen.",
     "importSkipped_other": "{{count}} Zeilen übersprungen.",
-    "importSkippedRow": "Zeile {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Zeile {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "gesch.",
+    "estimateTitle": "Geschätzte Kosten: der Marktpreis am {{date}}, kein Kaufpreis. Gewinn/Verlust wird ab diesem Tag gemessen.",
+    "estimateTitleNoDate": "Geschätzte Kosten: ein Marktpreis, kein Kaufpreis. Gewinn/Verlust wird ab dem Tag gemessen, an dem sie festgelegt wurden.",
+    "estimateIncluded_one": "Enthält {{count}} Position mit geschätzten Kosten (ein Marktpreis, kein Kaufpreis)",
+    "estimateIncluded_other": "Enthält {{count}} Positionen mit geschätzten Kosten (ein Marktpreis, kein Kaufpreis)",
+    "useCurrentPrice": "Aktuellen Preis als Kosten verwenden",
+    "useCurrentPriceHelp": "Kaufpreis unbekannt? Den heutigen Preis als geschätzte Kosten erfassen, damit Gewinn/Verlust ab heute zählt. Er wird immer als Schätzung angezeigt, nie als Kaufpreis.",
+    "useCurrentPriceConfirm": "Den heutigen Preis als geschätzte Kosten für {{ticker}} erfassen? Das ist nicht, was Sie bezahlt haben: Gewinn/Verlust zählt ab heute, und die Kosten werden überall als Schätzung markiert.",
+    "recordEstimate": "Schätzung erfassen",
+    "cancelEstimate": "Abbrechen",
+    "estimateFailed": "Schätzung konnte nicht erfasst werden: {{message}}",
+    "estimatedCount_one": "{{count}} Position verwendet geschätzte Kosten: den Marktpreis am Tag der Festlegung, keinen Kaufpreis.",
+    "estimatedCount_other": "{{count}} Positionen verwenden geschätzte Kosten: den Marktpreis am Tag der Festlegung, keinen Kaufpreis."
   },
   "portfolioSentence": {
     "valueOnly": "Ihr Portfolio ist {{value}} wert.",
@@ -2583,7 +2603,9 @@
     "totalValue": "Gesamtwert",
     "gainLoss": "Gewinn/Verlust",
     "excludesNoFx_one": "Ohne {{count}} Position ohne Wechselkurs",
-    "excludesNoFx_other": "Ohne {{count}} Positionen ohne Wechselkurs"
+    "excludesNoFx_other": "Ohne {{count}} Positionen ohne Wechselkurs",
+    "includesEstimated_one": "Enthält {{count}} Position mit geschätzten Kosten (Gewinn seit der Schätzung, nicht seit dem Kauf)",
+    "includesEstimated_other": "Enthält {{count}} Positionen mit geschätzten Kosten (Gewinn seit der Schätzung, nicht seit dem Kauf)"
   },
   "performanceDiagnostics": {
     "sameDay": "am selben Tag",
@@ -3319,7 +3341,9 @@
       "addFavourite": "{{ticker}} zu Favoriten hinzufügen",
       "today": "{{pct}} heute",
       "noDataToday": "heute keine Daten",
-      "shareOfPlot": "{{pct}} des Gartens"
+      "shareOfPlot": "{{pct}} des Gartens",
+      "stageTitle": "Wachstumsstadium: wie lange diese Position gehalten wird",
+      "conditionTitle": "Zustand: Gesamtgewinn oder -verlust seit dem Kauf"
     },
     "data": {
       "ownersError": "Die Liste der Gärtner konnte nicht geladen werden.",
@@ -3350,7 +3374,6 @@
       "groundwork": "Vorarbeit"
     },
     "crop": {
-      "growth": "Wachstum",
       "gainUnknown": "Gewinn unbekannt – keine Anschaffungskosten erfasst",
       "gainDetail": "{{gain}} nicht realisierter Gewinn ({{pct}})",
       "yield": "Rendite",
@@ -3390,17 +3413,18 @@
       "unknown": "unbekannt",
       "openInstrument": "Vollständige Instrumentenansicht öffnen →",
       "neighbours": "Benachbarte Pflanzen",
-      "allCrops": "Alle Pflanzen"
+      "allCrops": "Alle Pflanzen",
+      "condition": "Zustand"
     },
     "roster": {
       "sortShare": "Gartenanteil",
-      "sortGrowth": "Wachstum",
+      "sortGrowth": "Gewinn",
       "sortVigour": "Vitalität",
       "sortAz": "A–Z",
       "growthStages": "Wachstumsstadien",
       "growthStagesLabel": "Was bedeuten die Wachstumsstadien?",
-      "growthStagesTip": "Das Stadium einer Pflanze ist ihr Gesamtgewinn seit dem Kauf, nicht die Tagesveränderung – Gesät/Keimend bedeutet kaum oder noch keinen Gewinn, Fruchtend und Rekordernte bedeuten einen hohen Gewinn.",
-      "stageNote": "Das Stadium ergibt sich aus dem Gesamtgewinn jeder Position; der Balken zeigt ihren Anteil am Gartenwert.",
+      "growthStagesTip": "Das Stadium einer Pflanze gibt an, wie lange sie gehalten wird – es geht nur vorwärts, von Gesät (unter 30 Tagen) bis Etabliert (5 Jahre oder mehr). Wie gut sie sich entwickelt, zeigt ihr Zustand über die Farbe: Prächtig, Gesund, Kümmernd oder Welkend.",
+      "stageNote": "Das Stadium ergibt sich aus der Haltedauer jeder Position, Farbe und Zustand aus ihrem Gesamtgewinn; der Balken zeigt ihren Anteil am Gartenwert.",
       "title": "Pflanzenliste ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} Beet",
       "bedCount_other": "{{count}} Beete",
@@ -3411,11 +3435,12 @@
       "filterCrops": "Pflanzen filtern",
       "allBeds": "Alle Beete",
       "favourites": "Favoriten ({{count}})",
-      "noMatch": "Keine Pflanzen entsprechen diesen Filtern."
+      "noMatch": "Keine Pflanzen entsprechen diesen Filtern.",
+      "conditionsLabel": "Zustand der Pflanzen"
     },
     "seeds": {
       "title": "Samenkatalog",
-      "intro": "Ihre Beobachtungsliste als Samentütchen – dieselbe Liste wie auf der klassischen Watchlist-Seite, bewertet mit Live-Kursen. Hier wird kein Handel ausgelöst.",
+      "intro": "Ihre Beobachtungsliste – dieselbe Liste wie auf der klassischen Watchlist-Seite, bewertet mit Live-Kursen. Was Sie halten könnten, sind Samentütchen; Indizes, Wechselkurse und Futures sind das Wetter, in dem Ihr Garten wächst. Hier wird kein Handel ausgelöst.",
       "loadError": "Kurse konnten nicht geladen werden: {{error}}",
       "tryAgain": "Erneut versuchen",
       "available": "Verfügbares Saatgut ({{count}})",
@@ -3424,9 +3449,15 @@
       "noQuotes": "Für die Symbole Ihrer Beobachtungsliste wurden keine Kurse geliefert. Prüfen Sie sie in der <txlink>klassischen Watchlist</txlink>.",
       "unnamed": "Unbenanntes Instrument",
       "alreadyGrowing": "Wächst bereits in Ihrem Garten",
-      "notSown": "Noch nicht gesät",
       "inspectCrop": "Pflanze ansehen",
-      "readPacket": "Tütchen lesen"
+      "readPacket": "Tütchen lesen",
+      "notInPlot": "Nicht in Ihrem Garten",
+      "availableTitle": "Verfügbares Saatgut",
+      "manage": "Symbole fügen Sie in der <txlink>klassischen Watchlist</txlink> hinzu oder entfernen sie dort.",
+      "unitUnknown": "(Einheit unbekannt)",
+      "noSeeds": "Nichts auf dieser Beobachtungsliste lässt sich halten. Es ist alles Wetter (unten).",
+      "weatherTitle": "Das Wetter ({{count}})",
+      "weatherNote": "Indizes, Wechselkurse und Futures: die Marktbedingungen, in denen Ihr Garten wächst. Es sind Messwerte, nichts, was man pflanzen kann."
     },
     "season": {
       "everyTierEarned": "Alle Stufen von „{{group}}“ erreicht",
@@ -3551,14 +3582,21 @@
       "seedlingSower": "Setzlingssäer"
     },
     "stage": {
-      "wilting": "Welkend",
       "seed": "Gesät",
       "sprout": "Keimend",
       "leafing": "Beblättert",
       "budding": "Knospend",
       "flowering": "Blühend",
       "fruiting": "Fruchtend",
-      "bumper": "Rekordernte"
+      "unknown": "Alter unbekannt",
+      "established": "Etabliert"
+    },
+    "condition": {
+      "unknown": "Zustand unbekannt",
+      "wilting": "Welkend",
+      "struggling": "Kümmernd",
+      "healthy": "Gesund",
+      "thriving": "Prächtig"
     },
     "nextJob": {
       "title": "Nächste Aufgabe im Garten",
@@ -4370,6 +4408,24 @@
       "medium": "Mittel",
       "low": "Niedrig",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Digest-Einstellungen",
+      "loading": "Einstellungen werden geladen…",
+      "loadError": "Die Digest-Einstellungen konnten nicht geladen werden.",
+      "period": "Digest jede(n)",
+      "weekly": "Woche",
+      "monthly": "Monat",
+      "email_enabled": "Digest per E-Mail senden",
+      "telegram_enabled": "Digest per Telegram senden",
+      "include_balances": "£-Beträge in E-Mail und Telegram anzeigen",
+      "send_when_empty": "Digest auch senden, wenn nichts zu tun ist",
+      "per_bot_cap": "Einträge pro Bot (1–50)",
+      "alertImmediately": "Sofort benachrichtigen",
+      "alertImmediatelyHelp": "Angehakte Schweregrade lösen sofort eine Benachrichtigung aus, sobald ein Bot sie findet. Sie erscheinen trotzdem im Digest.",
+      "bot": "Bot",
+      "save": "Einstellungen speichern",
+      "saved": "Einstellungen gespeichert."
     }
   },
   "bots": {

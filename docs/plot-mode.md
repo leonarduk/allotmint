@@ -24,8 +24,9 @@ is a _crop_, an account is a _bed_, and the daily Trail tasks are _chores_.
   season XP and streak.
 - **`/plot/season` — Season track.** A tiered milestone ladder over the UK
   tax year, with the countdown to 5 April.
-- **`/plot/seeds` — Seed shed.** The watchlist as seed packets, priced from
-  live quotes.
+- **`/plot/seeds` — Seed shed.** The watchlist, priced from live quotes:
+  things you could hold as seed packets, and indices, FX rates and futures
+  as "the weather" (#7203).
 
 ## Where the numbers come from
 
@@ -51,9 +52,15 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
   instrument held in more than one bed (its crop). The hub shows the first
   that applies, or "nothing needs doing". Every line is a fact with a link;
   none is a buy or sell suggestion.
-- **Growth stage** — from `gain_pct`: wilting ≤ −20%, sown ≤ 0%,
-  sprouting ≤ 5%, leafing ≤ 15%, budding ≤ 30%, flowering ≤ 60%,
-  fruiting ≤ 120%, bumper crop above that.
+- **Growth stage (maturity)** — from `days_held`, so it only ever moves
+  forward while a holding is kept (#7200): sown < 30 days, sprouting < 90,
+  leafing < 180, budding < 365, flowering < 730, fruiting < 1825,
+  established from 1825 days (5 years). `days_held: null` is "Age unknown",
+  never "Sown". The detail screen's Hardiness level reads the same ladder.
+- **Condition (performance)** — from `gain_pct`, and allowed to go both
+  ways: wilting ≤ −20%, struggling < 0%, healthy < 20%, thriving from 20%.
+  An unknown cost basis is "Condition unknown". Condition sets the crop's
+  colour; stage sets how full the glyph is.
 - **Share of plot** — each crop's share of total plot value, shown as a
   "N% of plot" chip over a proportional bar (and as the Root depth bar on
   the crop detail screen). It is position size, not a quality rating, so it
@@ -73,7 +80,14 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
 - **Seed packets** — the active watchlist (the same list the classic
   Watchlist page shows, from `frontend/src/lib/watchlistStore.ts`, cached in
   localStorage and saved per user via `GET`/`PUT /watchlists`) priced via
-  `GET /api/quotes`.
+  `GET /api/quotes`. `seedKindFor` in `plotModel.ts` splits it by the
+  quote's `quote_type` (falling back to the symbol shape: `^` index, `=X`
+  FX pair, `=F` future): `INDEX`, `CURRENCY` and `FUTURE` are weather, with
+  no packet and no call to action; everything else is a seed. Every price
+  shows its unit via `lib/quoteUnit.ts`, the same helper the classic
+  Watchlist uses (`pts` for index levels, the reported currency otherwise,
+  "unit unknown" rather than a guess). The screen reads the watchlist; a
+  link to the classic Watchlist, always shown, is where it is edited.
 - **Propagator** — holdings still inside their minimum holding period, from
   the backend's own `sell_eligible`, `days_until_eligible` and
   `next_eligible_sell_date` (derived from the configured `hold_days_min`).
@@ -120,9 +134,9 @@ route, exactly like any other page.
 - Each crop is drawn, not emoji: `glyphShapes.ts` holds twelve species as
   SVG paths, `cropGlyph.ts` picks one deterministically from ticker + sector
   (same idea as the old emoji pools, same FNV-1a hash), and `<CropGlyph>`
-  renders it. Colour comes from `currentColor` and the fill from a rect
-  clipped to the silhouette, so a single component reports both the crop's
-  flavour and its growth stage — one path reused from an 18px legend chip up
+  renders it. Colour comes from `currentColor` (the crop's condition) and
+  the fill from a rect clipped to the silhouette (its growth stage), so a
+  single component reports the crop's flavour, age and condition — one path reused from an 18px legend chip up
   to a 104px detail portrait. Twelve shapes are not enough to make the
   species an identifier (a real portfolio collides most of the time past a
   handful of holdings), so it is deliberately treated as flavour only; the

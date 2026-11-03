@@ -374,3 +374,40 @@ describe("PortfolioSummary", () => {
     });
   });
 });
+
+describe("estimated cost (#10095)", () => {
+  it("sums an estimated cost's gain but flags it in the gain note", () => {
+    const totals = computePortfolioTotals([
+      account([
+        holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+        holding({
+          ticker: "EST.L",
+          market_value_gbp: 25,
+          cost_basis_gbp: 20,
+          effective_cost_basis_gbp: 20,
+          gain_gbp: 5,
+          cost_basis_source: "estimate",
+          cost_basis_estimate_date: "2026-10-01",
+        }),
+      ]),
+    ]);
+
+    expect(totals.totalGain).toBe(25);
+    expect(totals.totalCost).toBe(100);
+    expect(totals.unknownCostBasisCount).toBe(0);
+    expect(totals.estimatedCostCount).toBe(1);
+    render(<PortfolioSummary totals={totals} />);
+    expect(
+      screen.getByText(
+        "Includes 1 holding with an estimated cost (gain since the estimate, not since purchase)",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("adds no estimate wording when no cost is estimated", () => {
+    const totals = computePortfolioTotals([account([holding({})])]);
+    expect(totals.estimatedCostCount).toBe(0);
+    render(<PortfolioSummary totals={totals} />);
+    expect(screen.queryByText(/estimated cost/)).toBeNull();
+  });
+});

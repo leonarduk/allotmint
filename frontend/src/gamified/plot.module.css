@@ -802,6 +802,13 @@
   font-weight: 700;
 }
 
+.cropChips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
 .cropStageChip {
   align-self: center;
   padding: 0.1rem 0.5rem;

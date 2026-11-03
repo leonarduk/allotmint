@@ -205,6 +205,28 @@ describe('Plot mode hub', () => {
     ).toHaveAttribute('href', '/metrics-explained#grower-level');
   });
 
+  it('defines the grower rank with a glossary tip on the hub (#11401)', async () => {
+    renderPlot();
+
+    const hud = await screen.findByRole('banner');
+    const progress = await within(hud).findByRole('group', {
+      name: 'Your progress',
+    });
+    const tip = within(progress).getByRole('button', {
+      name: /^What does (Seedling Sower|Weekend Grower|Seasoned Digger|Plotholder|Master Grower|Head Gardener) mean\?$/,
+    });
+
+    fireEvent.click(tip);
+
+    const popover = document.getElementById(
+      tip.getAttribute('aria-controls') ?? ''
+    );
+    expect(popover).toHaveTextContent('A title for your grower level');
+    expect(
+      within(popover as HTMLElement).getByRole('link', { name: 'Learn more' })
+    ).toHaveAttribute('href', '/metrics-explained#grower-rank');
+  });
+
   it('puts the best crop on the stage and flags the genuinely troubled one', async () => {
     renderPlot();
 

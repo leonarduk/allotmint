@@ -16,8 +16,14 @@ abstraction as the other small stores (``backend.common.storage``).
 
 S3 has no append, so the document is rewritten on each publish and capped to
 the newest ``MAX_STORED_ALERTS`` alerts and ``MAX_STORED_SIGNATURES``
-signatures; that cap is the retention. Alerts stay global (not per owner), as
-they were before persistence.
+signatures; that cap is the retention.
+
+An alert about one owner's portfolio carries that owner's id in ``owner``
+(#11359): cost-basis moves, trade imports, nudges and drift alerts.
+``GET /alerts/`` shows such an alert only to callers who may see that owner.
+Alerts with no ``owner`` (price triggers, agent signals, job failures) are
+global. Alerts stored before #11359 have no ``owner`` either, so they are
+treated as global until the ``MAX_STORED_ALERTS`` cap ages them out.
 
 A lock serialises the read-modify-write within one process. Separate processes
 (e.g. concurrent Lambda invocations) are last-writer-wins: an alert written
@@ -142,9 +148,17 @@ def _remember_signature(signature: str) -> None:
 
 
 def _alert_signature(alert: Dict) -> str:
-    """Return a hash signature for ``alert`` based on ticker and message."""
+    """Return a hash signature for ``alert`` based on ticker, message and any owner.
+
+    The owner is part of it so the same message about two owners (e.g. both
+    holding a ticker that moved the same amount) is two alerts, each visible to
+    its own owner (#11359). Alerts with no owner keep their old signature.
+    """
     ticker = alert.get("ticker", "")
     message = alert.get("message", "")
+    owner = alert.get("owner")
+    if owner:
+        return sha256(f"{ticker}|{message}|{owner}".encode()).hexdigest()
     return sha256(f"{ticker}|{message}".encode()).hexdigest()
 
 

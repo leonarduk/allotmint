@@ -65,6 +65,8 @@ def lambda_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     publish_alert(
         {
             "ticker": "IMPORT",
+            # Owner-specific: GET /alerts/ only shows it to callers who may see this owner (#11359).
+            "owner": owner,
             "change_pct": 0.0,
             "message": f"Imported {saved} trades for {owner}",
         }

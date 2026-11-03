@@ -1,15 +1,21 @@
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from backend import alerts as alert_utils
-from backend.auth import get_owner_check_identity
+from backend.auth import (
+    get_owner_check_identity,
+    is_demo_request,
+    owner_access_enforced_under_disable_auth,
+    request_identity,
+)
 from backend.common import data_loader
 from backend.common.alerts import get_recent_alerts
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import OwnerNotFoundError, raise_owner_not_found
+from backend.config import config
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -60,10 +66,56 @@ def _authorised_owner(user: str, request: Request, identity: Optional[str]) -> N
     ensure_owner_access(identity, owner, accounts_root)
 
 
+def _owner_filter_applies() -> bool:
+    """Whether ``GET /alerts/`` must hide other owners' alerts.
+
+    Not with ``disable_auth`` and ``ENFORCE_OWNER_ACCESS`` off, where every
+    owner is visible, unless the request carries a demo token.
+    """
+    return is_demo_request() or not config.disable_auth or owner_access_enforced_under_disable_auth()
+
+
+def _visible_owners(identity: Optional[str]) -> Set[str]:
+    """Lower-cased owner ids the caller may see, by the ``/owners`` rule.
+
+    ``list_plots(current_user=identity)`` gives the signed-in user's owners
+    with auth enabled, the request identity's under ``ENFORCE_OWNER_ACCESS``,
+    and only the demo owner for a demo token. The caller's own identity is
+    added too, for alerts keyed by it (a nudge subscribed by email).
+    """
+    try:
+        plots = data_loader.list_plots(current_user=identity)
+    except data_loader.ProviderUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
+    visible = {p.owner.strip().lower() for p in plots}
+    caller = identity if identity is not None else request_identity()
+    if isinstance(caller, str) and caller.strip() and not is_demo_request():
+        visible.add(caller.strip().lower())
+    return visible
+
+
+def _visible_alerts(alerts: List[Dict], identity: Optional[str]) -> List[Dict]:
+    """``alerts`` without those about owners the caller may not see (#11359).
+
+    An alert with no ``owner`` is global (price triggers, agent signals) and
+    always shown. That includes alerts stored before owners were recorded;
+    they age out under ``MAX_STORED_ALERTS``.
+    """
+    if not _owner_filter_applies():
+        return alerts
+    visible = _visible_owners(identity)
+    shown = []
+    for alert in alerts:
+        owner = alert.get("owner") if isinstance(alert, dict) else None
+        if not isinstance(owner, str) or not owner.strip() or owner.strip().lower() in visible:
+            shown.append(alert)
+    return shown
+
+
 @router.get("/")
-def alerts():
-    """Return recent alert messages."""
-    return get_recent_alerts()
+def alerts(identity: Optional[str] = Depends(get_owner_check_identity)):
+    """Return recent alert messages the caller may see."""
+    return _visible_alerts(get_recent_alerts(), identity)
 
 
 class ThresholdPayload(BaseModel):

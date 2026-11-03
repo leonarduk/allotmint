@@ -167,7 +167,8 @@ def send_due_nudges() -> None:
     now = datetime.now(UTC)
     for user in list(iter_due_users(now)):
         message = _build_nudge_message(user)
-        publish_alert({"ticker": "NUDGE", "user": user, "message": message})
+        # ``owner``: GET /alerts/ only shows the nudge to callers who may see this user (#11359).
+        publish_alert({"ticker": "NUDGE", "user": user, "owner": user, "message": message})
         if config.telegram_bot_token and config.telegram_chat_id and config.app_env != "aws":
             try:
                 send_message(message)

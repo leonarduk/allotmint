@@ -43,6 +43,7 @@ import {
 } from "../lib/totalReturnSeries";
 import {
   classifyDrawdown,
+  classifyMetric,
   DRAWDOWN_RANGE,
   drawdownNeedsAttention,
   RETURN_RANGE,
@@ -93,6 +94,15 @@ const METRIC_LABEL_KEYS: Record<MetricKey, string> = {
   performance: "dashboard.portfolioValue",
 };
 
+// Why XIRR is missing (#7214): the backend's ``xirr_unavailable_reason``, or
+// "load_failed" when the request itself failed. Anything else falls back to
+// the generic "dashboard.xirrMissing" copy.
+const XIRR_REASON_KEYS: Record<string, string> = {
+  insufficient_cash_flows: "dashboard.xirrMissingInsufficientFlows",
+  no_solution: "dashboard.xirrMissingNoSolution",
+  load_failed: "dashboard.xirrMissingLoadFailed",
+};
+
 // Metric units (fractions) and plausibility handling live in
 // lib/metricPlausibility.ts and FractionMetric, shared with the group view
 // (#8570).
@@ -115,6 +125,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     null,
   );
   const [xirr, setXirr] = useState<number | null>(null);
+  const [xirrReason, setXirrReason] = useState<string | null>(null);
   const [excludeCash, setExcludeCash] = useState<boolean>(false);
   const [reportingDate, setReportingDate] = useState<string | null>(null);
   const [previousDate, setPreviousDate] = useState<string | null>(null);
@@ -182,7 +193,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             "alpha",
             () =>
               activeGroup
-                ? getGroupAlphaVsBenchmark(activeGroup, BENCHMARK_TICKER, reqDays)
+                ? getGroupAlphaVsBenchmark(activeGroup, BENCHMARK_TICKER, reqDays, opts)
                 : getAlphaVsBenchmark(activeOwner as string, BENCHMARK_TICKER, reqDays, opts),
             (res) => {
               setAlpha(res.alpha_vs_benchmark);
@@ -199,7 +210,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             "trackingError",
             () =>
               activeGroup
-                ? getGroupTrackingError(activeGroup, BENCHMARK_TICKER, reqDays)
+                ? getGroupTrackingError(activeGroup, BENCHMARK_TICKER, reqDays, opts)
                 : getTrackingError(activeOwner as string, BENCHMARK_TICKER, reqDays, opts),
             (res) => setTrackingError(res.tracking_error),
           ),
@@ -208,7 +219,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             "maxDrawdown",
             () =>
               activeGroup
-                ? getGroupMaxDrawdown(activeGroup, reqDays)
+                ? getGroupMaxDrawdown(activeGroup, reqDays, opts)
                 : getMaxDrawdown(activeOwner as string, reqDays, opts),
             (mdRes) => {
               setMaxDrawdown(mdRes.max_drawdown);
@@ -233,6 +244,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
               setData(perf.history);
               setTimeWeightedReturn(perf.time_weighted_return ?? null);
               setXirr(perf.xirr ?? null);
+              setXirrReason(perf.xirrUnavailableReason ?? null);
               setReportingDate(perf.reportingDate ?? null);
               setPreviousDate(perf.previousDate ?? null);
               setPartialMembers(perf.partial ? perf.missingMembers ?? [] : []);
@@ -281,6 +293,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setMaxDrawdown(null);
     setTimeWeightedReturn(null);
     setXirr(null);
+    setXirrReason(null);
     setFailedMetrics([]);
     setRetrying(false);
     setLoaded(false);
@@ -375,6 +388,18 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     : "#";
 
   const drawdownDetailsAvailable = drawdownSeries.length > 0;
+
+  // XIRR's N/A says why, on screen as well as in its tooltip (#7214).
+  const xirrMissing = classifyMetric(xirr, RETURN_RANGE) === "missing";
+  const xirrReasonKey = perfUnavailable
+    ? XIRR_REASON_KEYS.load_failed
+    : (xirrReason && XIRR_REASON_KEYS[xirrReason]) || null;
+  const xirrMissingText = xirrReasonKey
+    ? t(xirrReasonKey)
+    : t(
+        "dashboard.xirrMissing",
+        "XIRR can't be calculated for this period: it needs dated cash flows from your transaction history, and some patterns of flows have no solution.",
+      );
 
   const formatReturnTooltip = (v: unknown) =>
     percent(((v as number | undefined) ?? 0) * 100, 2, i18n.language);
@@ -599,12 +624,18 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
               value={xirr}
               range={RETURN_RANGE}
               testId="metric-xirr"
-              missingReason={t(
-                "dashboard.xirrMissing",
-                "XIRR can't be calculated for this period: it needs dated cash flows from your transaction history, and some patterns of flows have no solution.",
-              )}
+              missingReason={xirrMissingText}
             />
           </div>
+          {xirrMissing && (
+            <div
+              data-testid="metric-xirr-reason"
+              className={METRIC_LABEL_CLASS}
+              style={{ fontSize: "0.75rem", maxWidth: "16rem" }}
+            >
+              {xirrMissingText}
+            </div>
+          )}
         </div>
       </div>
       {showDrawdownDetails && (
@@ -745,7 +776,15 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             </LineChart>
           </ResponsiveContainer>
 
-          <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
+          <h2 style={{ marginTop: "2rem" }}>
+            {t("dashboard.cumulativeReturn")}
+            <InfoTip
+              label={t("dashboard.cumulativeReturnInfoLabel")}
+              to="/metrics-explained#cumulative-return"
+            >
+              {t("dashboard.cumulativeReturnInfo")}
+            </InfoTip>
+          </h2>
           <p
             data-testid="twr-vs-cumulative"
             className={METRIC_LABEL_CLASS}

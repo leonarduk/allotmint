@@ -453,6 +453,11 @@
     "xirrInfoLabel": "What does XIRR mean?",
     "xirrInfo": "XIRR is the annualised internal rate of return calculated from the portfolio's actual dated cash flows.",
     "xirrMissing": "XIRR can't be calculated for this period: it needs dated cash flows from your transaction history, and some patterns of flows have no solution.",
+    "xirrMissingInsufficientFlows": "Not enough history: XIRR needs a starting value or deposit in this period as well as today's value.",
+    "xirrMissingNoSolution": "No single yearly rate fits this period's deposits, withdrawals and values, so XIRR can't be shown. The time-weighted return still applies.",
+    "xirrMissingLoadFailed": "XIRR couldn't be loaded. Reload the page to try again.",
+    "cumulativeReturnInfoLabel": "What does Cumulative Return mean?",
+    "cumulativeReturnInfo": "How much the portfolio has grown since the start of the selected period. The total-return line is on the same basis as the time-weighted return; the today's-holdings line is not.",
     "fxAttribution": {
       "title": "Where the P&L came from",
       "description": "The portfolio's GBP profit or loss over the selected range, split into local price moves, currency moves, income, and trading and other effects.",
@@ -1142,6 +1147,10 @@
         "xirr": {
           "title": "XIRR",
           "detail": "XIRR is the annualised internal rate of return calculated from the portfolio's actual dated cash flows (deposits, withdrawals, and current value). Unlike time-weighted return, it is affected by the timing and size of those cash flows."
+        },
+        "cumulative": {
+          "title": "Cumulative Return",
+          "detail": "The Cumulative Return chart shows growth since the start of the selected period. The total-return line follows the holdings you actually held each day, includes dividends and interest and strips out deposits and withdrawals: the same basis as the time-weighted return. The today's-holdings line instead prices your current holdings backwards over the whole period and leaves income out, so it can differ widely from the time-weighted return when your holdings have changed. The benchmark line is the benchmark's return over the same dates."
         }
       },
       "trading": {

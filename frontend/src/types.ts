@@ -407,6 +407,11 @@ export interface PerformanceResponse {
   history: PerformancePoint[];
   time_weighted_return?: number | null;
   xirr?: number | null;
+  /**
+   * Why ``xirr`` is null (#7214): "insufficient_cash_flows" or "no_solution"
+   * from the backend, or "load_failed" when the group XIRR request failed.
+   */
+  xirrUnavailableReason?: string | null;
   reportingDate?: string | null;
   previousDate?: string | null;
   dataQualityIssues?: DataQualityIssue[];

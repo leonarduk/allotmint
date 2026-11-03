@@ -54,6 +54,7 @@ describe("MetricsExplanation", () => {
       "max-drawdown",
       "time-weighted-return",
       "xirr",
+      "cumulative-return",
       "rsi",
       "moving-average",
       "sharpe-ratio",

@@ -104,15 +104,6 @@ def _auth_client():
             0.12,
             [],
         ),
-        (
-            "/performance/alice/xirr?days=180",
-            "compute_xirr",
-            ("alice", 180),
-            {"pricing_date": None},
-            "xirr",
-            0.34,
-            [],
-        ),
     ],
 )
 def test_owner_metrics_success(
@@ -149,6 +140,30 @@ def test_owner_metrics_success(
 
 
 @pytest.mark.parametrize(
+    "result, reason",
+    [
+        ({"xirr": 0.34, "xirr_unavailable_reason": None, "missing_members": []}, None),
+        (
+            {"xirr": None, "xirr_unavailable_reason": "insufficient_cash_flows", "missing_members": []},
+            "insufficient_cash_flows",
+        ),
+    ],
+)
+def test_owner_xirr_returns_value_and_reason(result, reason, monkeypatch):
+    """#7214: ``/xirr`` says why the figure is null, so the page can explain its N/A."""
+
+    def fake(*args, **kwargs):
+        assert args == ("alice", 180)
+        assert kwargs == {"pricing_date": None}
+        return result
+
+    monkeypatch.setattr(portfolio_utils, "compute_xirr_result", fake)
+    resp = _auth_client().get("/performance/alice/xirr?days=180")
+    assert resp.status_code == 200
+    assert resp.json() == {"owner": "alice", "xirr": result["xirr"], "xirr_unavailable_reason": reason}
+
+
+@pytest.mark.parametrize(
     "path, func_name, expected_args, expected_kwargs",
     [
         (
@@ -177,7 +192,7 @@ def test_owner_metrics_success(
         ),
         (
             "/performance/missing/xirr",
-            "compute_xirr",
+            "compute_xirr_result",
             ("missing", 365),
             {"pricing_date": None},
         ),
@@ -274,7 +289,7 @@ def test_owner_metrics_future_date_rejected(monkeypatch):
             "/performance-group/demo/alpha?benchmark=SPY&days=30",
             "compute_group_alpha_vs_benchmark",
             ("demo", "SPY", 30),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
             "alpha_vs_benchmark",
             (
                 0.5,
@@ -294,7 +309,7 @@ def test_owner_metrics_future_date_rejected(monkeypatch):
             "/performance-group/demo/tracking-error?benchmark=SPY&days=30",
             "compute_group_tracking_error",
             ("demo", "SPY", 30),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
             "tracking_error",
             (
                 0.7,
@@ -309,7 +324,7 @@ def test_owner_metrics_future_date_rejected(monkeypatch):
             "/performance-group/demo/max-drawdown?days=30",
             "compute_group_max_drawdown",
             ("demo", 30),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
             "max_drawdown",
             (
                 -1.0,
@@ -360,19 +375,19 @@ def test_group_metrics_success(
             "/performance-group/missing/alpha",
             "compute_group_alpha_vs_benchmark",
             ("missing", "VWRL.L", 365),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
         ),
         (
             "/performance-group/missing/tracking-error",
             "compute_group_tracking_error",
             ("missing", "VWRL.L", 365),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
         ),
         (
             "/performance-group/missing/max-drawdown",
             "compute_group_max_drawdown",
             ("missing", 365),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
         ),
     ],
 )

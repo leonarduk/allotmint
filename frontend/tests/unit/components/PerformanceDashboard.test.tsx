@@ -381,7 +381,88 @@ describe("PerformanceDashboard", () => {
         expect.stringMatching(/needs dated cash flows/),
       );
       expect(screen.getByTestId(testIds.twr)).not.toHaveAttribute("title");
+      // On screen too, not only in a hover tooltip (#7214).
+      expect(screen.getByTestId("metric-xirr-reason")).toHaveTextContent(/needs dated cash flows/);
     });
+
+    // #7214: the backend's reason picks the copy, so N/A says what is wrong.
+    it.each([
+      ["insufficient_cash_flows", /Not enough history/],
+      ["no_solution", /No single yearly rate fits/],
+    ])("shows the %s reason under a missing XIRR", async (reason, copy) => {
+      vi.mocked(getPerformance).mockResolvedValue({
+        history: [{ date: "2024-03-01", value: 1000 }],
+        time_weighted_return: 0.05,
+        xirr: null,
+        xirrUnavailableReason: reason,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+      });
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("reporting-date-summary");
+      expect(screen.getByTestId("metric-xirr-reason")).toHaveTextContent(copy);
+      expect(screen.getByTestId(testIds.xirr)).toHaveAttribute("title", expect.stringMatching(copy));
+    });
+
+    it("says XIRR failed to load when the performance request failed", async () => {
+      vi.mocked(getPerformance).mockRejectedValue(new Error("HTTP 500"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+      expect(await screen.findByTestId("metric-xirr-reason")).toHaveTextContent(
+        /couldn't be loaded/,
+      );
+    });
+
+    it("shows no XIRR reason when XIRR has a value", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("reporting-date-summary");
+      expect(screen.queryByTestId("metric-xirr-reason")).toBeNull();
+    });
+  });
+
+  // #7214: every metric on the page, the cumulative-return chart included,
+  // has a one-click route to its glossary entry.
+  it("links every metric and the cumulative return chart to /metrics-explained", async () => {
+    vi.mocked(getAlphaVsBenchmark).mockResolvedValue({
+      alpha_vs_benchmark: 0.01,
+      series: [
+        {
+          date: "2024-03-01",
+          portfolio_cumulative_return: 0,
+          benchmark_cumulative_return: 0,
+          excess_cumulative_return: 0,
+        },
+      ],
+    });
+    const { container } = render(
+      <MemoryRouter>
+        <PerformanceDashboard owner="jane" />
+      </MemoryRouter>,
+    );
+    await screen.findByTestId("reporting-date-summary");
+    const hrefs = Array.from(container.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    for (const anchor of [
+      "alpha-vs-benchmark",
+      "tracking-error",
+      "max-drawdown",
+      "time-weighted-return",
+      "xirr",
+      "cumulative-return",
+    ]) {
+      expect(hrefs).toContain(`/metrics-explained#${anchor}`);
+    }
   });
 
   describe("drawdown and non-finite edge cases (#8570 review)", () => {
@@ -675,9 +756,9 @@ describe("PerformanceDashboard", () => {
       ).toHaveTextContent("Reporting date: 2024-03-31");
 
       expect(getGroupPerformance).toHaveBeenCalledWith("all", 365, false, undefined);
-      expect(getGroupAlphaVsBenchmark).toHaveBeenCalledWith("all", "VWRL.L", 365);
-      expect(getGroupTrackingError).toHaveBeenCalledWith("all", "VWRL.L", 365);
-      expect(getGroupMaxDrawdown).toHaveBeenCalledWith("all", 365);
+      expect(getGroupAlphaVsBenchmark).toHaveBeenCalledWith("all", "VWRL.L", 365, undefined);
+      expect(getGroupTrackingError).toHaveBeenCalledWith("all", "VWRL.L", 365, undefined);
+      expect(getGroupMaxDrawdown).toHaveBeenCalledWith("all", 365, undefined);
       expect(getPerformance).not.toHaveBeenCalled();
       expect(getAlphaVsBenchmark).not.toHaveBeenCalled();
 
@@ -687,6 +768,22 @@ describe("PerformanceDashboard", () => {
       expect(screen.getByTestId("metric-max-drawdown")).toHaveTextContent("-20.00%");
       expect(screen.getByTestId("metric-twr")).toHaveTextContent("6.00%");
       expect(screen.getByTestId("metric-xirr")).toHaveTextContent("7.00%");
+    });
+
+    // #7214: every household metric is priced on the same date as the history.
+    it("passes asOf to every group metric request", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" asOf="2024-03-28" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      const opts = { asOf: "2024-03-28" };
+      expect(getGroupPerformance).toHaveBeenCalledWith("all", 365, false, opts);
+      expect(getGroupAlphaVsBenchmark).toHaveBeenCalledWith("all", "VWRL.L", 365, opts);
+      expect(getGroupTrackingError).toHaveBeenCalledWith("all", "VWRL.L", 365, opts);
+      expect(getGroupMaxDrawdown).toHaveBeenCalledWith("all", 365, opts);
     });
 
     it("hides the owner-only diagnostics link in group scope", async () => {

@@ -459,6 +459,11 @@
     "xirrInfoLabel": "¿Qué significa XIRR?",
     "xirrInfo": "XIRR es la tasa interna de retorno anualizada, calculada a partir de los flujos de caja fechados reales de la cartera.",
     "xirrMissing": "No se puede calcular la XIRR para este periodo: necesita flujos de caja fechados de tu historial de transacciones, y algunos patrones de flujos no tienen solución.",
+    "xirrMissingInsufficientFlows": "No hay suficiente historial: la XIRR necesita un valor inicial o un depósito en este periodo, además del valor actual.",
+    "xirrMissingNoSolution": "Ninguna tasa anual única se ajusta a los depósitos, retiradas y valores de este periodo, así que no se puede mostrar la XIRR. El retorno ponderado por tiempo sigue siendo válido.",
+    "xirrMissingLoadFailed": "No se pudo cargar la XIRR. Recarga la página para intentarlo de nuevo.",
+    "cumulativeReturnInfoLabel": "¿Qué significa el retorno acumulado?",
+    "cumulativeReturnInfo": "Cuánto ha crecido la cartera desde el inicio del periodo seleccionado. La línea de retorno total tiene la misma base que el retorno ponderado por tiempo; la línea de las posiciones actuales no.",
     "fxAttribution": {
       "title": "De dónde vino la ganancia o pérdida",
       "description": "La ganancia o pérdida en GBP de la cartera en el periodo seleccionado, dividida en movimientos de precio local, movimientos de divisa, rentas y operaciones y otros efectos.",
@@ -1148,6 +1153,10 @@
         "xirr": {
           "title": "XIRR",
           "detail": "XIRR es la tasa interna de retorno anualizada, calculada a partir de los flujos de caja fechados reales de la cartera (depósitos, retiradas y valor actual). A diferencia de la rentabilidad ponderada en el tiempo, se ve afectada por el momento y el importe de esos flujos."
+        },
+        "cumulative": {
+          "title": "Retorno acumulado",
+          "detail": "El gráfico de retorno acumulado muestra el crecimiento desde el inicio del periodo seleccionado. La línea de retorno total sigue las posiciones que realmente tenías cada día, incluye dividendos e intereses y descuenta depósitos y retiradas: la misma base que el retorno ponderado por tiempo. La línea de las posiciones actuales, en cambio, valora tus posiciones actuales hacia atrás durante todo el periodo y deja fuera los ingresos, por lo que puede diferir mucho del retorno ponderado por tiempo cuando tus posiciones han cambiado. La línea del índice de referencia es su retorno en las mismas fechas."
         }
       },
       "trading": {

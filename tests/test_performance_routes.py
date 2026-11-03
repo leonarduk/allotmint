@@ -1,3 +1,5 @@
+import datetime as dt
+
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -112,7 +114,7 @@ def test_owner_metrics_not_found(client, monkeypatch, path, func):
 def test_group_metrics_success(client, monkeypatch, path, func, key, expected_value, breakdown):
     def fake(slug, *args, **kwargs):
         assert slug == "test-group"
-        assert kwargs == {"include_breakdown": True}
+        assert kwargs == {"include_breakdown": True, "pricing_date": None}
         return expected_value, breakdown
 
     monkeypatch.setattr(portfolio_utils, func, fake)
@@ -125,6 +127,28 @@ def test_group_metrics_success(client, monkeypatch, path, func, key, expected_va
         assert data[extra_key] == extra_val
     if key in {"alpha_vs_benchmark", "tracking_error"}:
         assert data["benchmark"] == "VWRL.L"
+
+
+@pytest.mark.parametrize(
+    "path, func",
+    [
+        ("/performance-group/test-group/alpha", "compute_group_alpha_vs_benchmark"),
+        ("/performance-group/test-group/tracking-error", "compute_group_tracking_error"),
+        ("/performance-group/test-group/max-drawdown", "compute_group_max_drawdown"),
+    ],
+)
+def test_group_metrics_honour_as_of(client, monkeypatch, path, func):
+    """#7214: the household view prices every metric on the same date, like the owner view."""
+    seen = {}
+
+    def fake(slug, *args, **kwargs):
+        seen.update(kwargs)
+        return 0.0, {}
+
+    monkeypatch.setattr(portfolio_utils, func, fake)
+    resp = client.get(path, params={"as_of": "2024-01-03"})
+    assert resp.status_code == 200
+    assert seen["pricing_date"] == dt.date(2024, 1, 3)
 
 
 @pytest.mark.parametrize(
@@ -237,29 +261,41 @@ def test_group_twr_reports_partial_when_a_member_ledger_is_missing(client, monke
 
 
 def test_group_xirr_success(client, monkeypatch):
-    def fake(slug, days, *, pricing_date=None, group=False, include_missing_members=False):
+    def fake(slug, days, *, pricing_date=None, group=False):
         assert slug == "test-group"
         assert days == 365
         assert group is True
-        assert include_missing_members is True
-        return 0.055, []
+        return {"xirr": 0.055, "xirr_unavailable_reason": None, "missing_members": []}
 
-    monkeypatch.setattr(portfolio_utils, "compute_xirr", fake)
+    monkeypatch.setattr(portfolio_utils, "compute_xirr_result", fake)
     resp = client.get("/performance-group/test-group/xirr")
     assert resp.status_code == 200
     assert resp.json() == {
         "group": "test-group",
         "xirr": 0.055,
+        "xirr_unavailable_reason": None,
         "partial": False,
         "missing_members": [],
     }
+
+
+def test_group_xirr_says_why_it_is_missing(client, monkeypatch):
+    """#7214: a null XIRR carries the reason, so the page need not show a bare N/A."""
+
+    def fake(slug, days, *, pricing_date=None, group=False):
+        return {"xirr": None, "xirr_unavailable_reason": "no_solution", "missing_members": []}
+
+    monkeypatch.setattr(portfolio_utils, "compute_xirr_result", fake)
+    body = client.get("/performance-group/test-group/xirr").json()
+    assert body["xirr"] is None
+    assert body["xirr_unavailable_reason"] == "no_solution"
 
 
 def test_group_xirr_not_found(client, monkeypatch):
     def fake(*args, **kwargs):
         raise FileNotFoundError
 
-    monkeypatch.setattr(portfolio_utils, "compute_xirr", fake)
+    monkeypatch.setattr(portfolio_utils, "compute_xirr_result", fake)
     resp = client.get("/performance-group/missing/xirr")
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Group not found"
@@ -268,11 +304,10 @@ def test_group_xirr_not_found(client, monkeypatch):
 def test_group_xirr_reports_partial_when_a_member_ledger_is_missing(client, monkeypatch):
     """#7228 review MUST FIX 1: same partial-data signal as TWR."""
 
-    def fake(slug, days, *, pricing_date=None, group=False, include_missing_members=False):
-        assert include_missing_members is True
-        return 0.11, ["ghost"]
+    def fake(slug, days, *, pricing_date=None, group=False):
+        return {"xirr": 0.11, "xirr_unavailable_reason": None, "missing_members": ["ghost"]}
 
-    monkeypatch.setattr(portfolio_utils, "compute_xirr", fake)
+    monkeypatch.setattr(portfolio_utils, "compute_xirr_result", fake)
     resp = client.get("/performance-group/test-group/xirr")
     assert resp.status_code == 200
     body = resp.json()

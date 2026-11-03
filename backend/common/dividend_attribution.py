@@ -35,7 +35,7 @@ ESTIMATED_KEY = "estimated"
 #: A per-ticker part of a booked income sweep, attributed by the owner (#10060).
 ATTRIBUTED_SWEEP_KEY = "attributed_sweep"
 # A part does not carry the sweep's trade-shaped fields, if it had any.
-_DROPPED_ON_PARTS = ("units", "shares", "price", "price_gbp")
+_DROPPED_ON_PARTS = ("units", "shares", "price", "price_gbp", ESTIMATED_KEY, ATTRIBUTION_ONLY_KEY)
 # Rows written before refresh_dividends set ESTIMATED_KEY carry only this reason.
 ESTIMATED_DIVIDEND_REASON = "Automated dividend import"
 _DIVIDEND_TYPES = {"DIVIDEND", "DIVIDENDS"}
@@ -104,8 +104,16 @@ def mark_attribution_only(transactions: List[MutableMapping[str, Any]]) -> int:
 
 
 def _sweep_amount(entry: Mapping[str, Any]) -> float:
-    if not _is_unattributed_sweep(entry):
-        raise AttributionError("Only a booked dividend with no ticker can be attributed to holdings")
+    if str(entry.get("type") or "").upper() not in _DIVIDEND_TYPES:
+        raise AttributionError("Only a dividend can be attributed to holdings")
+    if is_estimated_dividend(entry):
+        raise AttributionError("An estimated dividend is not booked income and cannot be attributed")
+    # A non-estimate never carries this flag; one that does would pass it to its
+    # parts, which would then silently drop out of income.
+    if is_attribution_only(entry):
+        raise AttributionError("A dividend marked attribution-only cannot be attributed")
+    if str(entry.get("ticker") or "").strip():
+        raise AttributionError("The dividend is already linked to a holding")
     amount = entry.get("amount_minor")
     if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not amount > 0:
         raise AttributionError("The dividend has no positive amount to attribute")

@@ -205,9 +205,12 @@ def test_attributed_parts_still_count_as_booked_income_for_the_cutoff():
 @pytest.mark.parametrize(
     "entry, parts, message",
     [
-        ({**SWEEP, "ticker": "SEGA.L"}, [("SEGA.L", 1)], "no ticker"),
-        (_estimate("2026-07-16", ticker=""), [("SEGA.L", 1)], "no ticker"),
-        ({**SWEEP, "type": "DEPOSIT"}, [("SEGA.L", 1)], "no ticker"),
+        ({**SWEEP, "ticker": "SEGA.L"}, [("SEGA.L", 1)], "already linked"),
+        # The bot's legacy reason alone makes it an estimate, with or without a ticker.
+        (_estimate("2026-07-16", ticker=""), [("SEGA.L", 1)], "estimated dividend"),
+        ({**SWEEP, "estimated": True}, [("SEGA.L", 1)], "estimated dividend"),
+        ({**SWEEP, ATTRIBUTION_ONLY_KEY: True}, [("SEGA.L", 1)], "attribution-only"),
+        ({**SWEEP, "type": "DEPOSIT"}, [("SEGA.L", 1)], "Only a dividend"),
         ({**SWEEP, "amount_minor": None}, [("SEGA.L", 1)], "positive amount"),
         (SWEEP, [], "every part"),
         (SWEEP, [("SEGA.L", 1), ("SEGA.L", 2)], "only once"),
@@ -218,3 +221,19 @@ def test_attributed_parts_still_count_as_booked_income_for_the_cutoff():
 def test_attribution_refuses_what_it_cannot_split(entry, parts, message):
     with pytest.raises(AttributionError, match=message):
         attribute_booked_dividend(entry, parts)
+
+
+def test_attribution_only_sweep_is_refused_so_its_parts_cannot_drop_out_of_income():
+    """A stray attribution_only flag would pass to the parts and hide them from income."""
+    flagged = {**SWEEP, ATTRIBUTION_ONLY_KEY: True}
+
+    with pytest.raises(AttributionError, match="attribution-only"):
+        attribute_booked_dividend(flagged, [("SEGA.L", 1000)])
+
+
+def test_parts_never_carry_estimate_flags():
+    rows = attribute_booked_dividend({**SWEEP, "estimated": False}, [("SEGA.L", 1000)])
+
+    assert "estimated" not in rows[0]
+    assert ATTRIBUTION_ONLY_KEY not in rows[0]
+    assert not is_attribution_only(rows[0])

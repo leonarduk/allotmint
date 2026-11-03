@@ -100,8 +100,12 @@ describe("PerformanceDashboard Cumulative Return benchmark chart (#7833)", () =>
     const { container } = renderDashboard();
 
     await screen.findByTestId("cumulative-return-basis");
-    expect(screen.getByText("Your portfolio")).toBeInTheDocument();
+    expect(screen.getByText("Today's holdings")).toBeInTheDocument();
     expect(screen.getByText("VWRL.L (benchmark)")).toBeInTheDocument();
+    // The ledger total return (#10128) is drawn and named too.
+    expect(
+      screen.getByText("Total return (incl. dividends and interest)"),
+    ).toBeInTheDocument();
 
     await waitFor(() => {
       const strokes = Array.from(
@@ -109,7 +113,53 @@ describe("PerformanceDashboard Cumulative Return benchmark chart (#7833)", () =>
       ).map((el) => el.getAttribute("stroke"));
       expect(strokes).toContain("#82ca9d");
       expect(strokes).toContain("#f59e0b");
+      expect(strokes).toContain("#60a5fa");
     });
+  });
+
+  it("drops the total return line and says why when there is no ledger (#10128)", async () => {
+    vi.mocked(getPerformance).mockResolvedValue({
+      history: [
+        { date: "2024-03-01", value: 1000, cumulative_return: null, price_return: 0 },
+        { date: "2024-03-28", value: 1100, cumulative_return: null, price_return: 0.1 },
+      ],
+      time_weighted_return: null,
+      xirr: null,
+      reportingDate: "2024-03-31",
+      previousDate: "2024-02-29",
+      cumulativeReturnBasis: "unavailable",
+      cumulativeReturnUnavailableReason: "no_ledger",
+    });
+    vi.mocked(getAlphaVsBenchmark).mockResolvedValue({
+      alpha_vs_benchmark: 0.01,
+      benchmark: "VWRL.L",
+      series: [point("2024-03-01", 0, 0), point("2024-03-28", 0.05, 0.04)],
+    });
+    renderDashboard();
+
+    expect(await screen.findByTestId("total-return-unavailable")).toHaveTextContent(
+      "no transactions to rebuild it from",
+    );
+    await screen.findByTestId("cumulative-return-basis");
+    expect(screen.queryByText("Total return (incl. dividends and interest)")).toBeNull();
+  });
+
+  it("explains that excluding cash leaves income out (#10128)", async () => {
+    vi.mocked(getPerformance).mockResolvedValue({
+      history: [{ date: "2024-03-01", value: 1000, cumulative_return: null }],
+      time_weighted_return: null,
+      xirr: null,
+      reportingDate: "2024-03-31",
+      previousDate: "2024-02-29",
+      cumulativeReturnBasis: "unavailable",
+      cumulativeReturnUnavailableReason: "exclude_cash",
+    });
+    vi.mocked(getAlphaVsBenchmark).mockResolvedValue({ alpha_vs_benchmark: null, series: [] });
+    renderDashboard();
+
+    expect(await screen.findByTestId("total-return-unavailable")).toHaveTextContent(
+      "dividends and interest are paid into cash",
+    );
   });
 
   it("treats a series whose points are all non-finite as no benchmark", async () => {

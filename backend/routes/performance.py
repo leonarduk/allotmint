@@ -358,7 +358,8 @@ def group_performance(
     Mirrors ``/performance/{owner}`` but aggregates holdings across every
     member of the ``slug`` group (see ``/groups``) instead of a single
     owner. Set ``exclude_cash`` to true to ignore cash holdings when
-    reconstructing the return series.
+    reconstructing the return series. ``cumulative_return`` follows the same
+    ledger total-return basis as ``/performance/{owner}`` (#10128).
     """
     slug = _validate_owner_slug(slug, "slug")
     try:
@@ -368,6 +369,7 @@ def group_performance(
             include_cash=not exclude_cash,
             pricing_date=_resolve_as_of(as_of),
             group=True,
+            ledger_cumulative_return=True,
         )
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
@@ -487,6 +489,16 @@ def performance(
 
     Set ``exclude_cash`` to true to ignore cash holdings when reconstructing the
     return series.
+
+    ``history[].cumulative_return`` is the ledger total return (price moves
+    plus dividends and interest, net of deposits and withdrawals), the basis
+    of ``/twr``, ``/total-return`` and the reports; it is ``null`` with
+    ``cumulative_return_basis: "unavailable"`` when the owner has no ledger
+    or ``exclude_cash`` is set. ``history[].price_return`` keeps the old
+    price-only return of today's holdings. ``value``, ``drawdown`` and
+    ``max_drawdown`` stay on the current-holdings series, matching
+    ``/max-drawdown`` (#7786). See
+    :func:`portfolio_utils.with_ledger_cumulative_return` (#10128).
     """
     owner = _authorised_owner(owner, request, identity)
     try:
@@ -495,6 +507,7 @@ def performance(
             days=days,
             include_cash=not exclude_cash,
             pricing_date=_resolve_as_of(as_of),
+            ledger_cumulative_return=True,
         )
     except FileNotFoundError:
         raise_owner_not_found(owner)

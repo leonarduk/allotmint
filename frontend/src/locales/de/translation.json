@@ -444,10 +444,10 @@
     "returnBasisPriceShort": "nur Kurs",
     "returnBasisPriceShare": "{{share}} des Werts nur auf Kursbasis",
     "returnBasisUnpriced": "Mangels Kursen ausgelassen: {{holdings}}",
-    "cumulativeReturnPortfolio": "Ihr Portfolio",
+    "cumulativeReturnPortfolio": "Heutige Positionen",
     "cumulativeReturnBenchmark": "{{ticker}} (Benchmark)",
-    "cumulativeReturnBasis": "Beide Linien verwenden reinvestierte Dividenden, die aktuellen Positionen und dieselben Daten ({{from}} bis {{to}}) wie Alpha vs. {{ticker}}.",
-    "twrVsCumulative": "Die zeitgewichtete Rendite folgt den Positionen, die Sie an jedem Tag tatsächlich gehalten haben, und klammert den Zeitpunkt von Einzahlungen und Abhebungen aus, während dieses Diagramm zeigt, wie sich Ihre aktuellen Positionen über den gesamten Zeitraum entwickelt hätten. Daher können die beiden Werte stark voneinander abweichen.",
+    "cumulativeReturnBasis": "Die Linien für aktuelle Positionen und Benchmark verwenden reinvestierte Dividenden, die heutigen Positionen und dieselben Daten ({{from}} bis {{to}}) wie Alpha vs. {{ticker}}.",
+    "twrVsCumulative": "Die Gesamtrendite folgt den Positionen, die Sie an jedem Tag tatsächlich gehalten haben, enthält Dividenden und Zinsen und klammert den Zeitpunkt von Einzahlungen und Abhebungen aus: dieselbe Grundlage wie die zeitgewichtete Rendite und die Berichte. Die Linie der aktuellen Positionen zeigt dagegen, wie sich Ihre heutigen Positionen über den gesamten Zeitraum entwickelt hätten. Daher können die beiden stark voneinander abweichen.",
     "benchmarkSeriesFailed": "{{ticker}} konnte zum Vergleich nicht geladen werden, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
     "benchmarkSeriesEmpty": "Für diesen Zeitraum gibt es keine überlappenden {{ticker}}-Kurse, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
     "trackingErrorInfoLabel": "Was bedeutet Tracking Error?",
@@ -479,7 +479,10 @@
       "unconverted": "Kein gespeicherter Wechselkurs an einigen Tagen für {{holdings}}; die Bewegungen dieser Tage sind nicht zugeordnet.",
       "noLedger": "Kein Transaktionsbuch zum Zuordnen.",
       "unavailable": "Die G/V-Zuordnung ist derzeit nicht verfügbar."
-    }
+    },
+    "cumulativeTotalReturn": "Gesamtrendite (inkl. Dividenden und Zinsen)",
+    "totalReturnNoLedger": "Gesamtrendite nicht verfügbar: Sie wird aus dem Transaktionsjournal berechnet, und es gibt keine Transaktionen dafür.",
+    "totalReturnExcludesCash": "Gesamtrendite ohne Bargeld nicht verfügbar: Dividenden und Zinsen fließen ins Bargeld, ohne Bargeld würden sie also ebenfalls fehlen."
   },
   "goals": {
     "add": "Ziel hinzufügen",

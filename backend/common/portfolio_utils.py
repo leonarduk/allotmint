@@ -17,7 +17,7 @@ import threading
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
@@ -1438,6 +1438,39 @@ def compute_owner_performance(
     *,
     pricing_date: date | None = None,
     group: bool = False,
+    ledger_cumulative_return: bool = False,
+) -> Dict[str, Any]:
+    """Daily values and returns for ``owner``; see :func:`_current_holdings_performance`.
+
+    By default ``history[].cumulative_return`` is the price-only return of
+    today's holdings. With ``ledger_cumulative_return`` (the ``/performance``
+    routes set it, #10128) it is the ledger total return instead, and the
+    price-only figure is kept as ``price_return``; see
+    :func:`with_ledger_cumulative_return`. Values and drawdown never change.
+    """
+    result = _current_holdings_performance(
+        owner,
+        days,
+        include_flagged,
+        include_cash,
+        pricing_date=pricing_date,
+        group=group,
+    )
+    if not ledger_cumulative_return:
+        return result
+    return with_ledger_cumulative_return(
+        result, owner, group=group, pricing_date=pricing_date, include_cash=include_cash
+    )
+
+
+def _current_holdings_performance(
+    owner: str,
+    days: int = 365,
+    include_flagged: bool = False,
+    include_cash: bool = True,
+    *,
+    pricing_date: date | None = None,
+    group: bool = False,
 ) -> Dict[str, Any]:
     """Return daily portfolio values and returns for an ``owner``.
 
@@ -2693,6 +2726,97 @@ def compute_total_return(owner: str, days: int = 365, *, pricing_date: date | No
         "total_return_gbp": ledger_total_return_gbp(perf, after),
         "total_return_pct": ledger_performance.chained_return(perf.returns, after, perf.end),
     }
+
+
+# ``cumulative_return_basis`` values on /performance/{owner} and
+# /performance-group/{slug} (#10128).
+CUMULATIVE_RETURN_BASIS_LEDGER = "ledger_total_return"
+CUMULATIVE_RETURN_BASIS_UNAVAILABLE = "unavailable"
+# ``drawdown_basis``: drawdown stays on the current-holdings value series, the
+# one /performance/{owner}/max-drawdown also uses (#7786).
+DRAWDOWN_BASIS_CURRENT_HOLDINGS = "current_holdings"
+# Why ``cumulative_return`` is unavailable.
+CUMULATIVE_RETURN_NO_LEDGER = "no_ledger"
+CUMULATIVE_RETURN_EXCLUDE_CASH = "exclude_cash"
+
+
+def ledger_cumulative_returns(perf: ledger_performance.LedgerPerformance, dates: Sequence[str]) -> List[float]:
+    """Ledger total return from ``dates[0]`` to each of ``dates`` (#10128).
+
+    For each date ``d`` this is ``chained_return(perf.returns, dates[0], d)``:
+    the daily returns dated in ``(dates[0], d]`` chained, so the first date
+    is 0. A date between business days takes the last business day before
+    it; one before the ledger's inception has seen no return yet.
+    """
+    if not dates:
+        return []
+    wealth = (1.0 + perf.returns).cumprod()
+    stamps = pd.DatetimeIndex(pd.to_datetime(list(dates)))
+    on_or_before = wealth.reindex(wealth.index.union(stamps)).ffill().reindex(stamps).fillna(1.0)
+    base = float(on_or_before.iloc[0])
+    return [float(w) / base - 1.0 for w in on_or_before]
+
+
+def with_ledger_cumulative_return(
+    result: Dict[str, Any],
+    owner: str,
+    *,
+    group: bool,
+    pricing_date: date | None,
+    include_cash: bool,
+) -> Dict[str, Any]:
+    """Put ``result``'s cumulative return on the ledger total-return basis (#10128).
+
+    ``history[].cumulative_return`` becomes the ledger return from the first
+    history day: price moves plus dividends and interest, net of deposits and
+    withdrawals. That is the basis of ``/twr`` and ``/total-return``
+    (:func:`compute_time_weighted_return`, :func:`compute_total_return`) and
+    of the summary and periodic reports (``reports._ledger_return_and_drawdown``),
+    so the dashboard and the reports agree. The current-holdings figure, which
+    prices today's units backwards and so leaves income out, is kept as
+    ``history[].price_return``.
+
+    ``value``, ``drawdown`` and ``max_drawdown`` stay on the current-holdings
+    series (``drawdown_basis``), so the value chart still ends at the
+    portfolio total and ``max_drawdown`` still matches ``/max-drawdown`` (#7786).
+
+    With no ledger, or with ``exclude_cash`` (income lands in cash, so a
+    ledger return without cash would drop it again), ``cumulative_return`` is
+    ``None`` with ``cumulative_return_basis: "unavailable"`` and a reason,
+    never the price-only figure. A group whose members lack a ledger is
+    flagged ``cumulative_return_partial`` with ``missing_members``.
+    """
+    # New rows: ``result`` may be shared (memoised), so it is never mutated.
+    history = [
+        {**row, "price_return": row.get("cumulative_return"), "cumulative_return": None}
+        for row in result.get("history") or []
+    ]
+    meta: Dict[str, Any] = {
+        "history": history,
+        "cumulative_return_basis": CUMULATIVE_RETURN_BASIS_UNAVAILABLE,
+        "cumulative_return_unavailable_reason": None,
+        "cumulative_return_partial": False,
+        "missing_members": [],
+        "drawdown_basis": DRAWDOWN_BASIS_CURRENT_HOLDINGS,
+    }
+    if not include_cash:
+        meta["cumulative_return_unavailable_reason"] = CUMULATIVE_RETURN_EXCLUDE_CASH
+        return {**result, **meta}
+    perf, missing_members = _rebuilt_performance(owner, group=group, pricing_date=pricing_date)
+    if perf is None:
+        meta["cumulative_return_unavailable_reason"] = CUMULATIVE_RETURN_NO_LEDGER
+        return {**result, **meta}
+    returns = ledger_cumulative_returns(perf, [row["date"] for row in history])
+    for row, value in zip(history, returns):
+        row["cumulative_return"] = value
+    meta.update(
+        {
+            "cumulative_return_basis": CUMULATIVE_RETURN_BASIS_LEDGER,
+            "cumulative_return_partial": bool(missing_members),
+            "missing_members": list(missing_members),
+        }
+    )
+    return {**result, **meta}
 
 
 def ledger_total_return_gbp(perf: ledger_performance.LedgerPerformance, after: date | None) -> float:

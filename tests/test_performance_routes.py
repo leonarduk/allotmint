@@ -160,6 +160,7 @@ def test_group_performance_summary_success(client, monkeypatch):
             "include_cash": True,
             "pricing_date": None,
             "group": True,
+            "ledger_cumulative_return": True,
         }
         return result
 

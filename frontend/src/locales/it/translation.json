@@ -1322,20 +1322,19 @@
           "detail": "Ogni conto di investimento è mostrato come un'aiuola. Ogni posizione di quel conto è una coltura piantata al suo interno."
         },
         "growthStages": {
-          "title": "Fasi di crescita (Appassito → Seminato → Germoglio → Fogliame → Gemma → Fioritura → Fruttificazione → Raccolto record)",
-          "detail": "La fase di crescita di una coltura dipende dal guadagno totale di quella posizione, in percentuale di quanto è stata pagata; non dipende da quanto a lungo è stata detenuta.",
-          "wilting": "Appassito: guadagno totale pari o inferiore a -20%",
-          "sown": "Seminato: guadagno totale tra -20% (escluso) e 0%",
-          "sprouting": "Germoglio: guadagno totale tra 0% (escluso) e 5%",
-          "leafing": "Fogliame: guadagno totale tra 5% (escluso) e 15%",
-          "budding": "Gemma: guadagno totale tra 15% (escluso) e 30%",
-          "flowering": "Fioritura: guadagno totale tra 30% (escluso) e 60%",
-          "fruiting": "Fruttificazione: guadagno totale tra 60% (escluso) e 120%",
-          "bumper": "Raccolto record: guadagno totale superiore al 120%"
+          "title": "Fasi di crescita (Seminata → Germoglio → Fogliazione → Gemmazione → Fioritura → Fruttificazione → Radicata)",
+          "detail": "La fase di crescita di una coltura indica da quanto tempo è detenuta la posizione. Come una pianta vera va solo avanti finché la tieni: un calo del prezzo non la riporta mai a Seminata. Se la data di acquisto è sconosciuta, la fase è «Età sconosciuta».",
+          "sown": "Seminata: detenuta da meno di 30 giorni",
+          "sprouting": "Germoglio: da 30 giorni a 3 mesi",
+          "leafing": "Fogliazione: da 3 a 6 mesi",
+          "budding": "Gemmazione: da 6 mesi a 1 anno",
+          "flowering": "Fioritura: da 1 a 2 anni",
+          "fruiting": "Fruttificazione: da 2 a 5 anni",
+          "established": "Radicata: 5 anni o più"
         },
         "propagator": {
           "title": "Propagatore",
-          "detail": "Elenca le colture ancora entro il periodo minimo di detenzione — il numero configurato di giorni per cui una posizione deve essere detenuta prima di poter essere venduta — con il conto alla rovescia fino alla data in cui ciascuna lo supera. È una misura del periodo di detenzione, distinta dalla fase di crescita basata sul guadagno descritta sopra."
+          "detail": "Elenca le colture ancora nel periodo minimo di detenzione — il numero configurato di giorni in cui una posizione va detenuta prima di poter essere venduta — con il conto alla rovescia fino alla data in cui ciascuna lo supera."
         },
         "water": {
           "title": "Acqua",
@@ -1352,6 +1351,14 @@
         "growerLevel": {
           "title": "Livello del coltivatore e XP",
           "detail": "Si guadagna completando le attività quotidiane. Raggiungere il livello L richiede in totale 25 × L × (L − 1) XP, quindi i primi livelli arrivano in fretta e i successivi si allungano. Misura i tuoi progressi, non un dato del portafoglio, quindi è uguale nell'orto di ogni coltivatore."
+        },
+        "condition": {
+          "title": "Stato (Appassita → In difficoltà → In salute → Rigogliosa)",
+          "detail": "Lo stato di una coltura è il guadagno o la perdita totale della posizione in percentuale di quanto pagato. A differenza della fase di crescita può migliorare o peggiorare, e determina il colore della coltura. Se il costo è sconosciuto, lo è anche lo stato.",
+          "wilting": "Appassita: in calo del 20% o più",
+          "struggling": "In difficoltà: in calo, ma meno del 20%",
+          "healthy": "In salute: in rialzo dallo 0% a meno del 20%",
+          "thriving": "Rigogliosa: in rialzo del 20% o più"
         }
       },
       "technicals": {
@@ -3316,7 +3323,9 @@
       "addFavourite": "Aggiungi {{ticker}} ai preferiti",
       "today": "{{pct}} oggi",
       "noDataToday": "nessun dato oggi",
-      "shareOfPlot": "{{pct}} dell'orto"
+      "shareOfPlot": "{{pct}} dell'orto",
+      "stageTitle": "Fase di crescita: da quanto tempo è detenuta",
+      "conditionTitle": "Stato: guadagno o perdita totale dall'acquisto"
     },
     "data": {
       "ownersError": "Impossibile caricare l'elenco dei coltivatori.",
@@ -3347,7 +3356,6 @@
       "groundwork": "Lavori preparatori"
     },
     "crop": {
-      "growth": "Crescita",
       "gainUnknown": "Guadagno sconosciuto: nessun costo base registrato",
       "gainDetail": "{{gain}} di guadagno non realizzato ({{pct}})",
       "yield": "Rendimento",
@@ -3387,17 +3395,18 @@
       "unknown": "sconosciuto",
       "openInstrument": "Apri la vista completa dello strumento →",
       "neighbours": "Colture vicine",
-      "allCrops": "Tutte le colture"
+      "allCrops": "Tutte le colture",
+      "condition": "Stato"
     },
     "roster": {
       "sortShare": "Quota dell'orto",
-      "sortGrowth": "Crescita",
+      "sortGrowth": "Guadagno",
       "sortVigour": "Vigore",
       "sortAz": "A–Z",
       "growthStages": "Fasi di crescita",
       "growthStagesLabel": "Cosa significano le fasi di crescita?",
-      "growthStagesTip": "La fase di una coltura è il suo guadagno totale dall'acquisto, non la variazione giornaliera: Seminata/Germoglio significa poco o nessun profitto per ora, Fruttificazione e Raccolto record significano un grande guadagno.",
-      "stageNote": "La fase dipende dal guadagno totale di ogni posizione; la barra mostra la sua quota del valore dell'orto.",
+      "growthStagesTip": "La fase di una coltura indica da quanto tempo è detenuta: va solo avanti, da Seminata (meno di 30 giorni) a Radicata (5 anni o più). Come sta andando è il suo stato, mostrato dal colore: Rigogliosa, In salute, In difficoltà o Appassita.",
+      "stageNote": "La fase dipende da quanto tempo è detenuta ogni posizione; colore e stato dal suo guadagno totale; la barra mostra la sua quota del valore dell'orto.",
       "title": "Elenco delle colture ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} aiuola",
       "bedCount_other": "{{count}} aiuole",
@@ -3408,7 +3417,8 @@
       "filterCrops": "Filtra colture",
       "allBeds": "Tutte le aiuole",
       "favourites": "Preferiti ({{count}})",
-      "noMatch": "Nessuna coltura corrisponde a questi filtri."
+      "noMatch": "Nessuna coltura corrisponde a questi filtri.",
+      "conditionsLabel": "Stato delle colture"
     },
     "seeds": {
       "title": "Catalogo dei semi",
@@ -3548,14 +3558,21 @@
       "seedlingSower": "Seminatore di piantine"
     },
     "stage": {
-      "wilting": "Appassita",
       "seed": "Seminata",
       "sprout": "Germoglio",
       "leafing": "Fogliazione",
       "budding": "Gemmazione",
       "flowering": "Fioritura",
       "fruiting": "Fruttificazione",
-      "bumper": "Raccolto record"
+      "unknown": "Età sconosciuta",
+      "established": "Radicata"
+    },
+    "condition": {
+      "unknown": "Stato sconosciuto",
+      "wilting": "Appassita",
+      "struggling": "In difficoltà",
+      "healthy": "In salute",
+      "thriving": "Rigogliosa"
     },
     "nextJob": {
       "title": "Prossimo lavoro nell'orto",

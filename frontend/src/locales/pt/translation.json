@@ -1322,20 +1322,19 @@
           "detail": "Cada conta de investimento é mostrada como um canteiro. Cada posição dessa conta é uma cultura plantada nele."
         },
         "growthStages": {
-          "title": "Fases de crescimento (Murcho → Semeado → A brotar → Com folhas → Em botão → Em flor → A frutificar → Colheita recorde)",
-          "detail": "A fase de crescimento de uma cultura é definida pelo ganho total dessa posição, em percentagem do que foi pago por ela; não depende há quanto tempo é detida.",
-          "wilting": "Murcho: ganho total de -20% ou menos",
-          "sown": "Semeado: ganho total entre -20% (exclusivo) e 0%",
-          "sprouting": "A brotar: ganho total entre 0% (exclusivo) e 5%",
-          "leafing": "Com folhas: ganho total entre 5% (exclusivo) e 15%",
-          "budding": "Em botão: ganho total entre 15% (exclusivo) e 30%",
-          "flowering": "Em flor: ganho total entre 30% (exclusivo) e 60%",
-          "fruiting": "A frutificar: ganho total entre 60% (exclusivo) e 120%",
-          "bumper": "Colheita recorde: ganho total superior a 120%"
+          "title": "Fases de crescimento (Semeada → A brotar → A folhar → A abrolhar → A florir → Frutificação → Enraizada)",
+          "detail": "A fase de crescimento de uma cultura é há quanto tempo essa posição é detida. Como uma planta real, só avança enquanto a mantiver — uma descida do preço nunca a faz voltar a Semeada. Se a data de compra for desconhecida, a fase é «Idade desconhecida».",
+          "sown": "Semeada: detida há menos de 30 dias",
+          "sprouting": "A brotar: de 30 dias a 3 meses",
+          "leafing": "A folhar: de 3 a 6 meses",
+          "budding": "A abrolhar: de 6 meses a 1 ano",
+          "flowering": "A florir: de 1 a 2 anos",
+          "fruiting": "Frutificação: de 2 a 5 anos",
+          "established": "Enraizada: 5 anos ou mais"
         },
         "propagator": {
           "title": "Propagador",
-          "detail": "Lista as culturas ainda dentro do período mínimo de detenção — o número configurado de dias que uma posição tem de ser detida antes de poder ser vendida — com uma contagem decrescente até à data em que cada uma o ultrapassa. É uma medida do período de detenção, separada da fase de crescimento baseada no ganho descrita acima."
+          "detail": "Lista as culturas ainda dentro do período mínimo de detenção — o número configurado de dias que uma posição tem de ser detida antes de poder ser vendida — com a contagem decrescente até à data em que cada uma o cumpre."
         },
         "water": {
           "title": "Água",
@@ -1352,6 +1351,14 @@
         "growerLevel": {
           "title": "Nível de jardineiro e XP",
           "detail": "Ganho ao concluir tarefas diárias. Chegar ao nível L exige 25 × L × (L − 1) XP no total, por isso os primeiros níveis chegam depressa e os seguintes demoram mais. Acompanha o seu próprio progresso, não um valor da carteira, por isso é igual na horta de cada jardineiro."
+        },
+        "condition": {
+          "title": "Estado (Murcha → Com dificuldades → Saudável → Viçosa)",
+          "detail": "O estado de uma cultura é o ganho ou a perda total dessa posição em percentagem do que foi pago. Ao contrário da fase de crescimento, pode melhorar ou piorar, e define a cor da cultura. Se o custo for desconhecido, o estado também é.",
+          "wilting": "Murcha: em queda de 20% ou mais",
+          "struggling": "Com dificuldades: em queda, mas menos de 20%",
+          "healthy": "Saudável: em alta de 0% a menos de 20%",
+          "thriving": "Viçosa: em alta de 20% ou mais"
         }
       },
       "technicals": {
@@ -3316,7 +3323,9 @@
       "addFavourite": "Adicionar {{ticker}} aos favoritos",
       "today": "{{pct}} hoje",
       "noDataToday": "sem dados hoje",
-      "shareOfPlot": "{{pct}} da horta"
+      "shareOfPlot": "{{pct}} da horta",
+      "stageTitle": "Fase de crescimento: há quanto tempo é detida",
+      "conditionTitle": "Estado: ganho ou perda total desde a compra"
     },
     "data": {
       "ownersError": "Não foi possível carregar a lista de cultivadores.",
@@ -3347,7 +3356,6 @@
       "groundwork": "Trabalho preparatório"
     },
     "crop": {
-      "growth": "Crescimento",
       "gainUnknown": "Ganho desconhecido — sem custo base registado",
       "gainDetail": "{{gain}} de ganho não realizado ({{pct}})",
       "yield": "Rendimento",
@@ -3387,17 +3395,18 @@
       "unknown": "desconhecido",
       "openInstrument": "Abrir a vista completa do instrumento →",
       "neighbours": "Culturas vizinhas",
-      "allCrops": "Todas as culturas"
+      "allCrops": "Todas as culturas",
+      "condition": "Estado"
     },
     "roster": {
       "sortShare": "Quota da horta",
-      "sortGrowth": "Crescimento",
+      "sortGrowth": "Ganho",
       "sortVigour": "Vigor",
       "sortAz": "A–Z",
       "growthStages": "Fases de crescimento",
       "growthStagesLabel": "O que significam as fases de crescimento?",
-      "growthStagesTip": "A fase de uma cultura é o seu ganho total desde a compra, não a variação do dia — Semeada/A brotar significa pouco ou nenhum lucro por agora, Frutificação e Colheita recorde significam que ganhou muito.",
-      "stageNote": "A fase vem do ganho total de cada posição; a barra mostra a sua quota no valor da horta.",
+      "growthStagesTip": "A fase de uma cultura é há quanto tempo é detida — só avança, de Semeada (menos de 30 dias) a Enraizada (5 anos ou mais). Como está a correr é o seu estado, mostrado pela cor: Viçosa, Saudável, Com dificuldades ou Murcha.",
+      "stageNote": "A fase vem de há quanto tempo cada posição é detida; a cor e o estado, do seu ganho total; a barra mostra a sua quota no valor da horta.",
       "title": "Lista de culturas ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} canteiro",
       "bedCount_other": "{{count}} canteiros",
@@ -3408,7 +3417,8 @@
       "filterCrops": "Filtrar culturas",
       "allBeds": "Todos os canteiros",
       "favourites": "Favoritos ({{count}})",
-      "noMatch": "Nenhuma cultura corresponde a esses filtros."
+      "noMatch": "Nenhuma cultura corresponde a esses filtros.",
+      "conditionsLabel": "Estado das culturas"
     },
     "seeds": {
       "title": "Catálogo de sementes",
@@ -3548,14 +3558,21 @@
       "seedlingSower": "Semeador de plântulas"
     },
     "stage": {
-      "wilting": "Murcha",
       "seed": "Semeada",
       "sprout": "A brotar",
       "leafing": "A folhar",
       "budding": "A abrolhar",
       "flowering": "A florir",
       "fruiting": "Frutificação",
-      "bumper": "Colheita recorde"
+      "unknown": "Idade desconhecida",
+      "established": "Enraizada"
+    },
+    "condition": {
+      "unknown": "Estado desconhecido",
+      "wilting": "Murcha",
+      "struggling": "Com dificuldades",
+      "healthy": "Saudável",
+      "thriving": "Viçosa"
     },
     "nextJob": {
       "title": "Próxima tarefa na horta",

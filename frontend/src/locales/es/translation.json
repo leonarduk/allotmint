@@ -1322,20 +1322,19 @@
           "detail": "Cada cuenta de inversión se muestra como un bancal. Cada posición de esa cuenta es un cultivo plantado en él."
         },
         "growthStages": {
-          "title": "Etapas de crecimiento (Marchito → Sembrado → Brotando → Con hojas → En capullo → Floreciendo → Fructificando → Cosecha récord)",
-          "detail": "La etapa de crecimiento de un cultivo depende de la ganancia total de esa posición, como porcentaje de lo pagado por ella; no depende del tiempo que se haya mantenido.",
-          "wilting": "Marchito: ganancia total de -20 % o menos",
-          "sown": "Sembrado: ganancia total entre -20 % (exclusivo) y 0 %",
-          "sprouting": "Brotando: ganancia total entre 0 % (exclusivo) y 5 %",
-          "leafing": "Con hojas: ganancia total entre 5 % (exclusivo) y 15 %",
-          "budding": "En capullo: ganancia total entre 15 % (exclusivo) y 30 %",
-          "flowering": "Floreciendo: ganancia total entre 30 % (exclusivo) y 60 %",
-          "fruiting": "Fructificando: ganancia total entre 60 % (exclusivo) y 120 %",
-          "bumper": "Cosecha récord: ganancia total superior a 120 %"
+          "title": "Etapas de crecimiento (Sembrado → Brotando → Echando hojas → Echando brotes → Floreciendo → Fructificando → Arraigado)",
+          "detail": "La etapa de crecimiento de un cultivo es cuánto tiempo se ha mantenido esa posición. Como una planta real, solo avanza mientras la conserva: una caída del precio nunca la devuelve a Sembrado. Si se desconoce la fecha de compra, la etapa es «Antigüedad desconocida».",
+          "sown": "Sembrado: mantenido menos de 30 días",
+          "sprouting": "Brotando: de 30 días a 3 meses",
+          "leafing": "Echando hojas: de 3 a 6 meses",
+          "budding": "Echando brotes: de 6 meses a 1 año",
+          "flowering": "Floreciendo: de 1 a 2 años",
+          "fruiting": "Fructificando: de 2 a 5 años",
+          "established": "Arraigado: 5 años o más"
         },
         "propagator": {
           "title": "Propagador",
-          "detail": "Muestra los cultivos que aún están dentro de su periodo mínimo de tenencia —el número configurado de días que debe mantenerse una posición antes de poder venderse— con una cuenta atrás hasta la fecha en que cada uno lo supera. Es una medida del periodo de tenencia, independiente de la etapa de crecimiento basada en la ganancia descrita arriba."
+          "detail": "Muestra los cultivos que aún están dentro de su periodo mínimo de tenencia (el número configurado de días que debe mantenerse una posición antes de poder venderla) y cuenta los días hasta la fecha en que cada uno lo cumple."
         },
         "water": {
           "title": "Agua",
@@ -1352,6 +1351,14 @@
         "growerLevel": {
           "title": "Nivel de jardinero y XP",
           "detail": "Se gana completando tareas diarias. Alcanzar el nivel L requiere 25 × L × (L − 1) XP en total, así que los primeros niveles llegan rápido y los siguientes se alargan. Mide tu propio progreso, no una cifra de la cartera, por lo que es igual en el huerto de cada jardinero."
+        },
+        "condition": {
+          "title": "Estado (Marchitándose → Con dificultades → Sano → Prosperando)",
+          "detail": "El estado de un cultivo es la ganancia o pérdida total de esa posición como porcentaje de lo que se pagó. A diferencia de la etapa de crecimiento, puede mejorar o empeorar, y define el color del cultivo. Si se desconoce el coste, el estado es desconocido.",
+          "wilting": "Marchitándose: baja un 20 % o más",
+          "struggling": "Con dificultades: baja, pero menos de un 20 %",
+          "healthy": "Sano: sube entre un 0 % y menos de un 20 %",
+          "thriving": "Prosperando: sube un 20 % o más"
         }
       },
       "technicals": {
@@ -3316,7 +3323,9 @@
       "addFavourite": "Añadir {{ticker}} a favoritos",
       "today": "{{pct}} hoy",
       "noDataToday": "sin datos hoy",
-      "shareOfPlot": "{{pct}} del huerto"
+      "shareOfPlot": "{{pct}} del huerto",
+      "stageTitle": "Etapa de crecimiento: cuánto tiempo se ha mantenido",
+      "conditionTitle": "Estado: ganancia o pérdida total desde la compra"
     },
     "data": {
       "ownersError": "No se pudo cargar la lista de cultivadores.",
@@ -3347,7 +3356,6 @@
       "groundwork": "Trabajo preparatorio"
     },
     "crop": {
-      "growth": "Crecimiento",
       "gainUnknown": "Ganancia desconocida: no hay coste base registrado",
       "gainDetail": "{{gain}} de ganancia no realizada ({{pct}})",
       "yield": "Rendimiento",
@@ -3387,17 +3395,18 @@
       "unknown": "desconocido",
       "openInstrument": "Abrir la vista completa del instrumento →",
       "neighbours": "Cultivos vecinos",
-      "allCrops": "Todos los cultivos"
+      "allCrops": "Todos los cultivos",
+      "condition": "Estado"
     },
     "roster": {
       "sortShare": "Cuota del huerto",
-      "sortGrowth": "Crecimiento",
+      "sortGrowth": "Ganancia",
       "sortVigour": "Vigor",
       "sortAz": "A–Z",
       "growthStages": "Etapas de crecimiento",
       "growthStagesLabel": "¿Qué significan las etapas de crecimiento?",
-      "growthStagesTip": "La etapa de un cultivo es su ganancia total desde la compra, no su variación diaria: Sembrado/Brotando significa poca o ninguna ganancia aún, Fructificando y Cosecha récord significan que ha ganado mucho.",
-      "stageNote": "La etapa depende de la ganancia total de cada posición; la barra muestra su peso en el valor del huerto.",
+      "growthStagesTip": "La etapa de un cultivo es cuánto tiempo se ha mantenido: solo avanza, de Sembrado (menos de 30 días) a Arraigado (5 años o más). Lo bien que va es su estado, que se ve en su color: Prosperando, Sano, Con dificultades o Marchitándose.",
+      "stageNote": "La etapa depende de cuánto tiempo se ha mantenido cada posición; el color y el estado, de su ganancia total; la barra muestra su peso en el valor del huerto.",
       "title": "Lista de cultivos ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} bancal",
       "bedCount_other": "{{count}} bancales",
@@ -3408,7 +3417,8 @@
       "filterCrops": "Filtrar cultivos",
       "allBeds": "Todos los bancales",
       "favourites": "Favoritos ({{count}})",
-      "noMatch": "Ningún cultivo coincide con esos filtros."
+      "noMatch": "Ningún cultivo coincide con esos filtros.",
+      "conditionsLabel": "Estado de los cultivos"
     },
     "seeds": {
       "title": "Catálogo de semillas",
@@ -3548,14 +3558,21 @@
       "seedlingSower": "Sembrador de plántulas"
     },
     "stage": {
-      "wilting": "Marchitándose",
       "seed": "Sembrado",
       "sprout": "Brotando",
       "leafing": "Echando hojas",
       "budding": "Echando brotes",
       "flowering": "Floreciendo",
       "fruiting": "Fructificando",
-      "bumper": "Cosecha récord"
+      "unknown": "Antigüedad desconocida",
+      "established": "Arraigado"
+    },
+    "condition": {
+      "unknown": "Estado desconocido",
+      "wilting": "Marchitándose",
+      "struggling": "Con dificultades",
+      "healthy": "Sano",
+      "thriving": "Prosperando"
     },
     "nextJob": {
       "title": "Próxima tarea en el huerto",

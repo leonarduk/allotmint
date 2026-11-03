@@ -102,11 +102,11 @@ describe('glyph shapes', () => {
     expect(new Set(ladder).size).toBe(ladder.length);
   });
 
-  it('never leaves a wilting crop as an empty outline', () => {
-    // An empty shape reads as "no data", which is a different and more
-    // alarming claim than "down 20%".
-    expect(STAGE_FILL.wilting).toBeGreaterThan(0);
-    expect(STAGE_FILL.bumper).toBe(1);
+  it('never leaves a crop of unknown age as an empty outline', () => {
+    // An empty shape reads as "no crop here", a different claim from "we
+    // don't know how long it has been held".
+    expect(STAGE_FILL.unknown).toBeGreaterThan(0);
+    expect(STAGE_FILL.established).toBe(1);
   });
 });
 

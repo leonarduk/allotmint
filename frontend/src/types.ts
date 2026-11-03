@@ -896,6 +896,8 @@ export interface Transaction {
    * covers: it attributes income to a holding but is never counted as income.
    */
   attribution_only?: boolean;
+  /** A per-holding part of a booked income sweep, attributed by the owner (#10060). */
+  attributed_sweep?: boolean;
   /** Written by "use current price as cost": the price is an estimate, not what was paid (#10095). */
   cost_estimate?: boolean;
   /**

@@ -15,6 +15,7 @@ import {
   type CurrencyAmounts,
   type DividendPeriod,
 } from '../lib/dividends';
+import DividendAttribution from '../components/DividendAttribution';
 import { DEFAULT_GROUP_SLUG } from '../utils/groups';
 import { sanitizeOwners } from '../utils/owners';
 import tableStyles from '../styles/table.module.css';
@@ -211,6 +212,11 @@ export default function Dividends() {
 
           <h3 style={{ marginTop: '1.5rem' }}>{t('dividends.byHolding')}</h3>
           {holdings.error && <p>{t('dividends.holdingsUnavailable')}</p>}
+          <DividendAttribution
+            transactions={dividends.data ?? []}
+            tickers={[...(holdings.data?.keys() ?? [])]}
+            onAttributed={dividends.refetch}
+          />
           <table className={tableStyles.table}>
             <thead>
               <tr>

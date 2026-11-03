@@ -3154,7 +3154,21 @@
     "holdingsUnavailable": "Não foi possível carregar as posições atuais, por isso as posições sem dividendos não são listadas.",
     "skippedNoAmount": "Linhas de dividendos excluídas destes totais por não terem valor: {{count}}.",
     "attributionOnlyNote": "As posições marcadas com est. incluem dividendos estimados cujo valor já está contado em \"Sem posição associada\" (as transferências de rendimentos da sua corretora), por isso não são somados duas vezes aos totais.",
-    "estimatedMarker": "est."
+    "estimatedMarker": "est.",
+    "attribute": {
+      "title": "Associar pagamentos não associados a posições ({{count}})",
+      "help": "Divida um pagamento que a sua corretora registou sem posição (p. ex. uma transferência de uma conta de rendimentos) com as linhas por posição do extrato de rendimentos da corretora. As partes não podem somar mais do que o pagamento; o resto fica não associado, por isso os seus totais não mudam.",
+      "split": "Dividir por posição",
+      "ticker": "Ticker da posição",
+      "amount": "Montante (£)",
+      "addHolding": "Adicionar posição",
+      "save": "Guardar divisão",
+      "remaining": "Não associado: {{amount}}",
+      "needPart": "Introduza pelo menos uma posição e um montante.",
+      "needTicker": "Cada montante precisa do ticker de uma posição.",
+      "needAmount": "Cada posição precisa de um montante positivo.",
+      "tooMuch": "As partes somam mais do que o pagamento."
+    }
   },
   "dividendHistory": {
     "trendAria": "Tendência de dividendos",

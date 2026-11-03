@@ -3154,7 +3154,21 @@
     "holdingsUnavailable": "Impossibile caricare le posizioni attuali, quindi le posizioni senza dividendi non sono elencate.",
     "skippedNoAmount": "Righe di dividendi escluse da questi totali perché prive di importo: {{count}}.",
     "attributionOnlyNote": "Le posizioni contrassegnate con stim. includono dividendi stimati il cui importo è già conteggiato in \"Non collegato a una posizione\" (i trasferimenti di reddito del tuo broker), quindi non vengono sommati due volte ai totali.",
-    "estimatedMarker": "stim."
+    "estimatedMarker": "stim.",
+    "attribute": {
+      "title": "Collega i pagamenti non collegati alle posizioni ({{count}})",
+      "help": "Suddividi un pagamento che il tuo broker ha registrato senza posizione (ad es. un trasferimento da un conto proventi) usando le righe per posizione del suo estratto proventi. Le parti non possono superare il pagamento; il resto rimane non collegato, quindi i totali non cambiano.",
+      "split": "Suddividi per posizione",
+      "ticker": "Ticker della posizione",
+      "amount": "Importo (£)",
+      "addHolding": "Aggiungi posizione",
+      "save": "Salva suddivisione",
+      "remaining": "Non collegato: {{amount}}",
+      "needPart": "Inserisci almeno una posizione e un importo.",
+      "needTicker": "Ogni importo richiede il ticker di una posizione.",
+      "needAmount": "Ogni posizione richiede un importo positivo.",
+      "tooMuch": "Le parti superano il pagamento."
+    }
   },
   "dividendHistory": {
     "trendAria": "Andamento dei dividendi",

@@ -3154,7 +3154,21 @@
     "holdingsUnavailable": "Les positions actuelles n’ont pas pu être chargées ; les positions sans dividendes ne sont donc pas listées.",
     "skippedNoAmount": "Lignes de dividendes exclues de ces totaux faute de montant : {{count}}.",
     "attributionOnlyNote": "Les lignes marquées est. incluent des dividendes estimés dont le montant est déjà compté dans « Non rattaché à une position » (les virements de revenus de votre courtier) ; ils ne sont donc pas ajoutés deux fois aux totaux.",
-    "estimatedMarker": "est."
+    "estimatedMarker": "est.",
+    "attribute": {
+      "title": "Rattacher les paiements non liés aux positions ({{count}})",
+      "help": "Répartissez un paiement que votre courtier a enregistré sans position (par ex. un transfert depuis un compte de revenus) à l’aide des lignes par position de son relevé de revenus. Les parts ne peuvent pas dépasser le paiement ; le reste reste non lié, vos totaux ne changent donc pas.",
+      "split": "Répartir par position",
+      "ticker": "Ticker de la position",
+      "amount": "Montant (£)",
+      "addHolding": "Ajouter une position",
+      "save": "Enregistrer la répartition",
+      "remaining": "Non lié : {{amount}}",
+      "needPart": "Saisissez au moins une position et un montant.",
+      "needTicker": "Chaque montant doit avoir le ticker d’une position.",
+      "needAmount": "Chaque position doit avoir un montant positif.",
+      "tooMuch": "Les parts dépassent le paiement."
+    }
   },
   "dividendHistory": {
     "trendAria": "Évolution des dividendes",

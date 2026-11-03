@@ -3147,7 +3147,21 @@
     "holdingsUnavailable": "Current holdings could not be loaded, so holdings without dividends are not listed.",
     "skippedNoAmount": "Dividend rows left out of these totals because they have no amount: {{count}}.",
     "attributionOnlyNote": "Holdings marked est. include estimated dividends whose cash is already counted in \"Not linked to a holding\" (your broker's income transfers), so they are not added to the totals twice.",
-    "estimatedMarker": "est."
+    "estimatedMarker": "est.",
+    "attribute": {
+      "title": "Link unlinked payments to holdings ({{count}})",
+      "help": "Split a payment your broker booked without a holding (e.g. a transfer from an income account) using the per-holding lines on your broker's income statement. The parts must not add up to more than the payment; anything left stays unlinked, so your totals do not change.",
+      "split": "Split by holding",
+      "ticker": "Holding ticker",
+      "amount": "Amount (£)",
+      "addHolding": "Add holding",
+      "save": "Save split",
+      "remaining": "Left unlinked: {{amount}}",
+      "needPart": "Enter at least one holding and amount.",
+      "needTicker": "Every amount needs a holding ticker.",
+      "needAmount": "Every holding needs a positive amount.",
+      "tooMuch": "The parts add up to more than the payment."
+    }
   },
   "dividendHistory": {
     "trendAria": "Dividend trend",

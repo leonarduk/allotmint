@@ -1160,6 +1160,9 @@
             "attribution_only": {
               "type": "boolean"
             },
+            "attributed_sweep": {
+              "type": "boolean"
+            },
             "cost_estimate": {
               "type": "boolean"
             },

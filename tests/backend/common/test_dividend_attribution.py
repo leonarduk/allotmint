@@ -11,7 +11,10 @@ import pytest
 from backend.common import holdings_rebuild
 from backend.common import ledger_performance as lp
 from backend.common.dividend_attribution import (
+    ATTRIBUTED_SWEEP_KEY,
     ATTRIBUTION_ONLY_KEY,
+    AttributionError,
+    attribute_booked_dividend,
     booked_income_cutoff,
     is_attribution_only,
     is_estimated_dividend,
@@ -158,3 +161,79 @@ def test_position_returns_leave_estimates_to_the_full_history_estimate():
     assert returns["AAA.L"].bot_rows == 1
     assert returns["AAA.L"].bot_income_gbp == pytest.approx(31.0)
     assert returns["BBB.L"].income_gbp == pytest.approx(5.0)
+
+
+# ── manual attribution of a booked sweep (#10060) ────────────────────────────
+
+
+def _total(rows):
+    return sum(r["amount_minor"] for r in rows)
+
+
+def test_attributing_a_sweep_keeps_its_total_and_leaves_a_remainder_unlinked():
+    rows = attribute_booked_dividend({**SWEEP, "external_id": "HL:9"}, [("SEGA.L", 100_000), ("UKW.L", 50_000)])
+
+    assert [(r.get("ticker"), r["amount_minor"]) for r in rows] == [
+        ("SEGA.L", 100_000),
+        ("UKW.L", 50_000),
+        (None, 10815),
+    ]
+    assert _total(rows) == SWEEP["amount_minor"]
+    assert [r.get(ATTRIBUTED_SWEEP_KEY, False) for r in rows] == [True, True, False]
+    assert all(r["date"] == SWEEP["date"] and r["type"] == "DIVIDEND" for r in rows)
+    # The remainder keeps the source id, so re-importing the source cannot add the sweep back.
+    assert [r["external_id"] for r in rows] == ["HL:9#attr-SEGA.L", "HL:9#attr-UKW.L", "HL:9"]
+
+
+def test_fully_attributed_sweep_keeps_the_source_id_on_its_first_part():
+    rows = attribute_booked_dividend({**SWEEP, "external_id": "HL:9"}, [("SEGA.L", 160_000), ("UKW.L", 815)])
+    assert _total(rows) == SWEEP["amount_minor"]
+    assert [r["external_id"] for r in rows] == ["HL:9", "HL:9#attr-UKW.L"]
+
+
+def test_attributed_parts_still_count_as_booked_income_for_the_cutoff():
+    """Splitting the sweep must not re-open the estimates it covered as income (no double count)."""
+    rows = [SWEEP, _estimate("2026-07-16")]
+    mark_attribution_only(rows)
+    attributed = attribute_booked_dividend(SWEEP, [("SEGA.L", SWEEP["amount_minor"])]) + [rows[1]]
+
+    assert booked_income_cutoff(attributed) == "2026-08-10"
+    assert mark_attribution_only(attributed) == 0
+    assert is_attribution_only(attributed[1])
+
+
+@pytest.mark.parametrize(
+    "entry, parts, message",
+    [
+        ({**SWEEP, "ticker": "SEGA.L"}, [("SEGA.L", 1)], "already linked"),
+        # The bot's legacy reason alone makes it an estimate, with or without a ticker.
+        (_estimate("2026-07-16", ticker=""), [("SEGA.L", 1)], "estimated dividend"),
+        ({**SWEEP, "estimated": True}, [("SEGA.L", 1)], "estimated dividend"),
+        ({**SWEEP, ATTRIBUTION_ONLY_KEY: True}, [("SEGA.L", 1)], "attribution-only"),
+        ({**SWEEP, "type": "DEPOSIT"}, [("SEGA.L", 1)], "Only a dividend"),
+        ({**SWEEP, "amount_minor": None}, [("SEGA.L", 1)], "positive amount"),
+        (SWEEP, [], "every part"),
+        (SWEEP, [("SEGA.L", 1), ("SEGA.L", 2)], "only once"),
+        (SWEEP, [("SEGA.L", 0)], "positive amount"),
+        (SWEEP, [("SEGA.L", 160_000), ("UKW.L", 816)], "more than the dividend"),
+    ],
+)
+def test_attribution_refuses_what_it_cannot_split(entry, parts, message):
+    with pytest.raises(AttributionError, match=message):
+        attribute_booked_dividend(entry, parts)
+
+
+def test_attribution_only_sweep_is_refused_so_its_parts_cannot_drop_out_of_income():
+    """A stray attribution_only flag would pass to the parts and hide them from income."""
+    flagged = {**SWEEP, ATTRIBUTION_ONLY_KEY: True}
+
+    with pytest.raises(AttributionError, match="attribution-only"):
+        attribute_booked_dividend(flagged, [("SEGA.L", 1000)])
+
+
+def test_parts_never_carry_estimate_flags():
+    rows = attribute_booked_dividend({**SWEEP, "estimated": False}, [("SEGA.L", 1000)])
+
+    assert "estimated" not in rows[0]
+    assert ATTRIBUTION_ONLY_KEY not in rows[0]
+    assert not is_attribution_only(rows[0])

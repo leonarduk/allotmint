@@ -2243,6 +2243,23 @@ export const splitTransaction = (id: string, units: number) =>
     },
   );
 
+/**
+ * Split a booked dividend with no ticker into per-holding rows (#10060).
+ * The parts may not add up to more than the dividend; any rest stays unlinked.
+ */
+export const attributeDividend = (
+  id: string,
+  parts: { ticker: string; amount_minor: number }[],
+) =>
+  fetchJson<{ status: string; transactions: Transaction[] }>(
+    `${API_BASE}/transactions/${encodeURIComponent(id)}/attribute-dividend`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parts }),
+    },
+  );
+
 export const deleteTransaction = (id: string) =>
   fetchJson<{ status: string }>(`${API_BASE}/transactions/${encodeURIComponent(id)}`, {
     method: "DELETE",

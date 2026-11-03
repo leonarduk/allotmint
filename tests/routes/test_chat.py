@@ -1,4 +1,6 @@
+import asyncio
 import base64
+import time
 
 import httpx
 import httpx2
@@ -391,3 +393,87 @@ def test_post_chat_matches_an_identity_that_is_an_owner_slug(
 
     assert client.post("/chat", json={"message": "my ISA?"}).status_code == 200
     assert "The signed-in user is the owner Demo." in captured["system_prompt"]
+
+
+# Turn deadline under the API Gateway HTTP API's 30s ceiling (#7945) -----------
+
+
+def test_post_chat_answers_with_timeout_reply_when_turn_overruns_deadline(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+    monkeypatch.setenv("CHAT_TURN_TIMEOUT_SECONDS", "0.05")
+    cancelled = []
+
+    async def slow_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            cancelled.append(True)
+            raise
+        return "too late"  # pragma: no cover - the deadline fires first
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", slow_run_chat_turn)
+
+    started = time.monotonic()
+    resp = client.post("/chat", json={"message": "everything about every holding"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"reply": chat_module.CHAT_TURN_TIMEOUT_REPLY, "navigate_to": None, "files": []}
+    assert cancelled == [True]
+    assert time.monotonic() - started < 4
+
+
+def test_post_chat_turn_within_deadline_is_unchanged(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+    monkeypatch.setenv("CHAT_TURN_TIMEOUT_SECONDS", "5")
+
+    async def fast_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
+        return "quick"
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", fast_run_chat_turn)
+
+    assert client.post("/chat", json={"message": "hi"}).json()["reply"] == "quick"
+
+
+def test_post_chat_does_not_mistake_a_timeout_inside_the_turn_for_the_deadline(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+    monkeypatch.setenv("CHAT_TURN_TIMEOUT_SECONDS", "5")
+
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
+        raise TimeoutError("socket timed out")
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
+
+    with pytest.raises(TimeoutError, match="socket timed out"):
+        client.post("/chat", json={"message": "hi"})
+
+
+@pytest.mark.parametrize(
+    ("app_env", "override", "expected"),
+    [
+        ("aws", None, chat_module.DEFAULT_AWS_CHAT_TURN_TIMEOUT_SECONDS),
+        ("production", None, chat_module.DEFAULT_AWS_CHAT_TURN_TIMEOUT_SECONDS),
+        (None, None, chat_module.DEFAULT_AWS_CHAT_TURN_TIMEOUT_SECONDS),
+        ("local", None, None),
+        ("local", "40", 40.0),
+        ("aws", "20", 20.0),
+        ("aws", "0", None),
+        ("aws", "soon", chat_module.DEFAULT_AWS_CHAT_TURN_TIMEOUT_SECONDS),
+    ],
+)
+def test_chat_turn_timeout_seconds(monkeypatch: pytest.MonkeyPatch, app_env, override, expected) -> None:
+    monkeypatch.setattr(config, "app_env", app_env)
+    if override is None:
+        monkeypatch.delenv("CHAT_TURN_TIMEOUT_SECONDS", raising=False)
+    else:
+        monkeypatch.setenv("CHAT_TURN_TIMEOUT_SECONDS", override)
+
+    assert chat_module.chat_turn_timeout_seconds() == expected
+
+
+def test_default_aws_deadline_stays_under_the_gateway_ceiling() -> None:
+    """HTTP APIs cap the integration at 30s; the deadline must answer before the gateway does."""
+    assert chat_module.DEFAULT_AWS_CHAT_TURN_TIMEOUT_SECONDS < 30

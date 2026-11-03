@@ -9,11 +9,13 @@ import pytest
 from backend.common.allocation_policy import AllocationPolicy, load_allocation_policy, save_allocation_policy
 from backend.common.settings_file import SettingsUnreadableError
 from backend.common.strategies import (
+    BACKTEST_PRESET_IDS,
     BUILTIN_STRATEGIES,
     BuiltinStrategyError,
     StrategyNotFoundError,
     active_strategy,
     apply_strategy,
+    backtest_presets,
     create_strategy,
     delete_strategy,
     duplicate_strategy,
@@ -25,31 +27,6 @@ from backend.common.strategies import (
     validate_targets,
 )
 from backend.common.sub_asset_class import policy_targets
-
-# allotmint-pro backtest_portfolio PRESETS (allotmint_pro/mcp_server/backtest_tools.py) as fractions.
-# cash_bucket_60_40 is omitted on purpose: its cash share depends on the withdrawal amount.
-# Pro names All Weather's other-commodities block ``commodities``. #9718 keeps that name in pro:
-# the parity test maps it to ``other_commodities`` through policy_targets, the same rule the
-# app applies to backtest weights.
-BACKTEST_PRESETS = {
-    "60_40": {"equity": 0.60, "intermediate_gilts": 0.40},
-    "80_20": {"equity": 0.80, "intermediate_gilts": 0.20},
-    "permanent": {"equity": 0.25, "long_gilts": 0.25, "gold": 0.25, "cash": 0.25},
-    "all_weather": {
-        "equity": 0.30,
-        "long_gilts": 0.40,
-        "intermediate_gilts": 0.15,
-        "gold": 0.075,
-        "commodities": 0.075,
-    },
-    "golden_butterfly": {
-        "equity": 0.20,
-        "small_cap_value": 0.20,
-        "long_gilts": 0.20,
-        "short_gilts": 0.20,
-        "gold": 0.20,
-    },
-}
 
 GB_50_50 = {"equity": 40.0, "long_gilts": 10.0, "intermediate_gilts": 10.0, "short_gilts": 20.0, "gold": 20.0}
 
@@ -76,19 +53,29 @@ def test_builtin_ids_are_unique():
     assert len(ids) == len(set(ids))
 
 
-@pytest.mark.parametrize("preset", sorted(BACKTEST_PRESETS))
-def test_builtins_match_backtest_presets(preset):
-    expected = policy_targets({k: v * 100 for k, v in BACKTEST_PRESETS[preset].items()})
+# allotmint-pro builds backtest_portfolio's PRESETS from backtest_presets() (#9710), so these
+# pin the conversion rather than a second copy of the weights.
+@pytest.mark.parametrize("preset", BACKTEST_PRESET_IDS)
+def test_backtest_presets_round_trip_to_builtin_targets(preset):
+    weights = backtest_presets()[preset]
+    assert sum(weights.values()) == pytest.approx(1.0)
     builtin = get_strategy("alex", preset)
-    assert builtin.targets == pytest.approx(expected)
+    assert policy_targets({k: v * 100 for k, v in weights.items()}) == pytest.approx(builtin.targets)
 
 
-def test_all_weather_backtest_commodities_block_is_the_other_commodities_sub_class():
-    # Pins the #9718 mapping the parity test relies on: pro's ``commodities`` beside gold.
-    expected = policy_targets({k: v * 100 for k, v in BACKTEST_PRESETS["all_weather"].items()})
-    assert "commodities" not in expected
-    assert expected["other_commodities"] == pytest.approx(7.5)
+def test_backtest_presets_keep_preset_order():
+    assert list(backtest_presets()) == ["60_40", "80_20", "permanent", "all_weather", "golden_butterfly"]
+
+
+def test_backtest_presets_use_backtest_block_names():
+    # The backtest's sleeves are ``equity`` and ``commodities``; the policy's are
+    # ``broad_equity`` (beside small_cap_value) and ``other_commodities`` (beside gold, #9718).
+    presets = backtest_presets()
+    assert get_strategy("alex", "golden_butterfly").targets["broad_equity"] == 20.0
+    assert presets["golden_butterfly"]["equity"] == pytest.approx(0.20)
     assert get_strategy("alex", "all_weather").targets["other_commodities"] == 7.5
+    assert presets["all_weather"]["commodities"] == pytest.approx(0.075)
+    assert not {"broad_equity", "other_commodities"} & {k for weights in presets.values() for k in weights}
 
 
 def test_golden_butterfly_50_50_variant():

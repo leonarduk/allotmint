@@ -8,13 +8,16 @@ holds counts, codes, the breach month and the report's ``not_modelled``,
 ``assumptions`` and ``adviser_note``, since alert messages carry amounts.
 
 Alerts: each owner's report alerts become owner-scoped ``digest_items`` in
-the run report (:mod:`backend.bots.digest_models`), so they reach the owner
+the run report, built with the shared
+:func:`backend.bots.run_records.digest_item` helper (#11312), so they reach the owner
 through the bots digest and whatever channels (in-app, email, Telegram,
 immediate alerts) the owner chose in their digest settings. Their text is
 factual and amount-free, written here rather than copied from the report.
 
 Triggers: Run now on the Bots page, and :func:`run_after_import` once a
-transaction import has persisted rows. There is no EventBridge rule yet:
+transaction import has persisted rows or a statement has been reconciled
+(``POST /reconciliation/statement``, #10474/#11212); the stored report's
+``reason`` says which. There is no EventBridge rule yet:
 contribution schedules live under the API Lambda's local ``data_root`` on
 AWS, so a separate scheduled Lambda would find none (scheduling bots on AWS is
 tracked separately). The bot is read-only: it never writes transactions or
@@ -31,7 +34,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import Field
 
 from backend.allowance_guardian import report as guardian_report
-from backend.bots.digest_models import DigestItem, Severity
+from backend.bots.digest_models import Severity
 from backend.bots.registry import (
     BotKind,
     BotRunContext,
@@ -42,7 +45,7 @@ from backend.bots.registry import (
     RunStatus,
     Schedule,
 )
-from backend.bots.run_records import DIGEST_ITEMS_KEY
+from backend.bots.run_records import DIGEST_ITEMS_KEY, digest_item
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -52,12 +55,19 @@ BOT_ID = "allowance-guardian"
 _SEVERITY = {"critical": Severity.HIGH, "warning": Severity.MEDIUM, "info": Severity.LOW}
 _CONTRIBUTION_WORDS = {"missing": "missing", "wrong_amount": "a different amount", "late": "late"}
 
+#: Why an event run happened, stored in its report so the Bots page history tells them apart.
+REASON_TRANSACTION_IMPORT = "transaction_import"
+REASON_RECONCILIATION = "reconciliation"
+EVENT_REASONS = frozenset({REASON_TRANSACTION_IMPORT, REASON_RECONCILIATION})
+
 
 class AllowanceGuardianSettings(BotSettings):
     """Public, non-secret guardian settings shown on the Bots page."""
 
     cadence: Cadence = "monthly"
-    run_after_import: bool = Field(default=True, description="Run after a transaction import persists rows")
+    run_after_import: bool = Field(
+        default=True, description="Run after a transaction import persists rows or a statement is reconciled"
+    )
     isa_deadline_reminder_days: int = Field(
         default=guardian_report.ISA_DEADLINE_REMINDER_DAYS,
         ge=0,
@@ -134,24 +144,24 @@ def _alert_text(code: str, row: Dict[str, Any]) -> Tuple[str, str]:
 
 
 def _digest_items(row: Dict[str, Any], levels: Dict[str, str], created: datetime) -> List[Dict[str, Any]]:
+    """One owner-scoped item per alert code; ``dedupe_key`` is ``allowance-guardian:<owner>:<code>``."""
+
     items = []
     for code in row["codes"]:
         title, summary = _alert_text(code, row)
-        key = f"{BOT_ID}:{row['owner']}:{code}"
         severity = _SEVERITY.get(levels.get(code, "info"), Severity.LOW)
-        item = DigestItem(
-            id=key,
-            bot=BOT_ID,
-            owner=row["owner"],
-            severity=severity,
-            title=title,
-            summary=summary,
-            link="/bots",
-            action_required=severity in (Severity.HIGH, Severity.MEDIUM),
-            created=created,
-            dedupe_key=key,
+        items.append(
+            digest_item(
+                BOT_ID,
+                code,
+                created,
+                owner=row["owner"],
+                severity=severity,
+                title=title,
+                summary=summary,
+                action_required=severity in (Severity.HIGH, Severity.MEDIUM),
+            )
         )
-        items.append(item.model_dump(mode="json"))
     return items
 
 
@@ -169,9 +179,19 @@ def _summary(rows: List[Dict[str, Any]]) -> str:
     return summary
 
 
-def _report(rows: List[Dict[str, Any]], failed: List[Dict[str, str]], items: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _event_reason(context: BotRunContext) -> Optional[str]:
+    """The event run's reason from its payload, only when it is one of :data:`EVENT_REASONS`."""
+
+    reason = context.payload.get("reason") if context.payload else None
+    return reason if reason in EVENT_REASONS else None
+
+
+def _report(
+    rows: List[Dict[str, Any]], failed: List[Dict[str, str]], items: List[Dict[str, Any]], reason: Optional[str]
+) -> Dict[str, Any]:
     # Every stored report keeps the not-modelled list and the adviser note (#10495).
     return {
+        "reason": reason,
         "owners": rows,
         "failed": failed,
         DIGEST_ITEMS_KEY: items,
@@ -181,8 +201,10 @@ def _report(rows: List[Dict[str, Any]], failed: List[Dict[str, str]], items: Lis
     }
 
 
-def _result(rows: List[Dict[str, Any]], failed: List[Dict[str, str]], items: List[Dict[str, Any]]) -> RunResult:
-    report = _report(rows, failed, items)
+def _result(
+    rows: List[Dict[str, Any]], failed: List[Dict[str, str]], items: List[Dict[str, Any]], reason: Optional[str]
+) -> RunResult:
+    report = _report(rows, failed, items, reason)
     if not rows and not failed:
         return RunResult(status="skipped", summary="No owners found", report=report)
     if not failed:
@@ -197,7 +219,8 @@ class AllowanceGuardianBot:
     name = "Allowance guardian"
     description = (
         "Checks that scheduled pension and ISA contributions arrived and projects both allowances "
-        "to the tax year end. Runs after transaction imports. Read-only; facts, not advice."
+        "to the tax year end. Runs after transaction imports and statement reconciliations. "
+        "Read-only; facts, not advice."
     )
     kind: BotKind = "rules"
     scope: BotScope = "owner"
@@ -227,11 +250,14 @@ class AllowanceGuardianBot:
             if alerts_on:
                 levels = {a["code"]: a.get("level", "info") for a in result.get("alerts") or []}
                 items.extend(_digest_items(row, levels, context.started_at))
-        return _result(rows, failed, items)
+        return _result(rows, failed, items, _event_reason(context))
 
 
-def run_after_import(actor: Optional[str] = None) -> None:
+def run_after_import(actor: Optional[str] = None, reason: str = REASON_TRANSACTION_IMPORT) -> None:
     """Run the guardian for every owner after a transaction import persisted rows.
+
+    Also called after a statement reconciliation with ``reason=REASON_RECONCILIATION``
+    (#11212); ``reason`` is stored in the run report so the two are told apart.
 
     Every owner, not just the importing one: the digest reads only the bot's
     latest run, so a single-owner run would make other owners' open alerts
@@ -249,7 +275,15 @@ def run_after_import(actor: Optional[str] = None) -> None:
         if not settings.enabled or not getattr(settings, "run_after_import", True):
             return
         # The run record holds the outcome; the raw result is only for direct callers.
-        record, _raw = runner.execute(BOT_ID, "event", actor=actor, payload={"reason": "transaction_import"})
-        logger.info("Allowance guardian run after import: %s", sanitise_log_value(record.status))
+        record, _raw = runner.execute(BOT_ID, "event", actor=actor, payload={"reason": reason})
+        logger.info(
+            "Allowance guardian run after import: %s (reason %s)",
+            sanitise_log_value(record.status),
+            sanitise_log_value(reason),
+        )
     except Exception as exc:
-        logger.error("Allowance guardian run after import failed: %s", sanitise_log_value(type(exc).__name__))
+        logger.error(
+            "Allowance guardian run after import failed: %s (reason %s)",
+            sanitise_log_value(type(exc).__name__),
+            sanitise_log_value(reason),
+        )

@@ -10,6 +10,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.allowance_guardian import bot as guardian_bot
 from backend.auth import get_active_user
 from backend.common import accounts_store
 from backend.reconciliation import bot, extract
@@ -73,7 +74,15 @@ def accounts(tmp_path):
 
 
 @pytest.fixture
-def client(monkeypatch, accounts):
+def guardian_calls(monkeypatch):
+    """Records the allowance guardian runs a reconciliation schedules, instead of running them (#11212)."""
+    calls: list[tuple] = []
+    monkeypatch.setattr(guardian_bot, "run_after_import", lambda *args: calls.append(args))
+    return calls
+
+
+@pytest.fixture
+def client(monkeypatch, accounts, guardian_calls):
     owner_dir = accounts / "alice"
     owner_dir.mkdir()
     (owner_dir / "isa_transactions.json").write_text(json.dumps(LEDGER), encoding="utf-8")
@@ -415,3 +424,30 @@ def test_access_denied_records_no_run(client, monkeypatch):
         _post_statement(client)
 
     assert _runs() == []
+
+
+def test_successful_reconciliation_runs_the_allowance_guardian(client, guardian_calls, monkeypatch):
+    monkeypatch.setitem(client.app.dependency_overrides, get_active_user, lambda: "alice")
+
+    assert _post_statement(client).status_code == 200
+
+    assert guardian_calls == [("alice", guardian_bot.REASON_RECONCILIATION)]
+
+
+def test_failed_reconciliation_does_not_run_the_allowance_guardian(client, guardian_calls, monkeypatch):
+    async def failing(text, cfg):
+        raise ConnectionError("down")
+
+    monkeypatch.setattr(extract, "complete_extraction", failing)
+
+    assert _post_statement(client).status_code == 502
+    assert guardian_calls == []
+
+
+def test_switched_off_reconciliation_does_not_run_the_allowance_guardian(client, guardian_calls):
+    from backend.bots import registry, settings
+
+    settings.save_settings(registry.get_bot(bot.BOT_ID), {"enabled": False})
+
+    assert _post_statement(client).status_code == 403
+    assert guardian_calls == []

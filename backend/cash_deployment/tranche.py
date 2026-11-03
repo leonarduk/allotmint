@@ -3,7 +3,11 @@
 The split is exactly :func:`backend.common.sleeve_plan.sleeve_new_cash` (the
 ``/rebalance/{owner}/new-cash`` computation, core sleeve), which delegates to
 :func:`backend.common.rebalance_plan.suggest_new_cash`; nothing here re-derives
-it. Each bought class is then paired with the first vehicle the owner's plan
+it. A tranche is normally cash already sitting in the account (phased in after
+a transfer), so it is split in ``from_held_cash`` mode, against the unchanged
+portfolio total (#10507). When the account's cash does not cover the tranche
+(the money has not arrived yet), it is split as new money paid in, and
+``cash_basis`` says so. Each bought class is then paired with the first vehicle the owner's plan
 lists for it, and nothing else: a class with no plan vehicle gets no
 instrument. Indicative units use the latest cached close in GBP, which
 :func:`backend.common.holding_utils.load_latest_prices` already normalises
@@ -17,6 +21,7 @@ from typing import Any, Callable, Mapping, Optional
 
 from backend.common.allocation_policy import AllocationPolicy, parse_policy
 from backend.common.investment_plan import _POLICY_TO_PLAN_CLASS, InvestmentPlan, rebalance_weights
+from backend.common.rebalance_plan import InsufficientCashError
 from backend.common.sleeve_plan import sleeve_new_cash
 from backend.common.sleeves import CORE_ID, SleeveSetup
 
@@ -24,6 +29,9 @@ from backend.common.sleeves import CORE_ID, SleeveSetup
 ORDER_LIST_LABEL = "Draft order list per your plan. Place these yourself at your broker; nothing is traded for you."
 
 PriceLookup = Callable[[list[str]], Mapping[str, float]]
+#: ``cash_basis`` values: split from cash the account holds, or as new money paid in.
+CASH_BASIS_HELD = "held_cash"
+CASH_BASIS_NEW = "new_money"
 
 
 def target_policy(source: str, saved: AllocationPolicy, plan: Optional[InvestmentPlan]) -> AllocationPolicy:
@@ -87,7 +95,7 @@ def build_tranche(
     prices: PriceLookup = default_prices,
 ) -> dict[str, Any]:
     """Split one tranche with ``sleeve_new_cash`` and draft its order list from the plan's vehicles."""
-    split = sleeve_new_cash(portfolio, policy, setup, CORE_ID, amount_minor / 100.0, account_id)
+    split, basis = _split(portfolio, policy, setup, account_id, amount_minor / 100.0)
     tickers = sorted({t for t in (plan_vehicle(plan, tr["asset_class"])["ticker"] for tr in split["trades"]) if t})
     price_map = {key.upper(): value for key, value in (prices(tickers) if tickers else {}).items()}
     return {
@@ -96,4 +104,16 @@ def build_tranche(
         "split": split,
         "orders": [_order(trade, plan, price_map) for trade in split["trades"]],
         "keep_as_cash_minor": round(float(split["keep_as_cash"]) * 100),
+        "cash_basis": basis,
     }
+
+
+def _split(
+    portfolio: Mapping[str, Any], policy: AllocationPolicy, setup: SleeveSetup, account_id: str, amount: float
+) -> tuple[dict[str, Any], str]:
+    """The tranche split from the account's held cash, or as new money when that cash falls short."""
+    try:
+        split = sleeve_new_cash(portfolio, policy, setup, CORE_ID, amount, account_id, from_held_cash=True)
+    except InsufficientCashError:
+        return sleeve_new_cash(portfolio, policy, setup, CORE_ID, amount, account_id), CASH_BASIS_NEW
+    return split, CASH_BASIS_HELD

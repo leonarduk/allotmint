@@ -14,6 +14,7 @@ import {
   TECHNICALS_GLOSSARY,
   TECHNICALS_GLOSSARY_ANCHOR,
 } from "../lib/technicalsGlossary";
+import { PLOT_GLOSSARY, PLOT_GUIDE_ANCHOR } from "../lib/plotGlossary";
 import type {
   AlphaResponse,
   MaxDrawdownResponse,
@@ -680,14 +681,14 @@ export default function MetricsExplanation() {
         </div>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-4" id={PLOT_GUIDE_ANCHOR}>
         <h2 className="text-2xl font-semibold">
           {t("metricsExplanation.sections.plot.title", "Plot garden terms")}
         </h2>
         <p>
           {t(
             "metricsExplanation.sections.plot.intro",
-            "Plot is a garden-themed view of the same real portfolio data. Every term below maps back to a real figure."
+            "Plot is a garden-themed view of the same real portfolio data the classic screens show: nothing in it is invented and nothing in it places a trade. You can switch back to the classic view at any time. Every term below names the real figure it stands for."
           )}
         </p>
         <div className="space-y-4">
@@ -741,7 +742,7 @@ export default function MetricsExplanation() {
           </div>
           <div id="propagator">
             <h3 className="text-lg font-semibold">
-              {t("metricsExplanation.sections.plot.propagator.title", "Propagator")}
+              {t("metricsExplanation.sections.plot.propagator.title", "Holding period")}
             </h3>
             <p className="text-sm text-gray-300">
               {t(
@@ -782,6 +783,18 @@ export default function MetricsExplanation() {
               {t("metricsExplanation.sections.plot.growerLevel.detail", "Earned by completing daily chores. Reaching level L takes 25 × L × (L − 1) XP in total, so early levels come quickly and later ones stretch out.")}
             </p>
           </div>
+          {/* The rest of Plot's vocabulary (#7210), from the same list the
+              in-app InfoTips read, so the two cannot drift apart. */}
+          {PLOT_GLOSSARY.map((entry) => (
+            <div id={entry.id} key={entry.id}>
+              <h3 className="text-lg font-semibold">
+                {t(`metricsExplanation.sections.plot.${entry.key}.title`, entry.title)}
+              </h3>
+              <p className="text-sm text-gray-300">
+                {t(`metricsExplanation.sections.plot.${entry.key}.detail`, entry.detail)}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 

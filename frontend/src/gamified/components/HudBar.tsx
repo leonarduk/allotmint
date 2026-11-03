@@ -4,6 +4,7 @@ import styles from '../plot.module.css';
 import { formatGbp, type PlotSnapshot } from '../plotModel';
 import Meter from './Meter';
 import InfoTip from '../../components/InfoTip';
+import GlossaryTip from './GlossaryTip';
 
 interface HudBarProps {
   snapshot: PlotSnapshot;
@@ -90,6 +91,7 @@ export default function HudBar({
         <span className={styles.hudProgressLabel}>
           <span>{t('plot.hud.progressLabel')}</span>
           <span className={styles.hudRank}>{rank}</span>
+          <GlossaryTip glossaryKey="growerRank" term={rank} />
         </span>
 
         {streak > 0 && (

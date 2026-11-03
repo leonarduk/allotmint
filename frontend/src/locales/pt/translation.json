@@ -1319,7 +1319,7 @@
       },
       "plot": {
         "title": "Termos do jardim Plot",
-        "intro": "O Plot é uma vista com tema de jardim dos mesmos dados reais da carteira. Cada termo abaixo corresponde a um valor real.",
+        "intro": "A horta é uma vista com tema de jardim dos mesmos dados reais da carteira que os ecrãs clássicos mostram: nada é inventado e nada executa negociações. Pode voltar à vista clássica a qualquer momento. Cada termo abaixo indica o número real que representa.",
         "beds": {
           "title": "Canteiros",
           "detail": "Cada conta de investimento é mostrada como um canteiro. Cada posição dessa conta é uma cultura plantada nele."
@@ -1336,7 +1336,7 @@
           "established": "Enraizada: 5 anos ou mais"
         },
         "propagator": {
-          "title": "Propagador",
+          "title": "Período de detenção",
           "detail": "Lista as culturas ainda dentro do período mínimo de detenção — o número configurado de dias que uma posição tem de ser detida antes de poder ser vendida — com a contagem decrescente até à data em que cada uma o cumpre."
         },
         "water": {
@@ -1362,6 +1362,58 @@
           "struggling": "Com dificuldades: em queda, mas menos de 20%",
           "healthy": "Saudável: em alta de 0% a menos de 20%",
           "thriving": "Viçosa: em alta de 20% ou mais"
+        },
+        "crop": {
+          "title": "Cultura (uma posição)",
+          "detail": "Uma posição de um investimento numa conta. O mesmo investimento em duas contas são duas culturas, mostradas juntas quando ajuda."
+        },
+        "plot": {
+          "title": "Horta (a sua carteira)",
+          "detail": "Tudo o que um cultivador detém em todas as suas contas. O valor da horta é o valor total da carteira, incluindo dinheiro."
+        },
+        "shareOfPlot": {
+          "title": "Peso na horta (tamanho da posição)",
+          "detail": "Que parte do valor total da horta uma cultura representa. É um tamanho, não uma pontuação: um peso grande não é bom nem mau por si só."
+        },
+        "timeHeld": {
+          "title": "Tempo de detenção",
+          "detail": "Há quanto tempo a posição é detida. Define a fase de crescimento: o nível sobe de 0 a 5 à medida que a cultura passa de Semeada a Enraizada, e nunca desce enquanto mantiver a posição."
+        },
+        "todaysMove": {
+          "title": "Movimento de hoje",
+          "detail": "Quanto o preço se moveu hoje, pontuado de 0 a 100: 50 significa estável e um movimento de 5% em qualquer sentido enche a barra. Um preço confirmado como desatualizado baixa a pontuação. Descreve apenas o dia de hoje e não prevê nada."
+        },
+        "chores": {
+          "title": "Tarefas (afazeres diários)",
+          "detail": "Tarefas curtas como consultar o resumo ou gerar um relatório. Cada uma abre a página respetiva e só conta depois de a ter feito lá de verdade. As tarefas únicas são passos de configuração feitos uma só vez. As tarefas dão XP."
+        },
+        "streak": {
+          "title": "Sequência",
+          "detail": "O número de dias seguidos em que todas as tarefas diárias foram concluídas."
+        },
+        "crate": {
+          "title": "Caixote",
+          "detail": "A recompensa da semana no fim do caminho da sequência. Enche quando conclui todas as tarefas todos os dias da semana."
+        },
+        "season": {
+          "title": "Temporada (o ano fiscal do Reino Unido)",
+          "detail": "Vai de 6 de abril a 5 de abril, o mesmo ano em que se renovam as isenções ISA e de pensões. Os objetivos da temporada são marcos por níveis para tamanho e valor da horta, uso das isenções, sequência e categoria."
+        },
+        "growerRank": {
+          "title": "Categoria de cultivador",
+          "detail": "Um título para o seu nível de cultivador: Semeador de plântulas, depois Cultivador de fim de semana a partir do nível 4, Cavador experiente a partir do 8, Titular de talhão a partir do 15, Mestre cultivador a partir do 25 e Jardineiro-chefe a partir do 40. Reflete as tarefas feitas, não o desempenho dos seus investimentos."
+        },
+        "starGrower": {
+          "title": "Cultivador estrela e Precisa de atenção",
+          "detail": "O cultivador estrela é a cultura com o maior ganho total. Precisa de atenção só aparece quando algo está mesmo mal: a posição ainda não pode ser vendida, o preço está desatualizado ou caiu 5% ou mais."
+        },
+        "nextJob": {
+          "title": "Próxima tarefa na horta",
+          "detail": "Um facto dos seus próprios dados que vale a pena ver, como preços desatualizados ou isenção ISA por usar, com uma ligação para a página que trata disso. Nunca é uma sugestão de comprar ou vender."
+        },
+        "seedShed": {
+          "title": "Barracão de sementes (a sua lista de observação)",
+          "detail": "A mesma lista de observação que a página Watchlist clássica, com preços em tempo real. Lá não se executam negociações."
         }
       },
       "technicals": {
@@ -3298,7 +3350,9 @@
       "season": "Temporada",
       "seasonSub": "Metas do ano fiscal",
       "seeds": "Barracão de sementes",
-      "seedsSub": "Lista de acompanhamento"
+      "seedsSub": "Lista de acompanhamento",
+      "guide": "Guia",
+      "guideSub": "O que significam os termos"
     },
     "app": {
       "grower": "Cultivador",
@@ -3314,12 +3368,12 @@
       "loading": "A caminho da horta…"
     },
     "propagator": {
-      "empty": "Nada no propagador: todas as culturas cumpriram o período de detenção e podem ser colhidas.",
-      "meterIndeterminate": "{{ticker}}: ainda não pode ser colhida, detida há {{daysHeld}} dias",
+      "empty": "Nenhuma posição está no seu período mínimo de detenção: todas podem ser vendidas.",
+      "meterIndeterminate": "{{ticker}}: ainda não vendível, detida há {{daysHeld}} dias",
       "meterProgress": "{{ticker}}: detida há {{daysHeld}} dias, faltam {{daysRemaining}}",
       "daysHeld": "detida há {{daysHeld}} dias",
       "daysRatio": "{{daysHeld}} / {{total}} dias",
-      "notLiftable": "Ainda não pode ser colhida",
+      "notLiftable": "Ainda não vendível",
       "needsApproval": "Precisa de aprovação",
       "needsApprovalHeading": "Precisa de aprovação ({{count}})",
       "needsApprovalNote": "Já cumpriram o período mínimo de detenção; vendê-las precisa de uma aprovação que pode pedir agora.",
@@ -3339,7 +3393,8 @@
         "progress_other": "{{engaged}} de {{count}} dias concluídos — continue para encher a caixa",
         "full": "Semana completa de tarefas concluída",
         "finish": "Conclua todos os dias desta semana para encher a caixa"
-      }
+      },
+      "crateTerm": "o caixote"
     },
     "card": {
       "removeFavourite": "Remover {{ticker}} dos favoritos",
@@ -3376,29 +3431,29 @@
       "streakHint": "Dias consecutivos com todas as tarefas diárias concluídas.",
       "today": "Hoje",
       "noDaily": "Sem tarefas diárias de momento.",
-      "groundwork": "Trabalho preparatório"
+      "groundwork": "Tarefas únicas"
     },
     "crop": {
       "gainUnknown": "Ganho desconhecido — sem custo base registado",
       "gainDetail": "{{gain}} de ganho não realizado ({{pct}})",
       "yield": "Rendimento",
       "yieldDetail": "{{pct}}% de rendimento de proventos dos últimos 12 meses",
-      "vigour": "Vigor",
+      "vigour": "Movimento de hoje",
       "noMoveToday": "Sem movimento registado hoje",
       "pctToday": "{{pct}} hoje",
       "priceStale": "os dados de preço estão desatualizados",
       "priceUnverified": "atualidade do preço não verificada",
-      "rootDepth": "Profundidade da raiz",
+      "rootDepth": "Peso na horta",
       "rootDepthDetail": "{{pct}}% do valor total da horta",
-      "hardiness": "Resistência",
+      "hardiness": "Tempo de detenção",
       "holdingAgeUnknown": "Antiguidade da posição desconhecida",
       "held_one": "Detida {{count}} dia",
       "held_other": "Detida {{count}} dias",
-      "inPropagatorUntil": "no propagador até {{date}}",
-      "notYetLiftable": "ainda não pode ser colhida",
+      "inPropagatorUntil": "no período mínimo de detenção até {{date}}",
+      "notYetLiftable": "ainda não vendível",
       "needsApproval": "precisa de aprovação",
-      "clearedPropagator": "saiu do propagador em {{date}}",
-      "readyToLift": "pronta a colher",
+      "clearedPropagator": "período mínimo de detenção terminou em {{date}}",
+      "readyToLift": "pode ser vendida",
       "notFoundTitle": "Cultura não encontrada",
       "notFoundBody": "Nada chamado «{{id}}» está a crescer nesta horta.",
       "backToRoster": "Voltar à lista de culturas",
@@ -3407,7 +3462,7 @@
       "traits": "Características",
       "level": "Nv {{level}}/{{max}}",
       "plotValue": "Valor da horta",
-      "vigourMeter": "Vigor {{value}} em 100",
+      "vigourMeter": "Pontuação do movimento de hoje: {{value}} de 100",
       "ledger": "Livro-razão",
       "units": "Unidades",
       "costBasis": "Custo base",
@@ -3424,7 +3479,7 @@
     "roster": {
       "sortShare": "Quota da horta",
       "sortGrowth": "Ganho",
-      "sortVigour": "Vigor",
+      "sortVigour": "Movimento de hoje",
       "sortAz": "A–Z",
       "growthStages": "Fases de crescimento",
       "growthStagesLabel": "O que significam as fases de crescimento?",
@@ -3436,7 +3491,7 @@
       "searchLabel": "Pesquisar culturas",
       "searchPlaceholder": "Pesquisar ticker, nome, canteiro ou setor",
       "sortCrops": "Ordenar culturas",
-      "vigourHidden": "A ordenação por vigor está oculta: nenhuma cultura tem movimento registado hoje, por isso todas teriam a mesma pontuação.",
+      "vigourHidden": "A ordenação por movimento de hoje está oculta: nenhuma cultura tem movimento registado hoje, por isso todas teriam a mesma pontuação.",
       "filterCrops": "Filtrar culturas",
       "allBeds": "Todos os canteiros",
       "favourites": "Favoritos ({{count}})",
@@ -3505,7 +3560,7 @@
       "milestonesReached": "{{done}} de {{total}} marcos da temporada alcançados",
       "tieredGoals": "Metas por níveis em tamanho da horta, valor, limites, sequência e posição.",
       "view": "Ver",
-      "propagator": "Propagador",
+      "propagator": "Período de detenção",
       "propagatorTip": "Culturas ainda dentro do período mínimo de detenção, com contagem decrescente até à data em que cada uma pode ser vendida.",
       "beds": "Canteiros",
       "bedsTip": "Cada conta de investimento é mostrada como um canteiro, com as suas posições plantadas como culturas.",
@@ -3654,6 +3709,16 @@
         "cash": "Uma conta de dinheiro: dinheiro mantido em numerário em vez de investido.",
         "unknown": "O tipo de conta não está registado."
       }
+    },
+    "welcome": {
+      "title": "Novo na horta?",
+      "intro": "A horta é a sua carteira real desenhada como uma horta urbana. Lê os mesmos números que a vista clássica e nunca executa negociações.",
+      "stepCrops": "Cada posição é uma cultura, e cada conta (ISA, pensão, conta geral) é um canteiro.",
+      "stepGrowth": "A fase de uma cultura é há quanto tempo a detém. A cor mostra como está: viçosa, saudável, com dificuldades ou murcha.",
+      "stepMeters": "A água são as negociações que restam este mês, o adubo é a isenção fiscal por usar e a luz solar é quantos preços estão atualizados.",
+      "stepChores": "As tarefas são pequenos afazeres diários. Fazê-las dá XP, níveis e uma categoria de cultivador; nada disso depende do desempenho dos seus investimentos.",
+      "readGuide": "Ler o guia da horta",
+      "dismiss": "Entendi"
     }
   },
   "userAvatar": {

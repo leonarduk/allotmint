@@ -14,7 +14,7 @@ import type { Portfolio } from '@/types';
 
 // #10812: a holding past its minimum hold but blocked on approval is
 // sell_eligible: false with no countdown. It must read "Needs approval",
-// not "Not yet liftable", and stay out of the propagator's hold-period count.
+// not "Not yet sellable", and stay out of the propagator's hold-period count.
 
 const crop = (over: Partial<Crop>): Crop =>
   ({
@@ -128,7 +128,7 @@ describe('approval-blocked crops (#10812)', () => {
 
     const bp = screen.getByRole('link', { name: /BP\.L/ });
     expect(within(bp).getByText('Needs approval')).toBeTruthy();
-    expect(within(bp).queryByText('Not yet liftable')).toBeNull();
+    expect(within(bp).queryByText('Not yet sellable')).toBeNull();
     expect(screen.getByText('Needs approval (1)')).toBeTruthy();
     expect(
       screen
@@ -150,7 +150,7 @@ describe('approval-blocked crops (#10812)', () => {
         />
       </MemoryRouter>
     );
-    expect(screen.getByText(/Nothing in the propagator/)).toBeTruthy();
+    expect(screen.getByText(/No holdings are inside their minimum holding period/)).toBeTruthy();
     expect(screen.getByText('Needs approval')).toBeTruthy();
   });
 });

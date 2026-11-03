@@ -205,6 +205,28 @@ describe('Plot mode hub', () => {
     ).toHaveAttribute('href', '/metrics-explained#grower-level');
   });
 
+  it('defines the grower rank with a glossary tip on the hub (#11401)', async () => {
+    renderPlot();
+
+    const hud = await screen.findByRole('banner');
+    const progress = await within(hud).findByRole('group', {
+      name: 'Your progress',
+    });
+    const tip = within(progress).getByRole('button', {
+      name: /^What does (Seedling Sower|Weekend Grower|Seasoned Digger|Plotholder|Master Grower|Head Gardener) mean\?$/,
+    });
+
+    fireEvent.click(tip);
+
+    const popover = document.getElementById(
+      tip.getAttribute('aria-controls') ?? ''
+    );
+    expect(popover).toHaveTextContent('A title for your grower level');
+    expect(
+      within(popover as HTMLElement).getByRole('link', { name: 'Learn more' })
+    ).toHaveAttribute('href', '/metrics-explained#grower-rank');
+  });
+
   it('puts the best crop on the stage and flags the genuinely troubled one', async () => {
     renderPlot();
 
@@ -548,6 +570,43 @@ describe('Plot mode hub', () => {
     ).toBeInTheDocument();
   });
 
+  it('welcomes a first-time visitor with what the words mean, and stays dismissed (#7210)', async () => {
+    const { unmount } = renderPlot();
+
+    const welcome = await screen.findByRole('region', {
+      name: 'New to the plot?',
+    });
+    expect(
+      within(welcome).getByText(/Each holding is a crop/)
+    ).toBeInTheDocument();
+    expect(
+      within(welcome).getByRole('link', { name: 'Read the Plot guide' })
+    ).toHaveAttribute('href', '/metrics-explained#plot-guide');
+    // Inline, not a modal: the scoreboard is still there behind it.
+    expect(
+      screen.getByRole('region', { name: 'Next job on the plot' })
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(welcome).getByRole('button', { name: 'Got it' }));
+    expect(screen.queryByRole('region', { name: 'New to the plot?' })).toBeNull();
+
+    unmount();
+    renderPlot();
+    expect(
+      await screen.findByRole('region', { name: 'Next job on the plot' })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'New to the plot?' })).toBeNull();
+  });
+
+  it('links the Plot guide from the rail (#7210)', async () => {
+    renderPlot();
+
+    const rail = await screen.findByRole('navigation', { name: 'Plot sections' });
+    expect(
+      within(rail).getByRole('link', { name: /Guide/ })
+    ).toHaveAttribute('href', '/metrics-explained#plot-guide');
+  });
+
   it('offers an escape hatch back to the classic UI for the same owner', async () => {
     renderPlot();
 
@@ -612,7 +671,7 @@ describe('Plot mode crop detail', () => {
     expect(screen.getByText('Cost basis')).toBeInTheDocument();
     expect(screen.getByText('£4.0k')).toBeInTheDocument();
     expect(
-      screen.getByText(/Held 500 days · ready to lift/)
+      screen.getByText(/Held 500 days · can be sold/)
     ).toBeInTheDocument();
     // Root depth is position size (#7197): a share-of-plot bar with its
     // figure spelled out, not a "Lv 7/7" score that reads as quality.
@@ -622,8 +681,8 @@ describe('Plot mode crop detail', () => {
     // ladder (3/5) instead of a contradictory "5/5"; +75% is the separate
     // condition axis, "Thriving" (4/4).
     expect(screen.getAllByText('Flowering').length).toBeGreaterThan(0);
-    expect(screen.getByText(/^Hardiness/)).toHaveTextContent(
-      'Hardiness Lv 3/5'
+    expect(screen.getByText(/^Time held/)).toHaveTextContent(
+      'Time held Lv 3/5'
     );
     expect(screen.getAllByText('Thriving').length).toBeGreaterThan(0);
     expect(screen.getByText(/^Condition/)).toHaveTextContent(
@@ -632,6 +691,18 @@ describe('Plot mode crop detail', () => {
     // The portrait's size indicator is a "% of plot" chip, never stars.
     expect(screen.getByText('70% of plot')).toBeInTheDocument();
     expect(screen.queryByLabelText(/of 7 stars/)).toBeNull();
+  });
+
+  it('uses plain words for its traits, each with a glossary tip (#7210)', async () => {
+    renderPlot('/plot/crops/VUSA.L');
+
+    for (const term of ["Today's move", 'Share of plot', 'Time held']) {
+      const tip = await screen.findByRole('button', {
+        name: `What does ${term} mean?`,
+      });
+      expect(tip).toBeInTheDocument();
+    }
+    expect(screen.queryByText(/Root depth|Hardiness|Vigour/)).toBeNull();
   });
 
   it('explains the instrument type, sector and region in plain English (#7209)', async () => {
@@ -914,7 +985,7 @@ describe('Plot mode propagator', () => {
   it('shows holdings still inside their minimum holding period', async () => {
     renderPlot();
 
-    expect(await screen.findByText('Propagator (1)')).toBeInTheDocument();
+    expect(await screen.findByText('Holding period (1)')).toBeInTheDocument();
     expect(screen.getByText('4 / 30 days')).toBeInTheDocument();
     expect(screen.getByText('Ready 2026-09-19')).toBeInTheDocument();
   });
@@ -923,7 +994,7 @@ describe('Plot mode propagator', () => {
     renderPlot('/plot/crops/WILT.L');
 
     expect(
-      await screen.findByText(/in the propagator until 2026-09-19/)
+      await screen.findByText(/in its minimum holding period until 2026-09-19/)
     ).toBeInTheDocument();
   });
 
@@ -946,10 +1017,10 @@ describe('Plot mode propagator', () => {
     renderPlot();
 
     // Only WILT.L is still serving its hold period.
-    expect(await screen.findByText('Propagator (1)')).toBeInTheDocument();
+    expect(await screen.findByText('Holding period (1)')).toBeInTheDocument();
     expect(screen.getByText('Needs approval (1)')).toBeInTheDocument();
     expect(screen.getByText('Needs approval')).toBeInTheDocument();
-    expect(screen.queryByText('Not yet liftable')).not.toBeInTheDocument();
+    expect(screen.queryByText('Not yet sellable')).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Open Trading Rules' })
     ).toHaveAttribute('href', '/settings');
@@ -1014,8 +1085,8 @@ describe('Plot mode propagator', () => {
 
     renderPlot();
 
-    expect(await screen.findByText('Propagator (1)')).toBeInTheDocument();
-    expect(screen.getByText('Not yet liftable')).toBeInTheDocument();
+    expect(await screen.findByText('Holding period (1)')).toBeInTheDocument();
+    expect(screen.getByText('Not yet sellable')).toBeInTheDocument();
     // Never a fabricated ready date, and never "cleared"/"can be lifted".
     expect(screen.queryByText(/^Ready /)).toBeNull();
     expect(screen.queryByText(/cleared the propagator/)).toBeNull();

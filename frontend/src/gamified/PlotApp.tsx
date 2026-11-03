@@ -7,6 +7,7 @@ import { getGroupDisplayName } from '../utils/groups';
 import styles from './plot.module.css';
 import HudBar from './components/HudBar';
 import PlotRail, { type RailItem } from './components/PlotRail';
+import { PLOT_GUIDE_ANCHOR, plotGlossaryPath } from '../lib/plotGlossary';
 import { PlotDataProvider, usePlotData } from './PlotDataContext';
 import PlotHub from './screens/PlotHub';
 import CropRoster from './screens/CropRoster';
@@ -45,6 +46,12 @@ function buildRailItems(t: TFunction): readonly RailItem[] {
       to: `${PLOT_BASE_PATH}/seeds`,
       label: t('plot.rail.seeds'),
       subtitle: t('plot.rail.seedsSub'),
+    },
+    {
+      // The glossary of every Plot term, with the real word for each (#7210).
+      to: plotGlossaryPath(PLOT_GUIDE_ANCHOR),
+      label: t('plot.rail.guide'),
+      subtitle: t('plot.rail.guideSub'),
     },
   ];
 }

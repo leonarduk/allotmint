@@ -1,4 +1,5 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import StreakPath from '@/gamified/components/StreakPath';
 import { buildStreakPath } from '@/gamified/seasonModel';
@@ -190,5 +191,32 @@ describe('StreakPath', () => {
     expect(untrackedStamp).toBeTruthy();
     expect(missedStamp?.className).toContain('stampMissed');
     expect(untrackedStamp?.className).not.toContain('stampMissed');
+  });
+
+  it('defines the crate with a glossary tip (#11401)', () => {
+    const days = buildStreakPath(
+      { '2026-08-26': { completed: 4, total: 4 } },
+      '2026-08-26'
+    );
+    render(
+      <MemoryRouter>
+        <StreakPath days={days} streak={1} />
+      </MemoryRouter>
+    );
+
+    const tip = screen.getByRole('button', {
+      name: 'What does the crate mean?',
+    });
+    fireEvent.click(tip);
+
+    const popover = document.getElementById(
+      tip.getAttribute('aria-controls') ?? ''
+    );
+    expect(popover).toHaveTextContent(
+      "The week's reward at the end of the streak path"
+    );
+    expect(
+      within(popover as HTMLElement).getByRole('link', { name: 'Learn more' })
+    ).toHaveAttribute('href', '/metrics-explained#crate');
   });
 });

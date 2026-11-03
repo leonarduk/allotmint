@@ -22,6 +22,7 @@ import {
 import Meter from '../components/Meter';
 import ShareBar, { ShareTrack } from '../components/ShareBar';
 import CropGlyph from '../components/CropGlyph';
+import GlossaryTip from '../components/GlossaryTip';
 import { instrumentTypeExplanation } from '../plotGuidance';
 
 /**
@@ -70,6 +71,7 @@ function abilitiesFor(crop: Crop, t: TFunction) {
     {
       icon: '💚',
       name: t('plot.crop.vigour'),
+      glossaryKey: 'todaysMove',
       // A crop with no recorded intraday move is not "flat" — the backend
       // simply didn't send a day_change_gbp. Saying so explicitly keeps
       // "no data" distinct from a genuine 0.0% day (#vigour-constant).
@@ -88,6 +90,7 @@ function abilitiesFor(crop: Crop, t: TFunction) {
     {
       icon: '🪴',
       name: t('plot.crop.rootDepth'),
+      glossaryKey: 'shareOfPlot',
       detail: t('plot.crop.rootDepthDetail', {
         pct: (crop.share * 100).toFixed(1),
       }),
@@ -100,6 +103,7 @@ function abilitiesFor(crop: Crop, t: TFunction) {
     {
       icon: '⏳',
       name: t('plot.crop.hardiness'),
+      glossaryKey: 'timeHeld',
       detail:
         crop.daysHeld === null
           ? t('plot.crop.holdingAgeUnknown')
@@ -233,9 +237,17 @@ export default function CropDetail({ basePath }: { basePath: string }) {
                       </span>
                     </>
                   )}
+                  {'glossaryKey' in ability && (
+                    <GlossaryTip
+                      glossaryKey={ability.glossaryKey}
+                      term={ability.name}
+                    />
+                  )}
                 </div>
                 <div className={styles.abilityLevel}>{ability.detail}</div>
-                {'share' in ability && <ShareTrack share={ability.share} />}
+                {'share' in ability && ability.share !== undefined && (
+                  <ShareTrack share={ability.share} />
+                )}
               </div>
             </div>
           ))}

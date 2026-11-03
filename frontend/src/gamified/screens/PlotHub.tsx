@@ -35,6 +35,7 @@ import CropCard from '../components/CropCard';
 import StreakPath from '../components/StreakPath';
 import Propagator from '../components/Propagator';
 import CropGlyph from '../components/CropGlyph';
+import PlotWelcome from '../components/PlotWelcome';
 import InfoTip from '../../components/InfoTip';
 
 const RESOURCE_TONE: Record<string, MeterTone> = {
@@ -269,6 +270,8 @@ export default function PlotHub({ basePath }: { basePath: string }) {
 
   return (
     <div className={styles.stack}>
+      {/* First visit: what the words mean, before the scoreboard (#7210). */}
+      <PlotWelcome />
       <section className={styles.stage} aria-label={t('plot.hub.featuredCrops')}>
         {best ? (
           <>

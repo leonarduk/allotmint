@@ -459,6 +459,11 @@
     "xirrInfoLabel": "Que signifie XIRR ?",
     "xirrInfo": "Le XIRR est le taux de rendement interne annualisé, calculé à partir des flux de trésorerie datés réels du portefeuille.",
     "xirrMissing": "Le XIRR ne peut pas être calculé pour cette période : il nécessite des flux de trésorerie datés issus de votre historique de transactions, et certains schémas de flux n'ont pas de solution.",
+    "xirrMissingInsufficientFlows": "Historique insuffisant : le XIRR nécessite une valeur de départ ou un dépôt sur cette période, en plus de la valeur actuelle.",
+    "xirrMissingNoSolution": "Aucun taux annuel unique ne correspond aux dépôts, retraits et valeurs de cette période, le XIRR ne peut donc pas être affiché. Le rendement pondéré dans le temps reste valable.",
+    "xirrMissingLoadFailed": "Le XIRR n'a pas pu être chargé. Rechargez la page pour réessayer.",
+    "cumulativeReturnInfoLabel": "Que signifie le rendement cumulatif ?",
+    "cumulativeReturnInfo": "La croissance du portefeuille depuis le début de la période sélectionnée. La courbe du rendement total repose sur la même base que le rendement pondéré dans le temps ; la courbe des positions actuelles, non.",
     "fxAttribution": {
       "title": "D'où vient le résultat",
       "description": "Le gain ou la perte en GBP du portefeuille sur la période choisie, réparti entre variations de prix locales, variations de change, revenus, et opérations et autres effets.",
@@ -1148,6 +1153,10 @@
         "xirr": {
           "title": "XIRR",
           "detail": "Le XIRR est le taux de rendement interne annualisé, calculé à partir des flux de trésorerie datés réels du portefeuille (dépôts, retraits et valeur actuelle). Contrairement au rendement pondéré dans le temps, il est influencé par le moment et le montant de ces flux."
+        },
+        "cumulative": {
+          "title": "Rendement cumulatif",
+          "detail": "Le graphique du rendement cumulatif montre la croissance depuis le début de la période sélectionnée. La courbe du rendement total suit les positions que vous déteniez réellement chaque jour, inclut dividendes et intérêts et neutralise les dépôts et retraits : la même base que le rendement pondéré dans le temps. La courbe des positions actuelles valorise au contraire vos positions actuelles rétroactivement sur toute la période et exclut les revenus ; elle peut donc s'écarter fortement du rendement pondéré dans le temps lorsque vos positions ont changé. La courbe de l'indice de référence est son rendement sur les mêmes dates."
         }
       },
       "trading": {

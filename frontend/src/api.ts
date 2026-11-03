@@ -1176,7 +1176,11 @@ export const getPerformance = (
       opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
     }`,
   );
-  const xirr = fetchJson<{ owner: string; xirr: number | null }>(
+  const xirr = fetchJson<{
+    owner: string;
+    xirr: number | null;
+    xirr_unavailable_reason?: string | null;
+  }>(
     `${API_BASE}/performance/${owner}/xirr?days=${days}${
       opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
     }`,
@@ -1185,6 +1189,7 @@ export const getPerformance = (
     history: p.history,
     time_weighted_return: t.time_weighted_return,
     xirr: x.xirr,
+    xirrUnavailableReason: x.xirr_unavailable_reason ?? null,
     reportingDate: p.reporting_date ?? null,
     previousDate: p.previous_date ?? null,
     dataQualityIssues:
@@ -1295,6 +1300,10 @@ export const clearGroupPerformanceInFlight = () => {
   inFlightGroupPerformanceFetches.clear();
 };
 
+/** ``&as_of=...`` for a group metric URL, or nothing without a pricing date (#7214). */
+const asOfParam = (opts: { asOf?: string | null }) =>
+  opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : "";
+
 /**
  * Group-scope alpha vs benchmark.
  *
@@ -1315,9 +1324,10 @@ export const getGroupAlphaVsBenchmark = (
   slug: string,
   benchmark: string,
   days = 365,
+  opts: { asOf?: string | null } = {},
 ) =>
   fetchGroupPerformanceJson<AlphaResponse>(
-    `${API_BASE}/performance-group/${slug}/alpha?benchmark=${benchmark}&days=${days}`,
+    `${API_BASE}/performance-group/${slug}/alpha?benchmark=${benchmark}&days=${days}${asOfParam(opts)}`,
   );
 
 /**
@@ -1336,14 +1346,19 @@ export const getGroupTrackingError = (
   slug: string,
   benchmark: string,
   days = 365,
+  opts: { asOf?: string | null } = {},
 ) =>
   fetchGroupPerformanceJson<TrackingErrorResponse>(
-    `${API_BASE}/performance-group/${slug}/tracking-error?benchmark=${benchmark}&days=${days}`,
+    `${API_BASE}/performance-group/${slug}/tracking-error?benchmark=${benchmark}&days=${days}${asOfParam(opts)}`,
   );
 
-export const getGroupMaxDrawdown = (slug: string, days = 365) =>
+export const getGroupMaxDrawdown = (
+  slug: string,
+  days = 365,
+  opts: { asOf?: string | null } = {},
+) =>
   fetchGroupPerformanceJson<MaxDrawdownResponse>(
-    `${API_BASE}/performance-group/${slug}/max-drawdown?days=${days}`,
+    `${API_BASE}/performance-group/${slug}/max-drawdown?days=${days}${asOfParam(opts)}`,
   );
 
 /**
@@ -1398,6 +1413,7 @@ export const getGroupPerformance = (
   const xirr = fetchGroupPerformanceJson<{
     group: string;
     xirr: number | null;
+    xirr_unavailable_reason?: string | null;
     partial?: boolean;
     missing_members?: string[];
   }>(
@@ -1431,6 +1447,8 @@ export const getGroupPerformance = (
       history: p.history,
       time_weighted_return: t?.time_weighted_return ?? null,
       xirr: x?.xirr ?? null,
+      // A failed XIRR request is not a calculation XIRR can't do (#7214).
+      xirrUnavailableReason: x ? x.xirr_unavailable_reason ?? null : "load_failed",
       reportingDate: p.reporting_date ?? null,
       previousDate: p.previous_date ?? null,
       dataQualityIssues:

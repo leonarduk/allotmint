@@ -237,11 +237,20 @@ def owner_xirr(
     as_of: str | None = None,
     identity: Optional[str] = Depends(get_owner_check_identity),
 ):
-    """Return XIRR for ``owner``."""
+    """Return XIRR for ``owner``.
+
+    ``xirr`` is ``null`` when it cannot be calculated, and
+    ``xirr_unavailable_reason`` then says why (``insufficient_cash_flows`` or
+    ``no_solution``, see :func:`portfolio_utils.compute_xirr_result`, #7214).
+    """
     owner = _authorised_owner(owner, request, identity)
     try:
-        val = portfolio_utils.compute_xirr(owner, days, pricing_date=_resolve_as_of(as_of))
-        return {"owner": owner, "xirr": val}
+        result = portfolio_utils.compute_xirr_result(owner, days, pricing_date=_resolve_as_of(as_of))
+        return {
+            "owner": owner,
+            "xirr": result["xirr"],
+            "xirr_unavailable_reason": result["xirr_unavailable_reason"],
+        }
     except FileNotFoundError:
         raise_owner_not_found(owner)
 
@@ -291,12 +300,14 @@ def owner_holdings(
 
 @router.get("/performance-group/{slug}/alpha")
 @_shares_performance_inputs
-def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
+def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365, as_of: str | None = None):
     """Return alpha vs. benchmark for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
     benchmark = _validate_benchmark(benchmark)
     try:
-        result = portfolio_utils.compute_group_alpha_vs_benchmark(slug, benchmark, days, include_breakdown=True)
+        result = portfolio_utils.compute_group_alpha_vs_benchmark(
+            slug, benchmark, days, include_breakdown=True, pricing_date=_resolve_as_of(as_of)
+        )
         if isinstance(result, tuple):
             val, breakdown = result
         else:
@@ -310,12 +321,14 @@ def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
 
 @router.get("/performance-group/{slug}/tracking-error")
 @_shares_performance_inputs
-def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365):
+def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365, as_of: str | None = None):
     """Return tracking error vs. benchmark for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
     benchmark = _validate_benchmark(benchmark)
     try:
-        result = portfolio_utils.compute_group_tracking_error(slug, benchmark, days, include_breakdown=True)
+        result = portfolio_utils.compute_group_tracking_error(
+            slug, benchmark, days, include_breakdown=True, pricing_date=_resolve_as_of(as_of)
+        )
         if isinstance(result, tuple):
             val, breakdown = result
         else:
@@ -329,11 +342,13 @@ def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365):
 
 @router.get("/performance-group/{slug}/max-drawdown")
 @_shares_performance_inputs
-def group_max_drawdown(slug: str, days: int = 365):
+def group_max_drawdown(slug: str, days: int = 365, as_of: str | None = None):
     """Return max drawdown for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
     try:
-        result = portfolio_utils.compute_group_max_drawdown(slug, days, include_breakdown=True)
+        result = portfolio_utils.compute_group_max_drawdown(
+            slug, days, include_breakdown=True, pricing_date=_resolve_as_of(as_of)
+        )
         if isinstance(result, tuple):
             val, breakdown = result
         else:
@@ -453,20 +468,17 @@ def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
     one member's transaction ledger could not be found. The figure is
     rebuilt from the other members' pooled ledgers, so it leaves those
     members out (#9169); see ``compute_time_weighted_return`` for the
-    fallback when no member has a ledger (#7228).
+    fallback when no member has a ledger (#7228). ``xirr_unavailable_reason``
+    says why ``xirr`` is ``null``, as for ``/performance/{owner}/xirr`` (#7214).
     """
     slug = _validate_owner_slug(slug, "slug")
     try:
-        val, missing_members = portfolio_utils.compute_xirr(
-            slug,
-            days,
-            pricing_date=_resolve_as_of(as_of),
-            group=True,
-            include_missing_members=True,
-        )
+        result = portfolio_utils.compute_xirr_result(slug, days, pricing_date=_resolve_as_of(as_of), group=True)
+        missing_members = result["missing_members"]
         return {
             "group": slug,
-            "xirr": val,
+            "xirr": result["xirr"],
+            "xirr_unavailable_reason": result["xirr_unavailable_reason"],
             "partial": bool(missing_members),
             "missing_members": missing_members,
         }

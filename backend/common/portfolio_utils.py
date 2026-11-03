@@ -2407,8 +2407,11 @@ def compute_group_alpha_vs_benchmark(
     days: int = 365,
     *,
     include_breakdown: bool = False,
+    pricing_date: date | None = None,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
-    value, breakdown = _alpha_vs_benchmark(slug, benchmark, days, group=True, include_breakdown=include_breakdown)
+    value, breakdown = _alpha_vs_benchmark(
+        slug, benchmark, days, group=True, include_breakdown=include_breakdown, pricing_date=pricing_date
+    )
     if include_breakdown:
         return value, breakdown
     return value
@@ -2440,8 +2443,11 @@ def compute_group_tracking_error(
     days: int = 365,
     *,
     include_breakdown: bool = False,
+    pricing_date: date | None = None,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
-    value, breakdown = _tracking_error(slug, benchmark, days, group=True, include_breakdown=include_breakdown)
+    value, breakdown = _tracking_error(
+        slug, benchmark, days, group=True, include_breakdown=include_breakdown, pricing_date=pricing_date
+    )
     if include_breakdown:
         return value, breakdown
     return value
@@ -2465,8 +2471,11 @@ def compute_group_max_drawdown(
     days: int = 365,
     *,
     include_breakdown: bool = False,
+    pricing_date: date | None = None,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
-    value, breakdown = _max_drawdown(slug, days, group=True, include_breakdown=include_breakdown)
+    value, breakdown = _max_drawdown(
+        slug, days, group=True, include_breakdown=include_breakdown, pricing_date=pricing_date
+    )
     if include_breakdown:
         return value, breakdown
     return value
@@ -2887,6 +2896,42 @@ def _series_time_weighted_return(
     return float(twr - 1.0), missing_members
 
 
+# ``xirr_unavailable_reason``: why ``compute_xirr_result`` found no XIRR (#7214).
+# Too few dated flows to solve for (no opening value or deposit before the
+# closing value), or flows the solver found no rate for.
+XIRR_INSUFFICIENT_CASH_FLOWS = "insufficient_cash_flows"
+XIRR_NO_SOLUTION = "no_solution"
+
+
+def compute_xirr_result(
+    owner: str,
+    days: int = 365,
+    *,
+    pricing_date: date | None = None,
+    group: bool = False,
+) -> Dict[str, Any]:
+    """XIRR for ``owner`` over ``days``, with why it is missing when it is (#7214).
+
+    Returns ``{"xirr", "xirr_unavailable_reason", "missing_members"}``.
+    ``xirr`` is the figure :func:`compute_xirr` returns. When it is ``None``,
+    ``xirr_unavailable_reason`` is :data:`XIRR_INSUFFICIENT_CASH_FLOWS` (fewer
+    than two dated flows in the window, e.g. no history before the reporting
+    date) or :data:`XIRR_NO_SOLUTION` (the solver found no rate, e.g. flows all
+    of one sign); otherwise it is ``None``. ``missing_members`` is as for
+    :func:`compute_time_weighted_return` (#7228).
+    """
+    perf, missing_members = _rebuilt_performance(owner, group=group, pricing_date=pricing_date)
+    if perf is not None:
+        flows = _ledger_xirr_flows(perf, days)
+    else:
+        flows, missing_members = _series_xirr_flows(owner, days, group=group, pricing_date=pricing_date)
+    value = _solve_xirr(flows)
+    reason: str | None = None
+    if value is None:
+        reason = XIRR_INSUFFICIENT_CASH_FLOWS if len(flows) < 2 else XIRR_NO_SOLUTION
+    return {"xirr": value, "xirr_unavailable_reason": reason, "missing_members": list(missing_members)}
+
+
 def compute_xirr(
     owner: str,
     days: int = 365,
@@ -2903,13 +2948,11 @@ def compute_xirr(
     as a group slug and compute the combined XIRR from the members' pooled
     ledgers (#9169). Set ``include_missing_members=True`` to get back
     ``(value, missing_members)`` -- see ``compute_time_weighted_return`` for
-    what a non-empty list means (#7228).
+    what a non-empty list means (#7228). :func:`compute_xirr_result` also
+    says why the figure is missing.
     """
-    perf, missing_members = _rebuilt_performance(owner, group=group, pricing_date=pricing_date)
-    if perf is not None:
-        return _with_missing(_solve_xirr(_ledger_xirr_flows(perf, days)), missing_members, include_missing_members)
-    flows, missing_members = _series_xirr_flows(owner, days, group=group, pricing_date=pricing_date)
-    return _with_missing(_solve_xirr(flows), missing_members, include_missing_members)
+    result = compute_xirr_result(owner, days, pricing_date=pricing_date, group=group)
+    return _with_missing(result["xirr"], result["missing_members"], include_missing_members)
 
 
 def _ledger_xirr_flows(perf: ledger_performance.LedgerPerformance, days: int) -> list[tuple[date, float]]:

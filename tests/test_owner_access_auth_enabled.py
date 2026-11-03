@@ -63,12 +63,16 @@ def writes(monkeypatch):
         monkeypatch.setattr(portfolio_utils, name, pair)
     for name in (
         "compute_time_weighted_return",
-        "compute_xirr",
         "compute_fx_attribution",
         "compute_cagr",
         "compute_cash_apy",
     ):
         monkeypatch.setattr(portfolio_utils, name, lambda *a, **k: _SECRET)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "compute_xirr_result",
+        lambda *a, **k: {"xirr": None, "xirr_unavailable_reason": _SECRET, "missing_members": []},
+    )
     monkeypatch.setattr(
         portfolio_utils, "compute_total_return", lambda *a, **k: {"total_return_gbp": _SECRET, "total_return_pct": 1}
     )

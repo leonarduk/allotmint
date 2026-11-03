@@ -459,6 +459,11 @@
     "xirrInfoLabel": "Cosa significa XIRR?",
     "xirrInfo": "XIRR è il tasso interno di rendimento annualizzato, calcolato sui flussi di cassa datati effettivi del portafoglio.",
     "xirrMissing": "Non è possibile calcolare l'XIRR per questo periodo: servono flussi di cassa datati dal tuo storico delle transazioni, e alcune sequenze di flussi non hanno soluzione.",
+    "xirrMissingInsufficientFlows": "Storico insufficiente: l'XIRR richiede un valore iniziale o un versamento in questo periodo, oltre al valore attuale.",
+    "xirrMissingNoSolution": "Nessun singolo tasso annuo si adatta a versamenti, prelievi e valori di questo periodo, quindi l'XIRR non può essere mostrato. Il rendimento ponderato per il tempo resta valido.",
+    "xirrMissingLoadFailed": "Impossibile caricare l'XIRR. Ricarica la pagina per riprovare.",
+    "cumulativeReturnInfoLabel": "Cosa significa ritorno cumulativo?",
+    "cumulativeReturnInfo": "Quanto è cresciuto il portafoglio dall'inizio del periodo selezionato. La linea del rendimento totale ha la stessa base del rendimento ponderato per il tempo; la linea delle posizioni attuali no.",
     "fxAttribution": {
       "title": "Da dove è venuto il risultato",
       "description": "L'utile o la perdita in GBP del portafoglio nel periodo selezionato, suddiviso tra movimenti di prezzo locali, movimenti di cambio, proventi, e operazioni e altri effetti.",
@@ -1148,6 +1153,10 @@
         "xirr": {
           "title": "XIRR",
           "detail": "XIRR è il tasso interno di rendimento annualizzato, calcolato sui flussi di cassa datati effettivi del portafoglio (versamenti, prelievi e valore attuale). A differenza del rendimento ponderato nel tempo, è influenzato dal momento e dall'importo di tali flussi."
+        },
+        "cumulative": {
+          "title": "Ritorno cumulativo",
+          "detail": "Il grafico del ritorno cumulativo mostra la crescita dall'inizio del periodo selezionato. La linea del rendimento totale segue le posizioni effettivamente detenute ogni giorno, include dividendi e interessi ed esclude versamenti e prelievi: la stessa base del rendimento ponderato per il tempo. La linea delle posizioni attuali invece valuta a ritroso le posizioni di oggi per tutto il periodo ed esclude i proventi, quindi può differire molto dal rendimento ponderato per il tempo quando le posizioni sono cambiate. La linea del benchmark è il rendimento del benchmark nelle stesse date."
         }
       },
       "trading": {

@@ -437,6 +437,17 @@ export default function MetricsExplanation() {
               )}
             </p>
           </div>
+          <div id="cumulative-return">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.otherPerformance.cumulative.title", "Cumulative Return")}
+            </h3>
+            <p className="text-sm text-[var(--surface-muted-color)]">
+              {t(
+                "metricsExplanation.sections.otherPerformance.cumulative.detail",
+                "The Cumulative Return chart shows growth since the start of the selected period. The total-return line follows the holdings you actually held each day, includes dividends and interest and strips out deposits and withdrawals: the same basis as the time-weighted return. The today's-holdings line instead prices your current holdings backwards over the whole period and leaves income out, so it can differ widely from the time-weighted return when your holdings have changed. The benchmark line is the benchmark's return over the same dates."
+              )}
+            </p>
+          </div>
         </div>
       </section>
 

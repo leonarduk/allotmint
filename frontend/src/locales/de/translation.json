@@ -459,6 +459,11 @@
     "xirrInfoLabel": "Was bedeutet XIRR?",
     "xirrInfo": "XIRR ist der annualisierte interne Zinsfuß, berechnet aus den tatsächlichen, datierten Zahlungsströmen des Portfolios.",
     "xirrMissing": "Der XIRR lässt sich für diesen Zeitraum nicht berechnen: Er benötigt datierte Zahlungsströme aus Ihrer Transaktionshistorie, und manche Zahlungsmuster haben keine Lösung.",
+    "xirrMissingInsufficientFlows": "Zu wenig Historie: Der XIRR benötigt in diesem Zeitraum einen Anfangswert oder eine Einzahlung sowie den heutigen Wert.",
+    "xirrMissingNoSolution": "Kein einzelner Jahreszins passt zu den Einzahlungen, Auszahlungen und Werten dieses Zeitraums, daher kann der XIRR nicht angezeigt werden. Die zeitgewichtete Rendite gilt weiterhin.",
+    "xirrMissingLoadFailed": "Der XIRR konnte nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen.",
+    "cumulativeReturnInfoLabel": "Was bedeutet kumulierte Rendite?",
+    "cumulativeReturnInfo": "Wie stark das Portfolio seit Beginn des gewählten Zeitraums gewachsen ist. Die Gesamtrendite-Linie hat dieselbe Grundlage wie die zeitgewichtete Rendite, die Linie der heutigen Bestände nicht.",
     "fxAttribution": {
       "title": "Woher der Gewinn/Verlust kam",
       "description": "Der Gewinn oder Verlust des Portfolios in GBP im gewählten Zeitraum, aufgeteilt in lokale Kursbewegungen, Währungsbewegungen, Erträge sowie Handel und Sonstiges.",
@@ -1148,6 +1153,10 @@
         "xirr": {
           "title": "XIRR",
           "detail": "XIRR ist der annualisierte interne Zinsfuß, berechnet aus den tatsächlichen, datierten Zahlungsströmen des Portfolios (Einzahlungen, Auszahlungen und aktueller Wert). Anders als die zeitgewichtete Rendite wird er von Zeitpunkt und Höhe dieser Zahlungsströme beeinflusst."
+        },
+        "cumulative": {
+          "title": "Kumulierte Rendite",
+          "detail": "Das Diagramm der kumulierten Rendite zeigt das Wachstum seit Beginn des gewählten Zeitraums. Die Gesamtrendite-Linie folgt den Beständen, die Sie an jedem Tag tatsächlich hielten, enthält Dividenden und Zinsen und rechnet Ein- und Auszahlungen heraus: dieselbe Grundlage wie die zeitgewichtete Rendite. Die Linie der heutigen Bestände bewertet dagegen Ihre aktuellen Bestände rückwirkend über den ganzen Zeitraum und lässt Erträge außen vor, sodass sie deutlich von der zeitgewichteten Rendite abweichen kann, wenn sich Ihre Bestände verändert haben. Die Benchmark-Linie ist die Rendite der Benchmark über dieselben Daten."
         }
       },
       "trading": {

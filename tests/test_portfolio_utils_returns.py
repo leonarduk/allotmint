@@ -424,6 +424,37 @@ def test_compute_xirr_requires_cashflows(monkeypatch, ledger_owner, one_year_ser
     monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: [])
 
     assert pu.compute_xirr("owner") is None
+    # #7214: the page shows why, not a bare N/A.
+    assert pu.compute_xirr_result("owner") == {
+        "xirr": None,
+        "xirr_unavailable_reason": pu.XIRR_INSUFFICIENT_CASH_FLOWS,
+        "missing_members": [],
+    }
+
+
+def test_compute_xirr_result_reports_no_solution(monkeypatch, ledger_owner, one_year_series):
+    """Flows the solver finds no rate for (#7214): money only ever went in, nothing is left."""
+    ledger_owner([], {})
+    monkeypatch.setattr(
+        pu,
+        "_series_xirr_flows",
+        lambda owner, days, *, group, pricing_date: ([(date(2025, 1, 1), -1000.0), (date(2026, 1, 1), -50.0)], []),
+    )
+
+    result = pu.compute_xirr_result("owner")
+
+    assert result["xirr"] is None
+    assert result["xirr_unavailable_reason"] == pu.XIRR_NO_SOLUTION
+
+
+def test_compute_xirr_result_has_no_reason_when_solved(ledger_owner):
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2026-01-01": 110.0}}
+    ledger_owner([_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000)], closes)
+
+    result = pu.compute_xirr_result("owner", 365, pricing_date=date(2026, 1, 1))
+
+    assert result["xirr"] == pytest.approx(0.10, abs=1e-6)
+    assert result["xirr_unavailable_reason"] is None
 
 
 def test_compute_cagr(monkeypatch, one_year_series):

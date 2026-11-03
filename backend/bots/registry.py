@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterator, List, Literal, Optional, Protocol, runtime_checkable
+from typing import Any, Dict, Iterator, List, Literal, Optional, Protocol, Tuple, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -34,6 +34,7 @@ RunTrigger = Literal["schedule", "manual", "invoke", "event"]
 
 _BOT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 _WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 class BotSettings(BaseModel):
@@ -58,17 +59,22 @@ class Schedule:
     ``local_bot_schedule`` (:mod:`backend.bots.local_scheduler`).
 
     ``weekday`` is 0=Monday..6=Sunday; ``day`` is the day of the month. Leave
-    both unset for a daily rule.
+    both unset for a daily rule. ``months`` (1-12) limits a monthly rule to
+    those months, e.g. ``(1, 4, 7, 10)`` for a quarterly one.
     """
 
     hour: int
     minute: int = 0
     weekday: Optional[int] = None
     day: Optional[int] = None
+    months: Optional[Tuple[int, ...]] = None
 
     @property
     def description(self) -> str:
         at = f"{self.hour:02d}:{self.minute:02d} UTC"
+        if self.day is not None and self.months:
+            names = ", ".join(_MONTHS[m - 1] for m in sorted(self.months))
+            return f"On day {self.day} of {names} at {at}"
         if self.day is not None:
             return f"Monthly on day {self.day} at {at}"
         if self.weekday is not None:
@@ -76,6 +82,8 @@ class Schedule:
         return f"Daily at {at}"
 
     def _matches_day(self, moment: datetime) -> bool:
+        if self.months and moment.month not in self.months:
+            return False
         if self.day is not None:
             return moment.day == self.day
         if self.weekday is not None:
@@ -90,7 +98,8 @@ class Schedule:
         if candidate <= now:
             candidate += timedelta(days=1)
         # Bounded so a malformed schedule (e.g. day=31 in a short month) can
-        # never loop forever; 400 days covers a full year of monthly firings.
+        # never loop forever; 400 days covers a full year of monthly (or
+        # quarterly) firings.
         for _ in range(400):
             if self._matches_day(candidate):
                 yield candidate

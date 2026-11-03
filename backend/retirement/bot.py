@@ -14,9 +14,10 @@ changed since that owner's last run, a CPI-versus-assumed-inflation flag, a
 report that could not be stored, and an owner whose run failed. Their text
 names what changed but carries no amounts, incomes, pots or percentages.
 
-There is no quarterly schedule yet: the registry has no quarterly cadence and
-the monitor has no Lambda or EventBridge rule, so it runs from the Bots page's
-Run now (and ``POST /retirement-readiness/{owner}/run``).
+It runs quarterly, at :data:`QUARTERLY` (the ``QuarterlyRetirementReadinessRun``
+EventBridge rule in ``cdk/stacks/backend_lambda_stack.py``, which invokes
+:mod:`backend.lambda_api.retirement_readiness`), and on demand from the Bots
+page's Run now and ``POST /retirement-readiness/{owner}/run``.
 """
 
 from __future__ import annotations
@@ -34,6 +35,10 @@ from backend.retirement import readiness
 logger = logging.getLogger(__name__)
 
 BOT_ID = "retirement-readiness"
+
+#: 09:00 UTC on the 1st of January, April, July and October. Must match the
+#: ``QuarterlyRetirementReadinessRun`` rule in cdk/stacks/backend_lambda_stack.py.
+QUARTERLY = Schedule(hour=9, day=1, months=(1, 4, 7, 10))
 
 
 def _owners(context: BotRunContext) -> List[str]:
@@ -152,8 +157,9 @@ class RetirementReadinessBot:
     # Per-owner settings carry over from each owner's previous run (ReadinessSettings), so the
     # Bots page only holds enabled/cadence.
     settings_model: type[BotSettings] = BotSettings
-    # No EventBridge rule or Lambda yet (quarterly is not a registry cadence); see the module docstring.
-    default_schedule: Optional[Schedule] = None
+    # The default monthly cadence never skips a quarterly firing (runner.is_due
+    # only skips a second scheduled run in the same calendar month).
+    default_schedule: Optional[Schedule] = QUARTERLY
     timeout_minutes = 15
 
     def default_settings(self) -> Dict[str, Any]:

@@ -45,9 +45,10 @@ DEFAULT_LOCAL_BOTS: Tuple[str, ...] = ("price-refresh", "dividend-refresh")
 # Wake at least this often while waiting, so a laptop that slept through a
 # slot (the monotonic clock may pause) notices on waking, not hours later.
 _MAX_SLEEP_SECONDS = 300.0
-# Far enough back to find the latest firing of a monthly schedule, including
-# one on day 29-31 that skips short months (Aug 31 -> Oct 31 is 61 days).
-_CATCH_UP_LOOKBACK = timedelta(days=62)
+# Far enough back to find the latest firing of any schedule: a monthly one on
+# day 29-31 skips short months (Aug 31 -> Oct 31 is 61 days), and one limited
+# to some months (``Schedule.months``, e.g. quarterly) can be up to a year apart.
+_CATCH_UP_LOOKBACK = timedelta(days=366)
 
 
 def _now() -> datetime:

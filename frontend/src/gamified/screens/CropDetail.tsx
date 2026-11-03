@@ -245,7 +245,9 @@ export default function CropDetail({ basePath }: { basePath: string }) {
                   )}
                 </div>
                 <div className={styles.abilityLevel}>{ability.detail}</div>
-                {'share' in ability && <ShareTrack share={ability.share} />}
+                {'share' in ability && ability.share !== undefined && (
+                  <ShareTrack share={ability.share} />
+                )}
               </div>
             </div>
           ))}

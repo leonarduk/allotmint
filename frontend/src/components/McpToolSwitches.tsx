@@ -98,7 +98,7 @@ function ToolsetGroup({
   const { t } = useTranslation();
   const offId = safeId('mcp-toolset-off', toolset.name);
   return (
-    <fieldset className="mb-2 rounded border border-gray-300 p-2 dark:border-gray-600">
+    <fieldset className="mb-2 rounded border border-[var(--surface-card-border)] p-2">
       <legend className="px-1">
         <label className="font-semibold">
           <input
@@ -170,7 +170,7 @@ export default function McpToolSwitches({
         />
       ))}
       {ungrouped.length > 0 && (
-        <fieldset className="mb-2 rounded border border-gray-300 p-2 dark:border-gray-600">
+        <fieldset className="mb-2 rounded border border-[var(--surface-card-border)] p-2">
           <legend className="px-1 font-semibold">
             {t('support.config.mcpOtherTools')}
           </legend>

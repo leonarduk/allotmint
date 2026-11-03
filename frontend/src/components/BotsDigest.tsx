@@ -7,6 +7,7 @@ import {
   type BotsDigest as Digest,
   type BotsDigestEntry,
 } from '../api';
+import { BotsDigestSettings } from './BotsDigestSettings';
 
 type Props = { owner: string };
 
@@ -135,6 +136,7 @@ export function BotsDigest({ owner }: Props) {
   return (
     <section data-testid="bots-digest" aria-labelledby="bots-digest-title">
       <h3 id="bots-digest-title">{t('botsDigest.title')}</h3>
+      <BotsDigestSettings owner={owner} />
       {load.kind === 'loading' && <p>{t('botsDigest.loading')}</p>}
       {load.kind === 'error' && <p role="alert">{t('botsDigest.error')}</p>}
       {load.kind === 'empty' && <p>{t('botsDigest.empty')}</p>}

@@ -242,6 +242,8 @@ class TransactionContract(SpaContractBase):
     attribution_only: bool = False
     # A per-holding part of a booked income sweep, attributed by the owner (#10060).
     attributed_sweep: bool = False
+    # A "use current price as cost" estimate row (#10095).
+    cost_estimate: bool = False
     instrument_name: str | None = None
     realised_gain_gbp: float | None = None
     cost_basis_gbp: float | None = None

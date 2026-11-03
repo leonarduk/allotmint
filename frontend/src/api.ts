@@ -4029,6 +4029,34 @@ export const importCostBasisCsv = (
   );
 };
 
+/** What POST /holdings/cost-basis/estimate recorded (#10095). */
+export interface CostEstimateResponse {
+  owner: string;
+  account: string;
+  ticker: string;
+  units: number;
+  price_gbp: number;
+  cost_basis_gbp: number;
+  cost_basis_source: "estimate";
+  estimate_date: string;
+}
+
+/**
+ * "Use current price as cost": record today's price as the *estimated* cost
+ * of a holding whose purchase price is lost. Stored and shown as an
+ * estimate, never as a recorded purchase price.
+ */
+export const estimateCostBasis = (
+  owner: string,
+  account: string,
+  ticker: string,
+): Promise<CostEstimateResponse> =>
+  fetchJson<CostEstimateResponse>(`${API_BASE}/holdings/cost-basis/estimate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ owner, account, ticker }),
+  });
+
 // Statement reconciliation (#10474). Amounts are integer pence (`*_minor`).
 
 export type StatementDiffKind =
@@ -4355,6 +4383,32 @@ export const getBotsDigestHistory = (owner: string, limit = 8) =>
 
 /** The digest as it would be composed now from the latest bot runs (not saved or sent). */
 export const getBotsDigestPreview = (owner: string) => fetchJson<BotsDigest>(botsDigestUrl(owner, "preview"));
+
+/** An owner's digest settings (backend/bots/digest_settings.py:DigestSettings, #10502). */
+export interface BotsDigestSettings {
+  period: "weekly" | "monthly";
+  email_enabled: boolean;
+  telegram_enabled: boolean;
+  include_balances: boolean;
+  send_when_empty: boolean;
+  per_bot_cap: number;
+  /** Bot id -> severities that also alert straight away (default: digest only). */
+  alert_immediately_for: Record<string, BotsDigestSeverity[]>;
+}
+
+const botsDigestSettingsUrl = (owner: string) => `${API_BASE}/bots/digest/${encodeURIComponent(owner)}/settings`;
+
+/** GET /bots/digest/{owner}/settings: the defaults until any are saved. */
+export const getBotsDigestSettings = (owner: string) =>
+  fetchJson<BotsDigestSettings>(botsDigestSettingsUrl(owner));
+
+/** PUT /bots/digest/{owner}/settings (owner access): merged over the current ones; 422 on bad values. */
+export const updateBotsDigestSettings = (owner: string, settings: Partial<BotsDigestSettings>) =>
+  fetchJson<BotsDigestSettings>(botsDigestSettingsUrl(owner), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
 
 // ───────────── Bots API (#10477) ─────────────
 export type BotKind = "ai" | "rules" | "job";

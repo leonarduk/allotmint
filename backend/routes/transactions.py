@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_core import PydanticCustomError
 
 from backend import importers
-from backend.auth import get_active_user
+from backend.auth import get_active_user, get_owner_check_identity
 from backend.common import data_loader, moneyhub_tokens
 from backend.common.account_holdings import (
     load_account_holdings_file,
@@ -37,9 +37,11 @@ from backend.common.cost_basis_import import (
     PurchaseLot,
     parse_purchase_lots,
     plan_cost_basis_lots,
+    plan_cost_estimate,
 )
 from backend.common.currency import CurrencyNormaliser
 from backend.common.dividend_attribution import AttributionError, attribute_booked_dividend, mark_attribution_only
+from backend.common.holdings_rebuild import COST_BASIS_ESTIMATE_SOURCE, COST_ESTIMATE_FLAG
 from backend.common.instruments import get_instrument_meta
 from backend.common.ledger_transfers import OPENING_BALANCE_REASON as OPENING_BALANCE_REASON
 from backend.common.ledger_transfers import SET_HOLDING_REASON as SET_HOLDING_REASON
@@ -117,7 +119,8 @@ def _get_moneyhub_client() -> MoneyhubClient:
     return _moneyhub_client_instance
 
 
-# Set only by the dividend refresh bot (#11086), never taken from a request body.
+# Set only by the dividend refresh bot (#11086), or by the cost estimate route
+# (``cost_estimate``, #10095), never taken from a request body.
 # Every write route excludes these: create, import, and the PUT update, which
 # keeps whatever the stored row already has (#11097).
 # A body that sends them gets a normal response with the fields dropped, not a
@@ -126,7 +129,7 @@ def _get_moneyhub_client() -> MoneyhubClient:
 # rejected for sending them back.
 # ``attributed_sweep`` (#10060) is likewise set only by the attribute-dividend
 # route, never taken from a body.
-_BOT_ONLY_FIELDS = frozenset({"estimated", "attribution_only", "attributed_sweep"})
+_BOT_ONLY_FIELDS = frozenset({"estimated", "attribution_only", "attributed_sweep", COST_ESTIMATE_FLAG})
 
 
 class Transaction(BaseModel):
@@ -166,6 +169,9 @@ class Transaction(BaseModel):
     attribution_only: bool = False
     # A per-ticker part of a booked income sweep, attributed by the owner (#10060).
     attributed_sweep: bool = False
+    # Written only by POST /holdings/cost-basis/estimate (#10095): the price is
+    # the market price when the estimate was made, not a purchase price.
+    cost_estimate: bool = False
     instrument_name: str | None = None
     # Derived on read for SELL transactions (Section 104 average cost); never stored.
     realised_gain_gbp: float | None = None
@@ -584,6 +590,9 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
         if value is not None:
             updated[key] = value
     updated.pop("id", None)
+    # A price the user typed over an estimate (#10095) is a recorded price.
+    if not _same_amount(existing.get("price_gbp"), updated.get("price_gbp")):
+        updated.pop(COST_ESTIMATE_FLAG, None)
     error = breakdown_error(updated.get("fees"), updated.get("stamp_duty"), updated.get("fx_charge"))
     if error:
         raise HTTPException(status_code=422, detail=error)
@@ -1802,6 +1811,75 @@ async def import_cost_basis(
                 )
         raise
     return {"updated": updated, "skipped": skipped}
+
+
+class CostEstimateCreate(BaseModel):
+    """Body for ``POST /holdings/cost-basis/estimate``: the holding to value at today's price (#10095)."""
+
+    owner: str
+    account: str
+    ticker: str
+
+
+def _current_price_gbp(ticker: str) -> float:
+    """Today's (last cached) GBP price for ``ticker``; 400 when none is known."""
+    price = get_price_gbp(ticker)
+    if price is None or not math.isfinite(price) or price <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No current price is known for {ticker}, so no estimate can be made",
+        )
+    return float(price)
+
+
+@router.post("/holdings/cost-basis/estimate")
+def estimate_cost_basis(
+    request: Request,
+    payload: CostEstimateCreate,
+    identity: str | None = Depends(get_owner_check_identity),
+) -> Dict[str, Any]:
+    """Record today's price as the *estimated* cost of a holding whose purchase price is lost (#10095).
+
+    Writes one priced ``TRANSFER_IN`` of the units held, flagged
+    ``cost_estimate``, and rebuilds the account; the holding's cost is then
+    tagged ``cost_basis_source: "estimate"`` (never ``"book"``), so every
+    surface can show it as an estimate and gain/loss counts from today. The
+    same rules as the purchase-price CSV import apply (see
+    :func:`backend.common.cost_basis_import.plan_cost_estimate`): only a
+    holding no transaction mentions yet qualifies, and units held never
+    change. Anything else is refused with 409 and the reason.
+
+    The caller must be authorised for ``payload.owner``
+    (:func:`ensure_owner_access`), checked before anything is read or written.
+    """
+    owner = _validate_component(payload.owner, "owner")
+    account = normalise_account_file_name(_validate_component(payload.account, "account"))
+    _ensure_owners_access(request, identity, [owner])
+    ticker = canonical_ticker(payload.ticker)
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker is required")
+    store = _require_writable_store(request)
+    price = _current_price_gbp(ticker)
+    day = date.today().isoformat()
+    tx_account = _transactions_account_name(owner, account, store)
+    tx_doc = store.read_document(owner, f"{tx_account}_transactions.json") or {}
+    transactions = list(tx_doc.get("transactions") or [])
+    holdings = _read_holdings(store, owner, account)
+    rows, reason = plan_cost_estimate(transactions, holdings, ticker, price, day)
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
+    _append_and_rebuild(store, owner, account, tx_account, rows, (transactions, holdings))
+    units = rows[0]["units"]
+    return {
+        "owner": owner,
+        "account": account,
+        "ticker": rows[0]["ticker"],
+        "units": units,
+        "price_gbp": price,
+        "cost_basis_gbp": round(units * price, 2),
+        "cost_basis_source": COST_BASIS_ESTIMATE_SOURCE,
+        "estimate_date": day,
+    }
 
 
 # A manual price this many times above (or below) the last close is rejected

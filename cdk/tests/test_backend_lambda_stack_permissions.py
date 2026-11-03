@@ -54,6 +54,9 @@ BACKEND_LIST_PREFIXES = (
     "goals",
     # Last-visit records (#11195): missing-vs-denied for backend/common/last_visit.py.
     "last_visit",
+    # Per-owner digest settings (#10502): missing-vs-denied for
+    # backend/bots/digest_settings.py:save_settings (load_existing).
+    "bots",
     # Writable per-owner account documents (manual holdings / transactions);
     # separate from the read-only accounts/ demo prefix (issue #4275).
     WRITABLE_ACCOUNTS_PREFIX,
@@ -84,6 +87,9 @@ BOTS_DIGEST_LIST_PREFIXES = ("accounts", "bots")
 # (OwnerDocumentStore.owners), missing-vs-denied for load_journal, and the
 # writable transactions store (S3AccountsStore.iter_transaction_documents) (#10525).
 DECISION_JOURNAL_LIST_PREFIXES = ("plans", "decision_journal", WRITABLE_ACCOUNTS_PREFIX)
+# retirement_readiness: owners from plans/, portfolios and the price snapshot
+# like trading_agent (backend/retirement/bot.py, #10510).
+RETIREMENT_READINESS_LIST_PREFIXES = ("accounts", "prices", "plans")
 
 
 def _stack_template() -> dict:
@@ -744,6 +750,7 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
         "DataStewardLambda",
         "TrendWatchLambda",
         "DecisionJournalLambda",
+        "RetirementReadinessLambda",
     ]
     forbidden = {"s3:DeleteObject", "s3:DeleteObjectVersion"}
 
@@ -1445,6 +1452,7 @@ def test_bot_lambdas_share_the_bots_storage_prefix() -> None:
         "DataStewardLambda",
         "TrendWatchLambda",
         "DecisionJournalLambda",
+        "RetirementReadinessLambda",
     ):
         parts = _lambda_env(template, fragment)["BOTS_STORAGE_URI"]["Fn::Join"][1]
         assert parts[0] == "s3://" and parts[-1] == "/bots", fragment
@@ -1461,6 +1469,7 @@ def test_bot_lambdas_can_read_and_write_their_run_records() -> None:
         "DataStewardLambda",
         "TrendWatchLambda",
         "DecisionJournalLambda",
+        "RetirementReadinessLambda",
     ):
         role = _role_logical_id_for_lambda(template, fragment)
         reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
@@ -1482,6 +1491,7 @@ def test_backend_lambda_can_start_each_bot_lambda() -> None:
         "data-steward",
         "trend-watch",
         "decision-journal",
+        "retirement-readiness",
     ):
         assert bot_id in mapping
     backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
@@ -1809,6 +1819,75 @@ def test_decision_journal_runs_daily_at_three_utc() -> None:
         )
     ]
     assert [rule["ScheduleExpression"] for rule in rules] == ["cron(0 3 * * ? *)"]
+
+
+# ---------------------------------------------------------------------------
+# RetirementReadinessLambda (issue #10510)
+# ---------------------------------------------------------------------------
+
+
+def test_retirement_readiness_lambda_env_points_at_its_stores() -> None:
+    template = _stack_template()
+    env = _lambda_env(template, "RetirementReadinessLambda")
+    for key, suffix in (
+        ("PLANS_URI", "/plans"),
+        ("RETIREMENT_READINESS_URI", "/retirement_readiness"),
+        ("BOTS_STORAGE_URI", "/bots"),
+        ("TIMESERIES_CACHE_BASE", "/timeseries"),
+    ):
+        parts = env[key]["Fn::Join"][1]
+        assert parts[0] == "s3://" and parts[-1] == suffix, key
+    assert env["APP_ENV"] == "aws"
+    assert "DATA_BUCKET" in env and "JWT_SECRET" in env
+    # No MCP server: the narrative is the deterministic template (retirement/agent.py:_default_llm).
+    assert "MCP_SERVER_URL" not in env
+
+
+def test_retirement_readiness_lambda_writes_only_its_reports_and_run_records() -> None:
+    """PutObject on retirement_readiness/* and bots/* only: never plans, profiles or accounts (#10510)."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "RetirementReadinessLambda")
+
+    writes = sorted(str(r) for r in _resources_for_s3_action(template, role, "s3:PutObject"))
+    assert len(writes) == 2, writes
+    assert any("'/retirement_readiness/*']]}" in r for r in writes), writes
+    assert any("'/bots/*']]}" in r for r in writes), writes
+    assert _s3_actions_for_role(template, role) == {
+        "s3:GetObject",
+        "s3:HeadObject",
+        "s3:PutObject",
+        "s3:ListBucket",
+    }
+    conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
+    assert _expected_prefix_condition(RETIREMENT_READINESS_LIST_PREFIXES) in conditions
+    assert {"StringLike": {"s3:prefix": ["timeseries", "timeseries/*"]}} in conditions
+    assert len(conditions) == 2, conditions
+    # No Bedrock or MCP invoke: the scheduled run has no narrative model.
+    actions = [
+        action
+        for resource in template["Resources"].values()
+        if resource.get("Type") == "AWS::IAM::Policy" and {"Ref": role} in resource["Properties"].get("Roles", [])
+        for statement in resource["Properties"]["PolicyDocument"]["Statement"]
+        for action in (
+            [statement["Action"]] if isinstance(statement.get("Action"), str) else statement.get("Action", [])
+        )
+    ]
+    assert not [a for a in actions if a.startswith(("bedrock:", "lambda:"))], actions
+
+
+def test_retirement_readiness_runs_quarterly() -> None:
+    """Matches backend.retirement.bot.QUARTERLY: 09:00 UTC on 1 Jan, Apr, Jul and Oct."""
+    template = _stack_template()
+    rules = [
+        resource["Properties"]
+        for resource in template["Resources"].values()
+        if resource.get("Type") == "AWS::Events::Rule"
+        and any(
+            "RetirementReadinessLambda" in str(target.get("Arn"))
+            for target in resource["Properties"].get("Targets", [])
+        )
+    ]
+    assert [rule["ScheduleExpression"] for rule in rules] == ["cron(0 9 1 1,4,7,10 ? *)"]
 
 
 # ---------------------------------------------------------------------------

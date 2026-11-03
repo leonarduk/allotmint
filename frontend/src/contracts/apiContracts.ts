@@ -112,6 +112,8 @@ export const holdingContractSchema = z.object({
   next_eligible_sell_date: nullableString.optional(),
   eligible_on: nullableString.optional(),
   cost_basis_source: nullableString.optional(),
+  // The day an "estimate" cost was taken from the market price (#10095).
+  cost_basis_estimate_date: nullableString.optional(),
   asset_class: nullableString.optional(),
   sub_asset_class: nullableString.optional(),
   // Fund ongoing charge (OCF/TER) in percent; null means unknown, never 0 (#7834).
@@ -201,6 +203,8 @@ export const transactionContractSchema = z.object({
   attribution_only: z.boolean().optional(),
   // A per-holding part of a booked income sweep, attributed by the owner (#10060).
   attributed_sweep: z.boolean().optional(),
+  // A "use current price as cost" estimate row, not a purchase price (#10095).
+  cost_estimate: z.boolean().optional(),
   instrument_name: nullableString.optional(),
   // Realised-gain fields the backend attaches to SELL rows.  They must be
   // declared here or Zod strips them, and the transactions summary then

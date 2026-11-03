@@ -4,7 +4,12 @@ import { useTranslation } from "react-i18next";
 import { getInstrumentDetail, getInstrumentIntraday, getTransactions } from "../api";
 import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
-import { COST_BASIS_BOOK_SUSPECT, isCostBasisUnreliable } from "../lib/costBasis";
+import {
+  COST_BASIS_BOOK_SUSPECT,
+  isCostBasisEstimate,
+  isCostBasisUnreliable,
+} from "../lib/costBasis";
+import { CostEstimateMark } from "./CostEstimateMark";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { formatDateISO } from "../lib/date";
@@ -194,6 +199,8 @@ type PositionTotals = {
   totalReturn: number | null;
   weightPct: number | null;
   costUnknown: boolean;
+  /** Positions whose cost is an estimate (#10095); the totals are marked when above 0. */
+  estimatedCount: number;
 };
 
 const sumFinite = (values: unknown[]): number =>
@@ -236,6 +243,7 @@ function totalPositions(positions: Position[]): PositionTotals {
         ? sumFinite(positions.map((p) => p.weight_pct))
         : null,
     costUnknown,
+    estimatedCount: positions.filter((p) => isCostBasisEstimate(p.cost_basis_source)).length,
   };
 }
 
@@ -300,21 +308,35 @@ function usePositionCells(
   const rowCells = (pos: Position, account: ReactNode): CellRenderers => {
     const costUnknown = isPositionCostUnknown(pos);
     const unknown = () => <CostNotAvailable source={pos.cost_basis_source} />;
+    // Marks every figure resting on an estimated cost (#10095).
+    const mark = (
+      <CostEstimateMark source={pos.cost_basis_source} date={pos.cost_basis_estimate_date} />
+    );
     const gain = positionGain(pos);
     return {
       account: () => account,
       units: () => fixed(pos.units, 4),
-      avgCost: () => (costUnknown ? unknown() : gbp(pos.avg_cost_gbp)),
-      cost: () => (costUnknown ? unknown() : gbp(pos.cost_basis_gbp)),
+      avgCost: () => (costUnknown ? unknown() : <>{gbp(pos.avg_cost_gbp)}{mark}</>),
+      cost: () => (costUnknown ? unknown() : <>{gbp(pos.cost_basis_gbp)}{mark}</>),
       price: () => gbp(pos.current_price_gbp),
       market: () => gbp(pos.market_value_gbp),
       gain: () =>
-        costUnknown ? unknown() : <span style={{ color: colorForValue(gain) }}>{gbp(gain)}</span>,
+        costUnknown ? (
+          unknown()
+        ) : (
+          <>
+            <span style={{ color: colorForValue(gain) }}>{gbp(gain)}</span>
+            {mark}
+          </>
+        ),
       gainPct: () =>
         costUnknown ? (
           unknown()
         ) : (
-          <span style={{ color: colorForValue(pos.gain_pct) }}>{percent(pos.gain_pct, 1)}</span>
+          <>
+            <span style={{ color: colorForValue(pos.gain_pct) }}>{percent(pos.gain_pct, 1)}</span>
+            {mark}
+          </>
         ),
       income: () => (
         <IncomeAmount text={gbp(pos.income_gbp)} estimated={Boolean(pos.income_estimated)} />
@@ -323,17 +345,23 @@ function usePositionCells(
         costUnknown ? (
           unknown()
         ) : (
-          <span style={{ color: colorForValue(pos.total_return_gbp) }}>
-            {gbp(pos.total_return_gbp)}
-          </span>
+          <>
+            <span style={{ color: colorForValue(pos.total_return_gbp) }}>
+              {gbp(pos.total_return_gbp)}
+            </span>
+            {mark}
+          </>
         ),
       totalReturnPct: () =>
         costUnknown ? (
           unknown()
         ) : (
-          <span style={{ color: colorForValue(pos.total_return_pct) }}>
-            {percent(pos.total_return_pct, 1)}
-          </span>
+          <>
+            <span style={{ color: colorForValue(pos.total_return_pct) }}>
+              {percent(pos.total_return_pct, 1)}
+            </span>
+            {mark}
+          </>
         ),
       weightPct: () => percent(pos.weight_pct, 1),
       acquired: () =>
@@ -351,33 +379,43 @@ function usePositionCells(
     const incomplete = () => (
       <CostNotAvailable title={t("instrumentDetail.totalCostIncomplete")} />
     );
+    const mark = <CostEstimateMark count={totals.estimatedCount} />;
     return {
       account: () => <strong>{t("instrumentDetail.total")}</strong>,
       units: () => fixed(totals.units, 4),
-      avgCost: () => (totals.costUnknown ? incomplete() : gbp(totals.avgCost)),
-      cost: () => (totals.costUnknown ? incomplete() : gbp(totals.cost)),
+      avgCost: () => (totals.costUnknown ? incomplete() : <>{gbp(totals.avgCost)}{mark}</>),
+      cost: () => (totals.costUnknown ? incomplete() : <>{gbp(totals.cost)}{mark}</>),
       price: () => "",
       market: () => gbp(totals.market),
       gain: () =>
         totals.costUnknown ? (
           incomplete()
         ) : (
-          <span style={{ color: colorForValue(totals.gain) }}>{gbp(totals.gain)}</span>
+          <>
+            <span style={{ color: colorForValue(totals.gain) }}>{gbp(totals.gain)}</span>
+            {mark}
+          </>
         ),
       gainPct: () =>
         totals.costUnknown ? (
           incomplete()
         ) : (
-          <span style={{ color: colorForValue(totals.gainPct) }}>
-            {percent(totals.gainPct, 1)}
-          </span>
+          <>
+            <span style={{ color: colorForValue(totals.gainPct) }}>
+              {percent(totals.gainPct, 1)}
+            </span>
+            {mark}
+          </>
         ),
       income: () => <IncomeAmount text={gbp(totals.income)} estimated={totals.incomeEstimated} />,
       totalReturn: () =>
         totals.costUnknown ? (
           incomplete()
         ) : (
-          <span style={{ color: colorForValue(totals.totalReturn) }}>{gbp(totals.totalReturn)}</span>
+          <>
+            <span style={{ color: colorForValue(totals.totalReturn) }}>{gbp(totals.totalReturn)}</span>
+            {mark}
+          </>
         ),
       // A percentage needs every position's total invested cost, which the
       // positions don't carry; summing per-position percentages would be wrong.

@@ -509,6 +509,12 @@
                           "null"
                         ]
                       },
+                      "cost_basis_estimate_date": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "asset_class": {
                         "type": [
                           "string",
@@ -949,6 +955,12 @@
                           "null"
                         ]
                       },
+                      "cost_basis_estimate_date": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "asset_class": {
                         "type": [
                           "string",
@@ -1149,6 +1161,9 @@
               "type": "boolean"
             },
             "attributed_sweep": {
+              "type": "boolean"
+            },
+            "cost_estimate": {
               "type": "boolean"
             },
             "instrument_name": {

@@ -1059,6 +1059,42 @@ describe("HoldingsTable", () => {
         expect(within(footer).getByText("25.0%")).toBeInTheDocument();
     });
 
+    it("shows an estimated cost's gain marked as an estimate, never as a purchase cost (#10095)", async () => {
+        const estimated: Holding = {
+            ticker: "EST.L",
+            name: "Estimated Co",
+            units: 10,
+            acquired_date: null,
+            price: 2.5,
+            cost_basis_gbp: 20,
+            effective_cost_basis_gbp: 20,
+            market_value_gbp: 25,
+            gain_gbp: 5,
+            gain_pct: 25,
+            current_price_gbp: 2.5,
+            cost_basis_source: "estimate",
+            cost_basis_estimate_date: "2026-10-01",
+        };
+
+        const { container } = renderWithConfig(<HoldingsTable holdings={[estimated]} />);
+
+        const row = (await screen.findByText("Estimated Co")).closest("tr")!;
+        expect(within(row).getByText("£5.00")).toBeInTheDocument();
+        const tip =
+            "Estimated cost: the market price on 2026-10-01, not a purchase price. Gain/loss is measured from that day.";
+        // Gain £, Gain % and Cost £ are each marked.
+        expect(within(row).getAllByTitle(tip)).toHaveLength(3);
+        expect(within(row).queryByTitle("Actual purchase cost")).not.toBeInTheDocument();
+        // The footer sums the gain but says it includes an estimate.
+        const footer = container.querySelector("tfoot")!;
+        expect(within(footer).getByText("£5.00")).toBeInTheDocument();
+        expect(
+            within(footer).getAllByTitle(
+                "Includes 1 holding whose cost is an estimate (a market price, not a purchase price)",
+            ).length,
+        ).toBeGreaterThan(0);
+    });
+
     it("keeps footer columns aligned with the header in relative view", async () => {
         const TestProviderRelative = ({ children }: { children: React.ReactNode }) => (
             <configContext.Provider

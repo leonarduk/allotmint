@@ -53,6 +53,10 @@ def test_schedule_descriptions_and_firing_times():
     monthly = Schedule(hour=7, day=1)
     assert next(monthly.fire_times_after(now)) == datetime(2026, 11, 1, 7, 0, tzinfo=timezone.utc)
 
+    yearly = Schedule(hour=7, day=1, months=(3,))
+    assert yearly.description == "On day 1 of Mar at 07:00 UTC"
+    assert next(yearly.fire_times_after(now)) == datetime(2027, 3, 1, 7, 0, tzinfo=timezone.utc)
+
 
 def test_trading_settings_reject_out_of_range_and_inconsistent_values():
     model = adapters.TradingAgentBotSettings

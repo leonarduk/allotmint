@@ -22,6 +22,7 @@ from backend.common.constants import (
 )
 from backend.common.currency import CurrencyNormaliser
 from backend.common.fund_charges import ongoing_charge_pct
+from backend.common.holdings_rebuild import COST_BASIS_ESTIMATE_SOURCE
 from backend.common.instrument_classification import (
     canonical_asset_class,
     exposure_region,
@@ -857,6 +858,12 @@ BOOK_COST_OUT_OF_BAND_WARNING = "implied_unit_cost_out_of_band"
 # sides have a test pinning the contents: tests/test_holding_utils_price_cost_basis.py
 # and frontend/tests/unit/lib/costBasis.test.ts).
 COST_BASIS_UNRELIABLE_SOURCES = frozenset({"unknown", BOOK_COST_SUSPECT_SOURCE})
+# COST_BASIS_ESTIMATE_SOURCE ("estimate", #10095) is deliberately NOT in that
+# set. It is a cost the user chose to set from the market price on a known day
+# because the real one is lost, so the gain since that day is real and is shown;
+# hiding it like a guess would make the action pointless. It is its own third
+# state: never re-tagged "book", and every surface that shows its cost or gain
+# marks it as an estimate (frontend/src/lib/costBasis.ts isCostBasisEstimate).
 # (ticker, exchange) pairs whose acquisition-close lookup failure was already
 # logged at WARNING; later failures for the same pair log at DEBUG.
 _ACQ_CLOSE_FAILURE_WARNED: set[tuple[str, str]] = set()
@@ -1325,8 +1332,11 @@ def enrich_holding(
     # #7220). That is a materially different claim from a real historical
     # derivation, so it must not be overwritten with the generic "derived"
     # here once a booked cost is ruled out.
+    # A "use current price as cost" estimate (#10095) keeps its tag: it must
+    # never read as a recorded ("book") purchase price.
     if float(out.get(COST_BASIS_GBP) or 0.0) > 0:
-        out["cost_basis_source"] = "book"
+        if out.get("cost_basis_source") != COST_BASIS_ESTIMATE_SOURCE:
+            out["cost_basis_source"] = "book"
     elif out.get("cost_basis_source") != "unknown":
         out["cost_basis_source"] = "derived"
 

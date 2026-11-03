@@ -22,9 +22,13 @@ export interface Holding {
    * booked cost), "derived" (a real historical price near a known
    * acquisition date), "unknown" (no booked cost and no acquisition date --
    * cost was set equal to current market value as a last resort and the
-   * resulting gain/gain_pct is not a fact, see #7220), "cash", or "none".
+   * resulting gain/gain_pct is not a fact, see #7220), "estimate" (the user
+   * chose "use current price as cost": the price on cost_basis_estimate_date,
+   * not a purchase price, #10095), "cash", or "none".
    */
   cost_basis_source?: string | null;
+  /** The day an "estimate" cost was taken from the market price (#10095). */
+  cost_basis_estimate_date?: string | null;
   market_value_gbp?: number | null;
   market_value_currency?: string | null;
   gain_gbp?: number | null;
@@ -783,6 +787,8 @@ export interface InstrumentPosition {
   days_held?: number | null;
   cost_basis_source?: string | null;
   cost_basis_warning?: string | null;
+  /** Set when cost_basis_source is "estimate" (#10095). */
+  cost_basis_estimate_date?: string | null;
   /** Dividends/interest received on this position, GBP (#9038/#10351). */
   income_gbp?: number | null;
   /** True when income_gbp is estimated from dividend history (#10351). */
@@ -876,6 +882,8 @@ export interface Transaction {
   attribution_only?: boolean;
   /** A per-holding part of a booked income sweep, attributed by the owner (#10060). */
   attributed_sweep?: boolean;
+  /** Written by "use current price as cost": the price is an estimate, not what was paid (#10095). */
+  cost_estimate?: boolean;
   /**
    * Derived by the backend for SELL rows using Section 104 average cost.
    * `realised_gain_gbp` is null when some units sold have no known cost

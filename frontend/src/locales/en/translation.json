@@ -1319,20 +1319,19 @@
           "detail": "Each investment account is shown as a bed. Every holding within that account is a crop planted in it."
         },
         "growthStages": {
-          "title": "Growth stages (Wilting → Sown → Sprouting → Leafing → Budding → Flowering → Fruiting → Bumper crop)",
-          "detail": "A crop's growth stage is set by that holding's total gain, as a percentage of what was paid for it — it does not depend on how long it has been held.",
-          "wilting": "Wilting: total gain of -20% or below",
-          "sown": "Sown: total gain between -20% (exclusive) and 0%",
-          "sprouting": "Sprouting: total gain between 0% (exclusive) and 5%",
-          "leafing": "Leafing: total gain between 5% (exclusive) and 15%",
-          "budding": "Budding: total gain between 15% (exclusive) and 30%",
-          "flowering": "Flowering: total gain between 30% (exclusive) and 60%",
-          "fruiting": "Fruiting: total gain between 60% (exclusive) and 120%",
-          "bumper": "Bumper crop: total gain above 120%"
+          "title": "Growth stages (Sown → Sprouting → Leafing → Budding → Flowering → Fruiting → Established)",
+          "detail": "A crop's growth stage is how long that holding has been held. Like a real plant it only moves forward while you keep it — a fall in price never sends it back to Sown. When the purchase date is unknown the stage is \"Age unknown\".",
+          "sown": "Sown: held for under 30 days",
+          "sprouting": "Sprouting: 30 days to 3 months",
+          "leafing": "Leafing: 3 to 6 months",
+          "budding": "Budding: 6 months to 1 year",
+          "flowering": "Flowering: 1 to 2 years",
+          "fruiting": "Fruiting: 2 to 5 years",
+          "established": "Established: 5 years or more"
         },
         "propagator": {
           "title": "Propagator",
-          "detail": "Lists crops still inside their minimum holding period — the configured number of days a holding must be held before it becomes eligible to sell — counting down to the date each one clears it. This is a holding-period measure, separate from the gain-based growth stage above."
+          "detail": "Lists crops still inside their minimum holding period — the configured number of days a holding must be held before it becomes eligible to sell — counting down to the date each one clears it."
         },
         "water": {
           "title": "Water",
@@ -1349,6 +1348,14 @@
         "growerLevel": {
           "title": "Grower level and XP",
           "detail": "Earned by completing daily chores. Reaching level L takes 25 × L × (L − 1) XP in total, so early levels come quickly and later ones stretch out. It tracks your own progress, not a portfolio figure, so it is the same on every grower's plot."
+        },
+        "condition": {
+          "title": "Condition (Wilting → Struggling → Healthy → Thriving)",
+          "detail": "A crop's condition is that holding's total gain or loss as a percentage of what was paid for it. Unlike the growth stage it can get better or worse, and it sets the crop's colour. When the cost is unknown the condition is unknown.",
+          "wilting": "Wilting: down 20% or more",
+          "struggling": "Struggling: down, but by less than 20%",
+          "healthy": "Healthy: up by 0% to under 20%",
+          "thriving": "Thriving: up 20% or more"
         }
       },
       "technicals": {
@@ -2551,7 +2558,20 @@
     "importUpdated_other": "Recorded a cost for {{count}} holdings.",
     "importSkipped_one": "{{count}} row skipped.",
     "importSkipped_other": "{{count}} rows skipped.",
-    "importSkippedRow": "Line {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Line {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "est.",
+    "estimateTitle": "Estimated cost: the market price on {{date}}, not a purchase price. Gain/loss is measured from that day.",
+    "estimateTitleNoDate": "Estimated cost: a market price, not a purchase price. Gain/loss is measured from the day it was set.",
+    "estimateIncluded_one": "Includes {{count}} holding whose cost is an estimate (a market price, not a purchase price)",
+    "estimateIncluded_other": "Includes {{count}} holdings whose cost is an estimate (a market price, not a purchase price)",
+    "useCurrentPrice": "Use current price as cost",
+    "useCurrentPriceHelp": "Purchase price lost? Record today's price as an estimated cost so gain/loss counts from today. It is always shown as an estimate, never as a purchase price.",
+    "useCurrentPriceConfirm": "Record today's price as an estimated cost for {{ticker}}? It is not what you paid: gain/loss will count from today, and the cost is marked as an estimate everywhere.",
+    "recordEstimate": "Record estimate",
+    "cancelEstimate": "Cancel",
+    "estimateFailed": "Could not record the estimate: {{message}}",
+    "estimatedCount_one": "{{count}} holding uses an estimated cost: the market price on the day it was set, not a purchase price.",
+    "estimatedCount_other": "{{count}} holdings use an estimated cost: the market price on the day it was set, not a purchase price."
   },
   "portfolioSentence": {
     "valueOnly": "Your portfolio is worth {{value}}.",
@@ -2576,7 +2596,9 @@
     "totalValue": "Total value",
     "gainLoss": "Gain/loss",
     "excludesNoFx_one": "Excludes {{count}} holding with no FX rate",
-    "excludesNoFx_other": "Excludes {{count}} holdings with no FX rate"
+    "excludesNoFx_other": "Excludes {{count}} holdings with no FX rate",
+    "includesEstimated_one": "Includes {{count}} holding with an estimated cost (gain since the estimate, not since purchase)",
+    "includesEstimated_other": "Includes {{count}} holdings with an estimated cost (gain since the estimate, not since purchase)"
   },
   "performanceDiagnostics": {
     "sameDay": "same day",
@@ -3312,7 +3334,9 @@
       "addFavourite": "Add {{ticker}} to favourites",
       "today": "{{pct}} today",
       "noDataToday": "no data today",
-      "shareOfPlot": "{{pct}} of plot"
+      "shareOfPlot": "{{pct}} of plot",
+      "stageTitle": "Growth stage: how long this has been held",
+      "conditionTitle": "Condition: total gain or loss since purchase"
     },
     "data": {
       "ownersError": "Could not load the list of growers.",
@@ -3343,7 +3367,6 @@
       "groundwork": "Groundwork"
     },
     "crop": {
-      "growth": "Growth",
       "gainUnknown": "Gain unknown — no cost basis on record",
       "gainDetail": "{{gain}} unrealised gain ({{pct}})",
       "yield": "Yield",
@@ -3383,17 +3406,18 @@
       "unknown": "unknown",
       "openInstrument": "Open the full instrument view →",
       "neighbours": "Neighbouring crops",
-      "allCrops": "All crops"
+      "allCrops": "All crops",
+      "condition": "Condition"
     },
     "roster": {
       "sortShare": "Plot share",
-      "sortGrowth": "Growth",
+      "sortGrowth": "Gain",
       "sortVigour": "Vigour",
       "sortAz": "A–Z",
       "growthStages": "Growth stages",
       "growthStagesLabel": "What do growth stages mean?",
-      "growthStagesTip": "A crop's stage is its total gain since purchase, not its day change — Sown/Sprouting means little or no profit yet, Fruiting and Bumper crop mean it has gained a lot.",
-      "stageNote": "Stage comes from each holding's total gain; the bar shows its share of plot value.",
+      "growthStagesTip": "A crop's stage is how long it has been held — it only moves forward, from Sown (under 30 days) to Established (5 years or more). How well it is doing is its condition, shown by its colour: Thriving, Healthy, Struggling or Wilting.",
+      "stageNote": "Stage comes from how long each holding has been held; colour and condition from its total gain; the bar shows its share of plot value.",
       "title": "Crop roster ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} bed",
       "bedCount_other": "{{count}} beds",
@@ -3404,11 +3428,12 @@
       "filterCrops": "Filter crops",
       "allBeds": "All beds",
       "favourites": "Favourites ({{count}})",
-      "noMatch": "No crops match those filters."
+      "noMatch": "No crops match those filters.",
+      "conditionsLabel": "Crop conditions"
     },
     "seeds": {
       "title": "Seed catalogue",
-      "intro": "Your watchlist as seed packets — the same list the classic Watchlist page reads, priced from live quotes. Nothing here places a trade.",
+      "intro": "Your watchlist, the same list the classic Watchlist page reads, priced from live quotes. Things you could hold are seed packets; indices, currency rates and futures are the weather your plot grows in. Nothing here places a trade.",
       "loadError": "Could not load quotes: {{error}}",
       "tryAgain": "Try again",
       "available": "Available seed ({{count}})",
@@ -3417,9 +3442,15 @@
       "noQuotes": "No quotes came back for your watchlist symbols. Try the <txlink>classic watchlist</txlink> to check them.",
       "unnamed": "Unnamed instrument",
       "alreadyGrowing": "Already growing in your plot",
-      "notSown": "Not sown yet",
       "inspectCrop": "Inspect crop",
-      "readPacket": "Read the packet"
+      "readPacket": "Read the packet",
+      "notInPlot": "Not in your plot",
+      "availableTitle": "Available seed",
+      "manage": "Add or remove symbols in the <txlink>classic watchlist</txlink>.",
+      "unitUnknown": "(unit unknown)",
+      "noSeeds": "Nothing on this watchlist is something you could hold. It is all weather (below).",
+      "weatherTitle": "The weather ({{count}})",
+      "weatherNote": "Indices, currency rates and futures: the market conditions your plot is growing in. They are readings, not things you can plant."
     },
     "season": {
       "everyTierEarned": "Every {{group}} tier earned",
@@ -3544,14 +3575,21 @@
       "seedlingSower": "Seedling Sower"
     },
     "stage": {
-      "wilting": "Wilting",
       "seed": "Sown",
       "sprout": "Sprouting",
       "leafing": "Leafing",
       "budding": "Budding",
       "flowering": "Flowering",
       "fruiting": "Fruiting",
-      "bumper": "Bumper crop"
+      "unknown": "Age unknown",
+      "established": "Established"
+    },
+    "condition": {
+      "unknown": "Condition unknown",
+      "wilting": "Wilting",
+      "struggling": "Struggling",
+      "healthy": "Healthy",
+      "thriving": "Thriving"
     },
     "nextJob": {
       "title": "Next job on the plot",
@@ -4363,6 +4401,24 @@
       "medium": "Medium",
       "low": "Low",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Digest settings",
+      "loading": "Loading settings…",
+      "loadError": "Could not load the digest settings.",
+      "period": "Digest every",
+      "weekly": "Week",
+      "monthly": "Month",
+      "email_enabled": "Send the digest by email",
+      "telegram_enabled": "Send the digest by Telegram",
+      "include_balances": "Show £ amounts in email and Telegram",
+      "send_when_empty": "Send a digest even when nothing needs you",
+      "per_bot_cap": "Items per bot (1–50)",
+      "alertImmediately": "Alert straight away",
+      "alertImmediatelyHelp": "Ticked severities also alert as soon as a bot finds them. They still appear in the digest.",
+      "bot": "Bot",
+      "save": "Save settings",
+      "saved": "Settings saved."
     }
   },
   "bots": {

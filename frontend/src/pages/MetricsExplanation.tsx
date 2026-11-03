@@ -704,23 +704,39 @@ export default function MetricsExplanation() {
           </div>
           <div id="growth-stages">
             <h3 className="text-lg font-semibold">
-              {t("metricsExplanation.sections.plot.growthStages.title", "Growth stages (Wilting → Sown → Sprouting → Leafing → Budding → Flowering → Fruiting → Bumper crop)")}
+              {t("metricsExplanation.sections.plot.growthStages.title", "Growth stages (Sown → Sprouting → Leafing → Budding → Flowering → Fruiting → Established)")}
             </h3>
             <p className="text-sm text-gray-300">
               {t(
                 "metricsExplanation.sections.plot.growthStages.detail",
-                "A crop's growth stage is set by that holding's total gain, as a percentage of what was paid for it — it does not depend on how long it has been held."
+                "A crop's growth stage is how long that holding has been held. Like a real plant it only moves forward while you keep it — a fall in price never sends it back to Sown. When the purchase date is unknown the stage is \"Age unknown\"."
               )}
             </p>
             <ul className="mt-2 grid list-none gap-x-6 gap-y-1 text-sm text-gray-300 sm:grid-cols-2">
-              <li id="wilting">{t("metricsExplanation.sections.plot.growthStages.wilting", "Wilting: total gain of -20% or below")}</li>
-              <li id="sown">{t("metricsExplanation.sections.plot.growthStages.sown", "Sown: total gain between -20% (exclusive) and 0%")}</li>
-              <li id="sprouting">{t("metricsExplanation.sections.plot.growthStages.sprouting", "Sprouting: total gain between 0% (exclusive) and 5%")}</li>
-              <li id="leafing">{t("metricsExplanation.sections.plot.growthStages.leafing", "Leafing: total gain between 5% (exclusive) and 15%")}</li>
-              <li id="budding">{t("metricsExplanation.sections.plot.growthStages.budding", "Budding: total gain between 15% (exclusive) and 30%")}</li>
-              <li id="flowering">{t("metricsExplanation.sections.plot.growthStages.flowering", "Flowering: total gain between 30% (exclusive) and 60%")}</li>
-              <li id="fruiting">{t("metricsExplanation.sections.plot.growthStages.fruiting", "Fruiting: total gain between 60% (exclusive) and 120%")}</li>
-              <li id="bumper-crop">{t("metricsExplanation.sections.plot.growthStages.bumper", "Bumper crop: total gain above 120%")}</li>
+              <li id="sown">{t("metricsExplanation.sections.plot.growthStages.sown", "Sown: held for under 30 days")}</li>
+              <li id="sprouting">{t("metricsExplanation.sections.plot.growthStages.sprouting", "Sprouting: 30 days to 3 months")}</li>
+              <li id="leafing">{t("metricsExplanation.sections.plot.growthStages.leafing", "Leafing: 3 to 6 months")}</li>
+              <li id="budding">{t("metricsExplanation.sections.plot.growthStages.budding", "Budding: 6 months to 1 year")}</li>
+              <li id="flowering">{t("metricsExplanation.sections.plot.growthStages.flowering", "Flowering: 1 to 2 years")}</li>
+              <li id="fruiting">{t("metricsExplanation.sections.plot.growthStages.fruiting", "Fruiting: 2 to 5 years")}</li>
+              <li id="established">{t("metricsExplanation.sections.plot.growthStages.established", "Established: 5 years or more")}</li>
+            </ul>
+          </div>
+          <div id="condition">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.plot.condition.title", "Condition (Wilting → Struggling → Healthy → Thriving)")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.plot.condition.detail",
+                "A crop's condition is that holding's total gain or loss as a percentage of what was paid for it. Unlike the growth stage it can get better or worse, and it sets the crop's colour. When the cost is unknown the condition is unknown."
+              )}
+            </p>
+            <ul className="mt-2 grid list-none gap-x-6 gap-y-1 text-sm text-gray-300 sm:grid-cols-2">
+              <li id="wilting">{t("metricsExplanation.sections.plot.condition.wilting", "Wilting: down 20% or more")}</li>
+              <li id="struggling">{t("metricsExplanation.sections.plot.condition.struggling", "Struggling: down, but by less than 20%")}</li>
+              <li id="healthy">{t("metricsExplanation.sections.plot.condition.healthy", "Healthy: up by 0% to under 20%")}</li>
+              <li id="thriving">{t("metricsExplanation.sections.plot.condition.thriving", "Thriving: up 20% or more")}</li>
             </ul>
           </div>
           <div id="propagator">
@@ -730,7 +746,7 @@ export default function MetricsExplanation() {
             <p className="text-sm text-gray-300">
               {t(
                 "metricsExplanation.sections.plot.propagator.detail",
-                "Lists crops still inside their minimum holding period — the configured number of days a holding must be held before it becomes eligible to sell — counting down to the date each one clears it. This is a holding-period measure, separate from the gain-based growth stage above."
+                "Lists crops still inside their minimum holding period — the configured number of days a holding must be held before it becomes eligible to sell — counting down to the date each one clears it."
               )}
             </p>
           </div>

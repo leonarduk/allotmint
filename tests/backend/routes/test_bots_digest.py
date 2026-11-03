@@ -197,3 +197,63 @@ def test_system_items_hidden_from_non_admins_on_lambda(data_root, monkeypatch):
 
     body = _as(_client(data_root), "admin@example.com").get("/bots/digest/alex/latest").json()
     assert [i["dedupe_key"] for i in body["items"]] == ["alex:own", "steward:system"]
+
+
+# ───────────── per-owner digest settings (#10502) ─────────────
+
+
+def test_settings_default_until_saved(data_root):
+    body = _client(data_root).get("/bots/digest/alex/settings").json()
+    assert body == route.DigestSettings().model_dump(mode="json")
+
+
+def test_put_settings_merges_and_keeps_other_owners(data_root):
+    client = _client(data_root)
+    client.put("/bots/digest/bob/settings", json={"period": "monthly"})
+
+    resp = client.put(
+        "/bots/digest/alex/settings",
+        json={"include_balances": True, "alert_immediately_for": {"pension-report": ["high"]}},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["include_balances"] is True
+    assert resp.json()["period"] == "weekly"  # untouched fields keep their value
+    client.put("/bots/digest/alex/settings", json={"per_bot_cap": 3})
+    alex = client.get("/bots/digest/alex/settings").json()
+    assert (alex["per_bot_cap"], alex["include_balances"]) == (3, True)
+    assert alex["alert_immediately_for"] == {"pension-report": ["high"]}
+    assert client.get("/bots/digest/bob/settings").json()["period"] == "monthly"
+    # The digest itself reads what was saved.
+    assert route.load_settings("alex").per_bot_cap == 3
+
+
+@pytest.mark.parametrize(
+    "values, loc",
+    [
+        ({"colour": "blue"}, ["colour"]),
+        ({"alert_immediately_for": {"no-such-bot": ["high"]}}, ["alert_immediately_for", "no-such-bot"]),
+        ({"alert_immediately_for": {"pension-report": ["urgent"]}}, ["alert_immediately_for", "pension-report", 0]),
+        ({"per_bot_cap": 0}, ["per_bot_cap"]),
+        ({"period": "daily"}, ["period"]),
+    ],
+)
+def test_put_settings_rejects_bad_values_without_saving(data_root, values, loc):
+    resp = _client(data_root).put("/bots/digest/alex/settings", json=values)
+
+    assert resp.status_code == 422
+    assert loc in [err["loc"] for err in resp.json()["detail"]]
+    assert not (data_root / "settings.json").exists()
+
+
+def test_other_owner_cannot_read_or_change_settings(data_root, auth_on):
+    client = _as(_client(data_root), "bob")
+    with pytest.raises(PermissionDeniedError):
+        client.get("/bots/digest/alex/settings")
+    with pytest.raises(PermissionDeniedError):
+        client.put("/bots/digest/alex/settings", json={"period": "monthly"})
+    assert not (data_root / "settings.json").exists()
+
+    resp = _as(client, "alex").put("/bots/digest/alex/settings", json={"period": "monthly"})
+    assert resp.status_code == 200
+    assert route.load_settings("alex").period == "monthly"

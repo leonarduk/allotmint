@@ -889,6 +889,14 @@ class BackendLambdaStack(Stack):
                 # store raises as unavailable, so no visit could ever be
                 # recorded. Get/PutObject come from the bucket-wide grants below.
                 LAST_VISIT_PREFIX,
+                # Per-owner digest settings (#10502): routes/bots_digest.py:
+                # update_digest_settings → bots/digest_settings.py:save_settings
+                # → _load_for_update → S3JSONStorage.load_existing reads a
+                # not-yet-written bots/digest_settings.json as NoSuchKey only
+                # with ListBucket here; a 403 raises, so no owner could save
+                # settings until one existed. Get/PutObject come from the
+                # bucket-wide grants below.
+                BOTS_PREFIX,
                 # Writable, per-owner account documents (manual holdings and
                 # transaction writes) live under a dedicated prefix that is
                 # separate from the read-only ``accounts/`` demo dataset so
@@ -1152,6 +1160,7 @@ class BackendLambdaStack(Stack):
         # - transactions/    (report transaction exports)
         # - plans/, decision_journal/ (owner listing, missing-vs-denied; #11159)
         # - last_visit/      (missing-vs-denied for last-visit records; #11195)
+        # - bots/            (missing-vs-denied for digest settings; #10502)
         # - "" (root)        (Data Explorer root tree listing, issue #6110)
         self._grant_bucket_access(
             backend_fn,

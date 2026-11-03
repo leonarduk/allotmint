@@ -292,7 +292,10 @@ def fetch_morningstar(
 # ──────────────────────────────────────────────────────────────
 def _justetf_rows(soup: BeautifulSoup, test_id: str) -> List[tuple[str, float, Optional[str]]]:
     """``(label, pct, href)`` rows of the justETF holdings table tagged ``test_id``."""
-    container = soup.find(attrs={"data-testid": test_id})
+    # bs4 4.15 types find() so ``attrs`` needs ``name=None`` passed explicitly and a
+    # wide value type: a dict[str, str] literal fails the overload (dicts are invariant).
+    attrs: Dict[str, Any] = {"data-testid": test_id}
+    container = soup.find(None, attrs)
     rows: List[tuple[str, float, Optional[str]]] = []
     for tr in container.find_all("tr") if container else []:
         cells = [td.get_text(" ", strip=True) for td in tr.find_all("td")]

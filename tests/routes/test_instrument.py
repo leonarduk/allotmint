@@ -163,6 +163,30 @@ def test_positions_for_ticker_suspect_book_cost_is_unknown(monkeypatch):
     assert position["cost_basis_warning"] == "implied_unit_cost_out_of_band"
 
 
+def test_positions_for_ticker_estimated_cost_keeps_its_gain_and_date(monkeypatch):
+    """#10095: an "estimate" cost is shown (marked by the UI), unlike an unreliable one."""
+    enriched = [
+        {
+            "ticker": "ABC.L",
+            "units": 2,
+            "market_value_gbp": 22.0,
+            "cost_basis_gbp": 20.0,
+            "gain_gbp": 2.0,
+            "gain_pct": 10.0,
+            "cost_basis_source": "estimate",
+            "cost_basis_estimate_date": "2026-10-01",
+        }
+    ]
+    _stub_owner_sources(monkeypatch, "alex", [{"ticker": "ABC.L", "units": 2}], enriched)
+
+    [position] = instrument._positions_for_ticker("ABC.L", None)
+
+    assert position["cost_basis_gbp"] == pytest.approx(20.0)
+    assert position["gain_gbp"] == pytest.approx(2.0)
+    assert position["cost_basis_source"] == "estimate"
+    assert position["cost_basis_estimate_date"] == "2026-10-01"
+
+
 def test_positions_for_ticker_non_finite_values_become_none(monkeypatch):
     enriched = [{"ticker": "ABC.L", "units": 2, "market_value_gbp": float("nan"), "gain_pct": float("inf")}]
     _stub_owner_sources(monkeypatch, "alex", [{"ticker": "ABC.L", "units": 2}], enriched, total=0.0)

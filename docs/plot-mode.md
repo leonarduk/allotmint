@@ -26,8 +26,9 @@ is a _crop_, an account is a _bed_, and the daily Trail tasks are _chores_.
   season XP and streak.
 - **`/plot/season` — Season track.** A tiered milestone ladder over the UK
   tax year, with the countdown to 5 April.
-- **`/plot/seeds` — Seed shed.** The watchlist as seed packets, priced from
-  live quotes.
+- **`/plot/seeds` — Seed shed.** The watchlist, priced from live quotes:
+  things you could hold as seed packets, and indices, FX rates and futures
+  as "the weather" (#7203).
 
 ## Where the numbers come from
 
@@ -81,7 +82,14 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
 - **Seed packets** — the active watchlist (the same list the classic
   Watchlist page shows, from `frontend/src/lib/watchlistStore.ts`, cached in
   localStorage and saved per user via `GET`/`PUT /watchlists`) priced via
-  `GET /api/quotes`.
+  `GET /api/quotes`. `seedKindFor` in `plotModel.ts` splits it by the
+  quote's `quote_type` (falling back to the symbol shape: `^` index, `=X`
+  FX pair, `=F` future): `INDEX`, `CURRENCY` and `FUTURE` are weather, with
+  no packet and no call to action; everything else is a seed. Every price
+  shows its unit via `lib/quoteUnit.ts`, the same helper the classic
+  Watchlist uses (`pts` for index levels, the reported currency otherwise,
+  "unit unknown" rather than a guess). The screen reads the watchlist; a
+  link to the classic Watchlist, always shown, is where it is edited.
 - **Holding period (the hub panel; `Propagator` in code)** — holdings still inside their minimum holding period, from
   the backend's own `sell_eligible`, `days_until_eligible` and
   `next_eligible_sell_date` (derived from the configured `hold_days_min`).

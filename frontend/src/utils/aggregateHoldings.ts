@@ -1,5 +1,9 @@
 import type { Holding } from "../types";
-import { isCostBasisUnreliable } from "../lib/costBasis";
+import {
+  COST_BASIS_ESTIMATE,
+  isCostBasisEstimate,
+  isCostBasisUnreliable,
+} from "../lib/costBasis";
 
 export type ScopedHolding = Holding & {
   source_account?: string;
@@ -64,6 +68,10 @@ export const aggregateHoldingsByTicker = (
       ? sum(gainLots.map((lot) => lot.gain_gbp))
       : null;
     const gainCost = sum(gainLots.map(lotCost));
+    // One estimated lot (#10095) makes the combined gain partly an estimate.
+    const estimatedLot = gainLots.find((lot) =>
+      isCostBasisEstimate(lot.cost_basis_source),
+    );
 
     return {
       ...first,
@@ -74,9 +82,13 @@ export const aggregateHoldingsByTicker = (
       effective_cost_basis_gbp: costBasis,
       gain_gbp: gain,
       gain_pct: gain !== null && gainCost > 0 ? (gain / gainCost) * 100 : null,
-      cost_basis_source: gainLots.length
-        ? gainLots[0].cost_basis_source
-        : first.cost_basis_source,
+      cost_basis_source: estimatedLot
+        ? COST_BASIS_ESTIMATE
+        : gainLots.length
+          ? gainLots[0].cost_basis_source
+          : first.cost_basis_source,
+      cost_basis_estimate_date:
+        estimatedLot?.cost_basis_estimate_date ?? first.cost_basis_estimate_date,
       day_change_gbp: sum(lots.map((lot) => lot.day_change_gbp)),
       acquired_date: acquiredDate,
       days_held: daysHeld,

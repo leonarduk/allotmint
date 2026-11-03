@@ -2614,7 +2614,20 @@
     "importUpdated_other": "Einstandskosten für {{count}} Positionen erfasst.",
     "importSkipped_one": "{{count}} Zeile übersprungen.",
     "importSkipped_other": "{{count}} Zeilen übersprungen.",
-    "importSkippedRow": "Zeile {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Zeile {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "gesch.",
+    "estimateTitle": "Geschätzte Kosten: der Marktpreis am {{date}}, kein Kaufpreis. Gewinn/Verlust wird ab diesem Tag gemessen.",
+    "estimateTitleNoDate": "Geschätzte Kosten: ein Marktpreis, kein Kaufpreis. Gewinn/Verlust wird ab dem Tag gemessen, an dem sie festgelegt wurden.",
+    "estimateIncluded_one": "Enthält {{count}} Position mit geschätzten Kosten (ein Marktpreis, kein Kaufpreis)",
+    "estimateIncluded_other": "Enthält {{count}} Positionen mit geschätzten Kosten (ein Marktpreis, kein Kaufpreis)",
+    "useCurrentPrice": "Aktuellen Preis als Kosten verwenden",
+    "useCurrentPriceHelp": "Kaufpreis unbekannt? Den heutigen Preis als geschätzte Kosten erfassen, damit Gewinn/Verlust ab heute zählt. Er wird immer als Schätzung angezeigt, nie als Kaufpreis.",
+    "useCurrentPriceConfirm": "Den heutigen Preis als geschätzte Kosten für {{ticker}} erfassen? Das ist nicht, was Sie bezahlt haben: Gewinn/Verlust zählt ab heute, und die Kosten werden überall als Schätzung markiert.",
+    "recordEstimate": "Schätzung erfassen",
+    "cancelEstimate": "Abbrechen",
+    "estimateFailed": "Schätzung konnte nicht erfasst werden: {{message}}",
+    "estimatedCount_one": "{{count}} Position verwendet geschätzte Kosten: den Marktpreis am Tag der Festlegung, keinen Kaufpreis.",
+    "estimatedCount_other": "{{count}} Positionen verwenden geschätzte Kosten: den Marktpreis am Tag der Festlegung, keinen Kaufpreis."
   },
   "portfolioSentence": {
     "valueOnly": "Ihr Portfolio ist {{value}} wert.",
@@ -2639,7 +2652,9 @@
     "totalValue": "Gesamtwert",
     "gainLoss": "Gewinn/Verlust",
     "excludesNoFx_one": "Ohne {{count}} Position ohne Wechselkurs",
-    "excludesNoFx_other": "Ohne {{count}} Positionen ohne Wechselkurs"
+    "excludesNoFx_other": "Ohne {{count}} Positionen ohne Wechselkurs",
+    "includesEstimated_one": "Enthält {{count}} Position mit geschätzten Kosten (Gewinn seit der Schätzung, nicht seit dem Kauf)",
+    "includesEstimated_other": "Enthält {{count}} Positionen mit geschätzten Kosten (Gewinn seit der Schätzung, nicht seit dem Kauf)"
   },
   "performanceDiagnostics": {
     "sameDay": "am selben Tag",
@@ -3477,7 +3492,7 @@
     },
     "seeds": {
       "title": "Samenkatalog",
-      "intro": "Ihre Beobachtungsliste als Samentütchen – dieselbe Liste wie auf der klassischen Watchlist-Seite, bewertet mit Live-Kursen. Hier wird kein Handel ausgelöst.",
+      "intro": "Ihre Beobachtungsliste – dieselbe Liste wie auf der klassischen Watchlist-Seite, bewertet mit Live-Kursen. Was Sie halten könnten, sind Samentütchen; Indizes, Wechselkurse und Futures sind das Wetter, in dem Ihr Garten wächst. Hier wird kein Handel ausgelöst.",
       "loadError": "Kurse konnten nicht geladen werden: {{error}}",
       "tryAgain": "Erneut versuchen",
       "available": "Verfügbares Saatgut ({{count}})",
@@ -3486,9 +3501,15 @@
       "noQuotes": "Für die Symbole Ihrer Beobachtungsliste wurden keine Kurse geliefert. Prüfen Sie sie in der <txlink>klassischen Watchlist</txlink>.",
       "unnamed": "Unbenanntes Instrument",
       "alreadyGrowing": "Wächst bereits in Ihrem Garten",
-      "notSown": "Noch nicht gesät",
       "inspectCrop": "Pflanze ansehen",
-      "readPacket": "Tütchen lesen"
+      "readPacket": "Tütchen lesen",
+      "notInPlot": "Nicht in Ihrem Garten",
+      "availableTitle": "Verfügbares Saatgut",
+      "manage": "Symbole fügen Sie in der <txlink>klassischen Watchlist</txlink> hinzu oder entfernen sie dort.",
+      "unitUnknown": "(Einheit unbekannt)",
+      "noSeeds": "Nichts auf dieser Beobachtungsliste lässt sich halten. Es ist alles Wetter (unten).",
+      "weatherTitle": "Das Wetter ({{count}})",
+      "weatherNote": "Indizes, Wechselkurse und Futures: die Marktbedingungen, in denen Ihr Garten wächst. Es sind Messwerte, nichts, was man pflanzen kann."
     },
     "season": {
       "everyTierEarned": "Alle Stufen von „{{group}}“ erreicht",
@@ -4449,6 +4470,24 @@
       "medium": "Mittel",
       "low": "Niedrig",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Digest-Einstellungen",
+      "loading": "Einstellungen werden geladen…",
+      "loadError": "Die Digest-Einstellungen konnten nicht geladen werden.",
+      "period": "Digest jede(n)",
+      "weekly": "Woche",
+      "monthly": "Monat",
+      "email_enabled": "Digest per E-Mail senden",
+      "telegram_enabled": "Digest per Telegram senden",
+      "include_balances": "£-Beträge in E-Mail und Telegram anzeigen",
+      "send_when_empty": "Digest auch senden, wenn nichts zu tun ist",
+      "per_bot_cap": "Einträge pro Bot (1–50)",
+      "alertImmediately": "Sofort benachrichtigen",
+      "alertImmediatelyHelp": "Angehakte Schweregrade lösen sofort eine Benachrichtigung aus, sobald ein Bot sie findet. Sie erscheinen trotzdem im Digest.",
+      "bot": "Bot",
+      "save": "Einstellungen speichern",
+      "saved": "Einstellungen gespeichert."
     }
   },
   "bots": {

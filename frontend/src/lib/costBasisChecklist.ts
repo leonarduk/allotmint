@@ -1,5 +1,5 @@
 import type { Account } from '../types';
-import { isCostBasisUnreliable } from './costBasis';
+import { isCostBasisEstimate, isCostBasisUnreliable } from './costBasis';
 
 /** A holding whose gain is excluded because its cost basis is unreliable (#7825). */
 export type CostBasisGap = {
@@ -42,6 +42,18 @@ export function buildCostBasisChecklist(accounts: Account[]): CostBasisGap[] {
     if (b.marketValue === null) return -1;
     return b.marketValue - a.marketValue;
   });
+}
+
+/** Holdings whose cost is an estimate from "use current price as cost" (#10095). */
+export function countEstimatedCosts(accounts: Account[]): number {
+  return accounts.reduce(
+    (count, acct) =>
+      count +
+      (acct.holdings ?? []).filter((h) =>
+        isCostBasisEstimate(h.cost_basis_source)
+      ).length,
+    0
+  );
 }
 
 /** Share (0-1) of the gaps' total market value held by the first ``count`` gaps. */

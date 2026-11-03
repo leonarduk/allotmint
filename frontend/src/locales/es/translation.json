@@ -2614,7 +2614,20 @@
     "importUpdated_other": "Se registró el coste de {{count}} posiciones.",
     "importSkipped_one": "{{count}} fila omitida.",
     "importSkipped_other": "{{count}} filas omitidas.",
-    "importSkippedRow": "Línea {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Línea {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "est.",
+    "estimateTitle": "Coste estimado: el precio de mercado del {{date}}, no un precio de compra. La ganancia/pérdida se mide desde ese día.",
+    "estimateTitleNoDate": "Coste estimado: un precio de mercado, no un precio de compra. La ganancia/pérdida se mide desde el día en que se fijó.",
+    "estimateIncluded_one": "Incluye {{count}} posición cuyo coste es una estimación (un precio de mercado, no un precio de compra)",
+    "estimateIncluded_other": "Incluye {{count}} posiciones cuyo coste es una estimación (un precio de mercado, no un precio de compra)",
+    "useCurrentPrice": "Usar el precio actual como coste",
+    "useCurrentPriceHelp": "¿Se perdió el precio de compra? Registre el precio de hoy como coste estimado para que la ganancia/pérdida cuente desde hoy. Siempre se muestra como estimación, nunca como precio de compra.",
+    "useCurrentPriceConfirm": "¿Registrar el precio de hoy como coste estimado de {{ticker}}? No es lo que pagó: la ganancia/pérdida contará desde hoy y el coste se marcará como estimación en todas partes.",
+    "recordEstimate": "Registrar estimación",
+    "cancelEstimate": "Cancelar",
+    "estimateFailed": "No se pudo registrar la estimación: {{message}}",
+    "estimatedCount_one": "{{count}} posición usa un coste estimado: el precio de mercado del día en que se fijó, no un precio de compra.",
+    "estimatedCount_other": "{{count}} posiciones usan un coste estimado: el precio de mercado del día en que se fijó, no un precio de compra."
   },
   "portfolioSentence": {
     "valueOnly": "Su cartera vale {{value}}.",
@@ -2639,7 +2652,9 @@
     "totalValue": "Valor total",
     "gainLoss": "Ganancia/pérdida",
     "excludesNoFx_one": "Excluye {{count}} posición sin tipo de cambio",
-    "excludesNoFx_other": "Excluye {{count}} posiciones sin tipo de cambio"
+    "excludesNoFx_other": "Excluye {{count}} posiciones sin tipo de cambio",
+    "includesEstimated_one": "Incluye {{count}} posición con coste estimado (ganancia desde la estimación, no desde la compra)",
+    "includesEstimated_other": "Incluye {{count}} posiciones con coste estimado (ganancia desde la estimación, no desde la compra)"
   },
   "performanceDiagnostics": {
     "sameDay": "el mismo día",
@@ -3477,7 +3492,7 @@
     },
     "seeds": {
       "title": "Catálogo de semillas",
-      "intro": "Tu lista de seguimiento como sobres de semillas: la misma lista que lee la página clásica de Watchlist, con precios de cotizaciones en vivo. Aquí no se realiza ninguna operación.",
+      "intro": "Tu lista de seguimiento, la misma que lee la página clásica de Watchlist, con precios de cotizaciones en directo. Lo que podrías tener son sobres de semillas; los índices, tipos de cambio y futuros son el clima en el que crece tu huerto. Aquí no se ejecuta ninguna operación.",
       "loadError": "No se pudieron cargar las cotizaciones: {{error}}",
       "tryAgain": "Intentar de nuevo",
       "available": "Semillas disponibles ({{count}})",
@@ -3486,9 +3501,15 @@
       "noQuotes": "No se recibieron cotizaciones para los símbolos de tu lista de seguimiento. Prueba la <txlink>watchlist clásica</txlink> para comprobarlos.",
       "unnamed": "Instrumento sin nombre",
       "alreadyGrowing": "Ya crece en tu huerto",
-      "notSown": "Aún sin sembrar",
       "inspectCrop": "Inspeccionar cultivo",
-      "readPacket": "Leer el sobre"
+      "readPacket": "Leer el sobre",
+      "notInPlot": "No está en tu huerto",
+      "availableTitle": "Semillas disponibles",
+      "manage": "Añade o quita símbolos en la <txlink>watchlist clásica</txlink>.",
+      "unitUnknown": "(unidad desconocida)",
+      "noSeeds": "Nada de esta lista de seguimiento es algo que puedas tener. Todo es clima (abajo).",
+      "weatherTitle": "El clima ({{count}})",
+      "weatherNote": "Índices, tipos de cambio y futuros: las condiciones de mercado en las que crece tu huerto. Son lecturas, no algo que se pueda plantar."
     },
     "season": {
       "everyTierEarned": "Todos los niveles de «{{group}}» conseguidos",
@@ -4449,6 +4470,24 @@
       "medium": "Media",
       "low": "Baja",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Ajustes del resumen",
+      "loading": "Cargando ajustes…",
+      "loadError": "No se pudieron cargar los ajustes del resumen.",
+      "period": "Resumen cada",
+      "weekly": "Semana",
+      "monthly": "Mes",
+      "email_enabled": "Enviar el resumen por correo",
+      "telegram_enabled": "Enviar el resumen por Telegram",
+      "include_balances": "Mostrar importes en £ en correo y Telegram",
+      "send_when_empty": "Enviar el resumen aunque no haya nada pendiente",
+      "per_bot_cap": "Elementos por bot (1–50)",
+      "alertImmediately": "Avisar al momento",
+      "alertImmediatelyHelp": "Las gravedades marcadas también avisan en cuanto un bot las detecta. Siguen apareciendo en el resumen.",
+      "bot": "Bot",
+      "save": "Guardar ajustes",
+      "saved": "Ajustes guardados."
     }
   },
   "bots": {

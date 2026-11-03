@@ -22,8 +22,10 @@ import { formatDateISO } from "../lib/date";
 import { closeAsOf, liveQuoteAsOf } from "../lib/priceAsOf";
 import {
   COST_BASIS_BOOK_SUSPECT,
+  isCostBasisEstimate,
   isCostBasisUnreliable,
 } from "../lib/costBasis";
+import { CostEstimateMark } from "./CostEstimateMark";
 import {
   FX_RATE_SOURCE_MISSING,
   isFxRateFlagged,
@@ -430,9 +432,12 @@ export function HoldingsTable({
             gain: acc.gain + (gainCounted ? h.gain ?? 0 : 0),
             gainCost: acc.gainCost + (gainCounted ? h.cost ?? 0 : 0),
             weight: acc.weight + (h.weight_pct ?? 0),
+            // Gains summed from an estimated cost (#10095), flagged on the total.
+            estimated:
+              acc.estimated + (gainCounted && isCostBasisEstimate(h.cost_basis_source) ? 1 : 0),
           };
         },
-        { cost: 0, market: 0, gain: 0, gainCost: 0, weight: 0 },
+        { cost: 0, market: 0, gain: 0, gainCost: 0, weight: 0, estimated: 0 },
       ),
     [sortedRows],
   );
@@ -671,6 +676,10 @@ export function HoldingsTable({
     const groupWeight = overallGroupTotals.marketValue
       ? (group.totals.marketValue / overallGroupTotals.marketValue) * 100
       : 0;
+    // Rows whose summed gain rests on an estimated cost (#10095).
+    const groupEstimated = group.rows.filter((row) =>
+      isCostBasisEstimate(row.cost_basis_source),
+    ).length;
 
     return (
       <tr key={`group-${group.key}`} className={tableStyles.groupRow}>
@@ -728,13 +737,17 @@ export function HoldingsTable({
                 {t("holdingsTable.notApplicable")}
               </span>
             ) : (
-              reporting.format(group.totals.gain)
+              <>
+                {reporting.format(group.totals.gain)}
+                <CostEstimateMark count={groupEstimated} />
+              </>
             )}
           </td>
         )}
         {show("gain_pct") && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
             {percent(group.totals.gainPct, 1)}
+            <CostEstimateMark count={groupEstimated} />
           </td>
         )}
         {show("total_return") && (
@@ -1141,7 +1154,10 @@ export function HoldingsTable({
                         {t("holdingsTable.notApplicable")}
                       </span>
                     ) : (
-                      reporting.format(h.gain, h.gain_currency)
+                      <>
+                        {reporting.format(h.gain, h.gain_currency)}
+                        <CostEstimateMark source={h.cost_basis_source} date={h.cost_basis_estimate_date} />
+                      </>
                     )}
                   </td>
                 )}
@@ -1157,7 +1173,10 @@ export function HoldingsTable({
                         {t("holdingsTable.notApplicable")}
                       </span>
                     ) : (
-                      percent(h.gain_pct, 1)
+                      <>
+                        {percent(h.gain_pct, 1)}
+                        <CostEstimateMark source={h.cost_basis_source} date={h.cost_basis_estimate_date} />
+                      </>
                     )}
                   </td>
                 )}
@@ -1238,6 +1257,8 @@ export function HoldingsTable({
                         ? t("holdingsTable.costBasisUnknown")
                         : h.cost_basis_source === COST_BASIS_BOOK_SUSPECT
                           ? t("holdingsTable.bookCostSuspect")
+                          : isCostBasisEstimate(h.cost_basis_source)
+                          ? undefined
                           : (h.cost_basis_gbp ?? 0) > 0
                           ? t("holdingsTable.actualPurchaseCost")
                           : t("holdingsTable.inferredCost")
@@ -1247,6 +1268,7 @@ export function HoldingsTable({
                       h.cost,
                       h.cost_basis_currency || h.effective_cost_basis_currency,
                     )}
+                    <CostEstimateMark source={h.cost_basis_source} date={h.cost_basis_estimate_date} />
                   </td>
                 )}
                 {showForward7d && (
@@ -1420,6 +1442,7 @@ export function HoldingsTable({
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${getPerformanceClass(totals.gain)}`}
               >
                 {reporting.format(totals.gain)}
+                <CostEstimateMark count={totals.estimated} />
               </td>
             )}
             {show("gain_pct") && (
@@ -1427,6 +1450,7 @@ export function HoldingsTable({
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${getPerformanceClass(totalGainPct)}`}
               >
                 {percent(totalGainPct, 1)}
+                <CostEstimateMark count={totals.estimated} />
               </td>
             )}
             {show("total_return") && (

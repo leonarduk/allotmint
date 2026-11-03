@@ -2614,7 +2614,20 @@
     "importUpdated_other": "Coût enregistré pour {{count}} positions.",
     "importSkipped_one": "{{count}} ligne ignorée.",
     "importSkipped_other": "{{count}} lignes ignorées.",
-    "importSkippedRow": "Ligne {{line}} ({{ticker}}) : {{reason}}"
+    "importSkippedRow": "Ligne {{line}} ({{ticker}}) : {{reason}}",
+    "estimateBadge": "est.",
+    "estimateTitle": "Coût estimé : le cours du {{date}}, pas un prix d'achat. Le gain/la perte est mesuré à partir de ce jour.",
+    "estimateTitleNoDate": "Coût estimé : un cours de marché, pas un prix d'achat. Le gain/la perte est mesuré à partir du jour où il a été fixé.",
+    "estimateIncluded_one": "Inclut {{count}} position dont le coût est une estimation (un cours de marché, pas un prix d'achat)",
+    "estimateIncluded_other": "Inclut {{count}} positions dont le coût est une estimation (un cours de marché, pas un prix d'achat)",
+    "useCurrentPrice": "Utiliser le cours actuel comme coût",
+    "useCurrentPriceHelp": "Prix d'achat perdu ? Enregistrez le cours du jour comme coût estimé pour que le gain/la perte compte à partir d'aujourd'hui. Il est toujours affiché comme une estimation, jamais comme un prix d'achat.",
+    "useCurrentPriceConfirm": "Enregistrer le cours du jour comme coût estimé pour {{ticker}} ? Ce n'est pas ce que vous avez payé : le gain/la perte comptera à partir d'aujourd'hui et le coût sera marqué comme estimation partout.",
+    "recordEstimate": "Enregistrer l'estimation",
+    "cancelEstimate": "Annuler",
+    "estimateFailed": "Impossible d'enregistrer l'estimation : {{message}}",
+    "estimatedCount_one": "{{count}} position utilise un coût estimé : le cours du jour où il a été fixé, pas un prix d'achat.",
+    "estimatedCount_other": "{{count}} positions utilisent un coût estimé : le cours du jour où il a été fixé, pas un prix d'achat."
   },
   "portfolioSentence": {
     "valueOnly": "Votre portefeuille vaut {{value}}.",
@@ -2639,7 +2652,9 @@
     "totalValue": "Valeur totale",
     "gainLoss": "Gain/perte",
     "excludesNoFx_one": "Exclut {{count}} position sans taux de change",
-    "excludesNoFx_other": "Exclut {{count}} positions sans taux de change"
+    "excludesNoFx_other": "Exclut {{count}} positions sans taux de change",
+    "includesEstimated_one": "Inclut {{count}} position au coût estimé (gain depuis l'estimation, pas depuis l'achat)",
+    "includesEstimated_other": "Inclut {{count}} positions au coût estimé (gain depuis l'estimation, pas depuis l'achat)"
   },
   "performanceDiagnostics": {
     "sameDay": "le même jour",
@@ -3477,7 +3492,7 @@
     },
     "seeds": {
       "title": "Catalogue de graines",
-      "intro": "Votre liste de suivi sous forme de sachets de graines — la même liste que lit la page Watchlist classique, avec des prix issus des cours en direct. Rien ici ne passe d'ordre.",
+      "intro": "Votre liste de suivi, la même que lit la page Watchlist classique, avec des prix issus des cours en direct. Ce que vous pourriez détenir, ce sont des sachets de graines ; les indices, taux de change et contrats à terme sont la météo dans laquelle pousse votre potager. Rien ici ne passe d'ordre.",
       "loadError": "Impossible de charger les cours : {{error}}",
       "tryAgain": "Réessayer",
       "available": "Graines disponibles ({{count}})",
@@ -3486,9 +3501,15 @@
       "noQuotes": "Aucun cours n'est revenu pour les symboles de votre liste de suivi. Essayez la <txlink>watchlist classique</txlink> pour les vérifier.",
       "unnamed": "Instrument sans nom",
       "alreadyGrowing": "Pousse déjà dans votre potager",
-      "notSown": "Pas encore semé",
       "inspectCrop": "Inspecter la culture",
-      "readPacket": "Lire le sachet"
+      "readPacket": "Lire le sachet",
+      "notInPlot": "Pas dans votre potager",
+      "availableTitle": "Graines disponibles",
+      "manage": "Ajoutez ou retirez des symboles dans la <txlink>watchlist classique</txlink>.",
+      "unitUnknown": "(unité inconnue)",
+      "noSeeds": "Rien dans cette liste de suivi ne peut être détenu. Tout est météo (ci-dessous).",
+      "weatherTitle": "La météo ({{count}})",
+      "weatherNote": "Indices, taux de change et contrats à terme : les conditions de marché dans lesquelles pousse votre potager. Ce sont des relevés, pas des choses que l'on peut planter."
     },
     "season": {
       "everyTierEarned": "Tous les paliers « {{group}} » atteints",
@@ -4449,6 +4470,24 @@
       "medium": "Moyenne",
       "low": "Faible",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Paramètres du récapitulatif",
+      "loading": "Chargement des paramètres…",
+      "loadError": "Impossible de charger les paramètres du récapitulatif.",
+      "period": "Récapitulatif chaque",
+      "weekly": "Semaine",
+      "monthly": "Mois",
+      "email_enabled": "Envoyer le récapitulatif par e-mail",
+      "telegram_enabled": "Envoyer le récapitulatif par Telegram",
+      "include_balances": "Afficher les montants en £ dans l'e-mail et Telegram",
+      "send_when_empty": "Envoyer un récapitulatif même sans rien à traiter",
+      "per_bot_cap": "Éléments par bot (1–50)",
+      "alertImmediately": "Alerter immédiatement",
+      "alertImmediatelyHelp": "Les niveaux cochés déclenchent aussi une alerte dès qu'un bot les détecte. Ils figurent toujours dans le récapitulatif.",
+      "bot": "Bot",
+      "save": "Enregistrer les paramètres",
+      "saved": "Paramètres enregistrés."
     }
   },
   "bots": {

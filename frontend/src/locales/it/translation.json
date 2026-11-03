@@ -2614,7 +2614,20 @@
     "importUpdated_other": "Costo registrato per {{count}} posizioni.",
     "importSkipped_one": "{{count}} riga ignorata.",
     "importSkipped_other": "{{count}} righe ignorate.",
-    "importSkippedRow": "Riga {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Riga {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "stim.",
+    "estimateTitle": "Costo stimato: il prezzo di mercato del {{date}}, non un prezzo di acquisto. Il guadagno/la perdita si misura da quel giorno.",
+    "estimateTitleNoDate": "Costo stimato: un prezzo di mercato, non un prezzo di acquisto. Il guadagno/la perdita si misura dal giorno in cui è stato fissato.",
+    "estimateIncluded_one": "Include {{count}} posizione il cui costo è una stima (un prezzo di mercato, non un prezzo di acquisto)",
+    "estimateIncluded_other": "Include {{count}} posizioni il cui costo è una stima (un prezzo di mercato, non un prezzo di acquisto)",
+    "useCurrentPrice": "Usa il prezzo attuale come costo",
+    "useCurrentPriceHelp": "Prezzo di acquisto perso? Registra il prezzo di oggi come costo stimato, così guadagno/perdita contano da oggi. È sempre mostrato come stima, mai come prezzo di acquisto.",
+    "useCurrentPriceConfirm": "Registrare il prezzo di oggi come costo stimato per {{ticker}}? Non è quanto hai pagato: guadagno/perdita conteranno da oggi e il costo sarà indicato ovunque come stima.",
+    "recordEstimate": "Registra stima",
+    "cancelEstimate": "Annulla",
+    "estimateFailed": "Impossibile registrare la stima: {{message}}",
+    "estimatedCount_one": "{{count}} posizione usa un costo stimato: il prezzo di mercato del giorno in cui è stato fissato, non un prezzo di acquisto.",
+    "estimatedCount_other": "{{count}} posizioni usano un costo stimato: il prezzo di mercato del giorno in cui è stato fissato, non un prezzo di acquisto."
   },
   "portfolioSentence": {
     "valueOnly": "Il tuo portafoglio vale {{value}}.",
@@ -2639,7 +2652,9 @@
     "totalValue": "Valore totale",
     "gainLoss": "Guadagno/perdita",
     "excludesNoFx_one": "Esclude {{count}} posizione senza tasso di cambio",
-    "excludesNoFx_other": "Esclude {{count}} posizioni senza tasso di cambio"
+    "excludesNoFx_other": "Esclude {{count}} posizioni senza tasso di cambio",
+    "includesEstimated_one": "Include {{count}} posizione con costo stimato (guadagno dalla stima, non dall'acquisto)",
+    "includesEstimated_other": "Include {{count}} posizioni con costo stimato (guadagno dalla stima, non dall'acquisto)"
   },
   "performanceDiagnostics": {
     "sameDay": "stesso giorno",
@@ -3477,7 +3492,7 @@
     },
     "seeds": {
       "title": "Catalogo dei semi",
-      "intro": "La tua watchlist come bustine di semi: la stessa lista letta dalla pagina Watchlist classica, con prezzi dalle quotazioni in tempo reale. Qui non viene eseguita alcuna operazione.",
+      "intro": "La tua watchlist, la stessa letta dalla pagina Watchlist classica, con prezzi dalle quotazioni in tempo reale. Ciò che potresti detenere sono bustine di semi; indici, tassi di cambio e futures sono il meteo in cui cresce il tuo orto. Qui non si effettuano operazioni.",
       "loadError": "Impossibile caricare le quotazioni: {{error}}",
       "tryAgain": "Riprova",
       "available": "Semi disponibili ({{count}})",
@@ -3486,9 +3501,15 @@
       "noQuotes": "Nessuna quotazione è arrivata per i simboli della tua watchlist. Prova la <txlink>watchlist classica</txlink> per verificarli.",
       "unnamed": "Strumento senza nome",
       "alreadyGrowing": "Già in crescita nel tuo orto",
-      "notSown": "Non ancora seminato",
       "inspectCrop": "Ispeziona coltura",
-      "readPacket": "Leggi la bustina"
+      "readPacket": "Leggi la bustina",
+      "notInPlot": "Non è nel tuo orto",
+      "availableTitle": "Semi disponibili",
+      "manage": "Aggiungi o rimuovi simboli nella <txlink>watchlist classica</txlink>.",
+      "unitUnknown": "(unità sconosciuta)",
+      "noSeeds": "Niente in questa watchlist è qualcosa che potresti detenere. È tutto meteo (sotto).",
+      "weatherTitle": "Il meteo ({{count}})",
+      "weatherNote": "Indici, tassi di cambio e futures: le condizioni di mercato in cui cresce il tuo orto. Sono rilevazioni, non cose che si possono piantare."
     },
     "season": {
       "everyTierEarned": "Tutti i livelli di «{{group}}» ottenuti",
@@ -4449,6 +4470,24 @@
       "medium": "Media",
       "low": "Bassa",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Impostazioni del riepilogo",
+      "loading": "Caricamento impostazioni…",
+      "loadError": "Impossibile caricare le impostazioni del riepilogo.",
+      "period": "Riepilogo ogni",
+      "weekly": "Settimana",
+      "monthly": "Mese",
+      "email_enabled": "Invia il riepilogo via e-mail",
+      "telegram_enabled": "Invia il riepilogo via Telegram",
+      "include_balances": "Mostra gli importi in £ in e-mail e Telegram",
+      "send_when_empty": "Invia il riepilogo anche se non c'è nulla da fare",
+      "per_bot_cap": "Elementi per bot (1–50)",
+      "alertImmediately": "Avvisa subito",
+      "alertImmediatelyHelp": "Le gravità selezionate inviano anche un avviso appena un bot le rileva. Compaiono comunque nel riepilogo.",
+      "bot": "Bot",
+      "save": "Salva impostazioni",
+      "saved": "Impostazioni salvate."
     }
   },
   "bots": {

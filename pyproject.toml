@@ -20,7 +20,7 @@ dependencies = [
 test = [
     "pytest~=9.0.3",
     "pytest-cov~=7.1.0",
-    "pytest-asyncio~=1.4.0",
+    "pytest-asyncio~=1.4.1",
 ]
 # Private paid engine: screener, VaR/risk, compliance rule engine, allowances,
 # anomaly repair. The SSH URL intentionally requires a GitHub SSH key with

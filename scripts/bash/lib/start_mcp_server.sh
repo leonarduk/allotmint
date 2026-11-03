@@ -41,13 +41,28 @@ backend_pro_dir() {
   mcp_pro_dir "$1"
 }
 
+# Sets MCP_SERVER_ARGS to the uvicorn arguments for the MCP server on
+# 127.0.0.1:$3 (repo root $1, allotmint-pro checkout $2). Reloads on .py edits
+# under allotmint_pro/ and backend/ unless MCP_SERVER_RELOAD=0; uvicorn's default
+# *.py pattern means the server's own JSON/parquet cache writes never trigger it.
+# Mirrors Get-McpServerArguments in scripts/lib/local-dev.ps1.
+mcp_server_args() {
+  local repo_root="$1" pro_dir="$2" port="$3"
+  MCP_SERVER_ARGS=(allotmint_pro.mcp_server.app:app --host 127.0.0.1 --port "$port")
+  if [[ "${MCP_SERVER_RELOAD:-1}" != "0" ]]; then
+    MCP_SERVER_ARGS+=(--reload --reload-dir "$pro_dir/allotmint_pro" --reload-dir "$repo_root/backend")
+  fi
+}
+
 # Runs the MCP server in the foreground on 127.0.0.1:$3, importing `backend`
 # from repo root $1 and `allotmint_pro` from checkout $2. Shared by
-# start_local_mcp_server (which backgrounds it) and run-mcp-server.sh.
+# start_local_mcp_server (which backgrounds it) and run-mcp-server.sh. `exec`
+# makes uvicorn (the reloader, with --reload) the process itself, so the PID a
+# caller holds is the one that, on SIGTERM, also stops its worker.
 run_mcp_server() {
   local repo_root="$1" pro_dir="$2" port="$3"
-  PYTHONPATH="$repo_root:$pro_dir${PYTHONPATH:+:$PYTHONPATH}" \
-    uvicorn allotmint_pro.mcp_server.app:app --host 127.0.0.1 --port "$port"
+  mcp_server_args "$repo_root" "$pro_dir" "$port"
+  PYTHONPATH="$repo_root:$pro_dir${PYTHONPATH:+:$PYTHONPATH}" exec uvicorn "${MCP_SERVER_ARGS[@]}"
 }
 
 start_local_mcp_server() {

@@ -214,7 +214,7 @@ async def _tool_count(url: str) -> int:
 def _describe_owners(status: McpServerStatus, owners: list[PortOwner]) -> None:
     """Fill the process fields; set ``reason`` if the port holder isn't ours."""
 
-    foreign = [owner.process for owner in owners if not owner.process.is_mcp_server]
+    foreign = [owner.process for owner in owners if not owner.is_mcp_server]
     if foreign:
         holder = foreign[0]
         command = holder.command_line or "unknown command"
@@ -296,7 +296,7 @@ async def _restart(status: McpServerStatus, owners: list[PortOwner]) -> McpServe
     log_path = _log_path()
     if status.port is None or status.url is None:
         return McpServerRestartResult(restarted=False, reason="No MCP server port configured.", log_path=str(log_path))
-    stopped = [pid for owner in owners for pid in owner.pids_to_stop()]
+    stopped = mcp_process.owner_pids_to_stop(owners)
     if stopped:
         await run_in_threadpool(mcp_process.stop_processes, stopped, status.port)
         logger.info("Stopped MCP server process(es) %s", sanitise_log_value(stopped))

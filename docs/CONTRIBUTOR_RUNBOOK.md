@@ -435,7 +435,10 @@ server for you in the background (on `http://localhost:8001/mcp`, logging to
 `allotmint-pro` checkout, or `ALLOTMINT_PRO_DIR` pointing at one. They skip it
 when `START_MCP_SERVER=0`, when `MCP_SERVER_URL` points somewhere other than
 localhost, or when the port is already listening (assumed to be a server you
-started yourself). `MCP_SERVER_PORT` changes the port.
+started yourself). `MCP_SERVER_PORT` changes the port. The MCP server reloads
+when a `.py` file under `allotmint_pro/` or `backend/` changes (its own cache
+writes don't trigger it); set `MCP_SERVER_RELOAD=0` to turn that off. Edits to
+allotmint-data JSON still need a restart (`--restart` / `-Restart`).
 
 The same checkout is also put on the backend's own `PYTHONPATH`, so pro-only
 backend features (the screener, risk, the strategy stress test's long-history

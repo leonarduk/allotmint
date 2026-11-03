@@ -29,6 +29,18 @@ def test_stops_the_mcp_server_and_its_venv_launcher(monkeypatch, stopped):
     assert stopped == [([10, 11], 8001)]
 
 
+def test_stops_a_reloading_mcp_server_and_its_worker(monkeypatch, stopped):
+    # --reload (#11424): the reloader and its spawned worker both hold the socket;
+    # the worker's command line is a multiprocessing stub without the marker.
+    reloader = ProcessInfo(pid=20, ppid=1, command_line=MCP_COMMAND + " --reload", started_at=None)
+    worker = 'python.exe -c "from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=20)"'
+    owners = [_owner(20, reloader.command_line), _owner(21, worker, reloader)]
+    monkeypatch.setattr(mcp_process, "find_port_owners", lambda port: owners)
+
+    assert mcp_process.stop_mcp_server(8001) == [20, 21]
+    assert stopped == [([20, 21], 8001)]
+
+
 def test_nothing_listening_stops_nothing(monkeypatch, stopped):
     monkeypatch.setattr(mcp_process, "find_port_owners", lambda port: [])
 

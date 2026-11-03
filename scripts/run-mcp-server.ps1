@@ -61,5 +61,5 @@ if (-not (Test-PortFree $portNumber)) {
 
 $env:PYTHONPATH = Get-McpServerPythonPath $REPO_ROOT $proDir
 Write-Host "Starting the MCP server at http://localhost:$portNumber/mcp (allotmint-pro: $proDir)" -ForegroundColor Green
-& $python @(Get-McpServerArguments $portNumber)
+& $python @(Get-McpServerArguments $portNumber $REPO_ROOT $proDir)
 exit $LASTEXITCODE

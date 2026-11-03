@@ -54,6 +54,27 @@ export default tseslint.config([
     },
   },
   {
+    // Build-time frontend plugins (#6836): only the plugin-host registry may
+    // read the generated plugin list, so every plugin enters the app through
+    // one audited path (docs/decisions/6836-pro-frontend-plugin-packaging.md
+    // §4.2).
+    files: ['**/*.{ts,tsx}'],
+    ignores: ['src/plugin-host/registry.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'virtual:allotmint-plugins',
+              message: 'Import plugins via src/plugin-host/registry.ts instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // User-visible text in pages and components goes through i18n (#9751):
     // literal JSX text, and literals in the attributes a user sees or a screen
     // reader announces, must be t('key', 'Default') with the key in every

@@ -5,12 +5,17 @@ import type { OpportunityEntry } from "../types";
 import { getOpportunities } from "../api";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
-import moversPlugin from "../plugins/movers";
 import { SignalBadge } from "./SignalBadge";
 import { InstrumentDetail } from "./InstrumentDetail";
 import EmptyState from "./EmptyState";
 import { instrumentTooltip } from "../lib/instrumentType";
 import TableSkeleton from "./skeletons/TableSkeleton";
+import { isDefaultGroupSlug } from "../utils/groups";
+
+/** The full movers page, scoped to the group unless it is the default one. */
+function moversPath(group: string): string {
+  return isDefaultGroupSlug(group) ? "/movers" : `/movers?group=${group}`;
+}
 
 interface Props {
   slug?: string;
@@ -115,7 +120,7 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
         </tbody>
       </table>
       <div style={{ textAlign: "right", marginTop: "0.5rem" }}>
-        <Link to={moversPlugin.path({ group: slug })}>{t("topMoversSummary.viewMore")}</Link>
+        <Link to={moversPath(slug)}>{t("topMoversSummary.viewMore")}</Link>
       </div>
       {selected && (
         <InstrumentDetail

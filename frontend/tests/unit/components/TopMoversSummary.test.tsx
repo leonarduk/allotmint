@@ -3,7 +3,6 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TopMoversSummary } from "@/components/TopMoversSummary";
 import type { OpportunityEntry } from "@/types";
-import moversPlugin from "@/plugins/movers";
 
 const baseEntries: OpportunityEntry[] = [
   { ticker: "AAA", name: "AAA", change_pct: 5, side: "gainers" },
@@ -51,7 +50,18 @@ describe("TopMoversSummary", () => {
     expect(await screen.findByRole("button", { name: "DDD" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "FFF" })).not.toBeInTheDocument();
     const link = screen.getByRole("link", { name: /view more/i });
-    expect(link).toHaveAttribute("href", moversPlugin.path({ group: "all" }));
+    expect(link).toHaveAttribute("href", "/movers");
+  });
+
+  it("scopes the view more link to a non-default group", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversSummary slug="kids" />
+      </MemoryRouter>,
+    );
+
+    const link = await screen.findByRole("link", { name: /view more/i });
+    expect(link).toHaveAttribute("href", "/movers?group=kids");
   });
 
   it("shows the full name and instrument type on ticker and name hover", async () => {

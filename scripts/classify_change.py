@@ -113,6 +113,9 @@ AREA_PATH_RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("jenkinsfile*", frozenset({"shell"})),
     # -- Frontend. ---------------------------------------------------------
     ("frontend/**", frozenset({"frontend"})),
+    # Out-of-tree frontend plugin fixture (#6836): built only by the frontend
+    # smoke job's plugin build guard, so it must precede the `tests/**` rule.
+    ("tests/frontend-plugin-fixture/**", frozenset({"frontend"})),
     # The root package.json/lockfile installs the CDK CLI used by cdk synth
     # (`../node_modules/.bin/cdk`) as well as the repo-level npm scripts, so a
     # change there is both a frontend and a CDK concern.

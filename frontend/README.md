@@ -138,23 +138,10 @@ use **Install app** (or **Add to Home screen**) on the deployed site (#11023).
 - The same PWA is published on Google Play as a Trusted Web Activity
   (`mobile/twa/`). See [docs/ANDROID_PLAY_STORE.md](../docs/ANDROID_PLAY_STORE.md).
 
-## Tab plugins
+## Pages and navigation tabs
 
-Tabs in the navigation bar are driven by a small plugin system. A plugin
-provides the component to render and optional metadata such as a
-`priority` value. Plugins are registered in `src/pluginRegistry.ts`.
-
-```ts
-import { registerTabPlugin } from './pluginRegistry';
-import MyTab from './pages/MyTab';
-
-registerTabPlugin({
-  id: 'myTab',
-  Component: MyTab,
-  priority: 50, // higher numbers appear earlier
-});
-```
-
-Plugins with higher priority numbers are displayed before lower ones. A
-plugin can be disabled by setting `isEnabled` to `false` or providing a
-function that returns `false`.
+Pages, their routes and their place in the navigation menu are declared in
+the page manifest, `src/routes/registry.ts` (re-exported by
+`src/pageManifest.ts` and `src/tabPlugins.ts`). See
+[docs/frontend-page-manifest.md](../docs/frontend-page-manifest.md) for how to
+add or retire a page.

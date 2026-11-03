@@ -1887,6 +1887,9 @@
       "mcpToolNotConfigured": "Non configurato",
       "mcpToolSetupLink": "Come configurarlo",
       "mcpToolsUnavailable": "Impossibile caricare l'elenco degli strumenti MCP.",
+      "mcpToolset": "Gruppo {{name}}",
+      "mcpToolsetOff": "Questo gruppo è disattivato, quindi i suoi strumenti lo sono qualunque sia il loro interruttore.",
+      "mcpOtherTools": "Altri strumenti",
       "descriptions": {
         "app_env": "Ambiente di distribuzione, ad es. \"local\" o \"aws\". Modifica valori predefiniti come il provider della chat e gli avvisi Telegram.",
         "telegram_chat_id": "Chat Telegram a cui vengono inviati segnali di trading e promemoria (serve anche il token del bot; non usato quando app_env è \"aws\").",

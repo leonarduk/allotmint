@@ -1887,6 +1887,9 @@
       "mcpToolNotConfigured": "Não configurada",
       "mcpToolSetupLink": "Como configurar",
       "mcpToolsUnavailable": "Não foi possível carregar a lista de ferramentas MCP.",
+      "mcpToolset": "Conjunto {{name}}",
+      "mcpToolsetOff": "Este conjunto está desativado, por isso as suas ferramentas também estão, seja qual for o seu próprio interruptor.",
+      "mcpOtherTools": "Outras ferramentas",
       "descriptions": {
         "app_env": "Ambiente de implementação, p. ex. \"local\" ou \"aws\". Altera predefinições como o fornecedor de chat e os alertas do Telegram.",
         "telegram_chat_id": "Chat do Telegram para onde são enviados sinais de negociação e avisos (requer também o token do bot; não é usado quando app_env é \"aws\").",

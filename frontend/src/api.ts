@@ -2670,14 +2670,24 @@ export interface McpToolSwitch {
   enabled: boolean;
   /** The MCP server's reason the tool cannot work yet (e.g. a missing API key); null when it can. */
   not_configured?: string | null;
+  /** The MCP toolset the tool belongs to; null for local tools and tools allotmint does not know. */
+  toolset?: string | null;
+}
+
+/** An MCP toolset's admin on/off switch (``mcp.mcp_toolsets``); its tools are off while it is off. */
+export interface McpToolsetSwitch {
+  name: string;
+  enabled: boolean;
 }
 
 export interface McpToolsResponse {
   tools: McpToolSwitch[];
+  /** Absent from backends older than #8587, which have no toolset switches. */
+  toolsets?: McpToolsetSwitch[];
   mcp_error: string | null;
 }
 
-/** Every chat assistant tool with its admin on/off switch (all on by default). */
+/** Every chat assistant tool with its admin on/off switch (all on by default), grouped by toolset. */
 export const getMcpTools = () => fetchJson<McpToolsResponse>(`${API_BASE}/config/mcp-tools`);
 
 export const getUserConfig = (owner: string) =>

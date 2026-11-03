@@ -41,6 +41,61 @@ def test_only_an_explicit_false_switches_a_tool_off(switches):
     assert tool_switches.tool_enabled("unlisted") is True
 
 
+@pytest.fixture
+def toolsets(monkeypatch):
+    def set_toolsets(value):
+        monkeypatch.setattr(config_module.config, "mcp_toolsets", value)
+
+    return set_toolsets
+
+
+def test_an_off_toolset_switches_off_its_tools_even_when_a_tool_says_true(switches, toolsets):
+    switches({"create_price_trigger": True})
+    toolsets({"triggers": False})
+
+    assert tool_switches.tool_enabled("create_price_trigger") is False
+    assert tool_switches.tool_enabled("list_price_triggers") is False
+    assert tool_switches.tool_enabled("get_portfolio") is True
+    # Local tools belong to no toolset.
+    assert tool_switches.tool_enabled(NAVIGATE_TOOL_NAME) is True
+
+
+def test_an_on_toolset_still_honours_per_tool_switches(switches, toolsets):
+    switches({"get_account": False})
+    toolsets({"portfolio": True})
+
+    assert tool_switches.tool_enabled("get_account") is False
+    assert tool_switches.tool_enabled("get_portfolio") is True
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected"),
+    [
+        # An old key switches the tool it was merged into.
+        ({"get_group_portfolio": False}, {"get_portfolio": False}),
+        # The new key wins over its old keys.
+        ({"get_group_portfolio": False, "get_portfolio": True}, {"get_portfolio": True}),
+        # Old keys that disagree: off if any is false.
+        ({"get_instrument_metadata": True, "get_instrument_timeseries": False}, {"get_instrument": False}),
+        ({"get_instrument_metadata": True, "get_instrument_timeseries": True}, {"get_instrument": True}),
+        ({"read_data_file": False}, {"read_data_file": False}),
+    ],
+)
+def test_legacy_tool_names_migrate_with_the_mcp_servers_rules(stored, expected):
+    assert tool_switches.migrate_legacy_tool_switches(stored) == expected
+
+
+def test_tool_enabled_applies_legacy_keys_to_the_merged_tool_and_its_old_name(switches):
+    switches({"list_owner_groups": False})
+
+    assert tool_switches.tool_enabled("list_owners") is False
+    assert tool_switches.tool_enabled("list_owner_groups") is False
+
+
+def test_toolset_mirror_covers_every_legacy_target():
+    assert set(tool_switches.LEGACY_TOOL_NAMES.values()) <= set(tool_switches.TOOLSET_OF)
+
+
 def test_merge_tool_lists_drops_switched_off_mcp_and_local_tools(switches):
     switches({"read_data_file": False, NAVIGATE_TOOL_NAME: False})
     local = LocalTools(pages=[ChatPage(path="/research", label="Research")])

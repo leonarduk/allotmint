@@ -7,6 +7,7 @@ import {
   getMcpTools,
   getOwners,
   type McpToolSwitch,
+  type McpToolsetSwitch,
   updateConfig,
   checkPortfolioHealth,
   getLogs,
@@ -16,7 +17,6 @@ import {
   clearGroupInstrumentCache,
 } from "../api";
 import { clearFetchCache } from "../utils/fetchCache";
-import { MCP_TOOL_SETUP_DOCS_URL } from "../utils/docsLinks";
 import { useConfig } from "../ConfigContext";
 import { useAuth } from "../AuthContext";
 import { useUser } from "../UserContext";
@@ -25,6 +25,7 @@ import SectionCard from "../components/SectionCard";
 import AppUpdateSection from "../components/AppUpdateSection";
 import DataSyncSection from "../components/DataSyncSection";
 import McpServerSection from "../components/McpServerSection";
+import McpToolSwitches from "../components/McpToolSwitches";
 import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 import { usePriceRefresh } from "../PriceRefreshContext";
@@ -40,15 +41,20 @@ const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record
 
 const UI_KEYS = new Set(["theme", "relative_view_enabled"]);
 // Rendered by the MCP tools section, not the generic parameter list.
-const MCP_TOOLS_KEY = "mcp_tools";
+const MCP_SECTION_KEYS = new Set(["mcp_tools", "mcp_toolsets"]);
 const REFRESH_PROGRESS_POLL_MS = 400;
 // ~2s of polls with no progress before saying detail is unavailable (#8055).
 const REFRESH_PROGRESS_UNAVAILABLE_AFTER_POLLS = 5;
 
-// DOM id for an MCP tool's "not configured" note: derived from the tool name
-// (stable across reorders), with characters not safe in an id replaced.
-function mcpToolStatusId(toolName: string): string {
-  return `mcp-tool-status-${toolName.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+function switchMap(switches: { name: string; enabled: boolean }[]): Record<string, boolean> {
+  return Object.fromEntries(switches.map((item) => [item.name, item.enabled]));
+}
+
+function switchesChanged(
+  switches: { name: string; enabled: boolean }[],
+  saved: Record<string, boolean>,
+): boolean {
+  return switches.some((item) => item.enabled !== saved[item.name]);
 }
 
 // DOM id for a free-text config parameter input, so its key can label it.
@@ -117,6 +123,8 @@ export default function Support() {
   const [configStatus, setConfigStatus] = useState<string | null>(null);
   const [mcpTools, setMcpTools] = useState<McpToolSwitch[]>([]);
   const [savedMcpTools, setSavedMcpTools] = useState<Record<string, boolean>>({});
+  const [mcpToolsets, setMcpToolsets] = useState<McpToolsetSwitch[]>([]);
+  const [savedMcpToolsets, setSavedMcpToolsets] = useState<Record<string, boolean>>({});
   const [mcpError, setMcpError] = useState<string | null>(null);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   // A picked owner wins while it is still listed; otherwise follow the
@@ -270,7 +278,9 @@ export default function Support() {
     getMcpTools()
       .then((res) => {
         setMcpTools(res.tools);
-        setSavedMcpTools(Object.fromEntries(res.tools.map((tool) => [tool.name, tool.enabled])));
+        setSavedMcpTools(switchMap(res.tools));
+        setMcpToolsets(res.toolsets ?? []);
+        setSavedMcpToolsets(switchMap(res.toolsets ?? []));
         setMcpError(res.mcp_error);
       })
       .catch(() => setMcpError(t("support.config.mcpToolsUnavailable")));
@@ -304,6 +314,12 @@ export default function Support() {
 
   function handleMcpToolChange(name: string, enabled: boolean) {
     setMcpTools((prev) => prev.map((tool) => (tool.name === name ? { ...tool, enabled } : tool)));
+  }
+
+  function handleMcpToolsetChange(name: string, enabled: boolean) {
+    setMcpToolsets((prev) =>
+      prev.map((toolset) => (toolset.name === name ? { ...toolset, enabled } : toolset)),
+    );
   }
 
   async function runHealthCheck() {
@@ -425,7 +441,7 @@ export default function Support() {
     const payload: Record<string, unknown> = {};
     const ui: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(config)) {
-      if (k === "tabs" || k === MCP_TOOLS_KEY) continue; // rebuilt from toggle state
+      if (k === "tabs" || MCP_SECTION_KEYS.has(k)) continue; // rebuilt from toggle state
       if (v === savedConfig[k]) continue; // unchanged -- see savedConfig
       if (UI_KEYS.has(k)) {
         const parsedVal = (() => {
@@ -463,12 +479,17 @@ export default function Support() {
     if (Object.keys(ui).length) {
       payload.ui = ui;
     }
-    if (mcpTools.some((tool) => tool.enabled !== savedMcpTools[tool.name])) {
+    if (
+      switchesChanged(mcpTools, savedMcpTools) ||
+      switchesChanged(mcpToolsets, savedMcpToolsets)
+    ) {
       // Sent under the ``mcp`` section: config.yaml flattens one level, so a
-      // top-level mcp_tools map would be read back as separate keys.
-      payload.mcp = {
-        mcp_tools: Object.fromEntries(mcpTools.map((tool) => [tool.name, tool.enabled])),
-      };
+      // top-level mcp_tools map would be read back as separate keys. The tool
+      // map always goes with it: the backend folds old names of merged tools
+      // into their new ones whenever it is saved (#8587).
+      const mcp: Record<string, unknown> = { mcp_tools: switchMap(mcpTools) };
+      if (mcpToolsets.length) mcp.mcp_toolsets = switchMap(mcpToolsets);
+      payload.mcp = mcp;
     }
     try {
       await updateConfig(payload);
@@ -774,7 +795,7 @@ export default function Support() {
               <div>
                 <h3 className="mb-1 font-semibold">{t("support.config.otherSwitches")}</h3>
                 {Object.entries(config)
-                  .filter(([k, v]) => k !== "tabs" && k !== MCP_TOOLS_KEY && typeof v === "boolean")
+                  .filter(([k, v]) => k !== "tabs" && !MCP_SECTION_KEYS.has(k) && typeof v === "boolean")
                   .map(([key, value]) => (
                     <div key={key} className="mb-1">
                       <label className="block font-medium">
@@ -796,41 +817,18 @@ export default function Support() {
               <h3 className="mb-1 font-semibold">{t("support.config.mcpTools")}</h3>
               <p className="mb-1 text-sm opacity-80">{t("support.config.mcpToolsHint")}</p>
               {mcpError && <p className="mb-1 text-sm text-amber-600">{mcpError}</p>}
-              <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-                {mcpTools.map((tool) => (
-                  <div key={tool.name} className="mb-1">
-                    <label className="block font-medium" title={tool.description}>
-                      <input
-                        type="checkbox"
-                        checked={tool.enabled}
-                        onChange={(e) => handleMcpToolChange(tool.name, e.target.checked)}
-                        aria-describedby={tool.not_configured ? mcpToolStatusId(tool.name) : undefined}
-                        className="mr-1"
-                      />
-                      {tool.name}
-                    </label>
-                    {tool.not_configured && (
-                      <p id={mcpToolStatusId(tool.name)} className="ml-5 text-xs text-amber-600">
-                        {t("support.config.mcpToolNotConfigured")}: {tool.not_configured}{" "}
-                        <a
-                          href={MCP_TOOL_SETUP_DOCS_URL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline"
-                        >
-                          {t("support.config.mcpToolSetupLink")}
-                        </a>
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <McpToolSwitches
+                tools={mcpTools}
+                toolsets={mcpToolsets}
+                onToolsetChange={handleMcpToolsetChange}
+                onToolChange={handleMcpToolChange}
+              />
               <McpServerSection onRestarted={loadMcpTools} />
             </div>
             <div>
               <h3 className="mb-1 font-semibold">{t("support.config.otherParams")}</h3>
               {Object.entries(config)
-                .filter(([k, v]) => k !== "tabs" && k !== MCP_TOOLS_KEY && typeof v !== "boolean")
+                .filter(([k, v]) => k !== "tabs" && !MCP_SECTION_KEYS.has(k) && typeof v !== "boolean")
                 .map(([key, value]) => (
                   <div key={key} className="mb-2">
                     {key === "theme" && typeof value === "string" ? (

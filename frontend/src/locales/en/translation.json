@@ -1881,6 +1881,9 @@
       "mcpToolNotConfigured": "Not configured",
       "mcpToolSetupLink": "How to configure",
       "mcpToolsUnavailable": "Could not load the MCP tool list.",
+      "mcpToolset": "{{name}} toolset",
+      "mcpToolsetOff": "This toolset is off, so its tools are off whatever their own switches say.",
+      "mcpOtherTools": "Other tools",
       "descriptions": {
         "app_env": "Deployment environment, e.g. \"local\" or \"aws\". Changes defaults such as the chat provider and Telegram alerts.",
         "telegram_chat_id": "Telegram chat that trading signals and nudges are sent to (needs the bot token as well; not used when app_env is \"aws\").",

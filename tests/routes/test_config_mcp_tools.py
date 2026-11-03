@@ -107,23 +107,38 @@ def test_get_mcp_tools_merges_server_listing_config_and_local_tools(config_path,
 
     assert body["mcp_error"] is None
     assert body["tools"] == [
-        {"name": "delete_price_trigger", "description": "", "enabled": False, "not_configured": None},
+        {
+            "name": "delete_price_trigger",
+            "description": "",
+            "toolset": "triggers",
+            "enabled": False,
+            "not_configured": None,
+        },
         {
             "name": "export_file",
             "description": "Save a table as a CSV, Excel or Word download.",
+            "toolset": None,
             "enabled": True,
             "not_configured": None,
         },
         {
             "name": "get_nav_discount",
             "description": "NAV premium/discount for a closed-end fund.",
+            "toolset": None,
             "enabled": True,
             "not_configured": None,
         },
-        {"name": "get_portfolio", "description": "Portfolio", "enabled": True, "not_configured": None},
+        {
+            "name": "get_portfolio",
+            "description": "Portfolio",
+            "toolset": "portfolio",
+            "enabled": True,
+            "not_configured": None,
+        },
         {
             "name": "navigate_to_page",
             "description": "Open a page of the app for the user.",
+            "toolset": None,
             "enabled": True,
             "not_configured": None,
         },
@@ -247,3 +262,88 @@ def test_not_configured_marker_is_read_from_the_wire_form_the_server_sends():
     tool = types.ListToolsResult.model_validate({"tools": [wire]}).tools[0]
 
     assert routes_config._not_configured_reason(tool.meta) == "No key."
+
+
+# --- Toolsets and legacy tool names (#8587, follow-up to allotmint-pro#252) ---
+
+
+def test_mcp_toolsets_default_to_empty_so_every_toolset_is_on(config_path):
+    assert config_module.config.mcp_toolsets == {}
+
+
+def test_mcp_toolsets_are_parsed_from_the_mcp_section():
+    cfg = validate_config_data({"mcp": {"mcp_toolsets": {" triggers ": False, "market": True}}})
+
+    assert cfg.mcp_toolsets == {"triggers": False, "market": True}
+
+
+@pytest.mark.parametrize("value", [["triggers"], {"triggers": "off"}, {"": False}])
+def test_invalid_mcp_toolsets_are_rejected_naming_the_key(value):
+    with pytest.raises(ConfigValidationError, match="'mcp_toolsets' must be a mapping of toolset name"):
+        validate_config_data({"mcp": {"mcp_toolsets": value}})
+
+
+def test_get_mcp_tools_lists_every_toolset_with_its_switch(config_path, monkeypatch):
+    from backend.chat.tool_switches import TOOLSETS
+
+    monkeypatch.delenv("MCP_SERVER_URL", raising=False)
+    config_path.write_text("mcp:\n  mcp_toolsets:\n    triggers: false\n")
+    reload_config()
+
+    body = TestClient(create_app()).get("/config/mcp-tools").json()
+
+    assert body["toolsets"] == [{"name": name, "enabled": name != "triggers"} for name in TOOLSETS]
+
+
+def test_get_mcp_tools_folds_legacy_keys_into_the_merged_tool(config_path, monkeypatch):
+    monkeypatch.delenv("MCP_SERVER_URL", raising=False)
+    config_path.write_text(
+        "mcp:\n  mcp_tools:\n    get_instrument_metadata: true\n    get_instrument_timeseries: false\n"
+        "    get_group_portfolio: false\n    get_portfolio: true\n"
+    )
+    reload_config()
+
+    tools = {tool["name"]: tool for tool in TestClient(create_app()).get("/config/mcp-tools").json()["tools"]}
+
+    assert not {"get_instrument_metadata", "get_instrument_timeseries", "get_group_portfolio"} & set(tools)
+    # No new key: off because one of its old keys is off.
+    assert tools["get_instrument"]["enabled"] is False
+    assert tools["get_instrument"]["toolset"] == "market"
+    # The new key is set, so it wins over its old key.
+    assert tools["get_portfolio"]["enabled"] is True
+
+
+def test_saving_mcp_tools_migrates_legacy_keys_stored_on_disk(config_path):
+    config_path.write_text(
+        "mcp:\n  mcp_tools:\n    list_owner_groups: false\n    get_instrument_timeseries: false\n"
+        "    read_data_file: true\n"
+    )
+    reload_config()
+    client = TestClient(create_app())
+
+    # The admin page sends the rows it shows: new names only.
+    resp = client.put("/config", json={"mcp": {"mcp_tools": {"get_instrument": True, "read_data_file": False}}})
+
+    assert resp.status_code == 200
+    stored = yaml.safe_load(config_path.read_text())["mcp"]["mcp_tools"]
+    # get_instrument was sent, so it wins; list_owners was not, so its old false carries over.
+    assert stored == {"read_data_file": False, "get_instrument": True, "list_owners": False}
+    assert config_module.config.mcp_tools == stored
+
+
+def test_saving_other_settings_leaves_stored_mcp_tools_alone(config_path):
+    config_path.write_text("mcp:\n  mcp_tools:\n    list_owner_groups: false\n")
+    reload_config()
+
+    resp = TestClient(create_app()).put("/config", json={"mcp": {"mcp_github_repo": "o/r"}})
+
+    assert resp.status_code == 200
+    assert yaml.safe_load(config_path.read_text())["mcp"]["mcp_tools"] == {"list_owner_groups": False}
+
+
+def test_put_config_saves_toolset_switches(config_path):
+    resp = TestClient(create_app()).put("/config", json={"mcp": {"mcp_toolsets": {"web": False}}})
+
+    assert resp.status_code == 200
+    assert yaml.safe_load(config_path.read_text())["mcp"]["mcp_toolsets"] == {"web": False}
+    assert config_module.config.mcp_toolsets == {"web": False}

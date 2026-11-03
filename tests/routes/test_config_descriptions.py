@@ -1,7 +1,7 @@
 """Every config key the Configuration page lists has a description (#9645).
 
 ``Support.tsx`` renders each key of ``GET /config`` (``serialise_config``)
-except ``tabs`` and ``mcp_tools``, which have their own sections, and looks
+except ``tabs``, ``mcp_tools`` and ``mcp_toolsets`` (own sections), and looks
 up ``support.config.descriptions.<key>`` with an empty fallback. A key
 without an entry silently shows no description, so a typo or a newly added
 ``Config`` field would go unnoticed without this check.
@@ -17,7 +17,7 @@ from backend.routes.config import _SECRET_CONFIG_FIELDS, serialise_config
 
 LOCALES = Path(__file__).resolve().parents[2] / "frontend" / "src" / "locales"
 # Rendered by dedicated sections of the page, not the generic parameter list.
-_OWN_SECTION_KEYS = {"tabs", "mcp_tools"}
+_OWN_SECTION_KEYS = {"tabs", "mcp_tools", "mcp_toolsets"}
 
 
 def _listed_keys() -> set[str]:

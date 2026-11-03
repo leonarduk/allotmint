@@ -5,15 +5,20 @@ via :func:`backend.common.storage.get_storage`), default
 ``<BOTS_STORAGE_URI>/digest_settings.json``: a JSON object keyed by owner.
 Missing or invalid settings fall back to the defaults: a weekly digest by
 email only, no Telegram, no £ amounts, and no immediate alerts (every bot's
-items go only into the digest). Editing these belongs to the bot registry's
-settings API (#10477); this module only reads them.
+items go only into the digest).
+
+The settings belong to each owner, not to a bot, so they are edited through
+the owner-scoped ``PUT /bots/digest/{owner}/settings``
+(:mod:`backend.routes.bots_digest`, #10502) with :func:`save_settings`, not
+the admin-only registry settings API.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from typing import Dict, List
+import threading
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -25,6 +30,8 @@ from backend.logging_setup import sanitise_log_value
 logger = logging.getLogger(__name__)
 
 SETTINGS_URI_ENV = "BOTS_DIGEST_SETTINGS_URI"
+# Serialises the read-modify-write of the shared settings document in-process.
+_lock = threading.Lock()
 
 
 class DigestSettings(BaseModel):
@@ -44,11 +51,14 @@ def _default_uri() -> str:
     return f"{storage_base()}/digest_settings.json"
 
 
+def _storage() -> Any:
+    return get_storage(os.getenv(SETTINGS_URI_ENV) or _default_uri(), param_type="String")
+
+
 def load_settings(owner: str) -> DigestSettings:
     """``owner``'s digest settings, or the defaults."""
 
-    uri = os.getenv(SETTINGS_URI_ENV) or _default_uri()
-    raw = get_storage(uri, param_type="String").load().get(owner)
+    raw = _storage().load().get(owner)
     if not isinstance(raw, dict):
         return DigestSettings()
     try:
@@ -62,4 +72,28 @@ def load_settings(owner: str) -> DigestSettings:
         return DigestSettings()
 
 
-__all__ = ["SETTINGS_URI_ENV", "DigestSettings", "load_settings"]
+def _load_for_update(storage: Any) -> Dict[str, Any]:
+    """The whole settings document for a read-modify-write.
+
+    On S3 a failed read raises (``load_existing``) instead of reading as empty,
+    which would overwrite every other owner's settings; a document not yet
+    written is ``{}``.
+    """
+
+    load_existing = getattr(storage, "load_existing", None)
+    data: Optional[Dict[str, Any]] = load_existing() if callable(load_existing) else storage.load()
+    return data if isinstance(data, dict) else {}
+
+
+def save_settings(owner: str, settings: DigestSettings) -> DigestSettings:
+    """Store ``owner``'s settings, leaving every other owner's untouched."""
+
+    with _lock:
+        storage = _storage()
+        data = _load_for_update(storage)
+        data[owner] = settings.model_dump(mode="json")
+        storage.save(data)
+    return settings
+
+
+__all__ = ["SETTINGS_URI_ENV", "DigestSettings", "load_settings", "save_settings"]

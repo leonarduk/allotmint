@@ -98,4 +98,24 @@ describe("aggregateHoldingsByTicker", () => {
     // The known lot's source wins so the table does not hide its real gain.
     expect(row.cost_basis_source).toBe("book");
   });
+
+  it("marks the combined row as an estimate when any counted lot's cost is one (#10095)", () => {
+    const [row] = aggregateHoldingsByTicker(
+      [
+        lot({ cost_basis_gbp: 80, market_value_gbp: 100, gain_gbp: 20, cost_basis_source: "book" }),
+        lot({
+          cost_basis_gbp: 20,
+          market_value_gbp: 25,
+          gain_gbp: 5,
+          cost_basis_source: "estimate",
+          cost_basis_estimate_date: "2026-10-01",
+        }),
+      ],
+      "2026-11-01",
+    );
+
+    expect(row.gain_gbp).toBe(25);
+    expect(row.cost_basis_source).toBe("estimate");
+    expect(row.cost_basis_estimate_date).toBe("2026-10-01");
+  });
 });

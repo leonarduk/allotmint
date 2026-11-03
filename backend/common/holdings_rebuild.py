@@ -22,6 +22,17 @@ day of slack for timezone skew) are left out of current holdings, their cost
 and ``acquired_date`` (#10903).  New rows like that are rejected on write
 (#10898); this keeps ones stored before that from counting.  The rows
 themselves are left untouched in the transactions file.
+
+Estimated costs
+---------------
+A priced acquisition flagged ``"cost_estimate": true`` was written by the
+"use current price as cost" action (#10095): its price is the market price on
+the day the user chose to estimate, not what they paid. The pool tracks how
+much of its cost came from such rows, and a rebuilt holding whose cost
+includes any of it is tagged ``cost_basis_source: "estimate"`` with the date
+of the estimate, so it is never presented as a recorded (``"book"``) cost.
+An estimate also says nothing about when the units were bought, so it does
+not set ``acquired_date``.
 """
 
 from __future__ import annotations
@@ -40,6 +51,11 @@ logger = logging.getLogger(__name__)
 
 CASH_TICKER = "CASH.GBP"
 TRADE_CASH_FLAG = "trade_cash_effects"
+# Transaction flag for a cost that is an estimate, and the cost_basis_source a
+# holding whose cost includes one gets (see "Estimated costs" above).
+COST_ESTIMATE_FLAG = "cost_estimate"
+COST_BASIS_ESTIMATE_SOURCE = "estimate"
+COST_BASIS_ESTIMATE_DATE = "cost_basis_estimate_date"
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _ACQUIRE = {"BUY", "PURCHASE", "TRANSFER_IN"}
@@ -60,8 +76,11 @@ class Position:
     unknown_cost_units: float = 0.0
     acquired_date: str | None = None
     unknown_cost_since: str | None = None
+    # The part of ``cost`` that is an estimate (#10095), and the latest estimate's date.
+    estimated_cost: float = 0.0
+    estimate_date: str | None = None
 
-    def acquire(self, qty: float, cost: float | None, tx_date: str) -> None:
+    def acquire(self, qty: float, cost: float | None, tx_date: str, *, estimated: bool = False) -> None:
         self.units += qty
         if cost is None:
             self.unknown_cost_units += qty
@@ -69,6 +88,13 @@ class Position:
                 self.unknown_cost_since = tx_date
         else:
             self.cost += cost
+        if estimated and cost is not None:
+            self.estimated_cost += cost
+            if _ISO_DATE_RE.match(tx_date) and (self.estimate_date is None or tx_date > self.estimate_date):
+                self.estimate_date = tx_date
+            # An estimate is today's price, not a purchase: when the units were
+            # bought stays unknown, so acquired_date is left as it was.
+            return
         if _ISO_DATE_RE.match(tx_date) and (self.acquired_date is None or tx_date > self.acquired_date):
             self.acquired_date = tx_date
 
@@ -86,13 +112,20 @@ class Position:
         self.units -= matched
         self.cost -= cost_out
         self.unknown_cost_units -= unknown_out
+        self.estimated_cost -= self.estimated_cost * fraction
         if self.units <= _EPS:
-            self.units = self.cost = self.unknown_cost_units = 0.0
+            self.units = self.cost = self.unknown_cost_units = self.estimated_cost = 0.0
+            self.estimate_date = None
         return cost_out, unknown_out, qty - matched
 
     @property
     def cost_known(self) -> bool:
         return self.unknown_cost_units <= _EPS
+
+    @property
+    def cost_estimated(self) -> bool:
+        """True when some of the pool's (fully known) cost is an estimate (#10095)."""
+        return self.cost_known and self.estimated_cost > 0.005
 
 
 def _float(value: Any) -> float | None:
@@ -312,7 +345,12 @@ def _apply_trade(replay: Replay, index: int, tx: Mapping[str, Any], tx_type: str
     acquisition = tx_type in _ACQUIRE
     value = _settled_cash(tx, qty, acquisition=acquisition)
     if acquisition:
-        position.acquire(qty, _settled_cost(tx, qty, warn=replay.warn), str(tx.get("date") or "")[:10])
+        position.acquire(
+            qty,
+            _settled_cost(tx, qty, warn=replay.warn),
+            str(tx.get("date") or "")[:10],
+            estimated=tx.get(COST_ESTIMATE_FLAG) is True,
+        )
     else:
         cost_out, unknown_out, unmatched = position.dispose(qty)
         if replay.on_disposal is not None:
@@ -427,6 +465,23 @@ def _merge_holding(
     return holding
 
 
+def _tag_cost_estimate(holding: dict[str, Any], position: Position) -> None:
+    """Mark ``holding`` as having an estimated cost, or clear a stale mark (#10095).
+
+    Only an ``"estimate"`` tag is ever removed here, and only when the pool
+    explains the whole cost without one; any other stored
+    ``cost_basis_source`` is left for enrichment to recompute. When the pool
+    cost is not fully known, the cost may be the previous one carried forward
+    (:func:`_cost_basis`), so its tag is carried with it.
+    """
+    if position.cost_estimated:
+        holding["cost_basis_source"] = COST_BASIS_ESTIMATE_SOURCE
+        holding[COST_BASIS_ESTIMATE_DATE] = position.estimate_date
+    elif position.cost_known and holding.get("cost_basis_source") == COST_BASIS_ESTIMATE_SOURCE:
+        holding.pop("cost_basis_source")
+        holding.pop(COST_BASIS_ESTIMATE_DATE, None)
+
+
 def _computed_holdings(
     replay: Replay, previous: Mapping[str, Mapping[str, Any]], cutoff: str
 ) -> dict[str, dict[str, Any]]:
@@ -440,6 +495,7 @@ def _computed_holdings(
         prev = previous.get(key)
         units = round(position.units, 8)
         holding = _merge_holding(key, units, _cost_basis(position, prev), position.acquired_date, prev)
+        _tag_cost_estimate(holding, position)
         if str(holding.get("acquired_date") or "") > cutoff:
             # Carried forward from a rebuild that counted a future-dated row.
             holding.pop("acquired_date")

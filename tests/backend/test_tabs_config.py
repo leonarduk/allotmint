@@ -11,7 +11,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_TS_PATH = REPO_ROOT / "frontend" / "src" / "routes" / "registry.ts"
 
 _ARRAY_RE = re.compile(
-    r"export const ROUTE_REGISTRY: RouteRegistryEntry\[\] = \[(.*?)\n\];",
+    # The free entries (#6836): ROUTE_REGISTRY itself only spreads these plus
+    # build-time plugin pages, which never have free `ui.tabs` keys.
+    r"const FREE_ROUTE_REGISTRY: RouteRegistryEntry\[\] = \[(.*?)\n\];",
     re.DOTALL,
 )
 _MODE_RE = re.compile(r"mode:\s*'([^']+)'")
@@ -41,7 +43,7 @@ def _frontend_tab_ids() -> list[str]:
     array_match = _ARRAY_RE.search(source)
     if not array_match:
         raise AssertionError(
-            f"Could not locate 'export const ROUTE_REGISTRY: RouteRegistryEntry[] = [' "
+            f"Could not locate 'const FREE_ROUTE_REGISTRY: RouteRegistryEntry[] = [' "
             f"...'];' in {REGISTRY_TS_PATH}. The parser regex is stale (the array was "
             "renamed/reformatted) -- fix _ARRAY_RE, don't let this test pass on an "
             "empty/partial match."

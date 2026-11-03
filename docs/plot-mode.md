@@ -16,8 +16,10 @@ is a _crop_, an account is a _bed_, and the daily Trail tasks are _chores_.
   shows one card per instrument: a ticker held in several beds is summed
   and labelled "in N beds".
 - **`/plot/crops` — Crop roster.** Every holding as a card, sortable by plot
-  share / growth / vigour / name and filterable by bed.
-- **`/plot/crops/:ticker` — Crop detail.** One holding's traits, portrait and
+  share / growth / today's move / name and filterable by bed.
+- **`/plot/crops/:cropId` — Crop detail.** `:cropId` is the per-holding id
+  (`<bedIndex>-<holdingIndex>-<ticker>`, e.g. `0-3-HFEL.L`); a bare ticker still resolves, to the first
+  holding of it. One holding's traits, portrait and
   ledger, a plain-English "What is this?" note on its instrument type,
   sector and region, and a link out to the classic instrument view.
 - **`/plot/chores` — Chores.** Daily and one-off tasks, the completion ring,
@@ -55,16 +57,16 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
   forward while a holding is kept (#7200): sown < 30 days, sprouting < 90,
   leafing < 180, budding < 365, flowering < 730, fruiting < 1825,
   established from 1825 days (5 years). `days_held: null` is "Age unknown",
-  never "Sown". The detail screen's Hardiness level reads the same ladder.
+  never "Sown". The detail screen's Time held level reads the same ladder.
 - **Condition (performance)** — from `gain_pct`, and allowed to go both
   ways: wilting ≤ −20%, struggling < 0%, healthy < 20%, thriving from 20%.
   An unknown cost basis is "Condition unknown". Condition sets the crop's
   colour; stage sets how full the glyph is.
 - **Share of plot** — each crop's share of total plot value, shown as a
-  "N% of plot" chip over a proportional bar (and as the Root depth bar on
+  "N% of plot" chip over a proportional bar (and as the Share of plot bar on
   the crop detail screen). It is position size, not a quality rating, so it
   is deliberately not drawn as stars; ★ only ever marks a favourite.
-- **Vigour (0–100)** — today's move (`day_change_gbp`) mapped from ±5% onto
+- **Today's move (0–100, `vigour` in code)** — today's move (`day_change_gbp`) mapped from ±5% onto
   the bar, minus 30 when `is_stale` is set.
 - **Water meter** — `trades_remaining` out of `trades_this_month` plus
   `trades_remaining`: trades left this month.
@@ -80,7 +82,7 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
   Watchlist page shows, from `frontend/src/lib/watchlistStore.ts`, cached in
   localStorage and saved per user via `GET`/`PUT /watchlists`) priced via
   `GET /api/quotes`.
-- **Propagator** — holdings still inside their minimum holding period, from
+- **Holding period (the hub panel; `Propagator` in code)** — holdings still inside their minimum holding period, from
   the backend's own `sell_eligible`, `days_until_eligible` and
   `next_eligible_sell_date` (derived from the configured `hold_days_min`).
   Progress runs `days_held` over `days_held + days_until_eligible`.
@@ -98,6 +100,31 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
 Chores write back through the same `POST /trail/{id}/complete` (or
 `POST /quests/{id}/complete`) endpoints the classic Trail page uses, so XP and
 streaks are shared between the two skins rather than tracked separately.
+
+## User guide, glossary and first-run walkthrough
+
+Users read about Plot mode in the app, not here (#7210):
+
+- **Glossary** — the "Plot garden terms" section of `/metrics-explained`
+  (anchor `#plot-guide`), linked from the **Guide** entry on the Plot rail.
+  Every term has its own anchor and names the real figure behind it. The
+  hand-written entries there cover beds, growth stages, condition, the
+  holding period and the meters; everything else comes from
+  `frontend/src/lib/plotGlossary.ts`, which also feeds the in-app InfoTips
+  (`components/GlossaryTip.tsx`), so a tip and its glossary entry can't
+  disagree.
+- **First-run walkthrough** — `components/PlotWelcome.tsx`, an inline,
+  dismissible panel at the top of the hub. Dismissal is remembered per
+  browser in `localStorage` (`allotmint:plotWelcomeDismissed`); it never
+  blocks the hub.
+- **Vocabulary rule** — a garden word is kept only where it carries
+  structure (plot = portfolio, bed = account, crop = holding, chores, the
+  water/feed/sunlight meters, growth stage and condition, the streak crate,
+  season, grower rank). Words that only renamed a finance term were
+  replaced with the real one: Propagator → Holding period, lift → sell,
+  Root depth → Share of plot, Vigour → Today's move, Hardiness → Time held,
+  Groundwork → One-off tasks. Code identifiers and i18n key names keep
+  their old names to avoid churn; only the user-facing text changed.
 
 ## Switching between the skins
 

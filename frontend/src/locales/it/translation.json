@@ -1316,7 +1316,7 @@
       },
       "plot": {
         "title": "Termini del giardino Plot",
-        "intro": "Plot è una vista a tema giardino degli stessi dati reali del portafoglio. Ogni termine qui sotto corrisponde a una cifra reale.",
+        "intro": "L'orto è una vista a tema giardino degli stessi dati reali del portafoglio mostrati nelle schermate classiche: niente è inventato e niente effettua operazioni. Puoi tornare alla vista classica in qualsiasi momento. Ogni termine qui sotto indica la cifra reale che rappresenta.",
         "beds": {
           "title": "Aiuole",
           "detail": "Ogni conto di investimento è mostrato come un'aiuola. Ogni posizione di quel conto è una coltura piantata al suo interno."
@@ -1333,7 +1333,7 @@
           "established": "Radicata: 5 anni o più"
         },
         "propagator": {
-          "title": "Propagatore",
+          "title": "Periodo di detenzione",
           "detail": "Elenca le colture ancora nel periodo minimo di detenzione — il numero configurato di giorni in cui una posizione va detenuta prima di poter essere venduta — con il conto alla rovescia fino alla data in cui ciascuna lo supera."
         },
         "water": {
@@ -1359,6 +1359,58 @@
           "struggling": "In difficoltà: in calo, ma meno del 20%",
           "healthy": "In salute: in rialzo dallo 0% a meno del 20%",
           "thriving": "Rigogliosa: in rialzo del 20% o più"
+        },
+        "crop": {
+          "title": "Coltura (una posizione)",
+          "detail": "Una posizione di un investimento in un conto. Lo stesso investimento in due conti sono due colture, mostrate insieme quando è utile."
+        },
+        "plot": {
+          "title": "Orto (il tuo portafoglio)",
+          "detail": "Tutto ciò che un coltivatore detiene su tutti i suoi conti. Il valore dell'orto è il valore totale del portafoglio, liquidità inclusa."
+        },
+        "shareOfPlot": {
+          "title": "Quota dell'orto (dimensione della posizione)",
+          "detail": "Quanta parte del valore totale dell'orto rappresenta una coltura. È una dimensione, non un punteggio: una quota grande non è né buona né cattiva di per sé."
+        },
+        "timeHeld": {
+          "title": "Tempo di detenzione",
+          "detail": "Da quanto tempo è detenuta la posizione. Fissa lo stadio di crescita: il livello sale da 0 a 5 mentre la coltura passa da Seminata a Radicata, e non scende mai finché mantieni la posizione."
+        },
+        "todaysMove": {
+          "title": "Movimento di oggi",
+          "detail": "Quanto si è mosso oggi il prezzo, con un punteggio da 0 a 100: 50 significa invariato e un movimento del 5% in un senso o nell'altro riempie la barra. Un prezzo confermato come non aggiornato abbassa il punteggio. Descrive solo oggi e non prevede nulla."
+        },
+        "chores": {
+          "title": "Faccende (compiti quotidiani)",
+          "detail": "Brevi compiti come controllare la panoramica o generare un report. Ognuno apre la pagina relativa e conta solo quando l'hai davvero fatto lì. Le attività una tantum sono passi di configurazione da fare una sola volta. Le faccende danno XP."
+        },
+        "streak": {
+          "title": "Serie",
+          "detail": "Il numero di giorni di fila in cui sono state completate tutte le faccende quotidiane."
+        },
+        "crate": {
+          "title": "Cassetta",
+          "detail": "La ricompensa della settimana alla fine del percorso della serie. Si riempie quando completi tutte le faccende ogni giorno della settimana."
+        },
+        "season": {
+          "title": "Stagione (l'anno fiscale britannico)",
+          "detail": "Va dal 6 aprile al 5 aprile, lo stesso anno in cui si rinnovano le esenzioni ISA e pensionistiche. Gli obiettivi di stagione sono traguardi a livelli per dimensione e valore dell'orto, uso delle esenzioni, serie e grado."
+        },
+        "growerRank": {
+          "title": "Grado di coltivatore",
+          "detail": "Un titolo per il tuo livello di coltivatore: Seminatore di piantine, poi Coltivatore del weekend dal livello 4, Zappatore esperto dall'8, Titolare di parcella dal 15, Maestro coltivatore dal 25 e Capo giardiniere dal 40. Riflette le faccende fatte, non il rendimento dei tuoi investimenti."
+        },
+        "starGrower": {
+          "title": "Coltivatore stella e Richiede attenzione",
+          "detail": "Il coltivatore stella è la coltura con il guadagno totale più alto. Richiede attenzione compare solo quando qualcosa non va davvero: la posizione non può ancora essere venduta, il suo prezzo non è aggiornato o è in perdita del 5% o più."
+        },
+        "nextJob": {
+          "title": "Prossimo lavoro nell'orto",
+          "detail": "Un fatto dai tuoi stessi dati che vale un'occhiata, come prezzi non aggiornati o esenzione ISA non usata, con un link alla pagina che se ne occupa. Non è mai un suggerimento di comprare o vendere."
+        },
+        "seedShed": {
+          "title": "Capanno dei semi (la tua watchlist)",
+          "detail": "La stessa watchlist della pagina Watchlist classica, con prezzi in tempo reale. Lì non si effettuano operazioni."
         }
       },
       "technicals": {
@@ -3277,7 +3329,9 @@
       "season": "Stagione",
       "seasonSub": "Obiettivi dell'anno fiscale",
       "seeds": "Capanno dei semi",
-      "seedsSub": "Watchlist"
+      "seedsSub": "Watchlist",
+      "guide": "Guida",
+      "guideSub": "Cosa significano i termini"
     },
     "app": {
       "grower": "Coltivatore",
@@ -3291,12 +3345,12 @@
       "loading": "In cammino verso l'orto…"
     },
     "propagator": {
-      "empty": "Niente nel propagatore: ogni coltura ha concluso il periodo di detenzione e può essere raccolta.",
-      "meterIndeterminate": "{{ticker}}: non ancora raccoglibile, detenuto da {{daysHeld}} giorni",
+      "empty": "Nessuna posizione è nel suo periodo minimo di detenzione: tutte possono essere vendute.",
+      "meterIndeterminate": "{{ticker}}: non ancora vendibile, detenuta da {{daysHeld}} giorni",
       "meterProgress": "{{ticker}}: detenuto da {{daysHeld}} giorni, ne mancano {{daysRemaining}}",
       "daysHeld": "detenuto da {{daysHeld}} giorni",
       "daysRatio": "{{daysHeld}} / {{total}} giorni",
-      "notLiftable": "Non ancora raccoglibile",
+      "notLiftable": "Non ancora vendibile",
       "needsApproval": "Richiede approvazione",
       "needsApprovalHeading": "Richiede approvazione ({{count}})",
       "needsApprovalNote": "Hanno completato il periodo minimo di detenzione; venderle richiede un'approvazione che puoi chiedere subito.",
@@ -3316,7 +3370,8 @@
         "progress_other": "{{engaged}} giorni su {{count}} completati — continua così per riempire la cassetta",
         "full": "Settimana di attività completata",
         "finish": "Completa ogni giorno di questa settimana per riempire la cassetta"
-      }
+      },
+      "crateTerm": "la cassetta"
     },
     "card": {
       "removeFavourite": "Rimuovi {{ticker}} dai preferiti",
@@ -3353,29 +3408,29 @@
       "streakHint": "Giorni consecutivi con ogni faccenda giornaliera completata.",
       "today": "Oggi",
       "noDaily": "Nessuna faccenda giornaliera al momento.",
-      "groundwork": "Lavori preparatori"
+      "groundwork": "Attività una tantum"
     },
     "crop": {
       "gainUnknown": "Guadagno sconosciuto: nessun costo base registrato",
       "gainDetail": "{{gain}} di guadagno non realizzato ({{pct}})",
       "yield": "Rendimento",
       "yieldDetail": "{{pct}}% di rendimento da proventi degli ultimi 12 mesi",
-      "vigour": "Vigore",
+      "vigour": "Movimento di oggi",
       "noMoveToday": "Nessun movimento registrato oggi",
       "pctToday": "{{pct}} oggi",
       "priceStale": "i dati di prezzo sono obsoleti",
       "priceUnverified": "aggiornamento del prezzo non verificato",
-      "rootDepth": "Profondità delle radici",
+      "rootDepth": "Quota dell'orto",
       "rootDepthDetail": "{{pct}}% del valore totale dell'orto",
-      "hardiness": "Robustezza",
+      "hardiness": "Tempo di detenzione",
       "holdingAgeUnknown": "Anzianità della posizione sconosciuta",
       "held_one": "Detenuto {{count}} giorno",
       "held_other": "Detenuto {{count}} giorni",
-      "inPropagatorUntil": "nel propagatore fino al {{date}}",
-      "notYetLiftable": "non ancora raccoglibile",
+      "inPropagatorUntil": "nel periodo minimo di detenzione fino al {{date}}",
+      "notYetLiftable": "non ancora vendibile",
       "needsApproval": "richiede approvazione",
-      "clearedPropagator": "uscita dal propagatore il {{date}}",
-      "readyToLift": "pronta da raccogliere",
+      "clearedPropagator": "periodo minimo di detenzione terminato il {{date}}",
+      "readyToLift": "può essere venduta",
       "notFoundTitle": "Coltura non trovata",
       "notFoundBody": "Nessuna coltura chiamata «{{id}}» cresce in quest'orto.",
       "backToRoster": "Torna all'elenco delle colture",
@@ -3384,7 +3439,7 @@
       "traits": "Caratteristiche",
       "level": "Lv {{level}}/{{max}}",
       "plotValue": "Valore dell'orto",
-      "vigourMeter": "Vigore {{value}} su 100",
+      "vigourMeter": "Punteggio del movimento di oggi: {{value}} su 100",
       "ledger": "Registro",
       "units": "Unità",
       "costBasis": "Costo base",
@@ -3401,7 +3456,7 @@
     "roster": {
       "sortShare": "Quota dell'orto",
       "sortGrowth": "Guadagno",
-      "sortVigour": "Vigore",
+      "sortVigour": "Movimento di oggi",
       "sortAz": "A–Z",
       "growthStages": "Fasi di crescita",
       "growthStagesLabel": "Cosa significano le fasi di crescita?",
@@ -3413,7 +3468,7 @@
       "searchLabel": "Cerca colture",
       "searchPlaceholder": "Cerca ticker, nome, aiuola o settore",
       "sortCrops": "Ordina colture",
-      "vigourHidden": "L'ordinamento per vigore è nascosto: nessuna coltura ha un movimento registrato oggi, quindi tutte avrebbero lo stesso punteggio.",
+      "vigourHidden": "L'ordinamento per movimento di oggi è nascosto: nessuna coltura ha un movimento registrato oggi, quindi avrebbero tutte lo stesso punteggio.",
       "filterCrops": "Filtra colture",
       "allBeds": "Tutte le aiuole",
       "favourites": "Preferiti ({{count}})",
@@ -3476,7 +3531,7 @@
       "milestonesReached": "{{done}} di {{total}} traguardi di stagione raggiunti",
       "tieredGoals": "Obiettivi a livelli su dimensione dell'orto, valore, limiti, serie e grado.",
       "view": "Vedi",
-      "propagator": "Propagatore",
+      "propagator": "Periodo di detenzione",
       "propagatorTip": "Colture ancora nel periodo minimo di detenzione, con conto alla rovescia fino alla data in cui ciascuna può essere venduta.",
       "beds": "Aiuole",
       "bedsTip": "Ogni conto di investimento è mostrato come un'aiuola, con le sue posizioni piantate come colture.",
@@ -3623,6 +3678,16 @@
         "cash": "Un conto di liquidità: denaro tenuto in contanti anziché investito.",
         "unknown": "Il tipo di conto non è registrato."
       }
+    },
+    "welcome": {
+      "title": "Nuovo nell'orto?",
+      "intro": "L'orto è il tuo vero portafoglio disegnato come un orto urbano. Legge le stesse cifre della vista classica e non effettua mai operazioni.",
+      "stepCrops": "Ogni posizione è una coltura, e ogni conto (ISA, pensione, conto generale) è un'aiuola.",
+      "stepGrowth": "Lo stadio di una coltura è da quanto tempo la detieni. Il suo colore mostra come sta andando: rigogliosa, sana, in difficoltà o appassita.",
+      "stepMeters": "L'acqua sono le operazioni rimaste questo mese, il concime è l'esenzione fiscale non usata e la luce del sole è quanti prezzi sono aggiornati.",
+      "stepChores": "Le faccende sono brevi compiti quotidiani. Farle dà XP, livelli e un grado di coltivatore; niente di tutto ciò dipende dal rendimento dei tuoi investimenti.",
+      "readGuide": "Leggi la guida dell'orto",
+      "dismiss": "Capito"
     }
   },
   "userAvatar": {

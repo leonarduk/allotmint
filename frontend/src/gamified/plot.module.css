@@ -802,6 +802,21 @@
   font-weight: 700;
 }
 
+/* First-run welcome on the hub (#7210). */
+.welcomeSteps {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.welcomeActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .cropChips {
   display: flex;
   flex-wrap: wrap;

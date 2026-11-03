@@ -106,6 +106,10 @@ If the variable is unset the UI defaults to `http://localhost:6468` (or
   Thresholds live under `trend_watch:` in `config.yaml`. With `mcp_server_url` set, flagged holdings are investigated
   by the configured chat model (Ollama locally) using read-only tools; without it, verdicts come from the benchmark
   comparison alone. It is a review list, not trade instructions.
+- **Try Plot mode**: open **Plot Mode** from the Dashboard menu (or go to
+  `/plot`). It is a garden-themed view of the same portfolio and never places
+  a trade. Its **Guide** link explains every garden term and the real figure
+  behind it (`/metrics-explained#plot-guide`).
 - **Deploy to AWS**:
   1. `cd frontend && npm run build`
   2. `npm ci`

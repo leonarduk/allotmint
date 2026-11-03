@@ -1316,7 +1316,7 @@
       },
       "plot": {
         "title": "Begriffe des Plot-Gartens",
-        "intro": "Plot ist eine gartenthematische Ansicht derselben echten Portfoliodaten. Jeder Begriff unten entspricht einer realen Kennzahl.",
+        "intro": "Der Garten ist eine Ansicht im Gartenstil auf dieselben echten Portfoliodaten wie die klassischen Seiten: Nichts darin ist erfunden, und nichts darin löst einen Handel aus. Sie können jederzeit zur klassischen Ansicht zurückwechseln. Jeder Begriff unten nennt die echte Kennzahl, für die er steht.",
         "beds": {
           "title": "Beete",
           "detail": "Jedes Anlagekonto wird als Beet dargestellt. Jeder Bestand in diesem Konto ist eine darin gepflanzte Kulturpflanze."
@@ -1333,7 +1333,7 @@
           "established": "Etabliert: 5 Jahre oder mehr"
         },
         "propagator": {
-          "title": "Anzuchtkasten",
+          "title": "Haltedauer",
           "detail": "Listet Pflanzen auf, die sich noch in ihrer Mindesthaltedauer befinden – der konfigurierten Anzahl von Tagen, die eine Position gehalten werden muss, bevor sie verkauft werden darf – und zählt bis zu dem Datum herunter, an dem jede sie erfüllt."
         },
         "water": {
@@ -1359,6 +1359,58 @@
           "struggling": "Kümmernd: im Minus, aber weniger als 20 %",
           "healthy": "Gesund: 0 % bis unter 20 % im Plus",
           "thriving": "Prächtig: 20 % oder mehr im Plus"
+        },
+        "crop": {
+          "title": "Pflanze (eine Position)",
+          "detail": "Eine Position einer Anlage in einem Konto. Dieselbe Anlage in zwei Konten sind zwei Pflanzen, die dort zusammen gezeigt werden, wo es hilft."
+        },
+        "plot": {
+          "title": "Garten (Ihr Portfolio)",
+          "detail": "Alles, was ein Gärtner über alle seine Konten hält. Der Wert des Gartens ist der Gesamtwert des Portfolios, einschließlich Bargeld."
+        },
+        "shareOfPlot": {
+          "title": "Anteil am Garten (Positionsgröße)",
+          "detail": "Welcher Teil des Gesamtwerts auf eine Pflanze entfällt. Es ist eine Größe, keine Bewertung: Ein großer Anteil ist für sich weder gut noch schlecht."
+        },
+        "timeHeld": {
+          "title": "Haltedauer",
+          "detail": "Wie lange die Position schon gehalten wird. Sie bestimmt das Wachstumsstadium; ihre Stufe steigt von 0 bis 5, während die Pflanze von Gesät bis Etabliert wächst, und sinkt nie, solange Sie die Position behalten."
+        },
+        "todaysMove": {
+          "title": "Heutige Bewegung",
+          "detail": "Wie stark sich der Kurs heute bewegt hat, als Wert von 0 bis 100: 50 heißt unverändert, eine Bewegung von 5 % in eine Richtung füllt den Balken ganz. Ein als veraltet bestätigter Kurs senkt den Wert. Er beschreibt nur heute und sagt nichts voraus."
+        },
+        "chores": {
+          "title": "Aufgaben (tägliche Erledigungen)",
+          "detail": "Kurze Aufgaben wie die Übersicht prüfen oder einen Bericht erstellen. Jede öffnet die passende Seite und zählt erst, wenn Sie sie dort tatsächlich erledigt haben. Einmalige Aufgaben sind Einrichtungsschritte, die Sie nur einmal tun. Aufgaben bringen XP."
+        },
+        "streak": {
+          "title": "Serie",
+          "detail": "Die Zahl der Tage in Folge, an denen jede tägliche Aufgabe erledigt wurde."
+        },
+        "crate": {
+          "title": "Kiste",
+          "detail": "Die Belohnung der Woche am Ende des Serienpfads. Sie füllt sich, wenn Sie an jedem Tag der Woche alle Aufgaben erledigen."
+        },
+        "season": {
+          "title": "Saison (das britische Steuerjahr)",
+          "detail": "Läuft vom 6. April bis zum 5. April, dem Jahr, in dem ISA- und Altersvorsorge-Freibeträge neu beginnen. Saisonziele sind gestufte Meilensteine für Gartengröße, Gartenwert, Nutzung der Freibeträge, Serie und Rang."
+        },
+        "growerRank": {
+          "title": "Gärtnerrang",
+          "detail": "Ein Titel für Ihre Gärtnerstufe: Setzlingssäer, dann Wochenendgärtner ab Stufe 4, Erfahrener Gräber ab 8, Parzellenhalter ab 15, Meistergärtner ab 25 und Obergärtner ab 40. Er spiegelt erledigte Aufgaben wider, nicht die Wertentwicklung Ihrer Anlagen."
+        },
+        "starGrower": {
+          "title": "Starzüchter und Braucht Aufmerksamkeit",
+          "detail": "Der Starzüchter ist die Pflanze mit dem höchsten Gesamtgewinn. Braucht Aufmerksamkeit erscheint nur, wenn wirklich etwas nicht stimmt: Die Position kann noch nicht verkauft werden, ihr Kurs ist veraltet oder sie liegt 5 % oder mehr im Minus."
+        },
+        "nextJob": {
+          "title": "Nächste Aufgabe im Garten",
+          "detail": "Eine Tatsache aus Ihren eigenen Daten, die einen Blick wert ist, etwa veraltete Kurse oder ungenutzter ISA-Freibetrag, mit einem Link zur zuständigen Seite. Sie ist nie ein Vorschlag zum Kaufen oder Verkaufen."
+        },
+        "seedShed": {
+          "title": "Samenschuppen (Ihre Beobachtungsliste)",
+          "detail": "Dieselbe Beobachtungsliste wie auf der klassischen Watchlist-Seite, mit Live-Kursen. Dort wird kein Handel ausgelöst."
         }
       },
       "technicals": {
@@ -3277,7 +3329,9 @@
       "season": "Saison",
       "seasonSub": "Ziele des Steuerjahrs",
       "seeds": "Samenschuppen",
-      "seedsSub": "Beobachtungsliste"
+      "seedsSub": "Beobachtungsliste",
+      "guide": "Leitfaden",
+      "guideSub": "Was die Begriffe bedeuten"
     },
     "app": {
       "grower": "Gärtner",
@@ -3291,12 +3345,12 @@
       "loading": "Auf dem Weg zum Schrebergarten …"
     },
     "propagator": {
-      "empty": "Nichts im Anzuchtkasten – jede Pflanze hat ihre Haltefrist erfüllt und kann geerntet werden.",
-      "meterIndeterminate": "{{ticker}}: noch nicht erntereif, seit {{daysHeld}} Tagen gehalten",
+      "empty": "Keine Position ist mehr in ihrer Mindesthaltedauer: Jede kann verkauft werden.",
+      "meterIndeterminate": "{{ticker}}: noch nicht verkaufbar, {{daysHeld}} Tage gehalten",
       "meterProgress": "{{ticker}}: seit {{daysHeld}} Tagen gehalten, noch {{daysRemaining}}",
       "daysHeld": "{{daysHeld}} Tage gehalten",
       "daysRatio": "{{daysHeld}} / {{total}} Tage",
-      "notLiftable": "Noch nicht erntereif",
+      "notLiftable": "Noch nicht verkaufbar",
       "needsApproval": "Genehmigung erforderlich",
       "needsApprovalHeading": "Genehmigung erforderlich ({{count}})",
       "needsApprovalNote": "Diese haben ihre Mindesthaltedauer erfüllt; ein Verkauf erfordert eine Genehmigung, die du jetzt beantragen kannst.",
@@ -3316,7 +3370,8 @@
         "progress_other": "{{engaged}} von {{count}} Tagen geschafft — weiter so, um die Kiste zu füllen",
         "full": "Eine ganze Woche Aufgaben erledigt",
         "finish": "Erledigen Sie diese Woche jeden Tag, um die Kiste zu füllen"
-      }
+      },
+      "crateTerm": "die Kiste"
     },
     "card": {
       "removeFavourite": "{{ticker}} aus Favoriten entfernen",
@@ -3353,29 +3408,29 @@
       "streakHint": "Aufeinanderfolgende Tage, an denen jede tägliche Aufgabe erledigt wurde.",
       "today": "Heute",
       "noDaily": "Derzeit keine täglichen Aufgaben.",
-      "groundwork": "Vorarbeit"
+      "groundwork": "Einmalige Aufgaben"
     },
     "crop": {
       "gainUnknown": "Gewinn unbekannt – keine Anschaffungskosten erfasst",
       "gainDetail": "{{gain}} nicht realisierter Gewinn ({{pct}})",
       "yield": "Rendite",
       "yieldDetail": "{{pct}} % Ertragsrendite der letzten 12 Monate",
-      "vigour": "Vitalität",
+      "vigour": "Heutige Bewegung",
       "noMoveToday": "Heute keine Bewegung erfasst",
       "pctToday": "{{pct}} heute",
       "priceStale": "Kursdaten sind veraltet",
       "priceUnverified": "Aktualität des Kurses nicht bestätigt",
-      "rootDepth": "Wurzeltiefe",
+      "rootDepth": "Anteil am Garten",
       "rootDepthDetail": "{{pct}} % des gesamten Gartenwerts",
-      "hardiness": "Widerstandskraft",
+      "hardiness": "Haltedauer",
       "holdingAgeUnknown": "Haltedauer unbekannt",
       "held_one": "{{count}} Tag gehalten",
       "held_other": "{{count}} Tage gehalten",
-      "inPropagatorUntil": "im Anzuchtkasten bis {{date}}",
-      "notYetLiftable": "noch nicht erntereif",
+      "inPropagatorUntil": "in der Mindesthaltedauer bis {{date}}",
+      "notYetLiftable": "noch nicht verkaufbar",
       "needsApproval": "Genehmigung erforderlich",
-      "clearedPropagator": "Anzuchtkasten verlassen am {{date}}",
-      "readyToLift": "bereit zur Ernte",
+      "clearedPropagator": "Mindesthaltedauer endete am {{date}}",
+      "readyToLift": "kann verkauft werden",
       "notFoundTitle": "Pflanze nicht gefunden",
       "notFoundBody": "In diesem Garten wächst nichts mit dem Namen „{{id}}“.",
       "backToRoster": "Zurück zur Pflanzenliste",
@@ -3384,7 +3439,7 @@
       "traits": "Eigenschaften",
       "level": "Lv {{level}}/{{max}}",
       "plotValue": "Gartenwert",
-      "vigourMeter": "Vitalität {{value}} von 100",
+      "vigourMeter": "Wert der heutigen Bewegung: {{value}} von 100",
       "ledger": "Hauptbuch",
       "units": "Stück",
       "costBasis": "Anschaffungskosten",
@@ -3401,7 +3456,7 @@
     "roster": {
       "sortShare": "Gartenanteil",
       "sortGrowth": "Gewinn",
-      "sortVigour": "Vitalität",
+      "sortVigour": "Heutige Bewegung",
       "sortAz": "A–Z",
       "growthStages": "Wachstumsstadien",
       "growthStagesLabel": "Was bedeuten die Wachstumsstadien?",
@@ -3413,7 +3468,7 @@
       "searchLabel": "Pflanzen suchen",
       "searchPlaceholder": "Ticker, Name, Beet oder Sektor suchen",
       "sortCrops": "Pflanzen sortieren",
-      "vigourHidden": "Die Sortierung nach Vitalität ist ausgeblendet: Keine Pflanze hat heute eine erfasste Bewegung, daher hätten alle denselben Wert.",
+      "vigourHidden": "Die Sortierung nach heutiger Bewegung ist ausgeblendet: Keine Pflanze hat heute eine erfasste Bewegung, daher hätten alle denselben Wert.",
       "filterCrops": "Pflanzen filtern",
       "allBeds": "Alle Beete",
       "favourites": "Favoriten ({{count}})",
@@ -3476,7 +3531,7 @@
       "milestonesReached": "{{done}} von {{total}} Saison-Meilensteinen erreicht",
       "tieredGoals": "Gestaffelte Ziele für Gartengröße, Wert, Freibeträge, Serie und Rang.",
       "view": "Ansehen",
-      "propagator": "Anzuchtkasten",
+      "propagator": "Haltedauer",
       "propagatorTip": "Pflanzen, die sich noch in ihrer Mindesthaltefrist befinden, mit Countdown bis zum Datum, an dem sie verkauft werden dürfen.",
       "beds": "Beete",
       "bedsTip": "Jedes Anlagekonto wird als Beet dargestellt, in dem die Positionen als Pflanzen wachsen.",
@@ -3623,6 +3678,16 @@
         "cash": "Ein Geldkonto: Geld, das als Bargeld gehalten und nicht investiert wird.",
         "unknown": "Die Kontoart ist nicht erfasst."
       }
+    },
+    "welcome": {
+      "title": "Neu im Garten?",
+      "intro": "Der Garten ist Ihr echtes Portfolio, als Schrebergarten gezeichnet. Er liest dieselben Zahlen wie die klassische Ansicht und löst nie einen Handel aus.",
+      "stepCrops": "Jede Position ist eine Pflanze, und jedes Konto (ISA, Altersvorsorge, allgemeines Konto) ist ein Beet.",
+      "stepGrowth": "Das Stadium einer Pflanze ist, wie lange Sie sie halten. Ihre Farbe zeigt, wie es ihr geht: prächtig, gesund, kümmernd oder welkend.",
+      "stepMeters": "Wasser sind die verbleibenden Trades dieses Monats, Dünger ist ungenutzter Steuerfreibetrag, Sonnenlicht ist, wie viele Kurse aktuell sind.",
+      "stepChores": "Aufgaben sind kurze tägliche Erledigungen. Sie bringen XP, Stufen und einen Gärtnerrang; nichts davon hängt von der Wertentwicklung Ihrer Anlagen ab.",
+      "readGuide": "Leitfaden lesen",
+      "dismiss": "Verstanden"
     }
   },
   "userAvatar": {

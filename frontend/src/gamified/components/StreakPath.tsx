@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import styles from '../plot.module.css';
 import type { DayStamp } from '../seasonModel';
 import { crateState, stampClass } from '@/utils/crateProgress';
+import GlossaryTip from './GlossaryTip';
 
 interface StreakPathProps {
   days: readonly DayStamp[];
@@ -71,6 +72,8 @@ export default function StreakPath({ days, streak }: StreakPathProps) {
           </span>
         </li>
       </ol>
+      {/* What the streak and crate are, one click away (#7210). */}
+      <GlossaryTip glossaryKey="crate" term={t('plot.streak.crateTerm')} />
     </div>
   );
 }

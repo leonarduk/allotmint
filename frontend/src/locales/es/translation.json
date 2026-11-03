@@ -1316,7 +1316,7 @@
       },
       "plot": {
         "title": "Términos del jardín Plot",
-        "intro": "Plot es una vista con temática de jardín de los mismos datos reales de la cartera. Cada término de abajo corresponde a una cifra real.",
+        "intro": "El huerto es una vista con temática de jardín de los mismos datos reales de la cartera que muestran las pantallas clásicas: nada está inventado y nada ejecuta una operación. Puedes volver a la vista clásica cuando quieras. Cada término de abajo nombra la cifra real que representa.",
         "beds": {
           "title": "Bancales",
           "detail": "Cada cuenta de inversión se muestra como un bancal. Cada posición de esa cuenta es un cultivo plantado en él."
@@ -1333,7 +1333,7 @@
           "established": "Arraigado: 5 años o más"
         },
         "propagator": {
-          "title": "Propagador",
+          "title": "Periodo de tenencia",
           "detail": "Muestra los cultivos que aún están dentro de su periodo mínimo de tenencia (el número configurado de días que debe mantenerse una posición antes de poder venderla) y cuenta los días hasta la fecha en que cada uno lo cumple."
         },
         "water": {
@@ -1359,6 +1359,58 @@
           "struggling": "Con dificultades: baja, pero menos de un 20 %",
           "healthy": "Sano: sube entre un 0 % y menos de un 20 %",
           "thriving": "Prosperando: sube un 20 % o más"
+        },
+        "crop": {
+          "title": "Cultivo (una posición)",
+          "detail": "Una posición de una inversión en una cuenta. La misma inversión en dos cuentas son dos cultivos, que se muestran juntos cuando ayuda."
+        },
+        "plot": {
+          "title": "Huerto (tu cartera)",
+          "detail": "Todo lo que tiene un cultivador en todas sus cuentas. El valor del huerto es el valor total de la cartera, efectivo incluido."
+        },
+        "shareOfPlot": {
+          "title": "Peso en el huerto (tamaño de la posición)",
+          "detail": "Qué parte del valor total del huerto representa un cultivo. Es un tamaño, no una puntuación: un peso grande no es bueno ni malo por sí solo."
+        },
+        "timeHeld": {
+          "title": "Tiempo mantenida",
+          "detail": "Cuánto tiempo se ha mantenido la posición. Fija la etapa de crecimiento del cultivo: su nivel sube de 0 a 5 a medida que pasa de Sembrado a Arraigado, y nunca baja mientras conserves la posición."
+        },
+        "todaysMove": {
+          "title": "Movimiento de hoy",
+          "detail": "Cuánto se ha movido hoy el precio, puntuado de 0 a 100: 50 significa sin cambios y un movimiento del 5 % en cualquier sentido llena la barra. Un precio confirmado como desactualizado baja la puntuación. Describe solo el día de hoy y no predice nada."
+        },
+        "chores": {
+          "title": "Tareas (pendientes diarios)",
+          "detail": "Tareas cortas como revisar tu resumen o generar un informe. Cada una abre la página correspondiente y solo cuenta cuando la has hecho allí de verdad. Las tareas únicas son pasos de configuración que solo haces una vez. Las tareas dan XP."
+        },
+        "streak": {
+          "title": "Racha",
+          "detail": "El número de días seguidos en los que se completaron todas las tareas diarias."
+        },
+        "crate": {
+          "title": "Caja",
+          "detail": "La recompensa de la semana al final del camino de la racha. Se llena cuando completas todas las tareas todos los días de la semana."
+        },
+        "season": {
+          "title": "Temporada (el año fiscal del Reino Unido)",
+          "detail": "Va del 6 de abril al 5 de abril, el mismo año en que se renuevan las exenciones del ISA y de pensiones. Los objetivos de temporada son hitos por niveles de tamaño y valor del huerto, uso de exenciones, racha y rango."
+        },
+        "growerRank": {
+          "title": "Rango de cultivador",
+          "detail": "Un título para tu nivel de cultivador: Sembrador de plántulas, luego Cultivador de fin de semana desde el nivel 4, Cavador veterano desde el 8, Titular de parcela desde el 15, Maestro cultivador desde el 25 y Jardinero jefe desde el 40. Refleja las tareas hechas, no el rendimiento de tus inversiones."
+        },
+        "starGrower": {
+          "title": "Cultivador estrella y Necesita atención",
+          "detail": "El cultivador estrella es el cultivo con mayor ganancia total. Necesita atención solo aparece cuando algo va mal de verdad: la posición aún no se puede vender, su precio está desactualizado o ha caído un 5 % o más."
+        },
+        "nextJob": {
+          "title": "Próxima tarea en el huerto",
+          "detail": "Un dato de tus propios datos que merece un vistazo, como precios desactualizados o exención ISA sin usar, con un enlace a la página que se ocupa de ello. Nunca es una sugerencia de comprar o vender."
+        },
+        "seedShed": {
+          "title": "Cobertizo de semillas (tu lista de seguimiento)",
+          "detail": "La misma lista de seguimiento que la página clásica de Watchlist, con precios en directo. Allí no se ejecuta ninguna operación."
         }
       },
       "technicals": {
@@ -3277,7 +3329,9 @@
       "season": "Temporada",
       "seasonSub": "Objetivos del ejercicio fiscal",
       "seeds": "Cobertizo de semillas",
-      "seedsSub": "Lista de seguimiento"
+      "seedsSub": "Lista de seguimiento",
+      "guide": "Guía",
+      "guideSub": "Qué significan los términos"
     },
     "app": {
       "grower": "Cultivador",
@@ -3291,12 +3345,12 @@
       "loading": "Camino del huerto…"
     },
     "propagator": {
-      "empty": "Nada en el propagador: todos los cultivos han cumplido su periodo de tenencia y pueden recogerse.",
-      "meterIndeterminate": "{{ticker}}: aún no se puede recoger, {{daysHeld}} días en cartera",
+      "empty": "Ninguna posición está dentro de su periodo mínimo de tenencia: todas se pueden vender.",
+      "meterIndeterminate": "{{ticker}}: aún no se puede vender, {{daysHeld}} días mantenida",
       "meterProgress": "{{ticker}}: {{daysHeld}} días en cartera, faltan {{daysRemaining}}",
       "daysHeld": "{{daysHeld}} días en cartera",
       "daysRatio": "{{daysHeld}} / {{total}} días",
-      "notLiftable": "Aún no se puede recoger",
+      "notLiftable": "Aún no se puede vender",
       "needsApproval": "Requiere aprobación",
       "needsApprovalHeading": "Requiere aprobación ({{count}})",
       "needsApprovalNote": "Ya han cumplido su periodo mínimo de tenencia; venderlas requiere una aprobación que puedes solicitar ahora.",
@@ -3316,7 +3370,8 @@
         "progress_other": "{{engaged}} de {{count}} días completados — sigue así para llenar la caja",
         "full": "Semana completa de tareas hecha",
         "finish": "Completa cada día de esta semana para llenar la caja"
-      }
+      },
+      "crateTerm": "la caja"
     },
     "card": {
       "removeFavourite": "Quitar {{ticker}} de favoritos",
@@ -3353,29 +3408,29 @@
       "streakHint": "Días consecutivos con todas las tareas diarias terminadas.",
       "today": "Hoy",
       "noDaily": "No hay tareas diarias por ahora.",
-      "groundwork": "Trabajo preparatorio"
+      "groundwork": "Tareas únicas"
     },
     "crop": {
       "gainUnknown": "Ganancia desconocida: no hay coste base registrado",
       "gainDetail": "{{gain}} de ganancia no realizada ({{pct}})",
       "yield": "Rendimiento",
       "yieldDetail": "{{pct}} % de rentabilidad por rentas de los últimos 12 meses",
-      "vigour": "Vigor",
+      "vigour": "Movimiento de hoy",
       "noMoveToday": "Sin movimiento registrado hoy",
       "pctToday": "{{pct}} hoy",
       "priceStale": "los datos de precio están desactualizados",
       "priceUnverified": "actualidad del precio sin verificar",
-      "rootDepth": "Profundidad de raíz",
+      "rootDepth": "Peso en el huerto",
       "rootDepthDetail": "{{pct}} % del valor total del huerto",
-      "hardiness": "Resistencia",
+      "hardiness": "Tiempo mantenida",
       "holdingAgeUnknown": "Antigüedad de la posición desconocida",
       "held_one": "En cartera {{count}} día",
       "held_other": "En cartera {{count}} días",
-      "inPropagatorUntil": "en el propagador hasta el {{date}}",
-      "notYetLiftable": "aún no se puede recoger",
+      "inPropagatorUntil": "en su periodo mínimo de tenencia hasta el {{date}}",
+      "notYetLiftable": "aún no se puede vender",
       "needsApproval": "requiere aprobación",
-      "clearedPropagator": "salió del propagador el {{date}}",
-      "readyToLift": "lista para recoger",
+      "clearedPropagator": "el periodo mínimo de tenencia terminó el {{date}}",
+      "readyToLift": "se puede vender",
       "notFoundTitle": "Cultivo no encontrado",
       "notFoundBody": "No crece nada llamado «{{id}}» en este huerto.",
       "backToRoster": "Volver a la lista de cultivos",
@@ -3384,7 +3439,7 @@
       "traits": "Rasgos",
       "level": "Nv {{level}}/{{max}}",
       "plotValue": "Valor del huerto",
-      "vigourMeter": "Vigor {{value}} de 100",
+      "vigourMeter": "Puntuación del movimiento de hoy: {{value}} de 100",
       "ledger": "Libro mayor",
       "units": "Unidades",
       "costBasis": "Coste base",
@@ -3401,7 +3456,7 @@
     "roster": {
       "sortShare": "Cuota del huerto",
       "sortGrowth": "Ganancia",
-      "sortVigour": "Vigor",
+      "sortVigour": "Movimiento de hoy",
       "sortAz": "A–Z",
       "growthStages": "Etapas de crecimiento",
       "growthStagesLabel": "¿Qué significan las etapas de crecimiento?",
@@ -3413,7 +3468,7 @@
       "searchLabel": "Buscar cultivos",
       "searchPlaceholder": "Buscar ticker, nombre, bancal o sector",
       "sortCrops": "Ordenar cultivos",
-      "vigourHidden": "La ordenación por vigor está oculta: ningún cultivo tiene un movimiento registrado hoy, así que todos puntuarían igual.",
+      "vigourHidden": "El orden por movimiento de hoy está oculto: ningún cultivo tiene un movimiento registrado hoy, así que todos puntuarían igual.",
       "filterCrops": "Filtrar cultivos",
       "allBeds": "Todos los bancales",
       "favourites": "Favoritos ({{count}})",
@@ -3476,7 +3531,7 @@
       "milestonesReached": "{{done}} de {{total}} hitos de temporada alcanzados",
       "tieredGoals": "Objetivos por niveles según tamaño del huerto, valor, límites, racha y rango.",
       "view": "Ver",
-      "propagator": "Propagador",
+      "propagator": "Periodo de tenencia",
       "propagatorTip": "Cultivos aún dentro de su periodo mínimo de tenencia, con cuenta atrás hasta la fecha en que cada uno puede venderse.",
       "beds": "Bancales",
       "bedsTip": "Cada cuenta de inversión se muestra como un bancal, con sus posiciones plantadas como cultivos.",
@@ -3623,6 +3678,16 @@
         "cash": "Una cuenta de efectivo: dinero que se mantiene en efectivo en lugar de invertido.",
         "unknown": "El tipo de cuenta no está registrado."
       }
+    },
+    "welcome": {
+      "title": "¿Nuevo en el huerto?",
+      "intro": "El huerto es tu cartera real dibujada como un huerto urbano. Lee las mismas cifras que la vista clásica y nunca ejecuta una operación.",
+      "stepCrops": "Cada posición es un cultivo, y cada cuenta (ISA, pensión, cuenta general) es un bancal.",
+      "stepGrowth": "La etapa de un cultivo es cuánto tiempo lo has mantenido. Su color indica cómo va: próspero, sano, débil o marchito.",
+      "stepMeters": "El agua son las operaciones que te quedan este mes, el abono es la exención fiscal sin usar y la luz solar es cuántos precios están al día.",
+      "stepChores": "Las tareas son pequeños pendientes diarios. Hacerlas da XP, niveles y un rango de cultivador; nada de eso depende de cómo rinden tus inversiones.",
+      "readGuide": "Leer la guía del huerto",
+      "dismiss": "Entendido"
     }
   },
   "userAvatar": {

@@ -1316,7 +1316,7 @@
       },
       "plot": {
         "title": "Termes du jardin Plot",
-        "intro": "Plot est une vue sur le thème du jardin des mêmes données réelles du portefeuille. Chaque terme ci-dessous correspond à un chiffre réel.",
+        "intro": "Le potager est une vue sur le thème du jardin des mêmes données réelles de portefeuille que les écrans classiques : rien n'y est inventé et rien n'y passe d'ordre. Vous pouvez revenir à la vue classique à tout moment. Chaque terme ci-dessous nomme le chiffre réel qu'il représente.",
         "beds": {
           "title": "Parcelles",
           "detail": "Chaque compte d'investissement est représenté par une parcelle. Chaque position de ce compte est une culture qui y est plantée."
@@ -1333,7 +1333,7 @@
           "established": "Bien établi : 5 ans ou plus"
         },
         "propagator": {
-          "title": "Propagateur",
+          "title": "Durée de détention",
           "detail": "Liste les cultures encore dans leur période de détention minimale — le nombre de jours configuré pendant lequel une position doit être détenue avant de pouvoir être vendue — avec un compte à rebours jusqu'à la date où chacune en sort."
         },
         "water": {
@@ -1359,6 +1359,58 @@
           "struggling": "En difficulté : en baisse, de moins de 20 %",
           "healthy": "En bonne santé : en hausse de 0 % à moins de 20 %",
           "thriving": "Florissant : en hausse de 20 % ou plus"
+        },
+        "crop": {
+          "title": "Culture (une position)",
+          "detail": "Une position d'un placement dans un compte. Le même placement détenu dans deux comptes fait deux cultures, montrées ensemble quand c'est utile."
+        },
+        "plot": {
+          "title": "Potager (votre portefeuille)",
+          "detail": "Tout ce qu'un jardinier détient sur l'ensemble de ses comptes. La valeur du potager est la valeur totale du portefeuille, liquidités comprises."
+        },
+        "shareOfPlot": {
+          "title": "Part du potager (taille de la position)",
+          "detail": "La part de la valeur totale du potager que représente une culture. C'est une taille, pas une note : une grosse part n'est ni bonne ni mauvaise en soi."
+        },
+        "timeHeld": {
+          "title": "Durée de détention",
+          "detail": "Depuis combien de temps la position est détenue. Elle fixe le stade de croissance : son niveau monte de 0 à 5 quand la culture passe de Semé à Bien établi, et ne baisse jamais tant que vous gardez la position."
+        },
+        "todaysMove": {
+          "title": "Variation du jour",
+          "detail": "De combien le cours a bougé aujourd'hui, noté de 0 à 100 : 50 veut dire stable et une variation de 5 % dans un sens ou l'autre remplit la barre. Un cours confirmé comme périmé baisse le score. Cela décrit seulement aujourd'hui et ne prédit rien."
+        },
+        "chores": {
+          "title": "Corvées (tâches quotidiennes)",
+          "detail": "De courtes tâches comme consulter votre vue d'ensemble ou lancer un rapport. Chacune ouvre la page concernée et ne compte qu'une fois réellement faite là-bas. Les tâches ponctuelles sont des étapes de configuration à faire une seule fois. Les corvées rapportent des XP."
+        },
+        "streak": {
+          "title": "Série",
+          "detail": "Le nombre de jours d'affilée où toutes les corvées du jour ont été faites."
+        },
+        "crate": {
+          "title": "Caisse",
+          "detail": "La récompense de la semaine au bout du chemin de série. Elle se remplit quand vous faites toutes les corvées chaque jour de la semaine."
+        },
+        "season": {
+          "title": "Saison (l'année fiscale britannique)",
+          "detail": "Va du 6 avril au 5 avril, l'année sur laquelle les plafonds ISA et retraite se renouvellent. Les objectifs de saison sont des paliers sur la taille et la valeur du potager, l'usage des plafonds, la série et le rang."
+        },
+        "growerRank": {
+          "title": "Rang de jardinier",
+          "detail": "Un titre pour votre niveau de jardinier : Semeur de jeunes pousses, puis Jardinier du dimanche dès le niveau 4, Bêcheur aguerri dès 8, Titulaire de parcelle dès 15, Maître jardinier dès 25 et Jardinier en chef dès 40. Il reflète les corvées faites, pas la performance de vos placements."
+        },
+        "starGrower": {
+          "title": "Jardinier vedette et Demande de l'attention",
+          "detail": "Le jardinier vedette est la culture au plus fort gain total. Demande de l'attention n'apparaît que si quelque chose ne va vraiment pas : la position ne peut pas encore être vendue, son cours est périmé ou elle a perdu 5 % ou plus."
+        },
+        "nextJob": {
+          "title": "Prochaine tâche au potager",
+          "detail": "Un fait tiré de vos propres données qui mérite un coup d'œil, comme des cours périmés ou un plafond ISA inutilisé, avec un lien vers la page qui s'en occupe. Ce n'est jamais une suggestion d'acheter ou de vendre."
+        },
+        "seedShed": {
+          "title": "Cabane à graines (votre liste de suivi)",
+          "detail": "La même liste de suivi que la page Watchlist classique, avec des cours en direct. Rien n'y passe d'ordre."
         }
       },
       "technicals": {
@@ -3277,7 +3329,9 @@
       "season": "Saison",
       "seasonSub": "Objectifs de l'année fiscale",
       "seeds": "Cabane à graines",
-      "seedsSub": "Liste de suivi"
+      "seedsSub": "Liste de suivi",
+      "guide": "Guide",
+      "guideSub": "Ce que veulent dire les mots"
     },
     "app": {
       "grower": "Jardinier",
@@ -3291,12 +3345,12 @@
       "loading": "En route vers le potager…"
     },
     "propagator": {
-      "empty": "Rien dans le germoir : chaque culture a terminé sa période de détention et peut être récoltée.",
-      "meterIndeterminate": "{{ticker}} : pas encore récoltable, détenu depuis {{daysHeld}} jours",
+      "empty": "Aucune position n'est dans sa durée minimale de détention : toutes peuvent être vendues.",
+      "meterIndeterminate": "{{ticker}} : pas encore vendable, détenu depuis {{daysHeld}} jours",
       "meterProgress": "{{ticker}} : détenu depuis {{daysHeld}} jours, encore {{daysRemaining}}",
       "daysHeld": "détenu depuis {{daysHeld}} jours",
       "daysRatio": "{{daysHeld}} / {{total}} jours",
-      "notLiftable": "Pas encore récoltable",
+      "notLiftable": "Pas encore vendable",
       "needsApproval": "Approbation requise",
       "needsApprovalHeading": "Approbation requise ({{count}})",
       "needsApprovalNote": "Ces positions ont atteint leur durée de détention minimale ; leur vente nécessite une approbation que vous pouvez demander dès maintenant.",
@@ -3316,7 +3370,8 @@
         "progress_other": "{{engaged}} jours sur {{count}} accomplis — continuez pour remplir la caisse",
         "full": "Semaine complète de tâches accomplie",
         "finish": "Terminez chaque jour de cette semaine pour remplir la caisse"
-      }
+      },
+      "crateTerm": "la caisse"
     },
     "card": {
       "removeFavourite": "Retirer {{ticker}} des favoris",
@@ -3353,29 +3408,29 @@
       "streakHint": "Jours consécutifs avec toutes les corvées quotidiennes terminées.",
       "today": "Aujourd'hui",
       "noDaily": "Aucune corvée quotidienne pour le moment.",
-      "groundwork": "Travaux préparatoires"
+      "groundwork": "Tâches ponctuelles"
     },
     "crop": {
       "gainUnknown": "Gain inconnu — aucun prix de revient enregistré",
       "gainDetail": "{{gain}} de gain latent ({{pct}})",
       "yield": "Rendement",
       "yieldDetail": "{{pct}} % de rendement des revenus sur 12 mois glissants",
-      "vigour": "Vigueur",
+      "vigour": "Variation du jour",
       "noMoveToday": "Aucun mouvement enregistré aujourd'hui",
       "pctToday": "{{pct}} aujourd'hui",
       "priceStale": "les données de prix sont périmées",
       "priceUnverified": "fraîcheur du prix non vérifiée",
-      "rootDepth": "Profondeur des racines",
+      "rootDepth": "Part du potager",
       "rootDepthDetail": "{{pct}} % de la valeur totale du potager",
-      "hardiness": "Rusticité",
+      "hardiness": "Durée de détention",
       "holdingAgeUnknown": "Ancienneté de la position inconnue",
       "held_one": "Détenu {{count}} jour",
       "held_other": "Détenu {{count}} jours",
-      "inPropagatorUntil": "au germoir jusqu'au {{date}}",
-      "notYetLiftable": "pas encore récoltable",
+      "inPropagatorUntil": "dans sa durée minimale de détention jusqu'au {{date}}",
+      "notYetLiftable": "pas encore vendable",
       "needsApproval": "approbation requise",
-      "clearedPropagator": "sorti du germoir le {{date}}",
-      "readyToLift": "prête à être récoltée",
+      "clearedPropagator": "durée minimale de détention terminée le {{date}}",
+      "readyToLift": "peut être vendu",
       "notFoundTitle": "Culture introuvable",
       "notFoundBody": "Rien nommé « {{id}} » ne pousse dans ce potager.",
       "backToRoster": "Retour à la liste des cultures",
@@ -3384,7 +3439,7 @@
       "traits": "Caractéristiques",
       "level": "Niv {{level}}/{{max}}",
       "plotValue": "Valeur du potager",
-      "vigourMeter": "Vigueur {{value}} sur 100",
+      "vigourMeter": "Score de la variation du jour : {{value}} sur 100",
       "ledger": "Registre",
       "units": "Unités",
       "costBasis": "Prix de revient",
@@ -3401,7 +3456,7 @@
     "roster": {
       "sortShare": "Part du potager",
       "sortGrowth": "Gain",
-      "sortVigour": "Vigueur",
+      "sortVigour": "Variation du jour",
       "sortAz": "A–Z",
       "growthStages": "Stades de croissance",
       "growthStagesLabel": "Que signifient les stades de croissance ?",
@@ -3413,7 +3468,7 @@
       "searchLabel": "Rechercher des cultures",
       "searchPlaceholder": "Rechercher un ticker, un nom, une planche ou un secteur",
       "sortCrops": "Trier les cultures",
-      "vigourHidden": "Le tri par vigueur est masqué : aucune culture n'a de mouvement enregistré aujourd'hui, elles auraient donc toutes le même score.",
+      "vigourHidden": "Le tri par variation du jour est masqué : aucune culture n'a de variation enregistrée aujourd'hui, toutes auraient donc le même score.",
       "filterCrops": "Filtrer les cultures",
       "allBeds": "Toutes les planches",
       "favourites": "Favoris ({{count}})",
@@ -3476,7 +3531,7 @@
       "milestonesReached": "{{done}} jalons de saison sur {{total}} atteints",
       "tieredGoals": "Objectifs par paliers sur la taille du potager, la valeur, les plafonds, la série et le rang.",
       "view": "Voir",
-      "propagator": "Germoir",
+      "propagator": "Durée de détention",
       "propagatorTip": "Cultures encore dans leur période de détention minimale, avec un compte à rebours jusqu'à la date à laquelle chacune peut être vendue.",
       "beds": "Planches",
       "bedsTip": "Chaque compte d'investissement est représenté par une planche, où ses positions sont plantées comme des cultures.",
@@ -3623,6 +3678,16 @@
         "cash": "Un compte espèces : de l'argent gardé en liquidités plutôt qu'investi.",
         "unknown": "Le type de compte n'est pas renseigné."
       }
+    },
+    "welcome": {
+      "title": "Nouveau au potager ?",
+      "intro": "Le potager est votre vrai portefeuille dessiné comme un jardin ouvrier. Il lit les mêmes chiffres que la vue classique et ne passe jamais d'ordre.",
+      "stepCrops": "Chaque position est une culture, et chaque compte (ISA, retraite, compte général) est une plate-bande.",
+      "stepGrowth": "Le stade d'une culture correspond à la durée depuis laquelle vous la détenez. Sa couleur montre comment elle se porte : florissante, saine, en difficulté ou fanée.",
+      "stepMeters": "L'eau, ce sont les transactions restantes ce mois-ci, l'engrais le plafond fiscal inutilisé, et le soleil la part des cours à jour.",
+      "stepChores": "Les corvées sont de courtes tâches quotidiennes. Elles rapportent des XP, des niveaux et un rang de jardinier ; rien de cela ne dépend de la performance de vos placements.",
+      "readGuide": "Lire le guide du potager",
+      "dismiss": "Compris"
     }
   },
   "userAvatar": {

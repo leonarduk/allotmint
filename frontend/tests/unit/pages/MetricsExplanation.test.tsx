@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { axe } from "jest-axe";
 import MetricsExplanation from "@/pages/MetricsExplanation";
 import { TECHNICALS_GLOSSARY } from "@/lib/technicalsGlossary";
+import { PLOT_GLOSSARY, PLOT_GUIDE_ANCHOR } from "@/lib/plotGlossary";
 
 function renderPage() {
   return render(
@@ -98,6 +99,21 @@ describe("MetricsExplanation", () => {
       screen.getByText(/never sends it back to Sown/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/Wilting: down 20% or more/i)).toBeInTheDocument();
+  });
+
+  it("defines every Plot glossary term under the Plot guide anchor (#7210)", () => {
+    const { container } = renderPage();
+
+    const guide = container.querySelector(`#${PLOT_GUIDE_ANCHOR}`);
+    expect(guide).not.toBeNull();
+    for (const entry of PLOT_GLOSSARY) {
+      const node = guide?.querySelector(`#${entry.id}`);
+      expect(node, entry.id).not.toBeNull();
+      expect(node?.textContent).toContain(entry.title);
+    }
+    // The coinages that only renamed a finance word are gone (#7210).
+    expect(screen.queryByRole("heading", { name: "Propagator" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Holding period" })).toBeInTheDocument();
   });
 
   it("has no accessibility violations", async () => {

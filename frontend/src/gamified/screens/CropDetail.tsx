@@ -22,6 +22,7 @@ import {
 import Meter from '../components/Meter';
 import ShareBar, { ShareTrack } from '../components/ShareBar';
 import CropGlyph from '../components/CropGlyph';
+import { instrumentTypeExplanation } from '../plotGuidance';
 
 /**
  * The first trait has two data paths (#7019), and the label always matches
@@ -196,6 +197,18 @@ export default function CropDetail({ basePath }: { basePath: string }) {
             <li className={styles.trait}>{t('plot.crop.unverifiedPrice')}</li>
           )}
         </ul>
+        {/* The chips above in plain English, so "ETF" or "Bond" can be
+            understood without leaving Plot mode (#7209). */}
+        <h3 className={styles.panelTitle}>{t('plot.learn.title')}</h3>
+        <p className={styles.sectionNote}>
+          {instrumentTypeExplanation(crop.instrumentType)}
+        </p>
+        <p className={styles.sectionNote}>
+          {t('plot.learn.sector', { sector: crop.sector })}
+        </p>
+        <p className={styles.sectionNote}>
+          {t('plot.learn.region', { region: crop.region })}
+        </p>
       </section>
 
       <div className={styles.detail} style={accentStyle}>

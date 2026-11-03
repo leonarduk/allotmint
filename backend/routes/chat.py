@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
+import os
 import warnings
-from typing import TYPE_CHECKING, List, Literal, Optional
+from typing import TYPE_CHECKING, Awaitable, List, Literal, Optional
 
 import httpx
 import httpx2
@@ -89,6 +91,51 @@ CHAT_ERROR_LLM_UNREACHABLE = "llm_unreachable"
 CHAT_ERROR_AWS = "aws_error"
 
 _UPSTREAM_ERRORS = (httpx.HTTPError, httpx2.HTTPError, BotoCoreError, ClientError)
+
+# On AWS, POST /chat sits behind an API Gateway HTTP API whose integration
+# timeout is a hard 30s (cdk/stacks/backend_lambda_stack.py), well under the
+# client's 5-minute CHAT_FETCH_TIMEOUT_MS (#7945). A turn still running at 30s
+# reaches the user as a bare gateway 503, so the turn gets its own deadline
+# below that ceiling and answers with CHAT_TURN_TIMEOUT_REPLY instead. Local
+# runs have no gateway and a slow Ollama model, so they get no deadline.
+# CHAT_TURN_TIMEOUT_SECONDS overrides either default; 0 turns the deadline off.
+DEFAULT_AWS_CHAT_TURN_TIMEOUT_SECONDS = 25.0
+CHAT_TURN_TIMEOUT_REPLY = (
+    "Sorry, that question took too long to answer within this server's time limit. "
+    "Try a narrower question, for example one holding, account or date range at a time."
+)
+
+
+def chat_turn_timeout_seconds() -> Optional[float]:
+    """The deadline for one chat turn, or ``None`` for none (local runs, or an override of 0)."""
+    raw = os.getenv("CHAT_TURN_TIMEOUT_SECONDS", "").strip()
+    default = None if config.app_env == "local" else DEFAULT_AWS_CHAT_TURN_TIMEOUT_SECONDS
+    if not raw:
+        return default
+    try:
+        seconds = float(raw)
+    except ValueError:
+        logger.warning("Ignoring non-numeric CHAT_TURN_TIMEOUT_SECONDS=%s", sanitise_log_value(raw))
+        return default
+    return seconds if seconds > 0 else None
+
+
+async def _reply_within(turn: Awaitable[str], seconds: Optional[float]) -> Optional[str]:
+    """Await ``turn``; ``None`` when ``seconds`` ran out first (the turn is then cancelled).
+
+    A ``TimeoutError`` raised inside the turn itself (not by this deadline)
+    propagates unchanged.
+    """
+    if seconds is None:
+        return await turn
+    deadline = asyncio.timeout(seconds)
+    try:
+        async with deadline:
+            return await turn
+    except TimeoutError:
+        if deadline.expired():
+            return None
+        raise
 
 
 def _find_upstream_error(exc: BaseException) -> Optional[BaseException]:
@@ -175,17 +222,21 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
         data_tools=True,
         file_exports=True,
     )
+    timeout = chat_turn_timeout_seconds()
     try:
-        reply = await run_configured_chat_turn(
-            payload.message,
-            [item.model_dump() for item in payload.history],
-            cfg=config,
-            mcp_server_url=mcp_server_url,
-            local_tools=local_tools,
-            system_prompt=build_system_prompt(
-                payload.context.model_dump() if payload.context else None,
-                signed_in_owner=signed_in_owner,
+        reply = await _reply_within(
+            run_configured_chat_turn(
+                payload.message,
+                [item.model_dump() for item in payload.history],
+                cfg=config,
+                mcp_server_url=mcp_server_url,
+                local_tools=local_tools,
+                system_prompt=build_system_prompt(
+                    payload.context.model_dump() if payload.context else None,
+                    signed_in_owner=signed_in_owner,
+                ),
             ),
+            timeout,
         )
     except ValueError as exc:
         # Raised by bedrock_agent._validate_message_alternation (shared by
@@ -201,6 +252,9 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
             raise
         logger.warning("Chat upstream request failed: %s", sanitise_log_value(repr(upstream)))
         return _chat_error(502, *_describe_upstream_error(upstream))
+    if reply is None:
+        logger.warning("Chat turn hit its %ss deadline; answering with the timeout reply", sanitise_log_value(timeout))
+        reply = CHAT_TURN_TIMEOUT_REPLY
     files = [
         ChatFileOut(
             filename=item.filename,

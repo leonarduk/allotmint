@@ -2409,8 +2409,8 @@
       "status401": "Your session has expired. Please sign in again.",
       "status429": "You're sending messages too quickly. Wait a moment and try again.",
       "status502": "Chat couldn't reach its AI service. Please try again later.",
-      "status503": "Chat isn't available on this server right now.",
-      "status504": "Chat took too long to respond. Please try again.",
+      "status503": "Chat isn't available right now, or your question took too long to answer. Try a narrower question, or try again shortly.",
+      "status504": "Chat took too long to respond. Try a narrower question, or try again.",
       "serverError": "Chat ran into a server error. Please try again.",
       "cannotReachServer": "Cannot reach server",
       "deleteHistoryFailed": "Couldn't delete your chat history. Please try again.",
@@ -3484,7 +3484,9 @@
       "seedStore": "Seed store",
       "readyToSow": "{{amount}} cash ready to sow",
       "inBeds_one": "in {{count}} bed",
-      "inBeds_other": "in {{count}} beds"
+      "inBeds_other": "in {{count}} beds",
+      "bedGain": "{{gain}} ({{pct}}) since bought",
+      "bedGainUnknown": "Gain unknown: a purchase cost is missing"
     },
     "model": {
       "unnamedBed": "Unnamed bed",
@@ -3564,6 +3566,56 @@
       "struggling": "Struggling",
       "healthy": "Healthy",
       "thriving": "Thriving"
+    },
+    "nextJob": {
+      "title": "Next job on the plot",
+      "none": "Nothing needs doing on the plot right now.",
+      "staleReason": "Every value and gain on these screens uses prices from {{date}}. Check where the price data stands before reading much into them.",
+      "staleLink": "Check data quality",
+      "approvalTitle_one": "{{count}} holding needs sign-off before it can be sold",
+      "approvalTitle_other": "{{count}} holdings need sign-off before they can be sold",
+      "approvalReason": "{{tickers}}: the minimum holding period is over, but a sale needs approval under your trading rules.",
+      "approvalLink": "See trading rules",
+      "choresTitle_one": "{{count}} chore still open today",
+      "choresTitle_other": "{{count}} chores still open today",
+      "choresReason": "Each one opens the page it is about, and only counts once you have actually done it there.",
+      "choresLink": "Go to chores",
+      "isaTitle": "{{amount}} of your {{limit}} ISA allowance is unused this tax year",
+      "isaReason": "Money inside an ISA grows free of UK tax. Allowance left unused does not carry over past 5 April.",
+      "isaLink": "See tax tools",
+      "cashTitle": "{{amount}} ({{pct}}% of your plot) is held as cash",
+      "cashReason": "Cash is not invested, so it does not rise or fall with the markets. The allocation page shows it alongside everything else.",
+      "cashLink": "See allocation",
+      "splitTitle_one": "You hold {{ticker}} in {{count}} account",
+      "splitTitle_other": "You hold {{ticker}} in {{count}} accounts",
+      "splitReason": "It is held in {{beds}}. Each account's tax rules apply to the part held in it.",
+      "splitLink": "Inspect crop"
+    },
+    "learn": {
+      "title": "What is this?",
+      "sector": "Sector: {{sector}}, the part of the economy it earns its money in.",
+      "region": "Region: {{region}}, where it is based or mainly invests.",
+      "type": {
+        "equity": "A share in a single company: its price follows how that one company is doing.",
+        "etf": "An exchange-traded fund (ETF): one holding that owns a basket of many investments and trades on a stock exchange like a share.",
+        "fund": "A fund: money pooled from many investors and spread across a basket of investments, picked by a manager or by following an index.",
+        "bond": "A bond: a loan to a government or company that pays interest and is repaid on a set date.",
+        "investmentTrust": "An investment trust: a listed company whose business is owning other investments. Its share price can sit above or below what those investments are worth.",
+        "commodity": "A commodity: a raw material such as gold or oil, usually held through a product that tracks its price.",
+        "property": "Property: buildings or land, usually held through a fund or a listed property company.",
+        "multiAsset": "A multi-asset fund: one fund that mixes shares, bonds and other investments.",
+        "unknown": "The data does not say what kind of investment this is."
+      },
+      "wrapper": {
+        "isa": "An ISA: growth and income inside it are free of UK tax, up to a yearly pay-in allowance.",
+        "lisa": "A Lifetime ISA: tax-free like an ISA, plus a government bonus on what you pay in. Meant for a first home or later life; other withdrawals carry a charge.",
+        "jisa": "A Junior ISA: tax-free savings held for a child, who takes control of it at 18.",
+        "pension": "A pension (such as a SIPP): what you pay in gets tax relief, but the money stays locked away until pension age.",
+        "gia": "A general investment account: no tax wrapper, so income and gains above your yearly tax-free allowances can be taxed.",
+        "company": "Held by a limited company, so it is taxed as the company's money rather than yours.",
+        "cash": "A cash account: money held as cash rather than invested.",
+        "unknown": "The type of account is not recorded."
+      }
     }
   },
   "userAvatar": {
@@ -3713,6 +3765,7 @@
     "logThis": "Log this decision?",
     "notNow": "Not now",
     "snapshot": "Context snapshot",
+    "contextSummary": "Context at the time (AI summary, facts only)",
     "weights": "weight {{before}}% → {{after}}%",
     "legs": "Options to compare later",
     "legsHelp": "The option taken and each alternative, with a ticker to price it by; leave the ticker blank for cash (0% assumed).",
@@ -4297,6 +4350,7 @@
     "units": "Indicative units",
     "noVehicle": "No vehicle in your plan",
     "keepAsCash": "Keep as cash: {{amount}}",
+    "newMoneyBasis": "The account holds less cash than this tranche, so it is sized as new money paid in on top of your holdings.",
     "copy": "Copy order list",
     "copied": "Copied"
   },

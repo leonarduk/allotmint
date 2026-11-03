@@ -10,14 +10,16 @@ is a _crop_, an account is a _bed_, and the daily Trail tasks are _chores_.
 
 ## Screens
 
-- **`/plot` — The Plot (hub).** Best and worst crop on the stage, the three
-  resource meters, open chores, beds and biggest crops. "Biggest crops"
+- **`/plot` — The Plot (hub).** Best and worst crop on the stage, one
+  "next job on the plot", the three resource meters, open chores, beds and
+  biggest crops. "Biggest crops"
   shows one card per instrument: a ticker held in several beds is summed
   and labelled "in N beds".
 - **`/plot/crops` — Crop roster.** Every holding as a card, sortable by plot
   share / growth / vigour / name and filterable by bed.
 - **`/plot/crops/:ticker` — Crop detail.** One holding's traits, portrait and
-  ledger, with a link out to the classic instrument view.
+  ledger, a plain-English "What is this?" note on its instrument type,
+  sector and region, and a link out to the classic instrument view.
 - **`/plot/chores` — Chores.** Daily and one-off tasks, the completion ring,
   season XP and streak.
 - **`/plot/season` — Season track.** A tiered milestone ladder over the UK
@@ -37,7 +39,18 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
   summed into a "ready to sow" tile on the hub, still count toward plot
   value, and stay out of crop counts, shares and the Sunlight meter.
 - **Bed** — one per `Account` in the same response; the account type gives
-  the bed its name and icon.
+  the bed its name and icon, and a one-sentence explanation of its tax
+  wrapper (ISA, SIPP, GIA…). The bed card's gain is the sum of its crops'
+  `gain_gbp` over their summed cost, and "unknown" if any crop's cost basis
+  is (#8471).
+- **Next job on the plot** — `plotGuidance.ts` (#7209) checks, in order:
+  stale portfolio prices (same rule as the stage, links to
+  `/data-quality`), holdings waiting on sale approval (`/trade-compliance`),
+  open chores, unused ISA allowance from `/tax/allowances`
+  (`/tax-tools`), cash of 5%+ of plot value (`/allocation`), and an
+  instrument held in more than one bed (its crop). The hub shows the first
+  that applies, or "nothing needs doing". Every line is a fact with a link;
+  none is a buy or sell suggestion.
 - **Growth stage (maturity)** — from `days_held`, so it only ever moves
   forward while a holding is kept (#7200): sown < 30 days, sprouting < 90,
   leafing < 180, budding < 365, flowering < 730, fruiting < 1825,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -12,6 +13,7 @@ from fastapi.testclient import TestClient
 from backend.common import investment_plan as plan_mod
 from backend.decision_journal import bot
 from backend.decision_journal import entries as entries_mod
+from backend.decision_journal import summary as summary_mod
 from backend.decision_journal.capture import ContextTools
 from backend.decision_journal.review import run_due_reviews
 from backend.decision_journal.store import load_journal, save_journal
@@ -48,6 +50,8 @@ def data_root(monkeypatch, tmp_path):
     monkeypatch.setattr(dj_route, "_owner_transactions", lambda request, owner: [SELL])
     tools = ContextTools({"get_allocation": lambda: {"total_value_gbp": 50_000.0, "values_gbp": {"AAA.L": 5_000.0}}})
     monkeypatch.setattr(dj_route, "default_context_tools", lambda owner, root: tools)
+    # No summary model unless a test configures one (#10487): never a live LLM call.
+    monkeypatch.setattr(summary_mod, "_app_config", lambda: SimpleNamespace(mcp_server_url=None))
     return tmp_path
 
 
@@ -245,3 +249,31 @@ def test_journal_lists_patterns_only_from_enough_reviewed_entries(data_root):
     rows = {row["alternative"]: row for row in group["rows"]}
     assert set(rows) == {"cash", "other"}
     assert all(row["comparisons"] == 5 and row["return_basis"] == "total" for row in rows.values())
+
+
+def test_trade_draft_carries_a_factual_context_summary_that_is_logged_with_it(data_root, monkeypatch):
+    """#10487: the summary is in the snapshot, reason stays blank, and confirming keeps the summary."""
+    calls = []
+
+    async def fake_turn(message, history, **kwargs):
+        calls.append(kwargs)
+        return "On the trade date £10,000 of AAA.L was sold."
+
+    monkeypatch.setattr(summary_mod, "_app_config", lambda: SimpleNamespace(mcp_server_url="https://mcp.example.test"))
+    monkeypatch.setattr(summary_mod, "_default_chat_turn", lambda: fake_turn)
+    client = _client(data_root)
+
+    draft = client.post("/decision-journal/alex/drafts", json={"source_ref": "alex:isa:7"}).json()
+
+    assert draft["snapshot"]["summary"] == "On the trade date £10,000 of AAA.L was sold."
+    assert draft["reason"] == ""
+    assert calls[0]["limits"].allowed_tools == summary_mod.READ_ONLY_CONTEXT_TOOLS
+    assert client.post("/decision-journal/alex/entries", json=_confirm_body(draft)).status_code == 201
+    [entry] = load_journal("alex", data_root).entries
+    assert entry.snapshot["summary"] == draft["snapshot"]["summary"]
+
+
+def test_trade_draft_without_a_summary_model_says_why(data_root):
+    draft = _client(data_root).post("/decision-journal/alex/drafts", json={"source_ref": "alex:isa:7"}).json()
+    assert "summary" not in draft["snapshot"]
+    assert draft["snapshot"]["summary_note"] == summary_mod.NOTE_NOT_CONFIGURED

@@ -2416,8 +2416,8 @@
       "status401": "A sua sessão expirou. Inicie sessão novamente.",
       "status429": "Está a enviar mensagens demasiado depressa. Aguarde um momento e tente novamente.",
       "status502": "O chat não conseguiu contactar o seu serviço de IA. Tente novamente mais tarde.",
-      "status503": "O chat não está disponível neste servidor neste momento.",
-      "status504": "O chat demorou demasiado a responder. Tente novamente.",
+      "status503": "O chat não está disponível neste momento, ou a resposta à sua pergunta demorou demasiado. Faça uma pergunta mais específica ou tente novamente daqui a pouco.",
+      "status504": "O chat demorou demasiado a responder. Faça uma pergunta mais específica ou tente novamente.",
       "serverError": "O chat encontrou um erro do servidor. Tente novamente.",
       "cannotReachServer": "Não é possível contactar o servidor",
       "deleteHistoryFailed": "Não foi possível eliminar o seu histórico de conversas. Tente novamente.",
@@ -3491,7 +3491,9 @@
       "seedStore": "Reserva de sementes",
       "readyToSow": "{{amount}} em dinheiro pronto para semear",
       "inBeds_one": "em {{count}} canteiro",
-      "inBeds_other": "em {{count}} canteiros"
+      "inBeds_other": "em {{count}} canteiros",
+      "bedGain": "{{gain}} ({{pct}}) desde a compra",
+      "bedGainUnknown": "Ganho desconhecido: falta um custo de compra"
     },
     "model": {
       "unnamedBed": "Canteiro sem nome",
@@ -3571,6 +3573,56 @@
       "struggling": "Com dificuldades",
       "healthy": "Saudável",
       "thriving": "Viçosa"
+    },
+    "nextJob": {
+      "title": "Próxima tarefa na horta",
+      "none": "De momento não há nada a fazer na horta.",
+      "staleReason": "Todos os valores e ganhos nestes ecrãs usam preços de {{date}}. Verifique o estado dos dados de preços antes de tirar conclusões.",
+      "staleLink": "Verificar qualidade dos dados",
+      "approvalTitle_one": "{{count}} posição precisa de aprovação antes de poder ser vendida",
+      "approvalTitle_other": "{{count}} posições precisam de aprovação antes de poderem ser vendidas",
+      "approvalReason": "{{tickers}}: o período mínimo de detenção terminou, mas uma venda precisa de aprovação segundo as suas regras de negociação.",
+      "approvalLink": "Ver regras de negociação",
+      "choresTitle_one": "{{count}} tarefa ainda em aberto hoje",
+      "choresTitle_other": "{{count}} tarefas ainda em aberto hoje",
+      "choresReason": "Cada uma abre a página respetiva e só conta depois de a ter feito lá de verdade.",
+      "choresLink": "Ir para as tarefas",
+      "isaTitle": "{{amount}} do seu limite ISA de {{limit}} está por usar neste ano fiscal",
+      "isaReason": "O dinheiro dentro de um ISA cresce isento de impostos no Reino Unido. O limite não usado não passa para depois de 5 de abril.",
+      "isaLink": "Ver ferramentas fiscais",
+      "cashTitle": "{{amount}} ({{pct}}% da sua horta) está em dinheiro",
+      "cashReason": "O dinheiro não está investido, por isso não sobe nem desce com os mercados. A página de alocação mostra-o ao lado de tudo o resto.",
+      "cashLink": "Ver alocação",
+      "splitTitle_one": "Detém {{ticker}} em {{count}} conta",
+      "splitTitle_other": "Detém {{ticker}} em {{count}} contas",
+      "splitReason": "É detido em {{beds}}. A cada parte aplicam-se as regras fiscais da conta onde está.",
+      "splitLink": "Inspecionar cultura"
+    },
+    "learn": {
+      "title": "O que é isto?",
+      "sector": "Setor: {{sector}}, a parte da economia em que ganha o seu dinheiro.",
+      "region": "Região: {{region}}, onde está sediado ou investe principalmente.",
+      "type": {
+        "equity": "Uma ação de uma única empresa: o seu preço acompanha o desempenho dessa empresa.",
+        "etf": "Um fundo cotado (ETF): uma posição que detém um cabaz de muitos investimentos e é negociada em bolsa como uma ação.",
+        "fund": "Um fundo: dinheiro de muitos investidores reunido e distribuído por um cabaz de investimentos, escolhidos por um gestor ou seguindo um índice.",
+        "bond": "Uma obrigação: um empréstimo a um governo ou empresa que paga juros e é reembolsado numa data fixa.",
+        "investmentTrust": "Um investment trust: uma empresa cotada cujo negócio é deter outros investimentos. O seu preço pode estar acima ou abaixo do valor desses investimentos.",
+        "commodity": "Uma matéria-prima como o ouro ou o petróleo, normalmente detida através de um produto que acompanha o seu preço.",
+        "property": "Imobiliário: edifícios ou terrenos, normalmente detidos através de um fundo ou de uma imobiliária cotada.",
+        "multiAsset": "Um fundo multiativos: um fundo que mistura ações, obrigações e outros investimentos.",
+        "unknown": "Os dados não dizem que tipo de investimento é."
+      },
+      "wrapper": {
+        "isa": "Um ISA: o crescimento e os rendimentos dentro dele estão isentos de impostos no Reino Unido, até um limite anual de entradas.",
+        "lisa": "Um Lifetime ISA: isento de impostos como um ISA, mais um bónus do governo sobre o que deposita. Pensado para uma primeira casa ou para mais tarde; outros levantamentos têm uma penalização.",
+        "jisa": "Um Junior ISA: poupança isenta de impostos para uma criança, que assume o controlo aos 18 anos.",
+        "pension": "Uma pensão (como um SIPP): o que deposita tem benefício fiscal, mas o dinheiro fica bloqueado até à idade da reforma.",
+        "gia": "Uma conta de investimento geral: sem invólucro fiscal, por isso rendimentos e ganhos acima das suas isenções anuais podem ser tributados.",
+        "company": "Detido por uma sociedade, por isso é tributado como dinheiro da empresa e não seu.",
+        "cash": "Uma conta de dinheiro: dinheiro mantido em numerário em vez de investido.",
+        "unknown": "O tipo de conta não está registado."
+      }
     }
   },
   "userAvatar": {
@@ -3720,6 +3772,7 @@
     "logThis": "Registar esta decisão?",
     "notNow": "Agora não",
     "snapshot": "Instantâneo do contexto",
+    "contextSummary": "Contexto no momento (resumo de IA, apenas factos)",
     "weights": "peso {{before}}% → {{after}}%",
     "legs": "Opções a comparar mais tarde",
     "legsHelp": "A opção escolhida e cada alternativa, com um ticker para a avaliar; deixe o ticker vazio para numerário (0% assumido).",
@@ -4304,6 +4357,7 @@
     "units": "Unidades indicativas",
     "noVehicle": "Sem veículo no seu plano",
     "keepAsCash": "Manter em caixa: {{amount}}",
+    "newMoneyBasis": "A conta tem menos numerário do que esta tranche, por isso é calculada como dinheiro novo depositado além das suas posições.",
     "copy": "Copiar lista de ordens",
     "copied": "Copiado"
   },

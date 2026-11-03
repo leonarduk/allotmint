@@ -131,9 +131,15 @@ def sleeve_new_cash(
     sleeve_id: str,
     amount: float,
     account_id: str,
+    *,
+    from_held_cash: bool = False,
 ) -> dict[str, Any]:
-    """Buy-only allocation of new cash paid into one account, aimed at one sleeve's targets."""
+    """Buy-only allocation of cash in one account, aimed at one sleeve's targets.
+
+    ``from_held_cash`` as for :func:`suggest_new_cash`: the amount is cash
+    already in the account rather than new money paid in.
+    """
     target_policy = sleeve_policy(setup, sleeve_id, policy)
     part = split_portfolio(portfolio, setup)[sleeve_id] if setup.sleeves else portfolio
     holdings = bucket_holdings(part, split_classes(target_policy))
-    return suggest_new_cash(holdings, target_policy, amount, account_id)
+    return suggest_new_cash(holdings, target_policy, amount, account_id, from_held_cash=from_held_cash)

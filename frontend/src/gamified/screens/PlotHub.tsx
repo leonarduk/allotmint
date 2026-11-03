@@ -18,6 +18,12 @@ import {
 } from '../plotModel';
 import { localDateISO } from '../../lib/date';
 import {
+  bedGain,
+  bedWrapperExplanation,
+  nextPlotJob,
+  type PlotJob,
+} from '../plotGuidance';
+import {
   buildSeasonGoals,
   buildStreakPath,
   seasonCountdown,
@@ -111,6 +117,38 @@ function Champion({
 }
 
 /**
+ * One data-derived "next job" (#7209): a fact about the plot and a link to
+ * where it is dealt with. Never advice, and when the data has nothing to say
+ * the panel says so instead of inventing a nudge.
+ */
+function NextJob({ job }: { job: PlotJob | null }) {
+  const { t } = useTranslation();
+  return (
+    <section
+      className={`${styles.panel} ${styles.panelGlow}`}
+      aria-labelledby="plot-next-job-title"
+    >
+      <h2 id="plot-next-job-title" className={styles.panelTitle}>
+        {t('plot.nextJob.title')}
+      </h2>
+      {job ? (
+        <div className={styles.choreRow}>
+          <div className={styles.choreBody}>
+            <div className={styles.choreTitle}>{job.title}</div>
+            <p className={styles.choreNote}>{job.reason}</p>
+          </div>
+          <Link className={styles.goButton} to={job.to}>
+            {job.linkLabel}
+          </Link>
+        </div>
+      ) : (
+        <p className={styles.sectionNote}>{t('plot.nextJob.none')}</p>
+      )}
+    </section>
+  );
+}
+
+/**
  * The hub screen: a glance-able read of the whole allotment — the standout
  * and struggling crops on the stage, the resource meters, and the beds
  * (accounts) that make up the plot.
@@ -157,6 +195,16 @@ export default function PlotHub({ basePath }: { basePath: string }) {
   const seasonGoals = buildSeasonGoals(snapshot, allowances, allowancesUnavailable);
   const seasonDone = seasonGoals.filter((goal) => goal.complete).length;
   const countdown = season ? seasonCountdown(season, new Date()) : null;
+  const nextJob = nextPlotJob({
+    asOf: snapshot.asOf,
+    today: today || localDateISO(),
+    crops,
+    cashGbp,
+    plotValueGbp: snapshot.plotValueGbp,
+    allowances,
+    openChores: choresAvailable ? openChores : 0,
+    basePath,
+  });
 
   return (
     <div className={styles.stack}>
@@ -197,6 +245,8 @@ export default function PlotHub({ basePath }: { basePath: string }) {
           </p>
         )}
       </section>
+
+      <NextJob job={nextJob} />
 
       {/* "How old is all this?" (#7186) — the SUNLIGHT meter can now say
           "unknown" instead of a false 100%, but that only tells the reader
@@ -362,32 +412,53 @@ export default function PlotHub({ basePath }: { basePath: string }) {
           </p>
         ) : (
           <div className={styles.seedGrid}>
-            {beds.map((bed) => (
-              <Link
-                key={bed.id}
-                to={`${basePath}/crops?bed=${encodeURIComponent(bed.id)}`}
-                className={`${styles.seedCard} ${styles.seedCardLink}`}
-                aria-label={t('plot.hub.showBedCrops', { name: bed.name })}
-              >
-                <span className={styles.seedTitle}>
-                  <span aria-hidden="true">{bed.icon}</span> {bed.name}
-                </span>
-                <span className={styles.seedOwn}>
-                  {t('plot.hub.cropCount', { count: bed.cropCount })}
-                  {bed.owner ? ` · ${bed.owner}` : ''}
-                  {/* #7186 — the bed's own last_updated can lag well behind
-                      the portfolio as_of shown above; surfacing it here
-                      means a stale bed doesn't hide behind a fresher
-                      portfolio-wide date. */}
-                  {bed.lastUpdated
-                    ? ` · ${t('plot.hub.bedPriced', { date: bed.lastUpdated })}`
-                    : ''}
-                </span>
-                <span className={styles.cropValue}>
-                  {formatGbp(bed.valueGbp)}
-                </span>
-              </Link>
-            ))}
+            {beds.map((bed) => {
+              const gain = bedGain(bed, crops);
+              return (
+                <Link
+                  key={bed.id}
+                  to={`${basePath}/crops?bed=${encodeURIComponent(bed.id)}`}
+                  className={`${styles.seedCard} ${styles.seedCardLink}`}
+                  aria-label={t('plot.hub.showBedCrops', { name: bed.name })}
+                >
+                  <span className={styles.seedTitle}>
+                    <span aria-hidden="true">{bed.icon}</span> {bed.name}
+                  </span>
+                  <span className={styles.seedOwn}>
+                    {t('plot.hub.cropCount', { count: bed.cropCount })}
+                    {bed.owner ? ` · ${bed.owner}` : ''}
+                    {/* #7186 — the bed's own last_updated can lag well behind
+                        the portfolio as_of shown above; surfacing it here
+                        means a stale bed doesn't hide behind a fresher
+                        portfolio-wide date. */}
+                    {bed.lastUpdated
+                      ? ` · ${t('plot.hub.bedPriced', { date: bed.lastUpdated })}`
+                      : ''}
+                  </span>
+                  <span className={styles.cropValue}>
+                    {formatGbp(bed.valueGbp)}
+                  </span>
+                  {/* Per-bed performance and what the wrapper means (#7209). */}
+                  <span
+                    className={
+                      gain.gainGbp !== null && gain.gainGbp < 0
+                        ? styles.loss
+                        : styles.gain
+                    }
+                  >
+                    {gain.gainGbp === null
+                      ? t('plot.hub.bedGainUnknown')
+                      : t('plot.hub.bedGain', {
+                          gain: formatGbp(gain.gainGbp),
+                          pct: formatPct(gain.gainPct),
+                        })}
+                  </span>
+                  <span className={styles.seedOwn}>
+                    {bedWrapperExplanation(bed.accountType)}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>

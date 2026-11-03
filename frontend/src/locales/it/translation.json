@@ -2416,8 +2416,8 @@
       "status401": "La sessione è scaduta. Accedi di nuovo.",
       "status429": "Stai inviando messaggi troppo velocemente. Attendi un momento e riprova.",
       "status502": "La chat non è riuscita a raggiungere il suo servizio di IA. Riprova più tardi.",
-      "status503": "La chat non è al momento disponibile su questo server.",
-      "status504": "La chat ha impiegato troppo tempo a rispondere. Riprova.",
+      "status503": "La chat non è disponibile al momento, oppure la risposta alla tua domanda ha richiesto troppo tempo. Prova una domanda più specifica o riprova tra poco.",
+      "status504": "La chat ha impiegato troppo tempo a rispondere. Prova una domanda più specifica o riprova.",
       "serverError": "La chat ha riscontrato un errore del server. Riprova.",
       "cannotReachServer": "Impossibile raggiungere il server",
       "deleteHistoryFailed": "Impossibile eliminare la cronologia della chat. Riprova.",
@@ -3491,7 +3491,9 @@
       "seedStore": "Scorta di semi",
       "readyToSow": "{{amount}} in contanti pronti da seminare",
       "inBeds_one": "in {{count}} aiuola",
-      "inBeds_other": "in {{count}} aiuole"
+      "inBeds_other": "in {{count}} aiuole",
+      "bedGain": "{{gain}} ({{pct}}) dall'acquisto",
+      "bedGainUnknown": "Guadagno sconosciuto: manca un costo d'acquisto"
     },
     "model": {
       "unnamedBed": "Aiuola senza nome",
@@ -3571,6 +3573,56 @@
       "struggling": "In difficoltà",
       "healthy": "In salute",
       "thriving": "Rigogliosa"
+    },
+    "nextJob": {
+      "title": "Prossimo lavoro nell'orto",
+      "none": "Al momento non c'è niente da fare nell'orto.",
+      "staleReason": "Tutti i valori e i guadagni in queste schermate usano prezzi del {{date}}. Controlla lo stato dei dati sui prezzi prima di trarne conclusioni.",
+      "staleLink": "Controlla la qualità dei dati",
+      "approvalTitle_one": "{{count}} posizione richiede un'approvazione prima di poter essere venduta",
+      "approvalTitle_other": "{{count}} posizioni richiedono un'approvazione prima di poter essere vendute",
+      "approvalReason": "{{tickers}}: il periodo minimo di detenzione è finito, ma una vendita richiede l'approvazione secondo le tue regole di trading.",
+      "approvalLink": "Vedi le regole di trading",
+      "choresTitle_one": "{{count}} faccenda ancora aperta oggi",
+      "choresTitle_other": "{{count}} faccende ancora aperte oggi",
+      "choresReason": "Ognuna apre la pagina relativa e conta solo quando l'hai davvero fatta lì.",
+      "choresLink": "Vai alle faccende",
+      "isaTitle": "{{amount}} del tuo limite ISA di {{limit}} non è ancora usato in questo anno fiscale",
+      "isaReason": "Il denaro in un ISA cresce esente da tasse nel Regno Unito. Il limite non usato non si riporta dopo il 5 aprile.",
+      "isaLink": "Vedi gli strumenti fiscali",
+      "cashTitle": "{{amount}} ({{pct}}% del tuo orto) è tenuto in contanti",
+      "cashReason": "La liquidità non è investita, quindi non sale né scende con i mercati. La pagina di allocazione la mostra insieme a tutto il resto.",
+      "cashLink": "Vedi l'allocazione",
+      "splitTitle_one": "Detieni {{ticker}} in {{count}} conto",
+      "splitTitle_other": "Detieni {{ticker}} in {{count}} conti",
+      "splitReason": "È detenuto in {{beds}}. A ogni parte si applicano le regole fiscali del conto in cui si trova.",
+      "splitLink": "Esamina coltura"
+    },
+    "learn": {
+      "title": "Che cos'è?",
+      "sector": "Settore: {{sector}}, la parte dell'economia in cui guadagna.",
+      "region": "Regione: {{region}}, dove ha sede o investe principalmente.",
+      "type": {
+        "equity": "Un'azione di una singola società: il suo prezzo segue l'andamento di quella società.",
+        "etf": "Un fondo quotato (ETF): una posizione che possiede un paniere di molti investimenti e si scambia in borsa come un'azione.",
+        "fund": "Un fondo: denaro di molti investitori riunito e distribuito su un paniere di investimenti, scelti da un gestore o seguendo un indice.",
+        "bond": "Un'obbligazione: un prestito a uno Stato o a un'azienda che paga interessi e viene rimborsato a una data fissata.",
+        "investmentTrust": "Un investment trust: una società quotata il cui mestiere è possedere altri investimenti. Il suo prezzo può essere sopra o sotto il valore di quegli investimenti.",
+        "commodity": "Una materia prima come l'oro o il petrolio, di solito detenuta tramite un prodotto che ne segue il prezzo.",
+        "property": "Immobili: edifici o terreni, di solito detenuti tramite un fondo o una società immobiliare quotata.",
+        "multiAsset": "Un fondo multi-asset: un fondo che combina azioni, obbligazioni e altri investimenti.",
+        "unknown": "I dati non dicono di che tipo di investimento si tratti."
+      },
+      "wrapper": {
+        "isa": "Un ISA: crescita e redditi al suo interno sono esenti da tasse nel Regno Unito, fino a un limite annuo di versamenti.",
+        "lisa": "Un Lifetime ISA: esente da tasse come un ISA, più un bonus statale su quanto versi. Pensato per una prima casa o per più avanti; altri prelievi comportano una penale.",
+        "jisa": "Un Junior ISA: risparmio esente da tasse per un minore, che ne prende il controllo a 18 anni.",
+        "pension": "Una pensione (come un SIPP): i versamenti godono di agevolazioni fiscali, ma il denaro resta vincolato fino all'età pensionabile.",
+        "gia": "Un conto di investimento generale: senza involucro fiscale, quindi redditi e guadagni oltre le tue esenzioni annuali possono essere tassati.",
+        "company": "Detenuto da una società, quindi tassato come denaro della società e non tuo.",
+        "cash": "Un conto di liquidità: denaro tenuto in contanti anziché investito.",
+        "unknown": "Il tipo di conto non è registrato."
+      }
     }
   },
   "userAvatar": {
@@ -3720,6 +3772,7 @@
     "logThis": "Registrare questa decisione?",
     "notNow": "Non ora",
     "snapshot": "Istantanea del contesto",
+    "contextSummary": "Contesto al momento (riepilogo IA, solo fatti)",
     "weights": "peso {{before}}% → {{after}}%",
     "legs": "Opzioni da confrontare in seguito",
     "legsHelp": "L'opzione scelta e ogni alternativa, con un ticker per valutarla; lascia vuoto il ticker per la liquidità (0% ipotizzato).",
@@ -4304,6 +4357,7 @@
     "units": "Unità indicative",
     "noVehicle": "Nessuno strumento nel tuo piano",
     "keepAsCash": "Tieni in liquidità: {{amount}}",
+    "newMoneyBasis": "Il conto detiene meno liquidità di questa tranche, quindi è calcolata come denaro nuovo versato in aggiunta alle tue posizioni.",
     "copy": "Copia elenco ordini",
     "copied": "Copiato"
   },

@@ -504,6 +504,14 @@ checks already run. When it is on:
   - **Demo tokens:** confined in every mode.
 
   (#11351)
+- **Nudges.** `POST /nudges/subscribe` and `POST /nudges/snooze` run
+  `ensure_owner_access` on the body's `user`, with the same caller as the
+  per-owner routes. A nudge's `user` is usually an owner id but may be the
+  signed-in identity itself; an identity always passes the check for itself,
+  since `ensure_owner_access` allows the owner id. `GET /nudges/` returns only
+  the nudges whose user (`id`) passes the same check, plus any nudge with no
+  user, so every id the notifications drawer offers to snooze or reschedule
+  is one the caller may act on. (#11353)
 - **Cross-owner routes** (`/custom-query/run`, `/scenario`, `/scenario/fx`,
   `/scenario/historical`, and the `positions` on `/instrument/`) list owners
   with `list_plots(current_user=<caller>)`, using the same caller as the
@@ -558,9 +566,9 @@ Before changing it:
 5. Sign in as each person and check `/owners` and the "At a glance" dashboard
    list the expected owners. To roll back, set it to `"false"` and redeploy.
 
-#10531 (a per-group access check on the group routes) depends on this: an
-`ensure_group_access` built on `ensure_owner_access` would do nothing on AWS
-with the flag off.
+Group routes follow the same rule on AWS only with the flag on (see "Group
+routes" below). With it off every caller still sees every owner in every
+group.
 
 ### Auth enabled: the portfolio build (#11358)
 
@@ -575,6 +583,44 @@ read. `portfolio_cache.access_scope()` is `("user", <identity>)` with auth
 enabled too, so a build shared between the parallel `/performance` requests
 is never served to another user. In every `disable_auth` mode, for demo
 tokens and in `system_job_context` jobs, the lookup is unchanged.
+
+### Group routes (#10531)
+
+A group's members are its configured members that the caller may see, by the
+same owner/`email`/`viewers` rule as `/owners` and `ensure_owner_access`.
+There is no separate group rule: `group_portfolio.list_groups` lists owners
+as the caller (`data_loader.request_listing_user`), and every group route gets
+its members from there. That covers `/groups`, `/portfolio-group/{slug}` and
+all its sub-routes (`instruments`, `sectors`, `regions`, `currencies`,
+`look-through`, `exposure`, `movers`, `instrument/{ticker}`),
+`/performance-group/{slug}` and its sub-routes,
+`/fund-upkeep/group/{slug}/all-in-cost` and `/opportunities?group=`.
+
+- **Partly visible group:** it returns only the visible members, as the
+  `all` group always has. A viewer of one adult sees an `adults` group with
+  that adult only.
+- **No visible member:** the group is left out of `/groups`, and every group
+  route answers `404 "Group not found"`, the same as an unknown slug. So the
+  caller cannot tell the group exists or learn who is in it.
+- **`all` ("At a glance")** is always listed. It is "everyone you may see",
+  so it names nobody else, and the dashboard keeps its landing page. A caller
+  who may see nobody gets it empty.
+
+By mode:
+
+| Mode | Group members |
+|---|---|
+| Auth enabled | Visible to the signed-in identity. `get_current_user` binds it to the request, and `/opportunities?group=` binds the token's user. No token: `401`. |
+| `disable_auth` + `ENFORCE_OWNER_ACCESS` | Visible to the identity the middleware bound. None: only an empty `all`. |
+| `disable_auth`, flag off | Unchanged: every owner, every group listed even when empty. |
+| Demo token (any mode) | The demo owner only. |
+| `system_job_context` with no identity | Every owner. |
+
+Hiding empty groups applies only while access is scoped to the caller
+(`portfolio_cache.access_scope()` is not `None`). Every group cache (the
+group portfolio cache, the shared `/performance` inputs and the
+`/opportunities?group=` response cache) is keyed by that scope, so one
+caller's filtered group is never served to another.
 
 ## Diagnosing auth failures
 

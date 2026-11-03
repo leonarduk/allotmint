@@ -287,9 +287,22 @@ def load_trades(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[s
 
 
 # Transaction types that count as a "trade" against ``max_trades_per_month``.
-# Dividends, interest, fees, deposits, withdrawals and transfers do not count;
-# allotmint-pro's compliance trade-limit rule uses the same definition (#10811).
-TRADE_TYPES = frozenset({"BUY", "SELL"})
+# PURCHASE is the legacy BUY alias the rest of the backend already treats as a
+# buy. Dividends, interest, fees, deposits, withdrawals and transfers do not
+# count. This is the single definition: allotmint-pro's compliance trade-limit
+# rule imports ``is_trade`` from here (#11408).
+TRADE_TYPES = frozenset({"BUY", "PURCHASE", "SELL"})
+
+
+def is_trade(tx: Dict[str, Any]) -> bool:
+    """Return ``True`` when ``tx`` is a buy or sell (#11408).
+
+    Reads ``type`` (falling back to ``kind`` when ``type`` is missing or
+    blank), stripped and case-insensitively. A non-blank ``type`` always wins
+    over ``kind``, so a DIVIDEND row with ``kind: BUY`` is not a trade.
+    """
+    action = str(tx.get("type") or "").strip() or str(tx.get("kind") or "").strip()
+    return action.upper() in TRADE_TYPES
 _TX_SUFFIX = "_transactions.json"
 
 
@@ -332,7 +345,7 @@ def _s3_ledger_documents(owner: str) -> Dict[str, Dict[str, Any]]:
 
 
 def count_trades_in_month(owner: str, month: dt.date, accounts_root: Optional[Path] = None) -> int:
-    """Count ``owner``'s BUY/SELL ledger rows dated in ``month``'s calendar month.
+    """Count ``owner``'s trade rows (:func:`is_trade`) dated in ``month``'s calendar month.
 
     Reads the same ``<account>_transactions.json`` documents as ``/transactions``:
     the on-disk accounts root, overlaid per account by the writable S3 store in
@@ -343,7 +356,7 @@ def count_trades_in_month(owner: str, month: dt.date, accounts_root: Optional[Pa
     count = 0
     for data in docs.values():
         for tx in data.get("transactions") or []:
-            if not isinstance(tx, dict) or str(tx.get("type") or "").upper() not in TRADE_TYPES:
+            if not isinstance(tx, dict) or not is_trade(tx):
                 continue
             d = _parse_date(tx.get("date"))
             if d and d.year == month.year and d.month == month.month:

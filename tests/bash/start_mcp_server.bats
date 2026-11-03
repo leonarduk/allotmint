@@ -17,7 +17,7 @@ echo "\$PYTHONPATH \$*" >"$BATS_TEST_TMPDIR/uvicorn.args"
 EOF
   chmod +x "$BATS_TEST_TMPDIR/bin/uvicorn"
   PATH="$BATS_TEST_TMPDIR/bin:$PATH"
-  unset MCP_SERVER_URL MCP_SERVER_PORT START_MCP_SERVER ALLOTMINT_PRO_DIR ALLOTMINT_MCP_BRAVE_API_KEY BACKEND_USE_PRO
+  unset MCP_SERVER_URL MCP_SERVER_PORT START_MCP_SERVER ALLOTMINT_PRO_DIR ALLOTMINT_MCP_BRAVE_API_KEY BACKEND_USE_PRO MCP_SERVER_RELOAD
 }
 
 wait_for_stub() {
@@ -36,7 +36,17 @@ wait_for_stub() {
   [ -n "$MCP_SERVER_PID" ]
   wait_for_stub
   run cat "$BATS_TEST_TMPDIR/uvicorn.args"
-  [[ "$output" == "$REPO:$REPO/../allotmint-pro allotmint_pro.mcp_server.app:app --host 127.0.0.1 --port 59301" ]]
+  [[ "$output" == "$REPO:$REPO/../allotmint-pro allotmint_pro.mcp_server.app:app --host 127.0.0.1 --port 59301 --reload --reload-dir $REPO/../allotmint-pro/allotmint_pro --reload-dir $REPO/backend" ]]
+}
+
+@test "MCP_SERVER_RELOAD=0 starts the MCP server without --reload" {
+  export MCP_SERVER_RELOAD=0
+  MCP_SERVER_PORT=59319
+  start_local_mcp_server "$REPO" 2>/dev/null
+
+  wait_for_stub
+  run cat "$BATS_TEST_TMPDIR/uvicorn.args"
+  [[ "$output" == "$REPO:$REPO/../allotmint-pro allotmint_pro.mcp_server.app:app --host 127.0.0.1 --port 59319" ]]
 }
 
 @test "uses the port from a localhost MCP_SERVER_URL" {
@@ -45,7 +55,7 @@ wait_for_stub() {
 
   wait_for_stub
   run cat "$BATS_TEST_TMPDIR/uvicorn.args"
-  [[ "$output" == *"--port 59302" ]]
+  [[ "$output" == *"--port 59302 "* ]]
 }
 
 @test "does nothing for a remote MCP_SERVER_URL" {

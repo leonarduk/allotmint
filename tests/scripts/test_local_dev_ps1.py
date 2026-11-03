@@ -150,3 +150,25 @@ def test_backend_pythonpath_keeps_an_existing_pythonpath():
     env = {**os.environ, "PYTHONPATH": "existing"}
     result = _run_powershell(f". '{LIB}'; Get-McpServerPythonPath 'repo' 'pro'", env=env)
     assert result.stdout.strip().split(os.pathsep) == ["repo", "pro", "existing"]
+
+
+def _mcp_server_arguments(call: str, reload: str | None) -> list[str]:
+    """``Get-McpServerArguments`` output, one argument per line (#11424)."""
+    env = {k: v for k, v in os.environ.items() if k != "MCP_SERVER_RELOAD"}
+    if reload is not None:
+        env["MCP_SERVER_RELOAD"] = reload
+    result = _run_powershell(f". '{LIB}'; Get-McpServerArguments {call}", env=env)
+    return result.stdout.split()
+
+
+def test_mcp_server_reloads_on_pro_and_backend_edits():
+    args = _mcp_server_arguments("8001 'repo' 'pro'", None)
+    assert args[:7] == ["-m", "uvicorn", "allotmint_pro.mcp_server.app:app", "--host", "127.0.0.1", "--port", "8001"]
+    assert args[7] == "--reload"
+    reload_dirs = [Path(args[i + 1]).parts for i, arg in enumerate(args) if arg == "--reload-dir"]
+    assert reload_dirs == [("pro", "allotmint_pro"), ("repo", "backend")]
+
+
+def test_mcp_server_reload_0_and_a_bare_port_do_not_reload():
+    assert "--reload" not in _mcp_server_arguments("8001 'repo' 'pro'", "0")
+    assert "--reload" not in _mcp_server_arguments("8001", None)

@@ -62,9 +62,21 @@ function Get-McpServerPythonPath([string]$RepoRoot, [string]$ProDir) {
   return (@($RepoRoot, $ProDir, $env:PYTHONPATH) | Where-Object { $_ }) -join [System.IO.Path]::PathSeparator
 }
 
-# `python` arguments that run the MCP server on 127.0.0.1:$Port.
-function Get-McpServerArguments([int]$Port) {
-  return @('-m', 'uvicorn', 'allotmint_pro.mcp_server.app:app', '--host', '127.0.0.1', '--port', $Port)
+# `python` arguments that run the MCP server on 127.0.0.1:$Port. With $RepoRoot
+# and $ProDir, it reloads on .py edits under allotmint_pro/ and backend/ unless
+# MCP_SERVER_RELOAD=0 (uvicorn's default *.py pattern means the server's own
+# JSON/parquet cache writes never trigger it). Mirrors mcp_server_args in
+# scripts/bash/lib/start_mcp_server.sh.
+function Get-McpServerArguments([int]$Port, [string]$RepoRoot = '', [string]$ProDir = '') {
+  $arguments = @('-m', 'uvicorn', 'allotmint_pro.mcp_server.app:app', '--host', '127.0.0.1', '--port', $Port)
+  if ($RepoRoot -and $ProDir -and $env:MCP_SERVER_RELOAD -ne '0') {
+    $arguments += @(
+      '--reload',
+      '--reload-dir', (Join-Path $ProDir 'allotmint_pro'),
+      '--reload-dir', (Join-Path $RepoRoot 'backend')
+    )
+  }
+  return $arguments
 }
 
 # True if nothing is listening on 127.0.0.1:$Port.

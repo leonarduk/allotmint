@@ -67,6 +67,11 @@ def world(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
 
     monkeypatch.setattr(pu.portfolio_mod, "build_owner_portfolio", portfolio)
     monkeypatch.setattr(pu.group_portfolio, "build_group_portfolio", portfolio)
+    # The group is fake, so its membership is too; the /performance routes
+    # rebuild the members' ledgers for cumulative_return (#10128). No ledgers
+    # keeps that hermetic: cumulative_return is "unavailable", values unchanged.
+    monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug, **_: ["steve"])
+    monkeypatch.setattr(pu.ledger_performance, "load_owner_ledgers", lambda owner, **_: [])
     monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, snapshot: tuple(ticker.split(".", 1)))
     monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {}, raising=False)
     monkeypatch.setattr(pu, "load_meta_timeseries", fake_load_meta_timeseries)

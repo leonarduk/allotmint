@@ -476,7 +476,7 @@ function Start-LocalMcpServer {
   $env:PYTHONPATH = Get-McpServerPythonPath $REPO_ROOT $proDir
   try {
     $process = Start-Process -FilePath $PYTHON -NoNewWindow -PassThru `
-      -ArgumentList (Get-McpServerArguments $mcpPort) `
+      -ArgumentList (Get-McpServerArguments $mcpPort $REPO_ROOT $proDir) `
       -RedirectStandardOutput (Join-Path $logsDir 'mcp-server.log') `
       -RedirectStandardError (Join-Path $logsDir 'mcp-server.err.log')
   } finally {
@@ -525,6 +525,12 @@ try {
   & $PYTHON -m uvicorn @arguments
 } finally {
   if ($mcpProcess -and -not $mcpProcess.HasExited) {
-    Stop-Process -Id $mcpProcess.Id -Force -ErrorAction SilentlyContinue
+    # The whole tree: with --reload the port is held by the reloader's worker,
+    # which Stop-Process on the reloader alone would leave running.
+    if ($IsWindows -or $env:OS -eq 'Windows_NT') {
+      & taskkill.exe /PID $mcpProcess.Id /T /F *> $null
+    } else {
+      Stop-Process -Id $mcpProcess.Id -ErrorAction SilentlyContinue
+    }
   }
 }

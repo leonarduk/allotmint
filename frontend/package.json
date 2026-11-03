@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.2.1",
-    "@tanstack/react-virtual": "^3.14.13",
+    "@tanstack/react-virtual": "^3.14.24",
     "i18next": "^26.5.12",
     "lucide-react": "^1.64.0",
     "react": "^19.3.1",
@@ -29,7 +29,7 @@
     "react-helmet-async": "^3.0.0",
     "react-i18next": "^17.0.14",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.18.4",
+    "react-router-dom": "^7.18.5",
     "react-toastify": "^11.2.0",
     "react-window": "^2.2.7",
     "recharts": "^3.10.1",

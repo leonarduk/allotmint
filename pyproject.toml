@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8"]
+requires = ["setuptools>=64", "setuptools-scm>=10.3.4"]
 build-backend = "setuptools.build_meta"
 
 # Not a distributable package: `pip install -e ".[pro]"` / ".[test]" only
@@ -20,7 +20,7 @@ dependencies = [
 test = [
     "pytest~=9.0.3",
     "pytest-cov~=7.1.0",
-    "pytest-asyncio~=1.4.0",
+    "pytest-asyncio~=1.4.1",
 ]
 # Private paid engine: screener, VaR/risk, compliance rule engine, allowances,
 # anomaly repair. The SSH URL intentionally requires a GitHub SSH key with

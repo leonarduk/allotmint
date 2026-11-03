@@ -84,6 +84,17 @@ class PortOwner:
     process: ProcessInfo
     parent: ProcessInfo | None
 
+    @property
+    def is_mcp_server(self) -> bool:
+        """The listener is the MCP server, or a child of it.
+
+        Under ``--reload`` (#11424) the reloader's worker shares its socket, and
+        the worker's command line is a ``multiprocessing.spawn`` stub without
+        the marker; its parent, the reloader, carries it.
+        """
+
+        return self.process.is_mcp_server or (self.parent is not None and self.parent.is_mcp_server)
+
     def pids_to_stop(self) -> list[int]:
         """The listener, plus its parent when that is the venv launcher.
 
@@ -250,6 +261,12 @@ def stop_processes(pids: list[int], port: int, timeout: float = 15.0) -> None:
     raise McpProcessError(f"Port {port} is still in use after stopping the MCP server{detail}.")
 
 
+def owner_pids_to_stop(owners: list[PortOwner]) -> list[int]:
+    """Every owner's PIDs, parents first, each once (a reloader is both a listener and its worker's parent)."""
+
+    return list(dict.fromkeys(pid for owner in owners for pid in owner.pids_to_stop()))
+
+
 def stop_mcp_server(port: int) -> list[int]:
     """Stop the MCP server listening on ``port``; return the PIDs stopped.
 
@@ -258,7 +275,7 @@ def stop_mcp_server(port: int) -> list[int]:
     """
 
     owners = find_port_owners(port)
-    foreign = [owner.process for owner in owners if not owner.process.is_mcp_server]
+    foreign = [owner.process for owner in owners if not owner.is_mcp_server]
     if foreign:
         holder = foreign[0]
         command = (holder.command_line or "unknown command")[:200]
@@ -266,7 +283,7 @@ def stop_mcp_server(port: int) -> list[int]:
             f"Port {port} is held by another program (pid {holder.pid}: {command}); "
             "it is not the allotmint-pro MCP server, so it was not stopped."
         )
-    pids = [pid for owner in owners for pid in owner.pids_to_stop()]
+    pids = owner_pids_to_stop(owners)
     if pids:
         stop_processes(pids, port)
     return pids

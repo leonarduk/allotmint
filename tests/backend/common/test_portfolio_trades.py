@@ -5,6 +5,8 @@ import json
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 from backend.common import group_portfolio, portfolio
 from backend.common.user_config import UserConfig
 
@@ -105,3 +107,39 @@ def test_group_trade_counts_use_ledger(monkeypatch):
     monkeypatch.setattr(group_portfolio, "load_user_config", lambda owner: UserConfig(max_trades_per_month=20))
 
     assert group_portfolio._trade_counts_for_owner("steve", OCT) == (12, 8)
+
+
+# The same cases as allotmint-pro's tests/test_compliance.py::test_is_trade, so
+# the two trade definitions cannot drift apart again (#11408).
+@pytest.mark.parametrize(
+    ("tx", "expected"),
+    [
+        ({"type": "BUY"}, True),
+        ({"type": "buy"}, True),
+        ({"type": "SELL"}, True),
+        ({"type": "PURCHASE"}, True),
+        ({"kind": "purchase"}, True),
+        ({"type": "DIVIDEND"}, False),
+        ({"type": "INTEREST"}, False),
+        ({"type": "TRANSFER_IN"}, False),
+        ({"type": "DIVIDEND", "kind": "BUY"}, False),
+        ({"type": "", "kind": "SELL"}, True),
+        ({"type": "  ", "kind": "SELL"}, True),
+        ({"type": None, "kind": "buy"}, True),
+        ({"type": " buy "}, True),
+        ({}, False),
+    ],
+)
+def test_is_trade(tx, expected):
+    assert portfolio.is_trade(tx) is expected
+
+
+def test_counts_purchase_and_kind_only_rows_but_not_a_dividend_tagged_buy(tmp_path):
+    rows = (
+        _rows(1, "PURCHASE")
+        + [{"date": "2026-10-07", "type": " ", "kind": "BUY", "ticker": "VWRL.L"}]
+        + [{"date": "2026-10-07", "type": "DIVIDEND", "kind": "BUY", "ticker": "VWRL.L"}]
+    )
+    _write_ledger(tmp_path, "steve", "ISA", rows)
+
+    assert portfolio.count_trades_in_month("steve", OCT, tmp_path) == 2

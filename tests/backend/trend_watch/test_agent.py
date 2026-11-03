@@ -6,9 +6,9 @@ import json
 
 import pytest
 
-from backend.chat import openai_compat_agent
+from backend.chat import nav_discount_tool, openai_compat_agent
 from backend.chat.local_tools import merge_tool_lists
-from backend.chat.tool_switches import TREND_WATCH_TOOLS, ToolPolicy
+from backend.chat.tool_switches import LEGACY_TOOL_NAMES, TOOLSET_OF, TREND_WATCH_TOOLS, ToolPolicy
 from backend.config import TrendWatchConfig
 from backend.trend_watch import agent, prompt
 from backend.trend_watch.detect import detect
@@ -213,6 +213,14 @@ def test_allowlist_is_read_only():
     assert not TREND_WATCH_TOOLS & WRITE_TOOLS
     assert not [name for name in TREND_WATCH_TOOLS if name.startswith(WRITE_TOOL_PREFIXES)]
     assert all(name.startswith(("get_", "search_")) for name in TREND_WATCH_TOOLS)
+
+
+def test_allowlist_names_only_tools_that_exist():
+    # A merged tool's old name (#11423: get_instrument_timeseries) is not served by
+    # the MCP server, so listing it would leave the agent without that tool.
+    assert not TREND_WATCH_TOOLS & set(LEGACY_TOOL_NAMES)
+    assert TREND_WATCH_TOOLS <= set(TOOLSET_OF) | {nav_discount_tool.TOOL_NAME}
+    assert "get_instrument" in TREND_WATCH_TOOLS
 
 
 def test_policy_hides_and_refuses_tools_outside_the_allowlist_and_caps_calls():

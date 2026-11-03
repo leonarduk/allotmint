@@ -4390,6 +4390,24 @@
       "medium": "Mittel",
       "low": "Niedrig",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Digest-Einstellungen",
+      "loading": "Einstellungen werden geladen…",
+      "loadError": "Die Digest-Einstellungen konnten nicht geladen werden.",
+      "period": "Digest jede(n)",
+      "weekly": "Woche",
+      "monthly": "Monat",
+      "email_enabled": "Digest per E-Mail senden",
+      "telegram_enabled": "Digest per Telegram senden",
+      "include_balances": "£-Beträge in E-Mail und Telegram anzeigen",
+      "send_when_empty": "Digest auch senden, wenn nichts zu tun ist",
+      "per_bot_cap": "Einträge pro Bot (1–50)",
+      "alertImmediately": "Sofort benachrichtigen",
+      "alertImmediatelyHelp": "Angehakte Schweregrade lösen sofort eine Benachrichtigung aus, sobald ein Bot sie findet. Sie erscheinen trotzdem im Digest.",
+      "bot": "Bot",
+      "save": "Einstellungen speichern",
+      "saved": "Einstellungen gespeichert."
     }
   },
   "bots": {

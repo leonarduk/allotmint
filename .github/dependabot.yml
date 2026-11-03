@@ -2,8 +2,8 @@
 #
 # Dependency Review still protects pull requests that modify manifests; this file
 # adds proactive scheduled update PRs. To extend coverage, add another entry under
-# `updates` with a supported `package-ecosystem`, the manifest `directory`, and a
-# `schedule` block.
+# `updates` with a supported `package-ecosystem`, the manifest `directory` (or a
+# `directories` list), and a `schedule` block.
 version: 2
 updates:
   # GitHub Actions: scans workflows under .github/workflows from the repo root.
@@ -37,20 +37,32 @@ updates:
     labels:
       - "dependencies"
 
-  # Root Python dependencies: requirements.txt plus requirements-dev.txt.
+  # Root and backend Python dependencies: requirements.txt plus
+  # requirements-dev.txt in the repo root, and backend/requirements*.txt.
+  # One entry for both directories, so a dependency pinned in both is bumped in
+  # both by the same PR; tests/test_requirements_consistency.py fails when a
+  # ~= pin differs between the two sides (#11386). Separate entries opened one
+  # PR per directory and let the root pins fall behind (#11377).
   - package-ecosystem: "pip"
-    directory: "/"
+    directories:
+      - "/"
+      - "/backend"
     schedule:
       interval: "weekly"
       day: "monday"
     labels:
       - "dependencies"
     groups:
-      # boto3 and botocore are released in lockstep; one PR bumps both.
+      # boto3 and botocore are released in lockstep; one PR bumps both. Listed
+      # first because a dependency joins the first group it matches.
       aws-sdk:
         patterns:
           - "boto3"
           - "botocore"
+      # Every other dependency: one PR per dependency, updating it in every
+      # directory above that uses it.
+      python-deps:
+        group-by: dependency-name
 
   # CDK Python dependencies: infrastructure requirements in cdk/.
   - package-ecosystem: "pip"
@@ -60,18 +72,3 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
-
-  # Backend Python dependencies: runtime deps in backend/requirements*.txt.
-  - package-ecosystem: "pip"
-    directory: "/backend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    labels:
-      - "dependencies"
-    groups:
-      # boto3 and botocore are released in lockstep; one PR bumps both.
-      aws-sdk:
-        patterns:
-          - "boto3"
-          - "botocore"

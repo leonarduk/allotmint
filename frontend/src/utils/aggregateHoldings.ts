@@ -68,8 +68,11 @@ export const aggregateHoldingsByTicker = (
       ? sum(gainLots.map((lot) => lot.gain_gbp))
       : null;
     const gainCost = sum(gainLots.map(lotCost));
-    // One estimated lot (#10095) makes the combined gain partly an estimate.
-    const estimatedLot = gainLots.find((lot) =>
+    // One estimated lot (#10095) makes the combined row partly an estimate.
+    // Any lot counts, not just gainLots (#11395): an estimate lot with no gain
+    // of its own (unpriced, say) still adds its estimated cost to cost_basis_gbp,
+    // so the row must not read as a plain book cost.
+    const estimatedLot = lots.find((lot) =>
       isCostBasisEstimate(lot.cost_basis_source),
     );
 

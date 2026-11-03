@@ -240,6 +240,8 @@ class TransactionContract(SpaContractBase):
     # Dividend refresh estimate / covered by booked income (#11086).
     estimated: bool = False
     attribution_only: bool = False
+    # A "use current price as cost" estimate row (#10095).
+    cost_estimate: bool = False
     instrument_name: str | None = None
     realised_gain_gbp: float | None = None
     cost_basis_gbp: float | None = None

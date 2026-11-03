@@ -93,3 +93,30 @@ describe('CostBasisChecklist', () => {
     expect(screen.getByText('No cost on record')).toBeInTheDocument();
   });
 });
+
+describe('CostBasisChecklist estimated costs (#10095)', () => {
+  it('offers "use current price as cost" on each row', () => {
+    renderChecklist(holdings(2));
+    expect(
+      screen.getAllByRole('button', { name: 'Use current price as cost' })
+    ).toHaveLength(2);
+  });
+
+  it('counts estimated costs separately and does not list them as gaps', () => {
+    renderChecklist([
+      {
+        ticker: 'EST.L',
+        name: 'Estimated',
+        units: 1,
+        market_value_gbp: 10,
+        cost_basis_source: 'estimate',
+      },
+    ]);
+    expect(
+      screen.queryByTestId('cost-basis-checklist')
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('cost-basis-estimates')).toHaveTextContent(
+      '1 holding uses an estimated cost: the market price on the day it was set, not a purchase price.'
+    );
+  });
+});

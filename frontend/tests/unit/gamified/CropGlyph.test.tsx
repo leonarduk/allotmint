@@ -28,7 +28,7 @@ describe('CropGlyph', () => {
   });
 
   it('prefers an explicit species over the ticker', () => {
-    const { container } = render(<CropGlyph species="pear" stage="bumper" />);
+    const { container } = render(<CropGlyph species="pear" stage="established" />);
     expect(container.querySelector('clipPath path')).toHaveAttribute(
       'd',
       GLYPH_SHAPES.pear.body
@@ -47,8 +47,8 @@ describe('CropGlyph', () => {
     expect(rect).toHaveAttribute('y', String(bounds.bottom - height));
   });
 
-  it('fills the whole silhouette, and only the silhouette, for a bumper crop', () => {
-    const { container } = render(<CropGlyph species="pear" stage="bumper" />);
+  it('fills the whole silhouette, and only the silhouette, for an established crop', () => {
+    const { container } = render(<CropGlyph species="pear" stage="established" />);
     const rect = container.querySelector('rect');
     const bounds = glyphFillBounds('pear');
     expect(rect).toHaveAttribute('height', String(bounds.bottom - bounds.top));
@@ -61,16 +61,16 @@ describe('CropGlyph', () => {
     // sits well above y=48 (tomato bottoms out at y=42, the pea pod at
     // y=38.5) had their low-stage fill rect fall entirely outside the
     // silhouette, so the clip intersection — and the visible fill — was
-    // empty despite STAGE_FILL.wilting being nonzero by design.
+    // empty despite STAGE_FILL.unknown being nonzero by design.
     for (const species of CROP_SPECIES) {
       const bounds = glyphFillBounds(species);
       const extent = bounds.bottom - bounds.top;
       const { container } = render(
-        <CropGlyph species={species} stage="wilting" />,
+        <CropGlyph species={species} stage="unknown" />,
       );
       const rect = container.querySelector('rect');
       const height = Number(rect?.getAttribute('height'));
-      expect(height).toBeCloseTo(extent * STAGE_FILL.wilting);
+      expect(height).toBeCloseTo(extent * STAGE_FILL.unknown);
       expect(height).toBeGreaterThan(0);
     }
   });
@@ -80,8 +80,8 @@ describe('CropGlyph', () => {
     // so two different crops on one screen would clip to the same silhouette.
     const { container } = render(
       <>
-        <CropGlyph species="pear" stage="bumper" />
-        <CropGlyph species="carrot" stage="wilting" />
+        <CropGlyph species="pear" stage="established" />
+        <CropGlyph species="carrot" stage="unknown" />
       </>
     );
     const ids = Array.from(container.querySelectorAll('clipPath')).map(

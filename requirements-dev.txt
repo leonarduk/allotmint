@@ -1,19 +1,19 @@
 aws-cdk-lib~=2.273.0
 constructs~=10.8.1
-jinja2~=3.1.4
+jinja2~=3.1.6
 mangum-cli~=0.1.0
 openai~=3.37.0
 playwright~=1.64.0
 python-dotenv>=1.2.4,<2.0
 pytest-cov~=7.1.0
 pytest-xdist~=3.8.0
-pytest~=9.0.3
-reportlab~=5.0.0
+pytest~=9.2.0
+reportlab~=5.0.1
 black>=26.10.1
 isort~=9.0.2
 ruff~=0.16.10
 pytest-asyncio~=1.4.0
-jsonschema~=4.23.0
+jsonschema~=4.26.0
 mypy~=2.4.0
 pandas-stubs==3.1.0.261029
 # uvicorn --reload uses watchfiles when installed; without it it falls back to

@@ -311,3 +311,13 @@ def test_fee_change_is_flagged_and_attributed_to_assumptions(env):
 def test_fee_setting_out_of_range_rejected():
     with pytest.raises(ValueError, match="fee_pct"):
         readiness.ReadinessSettings.resolve({"fee_pct": 11.0}, None)
+
+
+def test_run_works_with_sign_in_enabled_and_no_request_user(env, monkeypatch):
+    # The scheduled Lambda and Run now have no request user. The forecast must not
+    # repeat the route's owner check: callers check access before running (#10510).
+    monkeypatch.setattr(plan_mod.config, "disable_auth", False)
+
+    report = env.run(dt.date(2030, 1, 15))
+
+    assert report["forecast"]["pension_pot_gbp"] == 100000.0

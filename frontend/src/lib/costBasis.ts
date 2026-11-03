@@ -21,3 +21,18 @@ const UNRELIABLE_SOURCES: ReadonlySet<string> = new Set([
 export function isCostBasisUnreliable(source: string | null | undefined): boolean {
   return source != null && UNRELIABLE_SOURCES.has(source);
 }
+
+/**
+ * "estimate": the user chose "use current price as cost" for a holding whose
+ * purchase price is lost (#10095), so its cost is the market price on the
+ * day it was set (cost_basis_estimate_date). Deliberately NOT unreliable:
+ * gain since that day is real and is shown and summed. It is a third state
+ * that every cost/gain surface must mark as an estimate, never as a
+ * purchase price. Mirrors COST_BASIS_ESTIMATE_SOURCE in
+ * backend/common/holdings_rebuild.py.
+ */
+export const COST_BASIS_ESTIMATE = "estimate";
+
+export function isCostBasisEstimate(source: string | null | undefined): boolean {
+  return source === COST_BASIS_ESTIMATE;
+}

@@ -2,7 +2,13 @@ import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
-import { formatGbp, formatPct, growthStageMeta, type Crop } from '../plotModel';
+import {
+  cropConditionMeta,
+  formatGbp,
+  formatPct,
+  growthStageMeta,
+  type Crop,
+} from '../plotModel';
 import CropGlyph from './CropGlyph';
 import ShareBar from './ShareBar';
 
@@ -24,7 +30,12 @@ export default function CropCard({
 }: CropCardProps) {
   const { t } = useTranslation();
   const stage = growthStageMeta(crop.stage);
-  const cardStyle = { '--plot-crop-accent': stage.accent } as CSSProperties;
+  const condition = cropConditionMeta(crop.condition);
+  // The glyph's fill is the crop's age (stage); its colour is how it is
+  // doing (condition), so the two never contradict each other (#7200).
+  const cardStyle = {
+    '--plot-crop-accent': condition.accent,
+  } as CSSProperties;
 
   return (
     <div className={styles.cropCardWrap} style={cardStyle}>
@@ -67,7 +78,20 @@ export default function CropCard({
             apart on the roster or hub (#7212, bed-label half only — no
             cross-bed aggregation here, see the issue for why). */}
         <span className={styles.cropBed}>{crop.bedName}</span>
-        <span className={styles.cropStageChip}>{stage.label}</span>
+        <span className={styles.cropChips}>
+          <span
+            className={styles.cropStageChip}
+            title={t('plot.card.stageTitle')}
+          >
+            {stage.label}
+          </span>
+          <span
+            className={styles.cropStageChip}
+            title={t('plot.card.conditionTitle')}
+          >
+            {condition.label}
+          </span>
+        </span>
         <span className={styles.cropValue}>{formatGbp(crop.valueGbp)}</span>
         {/* A crop with no recorded intraday move shows "no data" rather than
             a confident +0.0%, so a genuinely flat day stays distinguishable

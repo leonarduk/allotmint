@@ -11,8 +11,15 @@ import re
 import unittest
 from pathlib import Path
 
-ROOT_REQUIREMENTS = Path(__file__).resolve().parents[1] / "requirements.txt"
-BACKEND_REQUIREMENTS = Path(__file__).resolve().parents[1] / "backend" / "requirements.txt"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ROOT_REQUIREMENTS = REPO_ROOT / "requirements.txt"
+BACKEND_REQUIREMENTS = REPO_ROOT / "backend" / "requirements.txt"
+
+# The two sides whose shared ``~=`` pins must agree (#11386). Dependabot bumps
+# both in one PR (.github/dependabot.yml: one pip entry for "/" and "/backend"
+# with ``group-by: dependency-name``), so equal pins stay equal.
+ROOT_PIN_FILES = (ROOT_REQUIREMENTS, REPO_ROOT / "requirements-dev.txt")
+BACKEND_PIN_FILES = (BACKEND_REQUIREMENTS, REPO_ROOT / "backend" / "requirements-test.txt")
 
 # Packages that are legitimately backend-only build/deploy tooling and are not
 # imported by backend/**/*.py at runtime, so they don't need to be mirrored
@@ -25,6 +32,8 @@ BACKEND_ONLY_ALLOWLIST = {"setuptools"}
 ROOT_ONLY_ALLOWLIST: set[str] = set()
 
 _PACKAGE_NAME_RE = re.compile(r"^([A-Za-z0-9_.\-]+)")
+# name, optional [extras], then the specifier up to an environment marker.
+_REQUIREMENT_RE = re.compile(r"^([A-Za-z0-9_.\-]+)\s*(?:\[[^\]]*\])?\s*([^;]*)")
 
 
 def _parse_package_names(path: Path) -> set[str]:
@@ -37,6 +46,44 @@ def _parse_package_names(path: Path) -> set[str]:
         if match:
             names.add(match.group(1).lower())
     return names
+
+
+def _normalise_name(name: str) -> str:
+    """PEP 503 form: lowercase, runs of ``-``, ``_`` and ``.`` folded to ``-``."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _tilde_pins(paths: tuple[Path, ...]) -> dict[str, dict[str, list[str]]]:
+    """Every ``~=`` pin in ``paths``: normalised name -> specifier -> files that use it.
+
+    The specifier is compared with whitespace removed. ``>=``, ``==`` and
+    unpinned requirements are left out (#11386 checks ``~=`` pins only).
+    """
+    pins: dict[str, dict[str, list[str]]] = {}
+    for path in paths:
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.split("#", 1)[0].strip()
+            match = _REQUIREMENT_RE.match(line)
+            if not match:
+                continue
+            specifier = re.sub(r"\s+", "", match.group(2))
+            if specifier.startswith("~="):
+                files = pins.setdefault(_normalise_name(match.group(1)), {}).setdefault(specifier, [])
+                files.append(path.relative_to(REPO_ROOT).as_posix())
+    return pins
+
+
+def _tilde_pin_mismatches(root: dict[str, dict[str, list[str]]], backend: dict[str, dict[str, list[str]]]) -> list[str]:
+    """One line per package ``~=``-pinned on both sides with different specifiers."""
+
+    def describe(specs: dict[str, list[str]]) -> str:
+        return ", ".join(f"{spec} ({', '.join(files)})" for spec, files in sorted(specs.items()))
+
+    return [
+        f"{name}: root={describe(root[name])} backend={describe(backend[name])}"
+        for name in sorted(root.keys() & backend.keys())
+        if set(root[name]) != set(backend[name])
+    ]
 
 
 def _pinned_version(path: Path, package: str) -> str:
@@ -82,6 +129,49 @@ class RequirementsConsistencyTests(unittest.TestCase):
             "backend/requirements.txt, or add them to ROOT_ONLY_ALLOWLIST in "
             "this test if they are genuinely local-only tooling.",
         )
+
+    def test_tilde_pins_match_across_root_and_backend(self) -> None:
+        # Root and backend install the same libraries locally, in CI and on
+        # Lambda, so a package pinned with ~= on both sides must carry the same
+        # pin on both (#11377 fixed ~30 that had drifted; #11386 keeps them in
+        # step). >=/== pins and one-sided ~= pins are deliberately not checked.
+        mismatches = _tilde_pin_mismatches(_tilde_pins(ROOT_PIN_FILES), _tilde_pins(BACKEND_PIN_FILES))
+
+        self.assertFalse(
+            mismatches,
+            "These ~= pins differ between the root requirements (requirements.txt, "
+            "requirements-dev.txt) and the backend ones (backend/requirements.txt, "
+            "backend/requirements-test.txt); bump both sides to the same version:\n" + "\n".join(mismatches),
+        )
+
+    def test_tilde_pin_check_reports_every_mismatch_and_ignores_other_pins(self) -> None:
+        root = {
+            "starlette": {"~=0.41.3": ["requirements.txt"]},
+            "pytest": {"~=9.2.0": ["requirements-dev.txt"]},
+            "only-root": {"~=1.0": ["requirements.txt"]},
+            "attrs": {"~=24.3.0": ["requirements.txt"]},
+        }
+        backend = {
+            "starlette": {"~=0.47.2": ["backend/requirements.txt"]},
+            "pytest": {"~=9.2.0": ["backend/requirements-test.txt"]},
+            "only-backend": {"~=2.0": ["backend/requirements.txt"]},
+            "attrs": {"~=26.1.0": ["backend/requirements.txt"]},
+        }
+
+        self.assertEqual(
+            _tilde_pin_mismatches(root, backend),
+            [
+                "attrs: root=~=24.3.0 (requirements.txt) backend=~=26.1.0 (backend/requirements.txt)",
+                "starlette: root=~=0.41.3 (requirements.txt) backend=~=0.47.2 (backend/requirements.txt)",
+            ],
+        )
+
+    def test_tilde_pins_parse_extras_markers_and_normalise_names(self) -> None:
+        pins = _tilde_pins((ROOT_REQUIREMENTS,))
+
+        # A >=-pinned package is not a ~= pin; a marker is not part of the specifier.
+        self.assertNotIn("protobuf", pins)
+        self.assertEqual(list(pins["win-inet-pton"]), ["~=1.1.0"])
 
     def test_boto3_and_botocore_share_a_patch_version(self) -> None:
         # Released in lockstep (#11120). Backend boto3 stays a >= floor (#2810),

@@ -1322,20 +1322,19 @@
           "detail": "Cada cuenta de inversión se muestra como un bancal. Cada posición de esa cuenta es un cultivo plantado en él."
         },
         "growthStages": {
-          "title": "Etapas de crecimiento (Marchito → Sembrado → Brotando → Con hojas → En capullo → Floreciendo → Fructificando → Cosecha récord)",
-          "detail": "La etapa de crecimiento de un cultivo depende de la ganancia total de esa posición, como porcentaje de lo pagado por ella; no depende del tiempo que se haya mantenido.",
-          "wilting": "Marchito: ganancia total de -20 % o menos",
-          "sown": "Sembrado: ganancia total entre -20 % (exclusivo) y 0 %",
-          "sprouting": "Brotando: ganancia total entre 0 % (exclusivo) y 5 %",
-          "leafing": "Con hojas: ganancia total entre 5 % (exclusivo) y 15 %",
-          "budding": "En capullo: ganancia total entre 15 % (exclusivo) y 30 %",
-          "flowering": "Floreciendo: ganancia total entre 30 % (exclusivo) y 60 %",
-          "fruiting": "Fructificando: ganancia total entre 60 % (exclusivo) y 120 %",
-          "bumper": "Cosecha récord: ganancia total superior a 120 %"
+          "title": "Etapas de crecimiento (Sembrado → Brotando → Echando hojas → Echando brotes → Floreciendo → Fructificando → Arraigado)",
+          "detail": "La etapa de crecimiento de un cultivo es cuánto tiempo se ha mantenido esa posición. Como una planta real, solo avanza mientras la conserva: una caída del precio nunca la devuelve a Sembrado. Si se desconoce la fecha de compra, la etapa es «Antigüedad desconocida».",
+          "sown": "Sembrado: mantenido menos de 30 días",
+          "sprouting": "Brotando: de 30 días a 3 meses",
+          "leafing": "Echando hojas: de 3 a 6 meses",
+          "budding": "Echando brotes: de 6 meses a 1 año",
+          "flowering": "Floreciendo: de 1 a 2 años",
+          "fruiting": "Fructificando: de 2 a 5 años",
+          "established": "Arraigado: 5 años o más"
         },
         "propagator": {
           "title": "Propagador",
-          "detail": "Muestra los cultivos que aún están dentro de su periodo mínimo de tenencia —el número configurado de días que debe mantenerse una posición antes de poder venderse— con una cuenta atrás hasta la fecha en que cada uno lo supera. Es una medida del periodo de tenencia, independiente de la etapa de crecimiento basada en la ganancia descrita arriba."
+          "detail": "Muestra los cultivos que aún están dentro de su periodo mínimo de tenencia (el número configurado de días que debe mantenerse una posición antes de poder venderla) y cuenta los días hasta la fecha en que cada uno lo cumple."
         },
         "water": {
           "title": "Agua",
@@ -1352,6 +1351,14 @@
         "growerLevel": {
           "title": "Nivel de jardinero y XP",
           "detail": "Se gana completando tareas diarias. Alcanzar el nivel L requiere 25 × L × (L − 1) XP en total, así que los primeros niveles llegan rápido y los siguientes se alargan. Mide tu propio progreso, no una cifra de la cartera, por lo que es igual en el huerto de cada jardinero."
+        },
+        "condition": {
+          "title": "Estado (Marchitándose → Con dificultades → Sano → Prosperando)",
+          "detail": "El estado de un cultivo es la ganancia o pérdida total de esa posición como porcentaje de lo que se pagó. A diferencia de la etapa de crecimiento, puede mejorar o empeorar, y define el color del cultivo. Si se desconoce el coste, el estado es desconocido.",
+          "wilting": "Marchitándose: baja un 20 % o más",
+          "struggling": "Con dificultades: baja, pero menos de un 20 %",
+          "healthy": "Sano: sube entre un 0 % y menos de un 20 %",
+          "thriving": "Prosperando: sube un 20 % o más"
         }
       },
       "technicals": {
@@ -2409,8 +2416,8 @@
       "status401": "Tu sesión ha caducado. Inicia sesión de nuevo.",
       "status429": "Estás enviando mensajes demasiado rápido. Espera un momento e inténtalo de nuevo.",
       "status502": "El chat no pudo conectar con su servicio de IA. Inténtalo más tarde.",
-      "status503": "El chat no está disponible en este servidor en este momento.",
-      "status504": "El chat tardó demasiado en responder. Inténtalo de nuevo.",
+      "status503": "El chat no está disponible en este momento, o tu pregunta tardó demasiado en responderse. Haz una pregunta más concreta o inténtalo de nuevo en breve.",
+      "status504": "El chat tardó demasiado en responder. Haz una pregunta más concreta o inténtalo de nuevo.",
       "serverError": "El chat encontró un error del servidor. Inténtalo de nuevo.",
       "cannotReachServer": "No se puede conectar con el servidor",
       "deleteHistoryFailed": "No se pudo eliminar tu historial de chat. Inténtalo de nuevo.",
@@ -2555,7 +2562,20 @@
     "importUpdated_other": "Se registró el coste de {{count}} posiciones.",
     "importSkipped_one": "{{count}} fila omitida.",
     "importSkipped_other": "{{count}} filas omitidas.",
-    "importSkippedRow": "Línea {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Línea {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "est.",
+    "estimateTitle": "Coste estimado: el precio de mercado del {{date}}, no un precio de compra. La ganancia/pérdida se mide desde ese día.",
+    "estimateTitleNoDate": "Coste estimado: un precio de mercado, no un precio de compra. La ganancia/pérdida se mide desde el día en que se fijó.",
+    "estimateIncluded_one": "Incluye {{count}} posición cuyo coste es una estimación (un precio de mercado, no un precio de compra)",
+    "estimateIncluded_other": "Incluye {{count}} posiciones cuyo coste es una estimación (un precio de mercado, no un precio de compra)",
+    "useCurrentPrice": "Usar el precio actual como coste",
+    "useCurrentPriceHelp": "¿Se perdió el precio de compra? Registre el precio de hoy como coste estimado para que la ganancia/pérdida cuente desde hoy. Siempre se muestra como estimación, nunca como precio de compra.",
+    "useCurrentPriceConfirm": "¿Registrar el precio de hoy como coste estimado de {{ticker}}? No es lo que pagó: la ganancia/pérdida contará desde hoy y el coste se marcará como estimación en todas partes.",
+    "recordEstimate": "Registrar estimación",
+    "cancelEstimate": "Cancelar",
+    "estimateFailed": "No se pudo registrar la estimación: {{message}}",
+    "estimatedCount_one": "{{count}} posición usa un coste estimado: el precio de mercado del día en que se fijó, no un precio de compra.",
+    "estimatedCount_other": "{{count}} posiciones usan un coste estimado: el precio de mercado del día en que se fijó, no un precio de compra."
   },
   "portfolioSentence": {
     "valueOnly": "Su cartera vale {{value}}.",
@@ -2580,7 +2600,9 @@
     "totalValue": "Valor total",
     "gainLoss": "Ganancia/pérdida",
     "excludesNoFx_one": "Excluye {{count}} posición sin tipo de cambio",
-    "excludesNoFx_other": "Excluye {{count}} posiciones sin tipo de cambio"
+    "excludesNoFx_other": "Excluye {{count}} posiciones sin tipo de cambio",
+    "includesEstimated_one": "Incluye {{count}} posición con coste estimado (ganancia desde la estimación, no desde la compra)",
+    "includesEstimated_other": "Incluye {{count}} posiciones con coste estimado (ganancia desde la estimación, no desde la compra)"
   },
   "performanceDiagnostics": {
     "sameDay": "el mismo día",
@@ -3316,7 +3338,9 @@
       "addFavourite": "Añadir {{ticker}} a favoritos",
       "today": "{{pct}} hoy",
       "noDataToday": "sin datos hoy",
-      "shareOfPlot": "{{pct}} del huerto"
+      "shareOfPlot": "{{pct}} del huerto",
+      "stageTitle": "Etapa de crecimiento: cuánto tiempo se ha mantenido",
+      "conditionTitle": "Estado: ganancia o pérdida total desde la compra"
     },
     "data": {
       "ownersError": "No se pudo cargar la lista de cultivadores.",
@@ -3347,7 +3371,6 @@
       "groundwork": "Trabajo preparatorio"
     },
     "crop": {
-      "growth": "Crecimiento",
       "gainUnknown": "Ganancia desconocida: no hay coste base registrado",
       "gainDetail": "{{gain}} de ganancia no realizada ({{pct}})",
       "yield": "Rendimiento",
@@ -3387,17 +3410,18 @@
       "unknown": "desconocido",
       "openInstrument": "Abrir la vista completa del instrumento →",
       "neighbours": "Cultivos vecinos",
-      "allCrops": "Todos los cultivos"
+      "allCrops": "Todos los cultivos",
+      "condition": "Estado"
     },
     "roster": {
       "sortShare": "Cuota del huerto",
-      "sortGrowth": "Crecimiento",
+      "sortGrowth": "Ganancia",
       "sortVigour": "Vigor",
       "sortAz": "A–Z",
       "growthStages": "Etapas de crecimiento",
       "growthStagesLabel": "¿Qué significan las etapas de crecimiento?",
-      "growthStagesTip": "La etapa de un cultivo es su ganancia total desde la compra, no su variación diaria: Sembrado/Brotando significa poca o ninguna ganancia aún, Fructificando y Cosecha récord significan que ha ganado mucho.",
-      "stageNote": "La etapa depende de la ganancia total de cada posición; la barra muestra su peso en el valor del huerto.",
+      "growthStagesTip": "La etapa de un cultivo es cuánto tiempo se ha mantenido: solo avanza, de Sembrado (menos de 30 días) a Arraigado (5 años o más). Lo bien que va es su estado, que se ve en su color: Prosperando, Sano, Con dificultades o Marchitándose.",
+      "stageNote": "La etapa depende de cuánto tiempo se ha mantenido cada posición; el color y el estado, de su ganancia total; la barra muestra su peso en el valor del huerto.",
       "title": "Lista de cultivos ({{visible}}/{{total}})",
       "bedCount_one": "{{count}} bancal",
       "bedCount_other": "{{count}} bancales",
@@ -3408,11 +3432,12 @@
       "filterCrops": "Filtrar cultivos",
       "allBeds": "Todos los bancales",
       "favourites": "Favoritos ({{count}})",
-      "noMatch": "Ningún cultivo coincide con esos filtros."
+      "noMatch": "Ningún cultivo coincide con esos filtros.",
+      "conditionsLabel": "Estado de los cultivos"
     },
     "seeds": {
       "title": "Catálogo de semillas",
-      "intro": "Tu lista de seguimiento como sobres de semillas: la misma lista que lee la página clásica de Watchlist, con precios de cotizaciones en vivo. Aquí no se realiza ninguna operación.",
+      "intro": "Tu lista de seguimiento, la misma que lee la página clásica de Watchlist, con precios de cotizaciones en directo. Lo que podrías tener son sobres de semillas; los índices, tipos de cambio y futuros son el clima en el que crece tu huerto. Aquí no se ejecuta ninguna operación.",
       "loadError": "No se pudieron cargar las cotizaciones: {{error}}",
       "tryAgain": "Intentar de nuevo",
       "available": "Semillas disponibles ({{count}})",
@@ -3421,9 +3446,15 @@
       "noQuotes": "No se recibieron cotizaciones para los símbolos de tu lista de seguimiento. Prueba la <txlink>watchlist clásica</txlink> para comprobarlos.",
       "unnamed": "Instrumento sin nombre",
       "alreadyGrowing": "Ya crece en tu huerto",
-      "notSown": "Aún sin sembrar",
       "inspectCrop": "Inspeccionar cultivo",
-      "readPacket": "Leer el sobre"
+      "readPacket": "Leer el sobre",
+      "notInPlot": "No está en tu huerto",
+      "availableTitle": "Semillas disponibles",
+      "manage": "Añade o quita símbolos en la <txlink>watchlist clásica</txlink>.",
+      "unitUnknown": "(unidad desconocida)",
+      "noSeeds": "Nada de esta lista de seguimiento es algo que puedas tener. Todo es clima (abajo).",
+      "weatherTitle": "El clima ({{count}})",
+      "weatherNote": "Índices, tipos de cambio y futuros: las condiciones de mercado en las que crece tu huerto. Son lecturas, no algo que se pueda plantar."
     },
     "season": {
       "everyTierEarned": "Todos los niveles de «{{group}}» conseguidos",
@@ -3481,7 +3512,9 @@
       "seedStore": "Reserva de semillas",
       "readyToSow": "{{amount}} en efectivo listo para sembrar",
       "inBeds_one": "en {{count}} bancal",
-      "inBeds_other": "en {{count}} bancales"
+      "inBeds_other": "en {{count}} bancales",
+      "bedGain": "{{gain}} ({{pct}}) desde la compra",
+      "bedGainUnknown": "Ganancia desconocida: falta un coste de compra"
     },
     "model": {
       "unnamedBed": "Bancal sin nombre",
@@ -3546,14 +3579,71 @@
       "seedlingSower": "Sembrador de plántulas"
     },
     "stage": {
-      "wilting": "Marchitándose",
       "seed": "Sembrado",
       "sprout": "Brotando",
       "leafing": "Echando hojas",
       "budding": "Echando brotes",
       "flowering": "Floreciendo",
       "fruiting": "Fructificando",
-      "bumper": "Cosecha récord"
+      "unknown": "Antigüedad desconocida",
+      "established": "Arraigado"
+    },
+    "condition": {
+      "unknown": "Estado desconocido",
+      "wilting": "Marchitándose",
+      "struggling": "Con dificultades",
+      "healthy": "Sano",
+      "thriving": "Prosperando"
+    },
+    "nextJob": {
+      "title": "Próxima tarea en el huerto",
+      "none": "Ahora mismo no hay nada que hacer en el huerto.",
+      "staleReason": "Todos los valores y ganancias de estas pantallas usan precios del {{date}}. Revisa el estado de los datos de precios antes de sacar conclusiones.",
+      "staleLink": "Revisar calidad de datos",
+      "approvalTitle_one": "{{count}} posición necesita aprobación antes de poder venderse",
+      "approvalTitle_other": "{{count}} posiciones necesitan aprobación antes de poder venderse",
+      "approvalReason": "{{tickers}}: el periodo mínimo de tenencia ha terminado, pero una venta necesita aprobación según tus reglas de operación.",
+      "approvalLink": "Ver reglas de operación",
+      "choresTitle_one": "{{count}} tarea aún abierta hoy",
+      "choresTitle_other": "{{count}} tareas aún abiertas hoy",
+      "choresReason": "Cada una abre la página correspondiente y solo cuenta cuando la has hecho de verdad allí.",
+      "choresLink": "Ir a las tareas",
+      "isaTitle": "{{amount}} de tu límite ISA de {{limit}} sigue sin usar este año fiscal",
+      "isaReason": "El dinero dentro de un ISA crece libre de impuestos en el Reino Unido. El límite no usado no se traslada más allá del 5 de abril.",
+      "isaLink": "Ver herramientas fiscales",
+      "cashTitle": "{{amount}} ({{pct}} % de tu huerto) está en efectivo",
+      "cashReason": "El efectivo no está invertido, así que no sube ni baja con los mercados. La página de asignación lo muestra junto a todo lo demás.",
+      "cashLink": "Ver asignación",
+      "splitTitle_one": "Tienes {{ticker}} en {{count}} cuenta",
+      "splitTitle_other": "Tienes {{ticker}} en {{count}} cuentas",
+      "splitReason": "Se mantiene en {{beds}}. A cada parte se le aplican las reglas fiscales de la cuenta en la que está.",
+      "splitLink": "Ver cultivo"
+    },
+    "learn": {
+      "title": "¿Qué es esto?",
+      "sector": "Sector: {{sector}}, la parte de la economía en la que gana su dinero.",
+      "region": "Región: {{region}}, donde tiene su sede o invierte principalmente.",
+      "type": {
+        "equity": "Una acción de una sola empresa: su precio sigue la marcha de esa empresa.",
+        "etf": "Un fondo cotizado (ETF): una posición que posee una cesta de muchas inversiones y cotiza en bolsa como una acción.",
+        "fund": "Un fondo: dinero de muchos inversores reunido y repartido en una cesta de inversiones, elegidas por un gestor o siguiendo un índice.",
+        "bond": "Un bono: un préstamo a un gobierno o una empresa que paga intereses y se devuelve en una fecha fijada.",
+        "investmentTrust": "Un investment trust: una empresa cotizada cuyo negocio es poseer otras inversiones. Su precio puede estar por encima o por debajo de lo que valen esas inversiones.",
+        "commodity": "Una materia prima como el oro o el petróleo, normalmente a través de un producto que sigue su precio.",
+        "property": "Inmuebles: edificios o terrenos, normalmente a través de un fondo o de una inmobiliaria cotizada.",
+        "multiAsset": "Un fondo multiactivo: un fondo que combina acciones, bonos y otras inversiones.",
+        "unknown": "Los datos no dicen qué tipo de inversión es."
+      },
+      "wrapper": {
+        "isa": "Un ISA: el crecimiento y los ingresos dentro de él están libres de impuestos en el Reino Unido, hasta un límite anual de aportación.",
+        "lisa": "Un Lifetime ISA: libre de impuestos como un ISA, más una bonificación del gobierno sobre lo que aportas. Pensado para una primera vivienda o para más adelante; otras retiradas tienen una penalización.",
+        "jisa": "Un Junior ISA: ahorro libre de impuestos para un menor, que toma el control a los 18 años.",
+        "pension": "Un plan de pensiones (como un SIPP): lo que aportas tiene desgravación fiscal, pero el dinero queda bloqueado hasta la edad de jubilación.",
+        "gia": "Una cuenta de inversión general: sin envoltorio fiscal, así que los ingresos y ganancias por encima de tus exenciones anuales pueden tributar.",
+        "company": "En manos de una sociedad limitada, así que tributa como dinero de la empresa, no tuyo.",
+        "cash": "Una cuenta de efectivo: dinero que se mantiene en efectivo en lugar de invertido.",
+        "unknown": "El tipo de cuenta no está registrado."
+      }
     }
   },
   "userAvatar": {
@@ -3703,6 +3793,7 @@
     "logThis": "¿Registrar esta decisión?",
     "notNow": "Ahora no",
     "snapshot": "Instantánea del contexto",
+    "contextSummary": "Contexto en ese momento (resumen de IA, solo hechos)",
     "weights": "peso {{before}}% → {{after}}%",
     "legs": "Opciones para comparar después",
     "legsHelp": "La opción elegida y cada alternativa, con un ticker para valorarla; deje el ticker vacío para efectivo (se supone 0%).",
@@ -4287,6 +4378,7 @@
     "units": "Unidades indicativas",
     "noVehicle": "Sin vehículo en su plan",
     "keepAsCash": "Mantener en efectivo: {{amount}}",
+    "newMoneyBasis": "La cuenta tiene menos efectivo que este tramo, así que se calcula como dinero nuevo aportado además de sus posiciones.",
     "copy": "Copiar lista de órdenes",
     "copied": "Copiado"
   },
@@ -4313,6 +4405,24 @@
       "medium": "Media",
       "low": "Baja",
       "info": "Info"
+    },
+    "settings": {
+      "title": "Ajustes del resumen",
+      "loading": "Cargando ajustes…",
+      "loadError": "No se pudieron cargar los ajustes del resumen.",
+      "period": "Resumen cada",
+      "weekly": "Semana",
+      "monthly": "Mes",
+      "email_enabled": "Enviar el resumen por correo",
+      "telegram_enabled": "Enviar el resumen por Telegram",
+      "include_balances": "Mostrar importes en £ en correo y Telegram",
+      "send_when_empty": "Enviar el resumen aunque no haya nada pendiente",
+      "per_bot_cap": "Elementos por bot (1–50)",
+      "alertImmediately": "Avisar al momento",
+      "alertImmediatelyHelp": "Las gravedades marcadas también avisan en cuanto un bot las detecta. Siguen apareciendo en el resumen.",
+      "bot": "Bot",
+      "save": "Guardar ajustes",
+      "saved": "Ajustes guardados."
     }
   },
   "bots": {

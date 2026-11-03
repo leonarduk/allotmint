@@ -67,7 +67,9 @@ const WINDOW_STYLE: CSSProperties = {
 // text (#7721; #7131 precedent). The `code` POST /chat sends with a 502/503
 // (backend/routes/chat.py) names the piece that failed and wins; otherwise
 // the HTTP status decides. Only a request that got no response at all is
-// "Cannot reach server".
+// "Cannot reach server". On AWS a code-less 503/504 is usually the API
+// Gateway's 30s integration ceiling cutting off a long turn (#7945), so
+// those messages suggest a narrower question as well as a retry.
 const CHAT_CODE_MESSAGES: Record<string, string> = {
   chat_not_configured: "chatPanel.errors.chatNotConfigured",
   mcp_unreachable: "chatPanel.errors.mcpUnreachable",

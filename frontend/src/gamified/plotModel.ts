@@ -2,7 +2,7 @@
  * Pure domain mapping for Plot mode (the gamified skin).
  *
  * Everything in here is deliberately free of React and network access so the
- * "does a 42% gain really make this a flowering crop?" rules can be unit
+ * "does a year in the ground make this a flowering crop?" rules can be unit
  * tested on their own. Screens call `buildPlotSnapshot` once and render the
  * result; no game state is invented here — every number traces back to a real
  * portfolio, trail or allowance figure from the API.
@@ -14,79 +14,98 @@ import { isCashInstrument } from '../lib/instruments';
 import { pricingFreshness } from '../lib/pricingFreshness';
 import i18n from '../i18n';
 
+/**
+ * A crop's growth stage is its *maturity*: how long the holding has been in
+ * the ground (`days_held`). Like a real plant it only ever moves forward
+ * while the holding is kept — a crop that has been held for a year is never
+ * "Sown" again, whatever its price does (#7200). How well the crop is doing
+ * is a separate, two-way axis: see `CropCondition`.
+ */
 export type GrowthStage =
-  | 'wilting'
+  | 'unknown'
   | 'seed'
   | 'sprout'
   | 'leafing'
   | 'budding'
   | 'flowering'
   | 'fruiting'
-  | 'bumper';
+  | 'established';
 
 export interface GrowthStageMeta {
   id: GrowthStage;
   label: string;
   icon: string;
-  /** Hex accent used for the stage chip and the crop card's aura. */
-  accent: string;
 }
 
 /**
  * Stage meta with a lazily translated label, so a language switch is picked
  * up without rebuilding the (module-level) stage table.
  */
-function stageMeta(
-  id: GrowthStage,
-  icon: string,
-  accent: string
-): GrowthStageMeta {
+function stageMeta(id: GrowthStage, icon: string): GrowthStageMeta {
   return {
     id,
     get label() {
       return i18n.t(`plot.stage.${id}`);
     },
     icon,
-    accent,
   };
 }
 
-/** Ordered worst → best so progress bars and sorts can use the index. */
+/**
+ * Ordered youngest → oldest so progress bars and sorts can use the index.
+ * "Age unknown" leads: it is the least we can claim about a crop, not a
+ * claim that it was just planted.
+ */
 export const GROWTH_STAGES: readonly GrowthStageMeta[] = [
-  stageMeta('wilting', '🥀', '#e2643f'),
-  stageMeta('seed', '🌰', '#a98363'),
-  stageMeta('sprout', '🌱', '#8fd694'),
-  stageMeta('leafing', '🍃', '#63d19e'),
-  stageMeta('budding', '🌿', '#4fd1c5'),
-  stageMeta('flowering', '🌸', '#7cc0ff'),
-  stageMeta('fruiting', '🍅', '#f2a33c'),
-  stageMeta('bumper', '🏆', '#f2c14e'),
+  stageMeta('unknown', '❔'),
+  stageMeta('seed', '🌰'),
+  stageMeta('sprout', '🌱'),
+  stageMeta('leafing', '🍃'),
+  stageMeta('budding', '🌿'),
+  stageMeta('flowering', '🌸'),
+  stageMeta('fruiting', '🍅'),
+  stageMeta('established', '🌳'),
 ];
 
 const STAGE_BY_ID = new Map(GROWTH_STAGES.map((stage) => [stage.id, stage]));
 
 /**
- * The crop detail screen's "Growth" trait level (0–5) for a growth stage.
- *
- * Derived from the stage rather than re-thresholded off `gain_pct`: the two
- * ladders previously disagreed at every boundary (`growthStageFor` bands with
- * `<=`, so a crop on exactly 120% is fruiting — a second ladder using `>=`
- * called the same crop bumper), which showed as a chip and a trait level that
- * contradicted each other.
+ * Minimum `days_held` for each stage, oldest first. The first band (under
+ * 30 days) matches the default minimum holding period, so a "Sown" crop is
+ * one that has only just gone in; after that the bands stretch out the way a
+ * plant's do.
  */
-const STAGE_LEVELS: Record<GrowthStage, number> = {
-  wilting: 0,
+const STAGE_MIN_DAYS: readonly (readonly [GrowthStage, number])[] = [
+  ['established', 1825],
+  ['fruiting', 730],
+  ['flowering', 365],
+  ['budding', 180],
+  ['leafing', 90],
+  ['sprout', 30],
+  ['seed', 0],
+];
+
+/**
+ * The crop detail screen's "Hardiness" trait level (0–5) for a growth stage.
+ *
+ * Derived from the stage rather than from a separate rule (it used to be
+ * "5/5 once out of the propagator"), so a crop's stage chip and its
+ * Hardiness level can never contradict each other (#7200). Null when the
+ * holding's age is unknown — no level is better than a made-up one.
+ */
+const STAGE_LEVELS: Record<GrowthStage, number | null> = {
+  unknown: null,
   seed: 0,
   sprout: 1,
   leafing: 1,
   budding: 2,
   flowering: 3,
   fruiting: 4,
-  bumper: 5,
+  established: 5,
 };
 
-export function growthLevelFor(stage: GrowthStage): number {
-  return STAGE_LEVELS[stage] ?? 0;
+export function growthLevelFor(stage: GrowthStage): number | null {
+  return STAGE_LEVELS[stage] ?? null;
 }
 
 /**
@@ -106,26 +125,99 @@ export function yieldLevelFor(yieldPct: number): number {
 export function growthStageMeta(stage: GrowthStage): GrowthStageMeta {
   // STAGE_BY_ID covers the whole union, but a defensive fallback keeps a
   // malformed persisted value from crashing a render.
-  return STAGE_BY_ID.get(stage) ?? GROWTH_STAGES[1];
+  return STAGE_BY_ID.get(stage) ?? GROWTH_STAGES[0];
 }
 
 /**
- * Total gain % decides how far a crop has grown. Thresholds are deliberately
- * generous at the low end so a freshly bought holding shows visible progress
- * rather than sitting at "sown" for months.
+ * How long a holding has been held decides how far the crop has grown
+ * (#7200). Monotonic by construction: `days_held` only rises while the
+ * holding is kept, so a crop never un-grows. `days_held` is null for cash
+ * and for holdings whose acquisition date the backend doesn't know (#7220);
+ * those are "Age unknown" rather than being passed off as freshly sown.
  */
 export function growthStageFor(
-  gainPct: number | null | undefined
+  daysHeld: number | null | undefined
 ): GrowthStage {
-  const pct = Number.isFinite(gainPct) ? (gainPct as number) : 0;
-  if (pct <= -20) return 'wilting';
-  if (pct <= 0) return 'seed';
-  if (pct <= 5) return 'sprout';
-  if (pct <= 15) return 'leafing';
-  if (pct <= 30) return 'budding';
-  if (pct <= 60) return 'flowering';
-  if (pct <= 120) return 'fruiting';
-  return 'bumper';
+  if (typeof daysHeld !== 'number' || !Number.isFinite(daysHeld)) {
+    return 'unknown';
+  }
+  const days = Math.max(0, daysHeld);
+  return STAGE_MIN_DAYS.find(([, min]) => days >= min)?.[0] ?? 'seed';
+}
+
+/**
+ * A crop's *condition*: how well it is doing, from its total gain since
+ * purchase. Unlike the growth stage this is allowed to get better and worse,
+ * the way a gardener sees a plant thrive or wilt without it getting any
+ * younger (#7200).
+ */
+export type CropCondition =
+  'unknown' | 'wilting' | 'struggling' | 'healthy' | 'thriving';
+
+export interface CropConditionMeta {
+  id: CropCondition;
+  label: string;
+  /** Hex accent for the crop's glyph, card aura and chips. */
+  accent: string;
+}
+
+function conditionMeta(id: CropCondition, accent: string): CropConditionMeta {
+  return {
+    id,
+    get label() {
+      return i18n.t(`plot.condition.${id}`);
+    },
+    accent,
+  };
+}
+
+/** Ordered worst → best, with "unknown" (no reliable gain) first. */
+export const CROP_CONDITIONS: readonly CropConditionMeta[] = [
+  conditionMeta('unknown', '#9aa5b1'),
+  conditionMeta('wilting', '#e2643f'),
+  conditionMeta('struggling', '#e8a04a'),
+  conditionMeta('healthy', '#63d19e'),
+  conditionMeta('thriving', '#f2c14e'),
+];
+
+const CONDITION_BY_ID = new Map(
+  CROP_CONDITIONS.map((condition) => [condition.id, condition])
+);
+
+export function cropConditionMeta(condition: CropCondition): CropConditionMeta {
+  return CONDITION_BY_ID.get(condition) ?? CROP_CONDITIONS[0];
+}
+
+/**
+ * Total gain % → condition. A null gain (unknown cost basis, #8471) is an
+ * unknown condition, never a confident "healthy".
+ */
+export function cropConditionFor(
+  gainPct: number | null | undefined
+): CropCondition {
+  if (typeof gainPct !== 'number' || !Number.isFinite(gainPct)) {
+    return 'unknown';
+  }
+  if (gainPct <= -20) return 'wilting';
+  if (gainPct < 0) return 'struggling';
+  if (gainPct < 20) return 'healthy';
+  return 'thriving';
+}
+
+const CONDITION_LEVELS: Record<CropCondition, number | null> = {
+  unknown: null,
+  wilting: 1,
+  struggling: 2,
+  healthy: 3,
+  thriving: 4,
+};
+
+/** Number of condition levels, for the detail screen's "Level N/max". */
+export const CONDITION_LEVEL_MAX = 4;
+
+/** The crop detail screen's condition level (1–4), or null when unknown. */
+export function conditionLevelFor(condition: CropCondition): number | null {
+  return CONDITION_LEVELS[condition] ?? null;
 }
 
 /**
@@ -283,7 +375,10 @@ export interface Crop {
    */
   yieldPct: number | null;
   dayChangePct: number;
+  /** Maturity, from `days_held` — only ever moves forward (#7200). */
   stage: GrowthStage;
+  /** How it is doing, from `gainPct` — can improve or decline (#7200). */
+  condition: CropCondition;
   vigour: number;
   /** Share of total plot value, 0–1. */
   share: number;
@@ -364,6 +459,8 @@ export function bedNameFor(accountType: string): string {
 export interface Bed {
   id: string;
   name: string;
+  /** Raw account type ("isa", "sipp"…), for explaining the tax wrapper. */
+  accountType: string;
   icon: string;
   owner: string | null;
   valueGbp: number;
@@ -380,6 +477,7 @@ export function bedFromAccount(account: Account, index: number): Bed {
     // account type for several people.
     id: `${account.owner ?? 'plot'}:${type}`,
     name: bedNameFor(type),
+    accountType: type,
     icon: bedIconFor(type),
     owner: account.owner ?? null,
     valueGbp: account.value_estimate_gbp ?? 0,
@@ -458,7 +556,8 @@ function cropFromHolding(
       ? (holding.yield_pct as number)
       : null,
     dayChangePct: valueGbp > 0 ? (dayChangeGbp / valueGbp) * 100 : 0,
-    stage: growthStageFor(gainPct),
+    stage: growthStageFor(holding.days_held),
+    condition: cropConditionFor(gainPct),
     vigour: vigourFor(holding),
     share,
     sector: holding.sector || 'Unclassified',
@@ -995,7 +1094,9 @@ function combineCrops(crops: readonly Crop[]): Crop {
     costGbp,
     gainGbp,
     gainPct,
-    stage: growthStageFor(gainPct),
+    // The stage stays the lead (largest) holding's: it is the crop the
+    // combined card links to, so the card and its detail screen agree.
+    condition: cropConditionFor(gainPct),
     share: sum((crop) => crop.share),
     dayChangePct:
       valueGbp > 0
@@ -1064,4 +1165,37 @@ export function formatPct(value: number | null | undefined): string {
   if (!Number.isFinite(value)) return '—';
   const pct = value as number;
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+}
+
+/**
+ * What a watchlist symbol is, as far as the seed shed is concerned (#7203).
+ *
+ * - `seed`: something you could buy and hold (a share, fund, ETF, crypto…),
+ *   shown as a seed packet.
+ * - `weather`: an index, currency pair or futures contract. You can't plant
+ *   one, so it is shown as the conditions the plot is growing in, never as a
+ *   packet you have "not sown yet".
+ */
+export type SeedKind = 'seed' | 'weather';
+
+/** Provider `quoteType`s that are market conditions, not holdings. */
+const WEATHER_QUOTE_TYPES = new Set(['INDEX', 'CURRENCY', 'FUTURE']);
+
+/**
+ * Classifies a watchlist quote. The provider's `quoteType` wins when it is
+ * present; otherwise the Yahoo symbol shape decides (`^FTSE` index,
+ * `USDGBP=X` FX pair, `GC=F` future). Anything unrecognised stays a seed, so
+ * a real holding is never hidden in the weather.
+ */
+export function seedKindFor(
+  symbol: string,
+  quoteType?: string | null
+): SeedKind {
+  const type = quoteType?.trim().toUpperCase();
+  if (type) return WEATHER_QUOTE_TYPES.has(type) ? 'weather' : 'seed';
+  const sym = symbol.trim().toUpperCase();
+  if (sym.startsWith('^') || sym.endsWith('=X') || sym.endsWith('=F')) {
+    return 'weather';
+  }
+  return 'seed';
 }

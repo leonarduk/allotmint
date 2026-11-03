@@ -449,6 +449,12 @@ export CHAT_MODEL=qwen3.5:9b         # any tool-calling model; defaults: qwen3.5
 bash scripts/bash/run-local-api.sh
 ```
 
+A chat turn has no time limit locally. Anywhere else (`app_env` not `local`)
+it stops after 25s and replies "took too long, try a narrower question". On
+AWS, API Gateway's HTTP API cuts the request off at 30s anyway, and the user
+would otherwise see a bare 503 (#7945). `CHAT_TURN_TIMEOUT_SECONDS` overrides
+the limit; `0` turns it off.
+
 To run the MCP server on its own, in the foreground in a separate terminal,
 use its startup script. It loads the same `.env` / `.env.shared` as the
 backend scripts and takes an optional port (default `MCP_SERVER_PORT`, else

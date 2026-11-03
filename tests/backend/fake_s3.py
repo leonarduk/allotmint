@@ -1,13 +1,19 @@
-"""An in-memory S3 client for storage tests: get/put/list only, no network."""
+"""An in-memory S3 client for storage tests: get/put (with conditional writes)/list only, no network."""
 
 from __future__ import annotations
 
+import hashlib
 import io
 from typing import Optional
 
 import botocore.session
 from botocore.exceptions import ClientError
 from botocore.paginate import Paginator
+
+
+def _etag(body: bytes) -> str:
+    """S3's ETag for a single-part upload: the quoted MD5 of the body."""
+    return f'"{hashlib.md5(body).hexdigest()}"'  # noqa: S324 - not security-sensitive, mirrors S3
 
 
 class FakeS3:
@@ -38,9 +44,16 @@ class FakeS3:
             raise ClientError({"Error": {"Code": self.fail_with, "Message": "x"}}, "GetObject")
         if (Bucket, Key) not in self.objects:
             raise ClientError({"Error": {"Code": "NoSuchKey", "Message": "x"}}, "GetObject")
-        return {"Body": io.BytesIO(self.objects[(Bucket, Key)])}
+        body = self.objects[(Bucket, Key)]
+        return {"Body": io.BytesIO(body), "ETag": _etag(body)}
 
-    def put_object(self, Bucket, Key, Body):  # noqa: N803
+    def put_object(self, Bucket, Key, Body, IfMatch=None, IfNoneMatch=None, **_):  # noqa: N803
+        """Store ``Body``; ``IfMatch``/``IfNoneMatch="*"`` are checked as S3 does (412 on a mismatch)."""
+        current = self.objects.get((Bucket, Key))
+        if IfMatch is not None and (current is None or _etag(current) != IfMatch):
+            raise ClientError({"Error": {"Code": "PreconditionFailed", "Message": "x"}}, "PutObject")
+        if IfNoneMatch == "*" and current is not None:
+            raise ClientError({"Error": {"Code": "PreconditionFailed", "Message": "x"}}, "PutObject")
         self.objects[(Bucket, Key)] = Body
 
     def list_objects_v2(self, Bucket, Prefix, ContinuationToken=None, **_):  # noqa: N803

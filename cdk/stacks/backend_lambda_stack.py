@@ -412,8 +412,12 @@ class BackendLambdaStack(Stack):
           routes/goals.py (every /goals route) and quests/trail.py:
           _build_once_tasks / get_tasks → load_goals (/trail routes).
         - s3:PutObject: S3JSONStorage.save (put_object), via goals.py:_save_raw
-          (save_goals, add_goal, delete_goal) and _HISTORY_STORAGE.save in
-          record_goal_amount, rename_goal_history and delete_goal_history.
+          (save_goals, add_goal, delete_goal), and S3JSONStorage.save_if_match
+          (put_object with IfMatch/IfNoneMatch, #11291) via
+          goals.py:_update_history in record_goal_amount, rename_goal_history
+          and delete_goal_history. A conditional put needs no action beyond
+          s3:PutObject (the s3:if-match/s3:if-none-match condition keys only
+          restrict it), and that history read is the same s3:GetObject.
         s3:ListBucket on goals/ is granted through the backend's
         lambda_list_prefixes (not here): the write paths read with
         S3JSONStorage.load_existing (#11299), which treats only NoSuchKey as
@@ -885,6 +889,14 @@ class BackendLambdaStack(Stack):
                 # store raises as unavailable, so no visit could ever be
                 # recorded. Get/PutObject come from the bucket-wide grants below.
                 LAST_VISIT_PREFIX,
+                # Per-owner digest settings (#10502): routes/bots_digest.py:
+                # update_digest_settings → bots/digest_settings.py:save_settings
+                # → _load_for_update → S3JSONStorage.load_existing reads a
+                # not-yet-written bots/digest_settings.json as NoSuchKey only
+                # with ListBucket here; a 403 raises, so no owner could save
+                # settings until one existed. Get/PutObject come from the
+                # bucket-wide grants below.
+                BOTS_PREFIX,
                 # Writable, per-owner account documents (manual holdings and
                 # transaction writes) live under a dedicated prefix that is
                 # separate from the read-only ``accounts/`` demo dataset so
@@ -1148,6 +1160,7 @@ class BackendLambdaStack(Stack):
         # - transactions/    (report transaction exports)
         # - plans/, decision_journal/ (owner listing, missing-vs-denied; #11159)
         # - last_visit/      (missing-vs-denied for last-visit records; #11195)
+        # - bots/            (missing-vs-denied for digest settings; #10502)
         # - "" (root)        (Data Explorer root tree listing, issue #6110)
         self._grant_bucket_access(
             backend_fn,

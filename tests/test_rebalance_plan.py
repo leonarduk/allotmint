@@ -15,6 +15,7 @@ from backend.common.allocation_policy import (
 from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
 from backend.common.rebalance_plan import (
     UNCLASSIFIED,
+    InsufficientCashError,
     _water_fill,
     bucket_holdings,
     build_plan,
@@ -517,6 +518,60 @@ def test_new_cash_is_buy_only_in_chosen_account_and_reduces_drift():
     # (holds 900). Those gaps sum to exactly 500, so both are fully closed.
     amounts = {t["asset_class"]: (t["amount"], t["ticker"]) for t in result["trades"]}
     assert amounts == {"bond": (440.0, "BD2"), "equity": (60.0, "EQ2")}
+
+
+def _held_cash_holdings():
+    # Synthetic: £10,000 literal cash already in the ISA, £40,000 in all.
+    return bucket_holdings(
+        _portfolio(
+            (
+                "ISA",
+                [
+                    _h("CASH.GBP", 10_000, instrument_type="Cash"),
+                    _h("EQ1", 20_000, "equity"),
+                    _h("BD1", 10_000, "bond"),
+                ],
+            )
+        )
+    )
+
+
+def test_held_cash_tranche_is_split_against_the_unchanged_total():
+    """#10507: £1,000 of cash already held is not counted twice."""
+    holdings = _held_cash_holdings()
+    policy = _policy(5, equity=60, bond=35, cash=5)
+
+    result = suggest_new_cash(holdings, policy, 1_000, "isa", from_held_cash=True)
+
+    # Total stays £40,000: equity needs 24,000 (holds 20,000), bond 14,000 (holds 10,000),
+    # so the two equal £4,000 gaps share the £1,000 equally.
+    amounts = {t["asset_class"]: t["amount"] for t in result["trades"]}
+    assert amounts == {"equity": 500.0, "bond": 500.0}
+    assert result["keep_as_cash"] == 0.0
+    # As new money the total would be £41,000 and the split different.
+    new_money = {t["asset_class"]: t["amount"] for t in suggest_new_cash(holdings, policy, 1_000, "isa")["trades"]}
+    assert new_money == {"equity": 625.0, "bond": 375.0}
+
+
+def test_held_cash_measures_the_cash_class_without_the_tranche():
+    # Cash target 30% of £40,000 = £12,000; after taking £1,000 out the account holds £9,000,
+    # so the whole tranche stays cash (no buys) instead of being invested.
+    result = suggest_new_cash(
+        _held_cash_holdings(), _policy(5, equity=45, bond=25, cash=30), 1_000, "isa", from_held_cash=True
+    )
+    assert result["trades"] == []
+    assert result["keep_as_cash"] == 1_000.0
+
+
+def test_held_cash_needs_enough_literal_cash():
+    holdings = _held_cash_holdings()
+    with pytest.raises(InsufficientCashError, match="less than the £10,000.01 to invest"):
+        suggest_new_cash(holdings, _policy(5, equity=60, bond=40), 10_000.01, "isa", from_held_cash=True)
+    # A money-market fund in the cash class is not literal cash.
+    fund_only = bucket_holdings(_portfolio(("ISA", [_h("MMF", 5_000, "cash"), _h("EQ1", 5_000, "equity")])))
+    with pytest.raises(InsufficientCashError):
+        suggest_new_cash(fund_only, _policy(5, equity=60, cash=40), 100, "isa", from_held_cash=True)
+    assert isinstance(InsufficientCashError("x"), ValueError)  # routes still map it to a 400
 
 
 def _total_abs_drift(holdings, policy, extra=None):

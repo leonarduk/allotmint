@@ -531,6 +531,25 @@ def _request_identity() -> Optional[str]:
     return request_identity()
 
 
+def request_listing_user() -> Optional[str]:
+    """Return the ``current_user`` that makes ``list_plots`` list what this request may see.
+
+    With auth enabled ``list_plots`` needs the user passed in: with none it
+    lists nobody. So this is the identity ``get_current_user``/
+    ``get_active_user`` bound to the request (#11358, #10531). In every other
+    mode it is ``None`` and ``list_plots`` applies its own rule: under
+    ``disable_auth`` the request's identity while ``ENFORCE_OWNER_ACCESS`` is
+    on and everyone while it is off, the demo owner alone for a demo token,
+    and everyone for a ``system_job_context`` job with no identity. Callers
+    that pass ``None`` on as "no argument" keep exactly their old listing in
+    those modes.
+    """
+
+    if config.disable_auth is False:
+        return _request_identity()
+    return None
+
+
 def _list_local_plots(
     data_root: Optional[Path] = None,
     current_user: Optional[str] = None,

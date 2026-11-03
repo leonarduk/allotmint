@@ -33,13 +33,14 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
-from backend.common.holdings_rebuild import name_aliases, tracked_instruments
+from backend.common.holdings_rebuild import COST_ESTIMATE_FLAG, name_aliases, tracked_instruments
 from backend.common.ticker_utils import canonical_ticker
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
 COST_BASIS_IMPORT_REASON = "Purchase price from cost-basis CSV import"
+COST_ESTIMATE_REASON = "Estimated cost: market price on the day it was set, not a purchase price"
 REQUIRED_COLUMNS = ("ticker", "date", "units", "unit_cost")
 # Lot units may differ from the units held by this much (float noise from a
 # spreadsheet) and still count as covering the whole holding.
@@ -261,3 +262,32 @@ def plan_cost_basis_lots(
         # The last lot absorbs float noise; it must not end up zero or negative.
         return [], f"lot units add up to {total:g}, but the last lot would leave no units for {held:g} held"
     return _lot_transactions(str(holding.get("ticker")), lots, held), None
+
+
+def plan_cost_estimate(
+    transactions: Sequence[Mapping[str, Any]],
+    holdings: Sequence[Mapping[str, Any]],
+    ticker: str,
+    price_gbp: float,
+    day: str,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """``([estimate row], None)`` that values ``ticker``'s whole holding at ``price_gbp``, or ``([], skip reason)``.
+
+    The "use current price as cost" fallback (#10095): one priced
+    ``TRANSFER_IN`` of the units held, dated ``day`` and flagged
+    ``cost_estimate`` so the rebuild tags the holding's cost
+    ``cost_basis_source: "estimate"`` rather than a recorded cost (see
+    "Estimated costs" in :mod:`backend.common.holdings_rebuild`). The same
+    rules as the CSV import apply, so units held never change.
+    """
+    key = canonical_ticker(ticker)
+    holding = _find_holding(holdings, key)
+    if holding is None:
+        return [], f"no {ticker} holding in this account"
+    lot = PurchaseLot(line=0, ticker=key, date=day, units=_held_units(holding), unit_cost=price_gbp)
+    if lot.units <= 0:
+        return [], f"{ticker} has no units held"
+    rows, reason = plan_cost_basis_lots(transactions, holdings, ticker, [lot])
+    for row in rows:
+        row.update({"reason": COST_ESTIMATE_REASON, COST_ESTIMATE_FLAG: True})
+    return rows, reason

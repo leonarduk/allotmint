@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 
 from backend.common import data_loader
 from backend.common import portfolio as owner_portfolio
+from backend.common.account_models import OwnerSummaryRecord
 from backend.common.approvals import load_approvals
 from backend.common.constants import (
     ACCOUNTS,
@@ -23,6 +24,7 @@ from backend.common.constants import (
     OWNER,
 )
 from backend.common.holding_utils import enrich_holding
+from backend.common.portfolio_cache import access_scope
 from backend.common.portfolio_loader import ACCOUNT_STEM_KEY, strip_account_stem
 from backend.common.user_config import load_user_config
 from backend.config import config
@@ -89,6 +91,37 @@ def _trade_counts_for_owner(owner: str, today: dt.date) -> tuple[int, int]:
     return trades_this_month, trades_remaining
 
 
+def _visible_owner_rows() -> List[OwnerSummaryRecord]:
+    """List the owners the current caller may see, by the ``/owners`` rule.
+
+    The user comes from :func:`data_loader.request_listing_user`: the signed-in
+    identity with auth enabled, otherwise ``None`` and ``list_plots`` applies
+    its own rule for the mode (#10531).
+    """
+
+    user = data_loader.request_listing_user()
+    if user is None:
+        return data_loader.list_plots()
+    return data_loader.list_plots(current_user=user)
+
+
+def _drop_groups_without_visible_members(groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Leave out every group but ``all`` that has no member the caller may see.
+
+    Only while access is scoped to the caller (auth enabled, a demo token, or
+    ``ENFORCE_OWNER_ACCESS``; :func:`portfolio_cache.access_scope` is not
+    ``None``). Such a group is then unknown to the caller: every group route
+    answers 404 "Group not found", as for a slug that does not exist, so
+    neither its existence nor its members leak (#10531). ``all`` always stays:
+    it is "everyone you may see" and names nobody else. With ``disable_auth``
+    and the flag off the list is unchanged.
+    """
+
+    if access_scope() is None:
+        return groups
+    return [g for g in groups if g["slug"] == "all" or g["members"]]
+
+
 # ───────────────────────── groups list ──────────────────────────
 def list_groups() -> List[Dict[str, Any]]:
     """
@@ -96,9 +129,14 @@ def list_groups() -> List[Dict[str, Any]]:
     - "all"      - every owner
     - "adults"   - lucy + steve
     - "children" - alex + joe
+
+    Members are only the owners the caller may see (#10531): the same owners
+    as ``/owners``, by the owner/``email``/``viewers`` rule. A group the caller
+    can partly see lists only the visible members; one with none is left out
+    (see :func:`_drop_groups_without_visible_members`).
     """
     started_at = time.perf_counter()
-    owner_rows = data_loader.list_plots()
+    owner_rows = _visible_owner_rows()
     owners = sorted({row.owner for row in owner_rows})
 
     # Exclude the shareable-demo-link owner (config.demo_link_owner, #7402)
@@ -152,6 +190,8 @@ def list_groups() -> List[Dict[str, Any]]:
             }
         )
 
+    groups = _drop_groups_without_visible_members(groups)
+
     logger.info(
         "group_portfolio.list_groups_complete",
         extra={
@@ -191,7 +231,11 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
     # Get portfolios to merge (raw portfolios; we will enrich here)
     from backend.common.portfolio_loader import list_portfolios  # local import avoids cycles
 
-    portfolios_to_merge = [pf for pf in list_portfolios() if (pf.get(OWNER, "") or "").lower() in wanted]
+    # Built as the caller, like the member list: with auth enabled
+    # ``list_portfolios()`` with no user would build nobody.
+    user = data_loader.request_listing_user()
+    all_portfolios = list_portfolios() if user is None else list_portfolios(current_user=user)
+    portfolios_to_merge = [pf for pf in all_portfolios if (pf.get(OWNER, "") or "").lower() in wanted]
     portfolios_by_owner = {str(pf.get(OWNER, "")).lower(): pf for pf in portfolios_to_merge if pf.get(OWNER)}
 
     approvals_map: Dict[str, Dict[str, dt.date]] = {}

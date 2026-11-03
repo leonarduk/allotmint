@@ -118,6 +118,27 @@ describe('CashDeploymentCard', () => {
     expect(screen.getByText(/£12\.34 interest credited/)).toBeInTheDocument();
   });
 
+  it('says when a tranche is sized as new money (#10507)', async () => {
+    const run = makeRun();
+    run.schedules[0].tranche = { ...TRANCHE, cash_basis: 'new_money' };
+    mockGet.mockResolvedValue(run);
+    render(<CashDeploymentCard owner="alex" accounts={ACCOUNTS} />);
+    expect(
+      await screen.findByTestId('cash-deployment-new-money')
+    ).toHaveTextContent(/sized as new money/);
+  });
+
+  it('adds no note for a tranche split from held cash', async () => {
+    const run = makeRun();
+    run.schedules[0].tranche = { ...TRANCHE, cash_basis: 'held_cash' };
+    mockGet.mockResolvedValue(run);
+    render(<CashDeploymentCard owner="alex" accounts={ACCOUNTS} />);
+    expect(await screen.findByText('VWX.L')).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('cash-deployment-new-money')
+    ).not.toBeInTheDocument();
+  });
+
   it('saves the schedule the owner entered, in pence', async () => {
     mockGet.mockResolvedValue(makeRun({ schedules: [] }));
     mockCreate.mockResolvedValue(SCHEDULE);

@@ -35,6 +35,8 @@ from backend.common.ticker_utils import split_ticker
 UNCLASSIFIED = "unclassified"
 #: Suggestions smaller than this (GBP) are dropped as dust.
 MIN_TRADE_GBP = 1.0
+#: Rounding slack when checking an account's cash covers an amount (GBP).
+_CASH_TOLERANCE_GBP = 0.005
 
 
 @dataclass
@@ -389,8 +391,39 @@ def _water_fill(gaps: Mapping[str, float], amount: float) -> dict[str, float]:
     return {c: g - level for c, g in ordered if g - level > 0}
 
 
-def suggest_new_cash(holdings: Holdings, policy: AllocationPolicy, amount: float, account_id: str) -> dict[str, Any]:
-    """Buy-only allocation of a new ``amount`` paid into ``account_id``."""
+class InsufficientCashError(ValueError):
+    """The account's literal cash does not cover an amount to invest from held cash (#10507)."""
+
+
+def _held_cash_to_spend(account: AccountBucket, amount: float, from_held_cash: bool) -> float:
+    """The part of ``amount`` already in the account as literal cash: all of it, or 0 for new money."""
+    if not from_held_cash:
+        return 0.0
+    if amount > account.cash + _CASH_TOLERANCE_GBP:
+        raise InsufficientCashError(
+            f"{account.label} holds £{account.cash:,.2f} in cash, less than the £{amount:,.2f} to invest"
+        )
+    return amount
+
+
+def suggest_new_cash(
+    holdings: Holdings,
+    policy: AllocationPolicy,
+    amount: float,
+    account_id: str,
+    *,
+    from_held_cash: bool = False,
+) -> dict[str, Any]:
+    """Buy-only allocation of ``amount`` in ``account_id``.
+
+    By default ``amount`` is new money paid in on top of the holdings, so the
+    gaps are measured against ``holdings.total + amount``. With
+    ``from_held_cash`` it is cash already in the account (#10507): it is
+    already in ``holdings.total`` and in the cash class, so the total is
+    unchanged and the cash class is measured without it. Raises
+    :class:`InsufficientCashError` when the account's literal cash (not a
+    money-market fund) does not cover it.
+    """
 
     if not policy.targets:
         raise ValueError("Set target allocations before planning a contribution")
@@ -400,8 +433,12 @@ def suggest_new_cash(holdings: Holdings, policy: AllocationPolicy, amount: float
     if account is None:
         raise ValueError(f"Unknown account {account_id!r}")
 
-    new_total = holdings.total + amount
-    gaps = {c: pct / 100.0 * new_total - holdings.class_total(c) for c, pct in policy.targets.items()}
+    held = _held_cash_to_spend(account, amount, from_held_cash)
+    new_total = holdings.total + amount - held
+    gaps = {
+        c: pct / 100.0 * new_total - (holdings.class_total(c) - (held if c == CASH else 0.0))
+        for c, pct in policy.targets.items()
+    }
     allocation = _water_fill(gaps, amount)
     buys = [_trade(account, c, "buy", value) for c, value in allocation.items() if c != CASH and value >= MIN_TRADE_GBP]
     kept = amount - sum(t["amount"] for t in buys)

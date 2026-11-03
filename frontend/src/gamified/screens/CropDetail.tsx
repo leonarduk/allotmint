@@ -5,6 +5,9 @@ import { Link, useParams } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
 import {
+  CONDITION_LEVEL_MAX,
+  conditionLevelFor,
+  cropConditionMeta,
   findCropByRouteId,
   formatGbp,
   formatPct,
@@ -19,14 +22,17 @@ import {
 import Meter from '../components/Meter';
 import ShareBar, { ShareTrack } from '../components/ShareBar';
 import CropGlyph from '../components/CropGlyph';
+import { instrumentTypeExplanation } from '../plotGuidance';
 
 /**
  * The first trait has two data paths (#7019), and the label always matches
  * the figure behind it:
  * - "Yield": the trailing 12-month income yield the backend derives from
  *   dividends/interest actually received, when there is any on record.
- * - "Growth": otherwise, the unrealised capital gain/loss. That is not an
- *   income yield and is never labelled as one.
+ * - "Condition": otherwise, the unrealised capital gain/loss. That is not
+ *   an income yield and is never labelled as one. Its level is the crop's
+ *   condition, not its growth stage: stage is how long it has been held
+ *   (#7200).
  */
 function harvestTraitFor(crop: Crop, t: TFunction) {
   if (crop.yieldPct !== null) {
@@ -40,7 +46,7 @@ function harvestTraitFor(crop: Crop, t: TFunction) {
   }
   return {
     icon: '🧺',
-    name: t('plot.crop.growth'),
+    name: t('plot.crop.condition'),
     // An unknown cost basis means an unknown gain, not £0 (#8471).
     detail:
       crop.gainGbp === null
@@ -49,8 +55,8 @@ function harvestTraitFor(crop: Crop, t: TFunction) {
             gain: formatGbp(crop.gainGbp),
             pct: formatPct(crop.gainPct),
           }),
-    level: growthLevelFor(crop.stage),
-    max: 5,
+    level: conditionLevelFor(crop.condition),
+    max: CONDITION_LEVEL_MAX,
   };
 }
 
@@ -118,7 +124,9 @@ function abilitiesFor(crop: Crop, t: TFunction) {
                     })}`
                   : ` · ${t('plot.crop.readyToLift')}`
             }`,
-      level: isStillInPropagator(crop) ? 2 : 5,
+      // The same ladder as the stage chip, so a crop can't be "Sown" and
+      // "Hardiness 5/5" at once (#7200); null (no level) when age is unknown.
+      level: growthLevelFor(crop.stage),
       max: 5,
     },
   ];
@@ -162,7 +170,11 @@ export default function CropDetail({ basePath }: { basePath: string }) {
   }
 
   const stage = growthStageMeta(crop.stage);
-  const accentStyle = { '--plot-crop-accent': stage.accent } as CSSProperties;
+  const condition = cropConditionMeta(crop.condition);
+  // Fill = age (stage), colour = how it is doing (condition) (#7200).
+  const accentStyle = {
+    '--plot-crop-accent': condition.accent,
+  } as CSSProperties;
   const previous = snapshot.crops[index - 1];
   const next = snapshot.crops[index + 1];
 
@@ -185,6 +197,18 @@ export default function CropDetail({ basePath }: { basePath: string }) {
             <li className={styles.trait}>{t('plot.crop.unverifiedPrice')}</li>
           )}
         </ul>
+        {/* The chips above in plain English, so "ETF" or "Bond" can be
+            understood without leaving Plot mode (#7209). */}
+        <h3 className={styles.panelTitle}>{t('plot.learn.title')}</h3>
+        <p className={styles.sectionNote}>
+          {instrumentTypeExplanation(crop.instrumentType)}
+        </p>
+        <p className={styles.sectionNote}>
+          {t('plot.learn.sector', { sector: crop.sector })}
+        </p>
+        <p className={styles.sectionNote}>
+          {t('plot.learn.region', { region: crop.region })}
+        </p>
       </section>
 
       <div className={styles.detail} style={accentStyle}>
@@ -225,7 +249,20 @@ export default function CropDetail({ basePath }: { basePath: string }) {
               stage={crop.stage}
             />
           </span>
-          <span className={styles.cropStageChip}>{stage.label}</span>
+          <span className={styles.cropChips}>
+            <span
+              className={styles.cropStageChip}
+              title={t('plot.card.stageTitle')}
+            >
+              {stage.label}
+            </span>
+            <span
+              className={styles.cropStageChip}
+              title={t('plot.card.conditionTitle')}
+            >
+              {condition.label}
+            </span>
+          </span>
           <ShareBar share={crop.share} />
           <div className={styles.radialLabel}>{t('plot.crop.plotValue')}</div>
           <div className={styles.radialValue}>{formatGbp(crop.valueGbp)}</div>

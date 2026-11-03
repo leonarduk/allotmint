@@ -166,22 +166,42 @@ function UnloggedList({
   );
 }
 
+function SnapshotSummary({ snapshot }: { snapshot: Record<string, unknown> }) {
+  const { t } = useTranslation();
+  // A factual LLM summary of the snapshot (#10487), or the reason there is none.
+  const summary =
+    typeof snapshot.summary === 'string' ? snapshot.summary : null;
+  const note =
+    typeof snapshot.summary_note === 'string' ? snapshot.summary_note : null;
+  if (summary) {
+    return (
+      <p className="mb-1 text-xs">
+        <strong>{t('decisionJournal.contextSummary')}:</strong> {summary}
+      </p>
+    );
+  }
+  return note ? <p className="mb-1 text-xs italic">{note}</p> : null;
+}
+
 function SnapshotFacts({ snapshot }: { snapshot: Record<string, unknown> }) {
   const { t } = useTranslation();
   const weights = snapshot.weights as
     { before_pct?: number | null; after_pct?: number | null } | undefined;
   return (
-    <details className="mb-2 text-xs">
-      <summary className="cursor-pointer">
-        {t('decisionJournal.snapshot')}
-        {weights?.before_pct != null && weights.after_pct != null
-          ? ` · ${t('decisionJournal.weights', { before: weights.before_pct, after: weights.after_pct })}`
-          : ''}
-      </summary>
-      <pre className="overflow-x-auto whitespace-pre-wrap">
-        {JSON.stringify(snapshot, null, 2)}
-      </pre>
-    </details>
+    <>
+      <SnapshotSummary snapshot={snapshot} />
+      <details className="mb-2 text-xs">
+        <summary className="cursor-pointer">
+          {t('decisionJournal.snapshot')}
+          {weights?.before_pct != null && weights.after_pct != null
+            ? ` · ${t('decisionJournal.weights', { before: weights.before_pct, after: weights.after_pct })}`
+            : ''}
+        </summary>
+        <pre className="overflow-x-auto whitespace-pre-wrap">
+          {JSON.stringify(snapshot, null, 2)}
+        </pre>
+      </details>
+    </>
   );
 }
 

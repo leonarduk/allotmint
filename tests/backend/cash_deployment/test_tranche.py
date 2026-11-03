@@ -53,7 +53,10 @@ def test_split_is_identical_to_suggest_new_cash(portfolio, plan):
     policy = target_policy("plan", AllocationPolicy(), plan)
     result = build_tranche(portfolio, policy, SleeveSetup(), plan, "isa", 100_000, prices=lambda tickers: {})
     holdings = bucket_holdings(portfolio, split_classes(policy))
-    assert result["split"] == suggest_new_cash(holdings, policy, 1000.0, "isa")
+    # The ISA holds £6,000 cash, so the £1,000 tranche is that cash, not new money (#10507).
+    assert result["split"] == suggest_new_cash(holdings, policy, 1000.0, "isa", from_held_cash=True)
+    assert result["split"] != suggest_new_cash(holdings, policy, 1000.0, "isa")
+    assert result["cash_basis"] == "held_cash"
     assert result["label"] == ORDER_LIST_LABEL
     assert "per your plan" in result["label"]
     assert sum(o["amount_minor"] for o in result["orders"]) + result["keep_as_cash_minor"] == 100_000
@@ -131,3 +134,12 @@ def test_partly_done_tranche_drafts_only_the_remainder(tmp_path, portfolio, plan
     tranche = result["tranche"]
     assert tranche["amount_minor"] == 60_000
     assert sum(o["amount_minor"] for o in tranche["orders"]) + tranche["keep_as_cash_minor"] == 60_000
+
+
+def test_tranche_larger_than_the_cash_held_is_split_as_new_money(portfolio, plan):
+    """#10507: the cash has not arrived yet, so the tranche is sized as money paid in, and says so."""
+    policy = target_policy("plan", AllocationPolicy(), plan)
+    result = build_tranche(portfolio, policy, SleeveSetup(), plan, "isa", 700_000, prices=lambda tickers: {})
+    holdings = bucket_holdings(portfolio, split_classes(policy))
+    assert result["split"] == suggest_new_cash(holdings, policy, 7000.0, "isa")
+    assert result["cash_basis"] == "new_money"

@@ -7,8 +7,9 @@ import os
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
+from backend.common.conditional_store import PreconditionFailed
 from backend.common.storage import JSONStorage, get_storage
 from backend.config import config
 
@@ -132,11 +133,61 @@ def delete_goal(user: str, name: str) -> None:
 # progress history ------------------------------------------------------------
 
 
-def _load_history_raw(*, for_write: bool = False) -> Dict[str, Dict[str, List[Dict[str, object]]]]:
-    data = _load_document(_HISTORY_STORAGE, for_write=for_write)
+_HistoryDoc = Dict[str, Dict[str, List[Dict[str, object]]]]
+
+# Conditional history writes (#11291): how many read-modify-write rounds one
+# request makes before reporting a conflict. Each lost round means another
+# request wrote in between, so a small bound is plenty for hand-entered progress.
+_HISTORY_WRITE_ATTEMPTS = 4
+
+
+class GoalHistoryWriteConflict(Exception):
+    """Concurrent writes kept invalidating a conditional history save (#11291)."""
+
+
+def _history_doc(data: object) -> _HistoryDoc:
     if not isinstance(data, dict):
         return {}
     return {k: v for k, v in data.items() if isinstance(v, dict)}
+
+
+def _load_history_raw(*, for_write: bool = False) -> _HistoryDoc:
+    return _history_doc(_load_document(_HISTORY_STORAGE, for_write=for_write))
+
+
+def _update_history(mutate: Callable[[_HistoryDoc], bool]) -> None:
+    """Read the history store, apply ``mutate`` and write it back if it returns ``True``.
+
+    On a store with conditional writes (``S3JSONStorage``: ``load_versioned``
+    / ``save_if_match``) the write only lands if the document's ETag is still
+    the one read, so a concurrent writer's snapshot is never overwritten; a
+    lost race re-reads and re-applies ``mutate``, up to
+    ``_HISTORY_WRITE_ATTEMPTS`` rounds, then raises
+    :class:`GoalHistoryWriteConflict`. ``mutate`` must therefore be safe to run
+    again on a fresh read. The file and SSM stores have no conditional write,
+    so they keep the plain read-modify-write and its lost-update risk (see
+    ``backend.routes.goals._record_progress``).
+    """
+    load_versioned = getattr(_HISTORY_STORAGE, "load_versioned", None)
+    save_if_match = getattr(_HISTORY_STORAGE, "save_if_match", None)
+    if load_versioned is None or save_if_match is None:
+        data = _load_history_raw(for_write=True)
+        if mutate(data):
+            _HISTORY_STORAGE.save(data)
+        return
+    for _ in range(_HISTORY_WRITE_ATTEMPTS):
+        raw, etag = load_versioned()
+        data = _history_doc({} if raw is None else raw)
+        if not mutate(data):
+            return
+        try:
+            save_if_match(data, etag)
+        except PreconditionFailed:
+            continue
+        return
+    raise GoalHistoryWriteConflict(
+        f"Goal history changed concurrently; gave up after {_HISTORY_WRITE_ATTEMPTS} attempts"
+    )
 
 
 def load_goal_history(user: str, name: str) -> List[Tuple[date, float]]:
@@ -168,20 +219,25 @@ def record_goal_amount(user: str, name: str, amount: float, on: date) -> List[Tu
     amount, which would otherwise be stored as non-standard JSON, or for a
     date after today.
 
-    This is a plain read-modify-write of the whole store: it assumes a single
-    writer (the app's usage), so concurrent writers could lose an update. See
-    the accepted-risk note in ``backend.routes.goals._record_progress``.
+    The whole store is read, modified and written back through
+    :func:`_update_history`: a conditional write with bounded retry on S3
+    (raising :class:`GoalHistoryWriteConflict` when every attempt loses a
+    race), a plain write on the file/SSM stores (#11291).
     """
     if not math.isfinite(amount):
         raise ValueError("Goal amount must be a finite number")
     if on > date.today():
         raise ValueError("Goal progress cannot be recorded for a future date")
-    data = _load_history_raw(for_write=True)
-    by_day = dict(_parse_history(data.get(user, {}).get(name, [])))
-    by_day[on] = float(amount)
-    points = sorted(by_day.items())
-    data.setdefault(user, {})[name] = [{"date": d.isoformat(), "amount": a} for d, a in points]
-    _HISTORY_STORAGE.save(data)
+    points: List[Tuple[date, float]] = []
+
+    def add_snapshot(data: _HistoryDoc) -> bool:
+        by_day = dict(_parse_history(data.get(user, {}).get(name, [])))
+        by_day[on] = float(amount)
+        points[:] = sorted(by_day.items())
+        data.setdefault(user, {})[name] = [{"date": d.isoformat(), "amount": a} for d, a in points]
+        return True
+
+    _update_history(add_snapshot)
     return points
 
 
@@ -195,23 +251,29 @@ def rename_goal_history(user: str, old: str, new: str) -> None:
     Raises :class:`GoalHistoryConflict` rather than overwrite a non-empty
     history already stored under ``new``.
     """
-    data = _load_history_raw(for_write=True)
-    user_history = data.get(user, {})
-    if old == new or old not in user_history:
-        return
-    if user_history.get(new):
-        raise GoalHistoryConflict(f"History already exists for goal {new!r}")
-    user_history[new] = user_history.pop(old)
-    _HISTORY_STORAGE.save(data)
+
+    def move(data: _HistoryDoc) -> bool:
+        user_history = data.get(user, {})
+        if old == new or old not in user_history:
+            return False
+        if user_history.get(new):
+            raise GoalHistoryConflict(f"History already exists for goal {new!r}")
+        user_history[new] = user_history.pop(old)
+        return True
+
+    _update_history(move)
 
 
 def delete_goal_history(user: str, name: str) -> None:
     """Drop a goal's history; a no-op when there is none."""
-    data = _load_history_raw(for_write=True)
-    if name not in data.get(user, {}):
-        return
-    del data[user][name]
-    _HISTORY_STORAGE.save(data)
+
+    def drop(data: _HistoryDoc) -> bool:
+        if name not in data.get(user, {}):
+            return False
+        del data[user][name]
+        return True
+
+    _update_history(drop)
 
 
 def load_all_goals() -> Dict[str, List[Goal]]:
@@ -231,6 +293,7 @@ def load_all_goals() -> Dict[str, List[Goal]]:
 __all__ = [
     "Goal",
     "GoalHistoryConflict",
+    "GoalHistoryWriteConflict",
     "load_goals",
     "save_goals",
     "add_goal",

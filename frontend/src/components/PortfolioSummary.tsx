@@ -6,7 +6,7 @@ import { percent } from "../lib/money";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { ReportingCurrencyNote } from "./ReportingCurrencyNote";
 import { isCashInstrument } from "../lib/instruments";
-import { isCostBasisUnreliable } from "../lib/costBasis";
+import { isCostBasisEstimate, isCostBasisUnreliable } from "../lib/costBasis";
 import { FX_RATE_SOURCE_MISSING } from "../lib/fxRateSource";
 import { LineChart, PiggyBank, TrendingUp, Wallet } from "lucide-react";
 
@@ -45,6 +45,10 @@ export type PortfolioTotals = {
   /** The part of unpricedHoldingCount whose missing price is a missing FX
    * rate, so the gain note can name the cause (#9730). */
   unpricedMissingFxCount: number;
+  /** Holdings whose gain IS summed into totalGain/totalCost but rests on an
+   * estimated cost ("use current price as cost", #10095): gain since the day
+   * the estimate was set, not since purchase. The gain card says so. */
+  estimatedCostCount: number;
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -60,6 +64,7 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
   let unpricedHoldingCount = 0;
   let missingFxHoldingCount = 0;
   let unpricedMissingFxCount = 0;
+  let estimatedCostCount = 0;
 
   for (const acct of accounts) {
     totalValue += acct.value_estimate_gbp ?? 0;
@@ -119,6 +124,9 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
 
       totalCost += cost;
       totalGain += gain;
+      if (isCostBasisEstimate(h.cost_basis_source)) {
+        estimatedCostCount += 1;
+      }
     }
   }
 
@@ -142,6 +150,7 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
     unpricedHoldingCount,
     missingFxHoldingCount,
     unpricedMissingFxCount,
+    estimatedCostCount,
   };
 }
 
@@ -211,6 +220,7 @@ export function PortfolioSummary({ totals }: Props) {
     unpricedHoldingCount,
     missingFxHoldingCount,
     unpricedMissingFxCount,
+    estimatedCostCount,
   } = totals;
   const reporting = useReportingCurrency();
   const { t } = useTranslation();
@@ -230,6 +240,11 @@ export function PortfolioSummary({ totals }: Props) {
     gainEligibleHoldingCount,
     allGainUnknown,
   );
+  // Estimated costs are summed, so the gain must say it includes them (#10095).
+  const estimateNote =
+    !allGainUnknown && estimatedCostCount > 0
+      ? t("portfolioSummary.includesEstimated", { count: estimatedCostCount })
+      : undefined;
   // The backend leaves a holding with no FX rate unpriced, so it adds nothing
   // to the total value; say so rather than let the total read as complete (#9730).
   const valueNote =
@@ -278,7 +293,7 @@ export function PortfolioSummary({ totals }: Props) {
               : "var(--gain-negative)"
         }
         secondary={allGainUnknown ? undefined : `(${percent(totalGainPct)})`}
-        note={gainNote}
+        note={[gainNote, estimateNote].filter(Boolean).join(" · ") || undefined}
       />
       <ReportingCurrencyNote reporting={reporting} />
     </div>

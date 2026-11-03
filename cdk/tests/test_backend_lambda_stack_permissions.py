@@ -54,6 +54,9 @@ BACKEND_LIST_PREFIXES = (
     "goals",
     # Last-visit records (#11195): missing-vs-denied for backend/common/last_visit.py.
     "last_visit",
+    # Per-owner digest settings (#10502): missing-vs-denied for
+    # backend/bots/digest_settings.py:save_settings (load_existing).
+    "bots",
     # Writable per-owner account documents (manual holdings / transactions);
     # separate from the read-only accounts/ demo prefix (issue #4275).
     WRITABLE_ACCOUNTS_PREFIX,

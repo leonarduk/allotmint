@@ -40,7 +40,8 @@ user's owners by ``email``/``viewers``, so the scope then names the
 request's identity too: two users with different viewer rights never share
 an entry, and a request with no identity gets its own (empty) one. With auth
 enabled the scope names the identity as well, because ``build_owner_portfolio``
-looks owners up as the request's identity there (#11358).
+and ``list_groups`` look owners up as the request's identity there (#11358,
+#10531).
 
 Shared performance inputs (#10755)
 ----------------------------------

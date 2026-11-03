@@ -73,9 +73,21 @@ def _pro_allowances() -> Optional[Any]:
 
 
 def _owner_transactions(owner: str) -> List[Any]:
+    """``owner``'s transactions, including the writable S3 store on AWS (#10495).
+
+    On AWS ``config.accounts_root`` is the empty ``/tmp/data/accounts``, so the
+    owners' transactions are only in ``S3AccountsStore`` (writable-accounts/).
+    The store comes from ``backend.common.dividends._resolve_store``, the same
+    rule ``backend/decision_journal/bot.py:_all_transactions`` uses (#11175);
+    off AWS the local store it returns is already read via ``accounts_root``.
+    """
+    from backend.common.accounts_store import S3AccountsStore
+    from backend.common.dividends import _resolve_store
     from backend.routes.transactions import load_all_transactions
 
-    return [tx for tx in load_all_transactions() if (tx.owner or "").lower() == owner.lower()]
+    store = _resolve_store()
+    writable = store if isinstance(store, S3AccountsStore) else None
+    return [tx for tx in load_all_transactions(writable) if (tx.owner or "").lower() == owner.lower()]
 
 
 def _gbp(minor: int) -> str:

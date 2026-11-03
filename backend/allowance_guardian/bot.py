@@ -14,14 +14,15 @@ through the bots digest and whatever channels (in-app, email, Telegram,
 immediate alerts) the owner chose in their digest settings. Their text is
 factual and amount-free, written here rather than copied from the report.
 
-Triggers: Run now on the Bots page, and :func:`run_after_import` once a
-transaction import has persisted rows or a statement has been reconciled
-(``POST /reconciliation/statement``, #10474/#11212); the stored report's
-``reason`` says which. There is no EventBridge rule yet:
-contribution schedules live under the API Lambda's local ``data_root`` on
-AWS, so a separate scheduled Lambda would find none (scheduling bots on AWS is
-tracked separately). The bot is read-only: it never writes transactions or
-the schedule.
+Triggers: monthly at :data:`MONTHLY` (the ``MonthlyAllowanceGuardianRun``
+EventBridge rule in ``cdk/stacks/backend_lambda_stack.py``, which invokes
+:mod:`backend.lambda_api.allowance_guardian`), Run now on the Bots page, and
+:func:`run_after_import` once a transaction import has persisted rows or a
+statement has been reconciled (``POST /reconciliation/statement``,
+#10474/#11212); the stored report's ``reason`` says which. The scheduled Lambda
+reads schedules from ``CONTRIBUTION_SCHEDULES_URI`` and transactions from the
+writable S3 store, the same data the API sees. The bot is read-only: it never
+writes transactions or the schedule.
 """
 
 from __future__ import annotations
@@ -51,6 +52,10 @@ from backend.logging_setup import sanitise_log_value
 logger = logging.getLogger(__name__)
 
 BOT_ID = "allowance-guardian"
+
+#: 04:00 UTC on the 1st of each month, after the 00:00 price refresh. Must match
+#: the ``MonthlyAllowanceGuardianRun`` rule in cdk/stacks/backend_lambda_stack.py.
+MONTHLY = Schedule(hour=4, day=1)
 
 _SEVERITY = {"critical": Severity.HIGH, "warning": Severity.MEDIUM, "info": Severity.LOW}
 _CONTRIBUTION_WORDS = {"missing": "missing", "wrong_amount": "a different amount", "late": "late"}
@@ -219,14 +224,13 @@ class AllowanceGuardianBot:
     name = "Allowance guardian"
     description = (
         "Checks that scheduled pension and ISA contributions arrived and projects both allowances "
-        "to the tax year end. Runs after transaction imports and statement reconciliations. "
-        "Read-only; facts, not advice."
+        "to the tax year end. Runs monthly and after transaction imports and statement "
+        "reconciliations. Read-only; facts, not advice."
     )
     kind: BotKind = "rules"
     scope: BotScope = "owner"
     settings_model: type[BotSettings] = AllowanceGuardianSettings
-    # No EventBridge rule: see the module docstring.
-    default_schedule: Optional[Schedule] = None
+    default_schedule: Optional[Schedule] = MONTHLY
     timeout_minutes = 10
 
     def default_settings(self) -> Dict[str, Any]:

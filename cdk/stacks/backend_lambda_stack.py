@@ -132,6 +132,12 @@ RETIREMENT_READINESS_PREFIX = "retirement_readiness"
 # plan or journal entry is lost on the next cold start.
 PLANS_PREFIX = "plans"
 DECISION_JOURNAL_PREFIX = "decision_journal"
+# Contribution schedules, one <owner>.json each (#10495,
+# backend/allowance_guardian/schedule.py, OwnerDocumentStore). Without
+# CONTRIBUTION_SCHEDULES_URI a saved schedule lives in the per-container
+# /tmp/data and is lost on the next cold start, and the scheduled
+# AllowanceGuardianLambda never sees it.
+CONTRIBUTION_SCHEDULES_PREFIX = "contribution_schedules"
 # Savings goals and their recorded progress (backend/common/goals.py). Each
 # store is ONE JSON object (get_storage treats an s3:// URI as an object key,
 # not a prefix), so GOALS_STORAGE_URI / GOAL_HISTORY_STORAGE_URI name these keys.
@@ -739,6 +745,119 @@ class BackendLambdaStack(Stack):
         )
         return readiness_fn
 
+    def _add_allowance_guardian_lambda(
+        self,
+        *,
+        project_root,
+        data_bucket: s3.Bucket,
+        env: str,
+        data_branch: str,
+        data_repo: str | None,
+        jwt_secret: str,
+    ) -> _lambda.DockerImageFunction:
+        """Monthly allowance guardian run (#10495) at 04:00 UTC on the 1st.
+
+        After the 00:00 price refresh. Must match
+        ``backend.allowance_guardian.bot.MONTHLY``. Least privilege, audited
+        along lambda_api/allowance_guardian.py:lambda_handler
+        (system_job_context) → bots/runner.py:handle_lambda_event →
+        allowance_guardian/bot.py:AllowanceGuardianBot.run →
+        allowance_guardian/report.py:run:
+
+        - Run record and settings: bots/runs.py:save_run and
+          bots/settings.py:load_settings → BOTS_STORAGE_URI (bots/): GetObject
+          and PutObject on bots/*, the only prefix it writes.
+        - Owners: bot.py:_owners → common/data_loader.py:list_plots →
+          _list_aws_plots → data_providers.py:S3DataProvider.list_plots
+          (list_objects_v2 under accounts/) and load_person_meta
+          (get_object accounts/<owner>/person.json): ListBucket on accounts/
+          and GetObject on accounts/*/person.json only.
+        - Schedules: report.py:run → schedule.py:load_schedule →
+          owner_documents.py:OwnerDocumentStore.read →
+          S3JSONStorage.load_existing under CONTRIBUTION_SCHEDULES_URI:
+          GetObject on contribution_schedules/* (read only; ListBucket makes
+          a never-saved schedule a NoSuchKey, read as empty, not a 403).
+        - Transactions: report.py:_owner_transactions →
+          routes/transactions.py:load_all_transactions(S3AccountsStore) →
+          accounts_store.py:S3AccountsStore.iter_transaction_documents and
+          read_store_holdings (list_objects_v2 + get_object under
+          writable-accounts/): ListBucket and GetObject there, read-only.
+          config.accounts_root is the empty local /tmp/data/accounts.
+        - Allowances: allotmint-pro's annual_allowance_info and
+          carry_forward_view compute from the transactions passed in; no
+          S3 access. Instrument metadata comes from the image (METADATA_BUCKET
+          is unset).
+        - No LLM: the bot calls report.run without ``explain``, so
+          allowance_guardian/agent.py never runs: no Bedrock or MCP grant.
+
+        No DeleteObject, no timeseries access.
+        """
+
+        bucket_name = data_bucket.bucket_name
+        guardian_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            # backend/timeseries/cache.py raises at import without it. The
+            # guardian never reads prices, so there is no timeseries grant.
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            # report.py:_owner_transactions builds S3AccountsStore, whose prefix
+            # is read from this env var at import (backend/common/accounts_store.py).
+            "WRITABLE_ACCOUNTS_PREFIX": WRITABLE_ACCOUNTS_PREFIX,
+            "CONTRIBUTION_SCHEDULES_URI": f"s3://{bucket_name}/{CONTRIBUTION_SCHEDULES_PREFIX}",
+            "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
+            # Same backend.auth import-time SECRET_KEY check as the other jobs.
+            "JWT_SECRET": jwt_secret,
+        }
+        if data_repo:
+            guardian_env["DATA_REPO"] = data_repo
+
+        guardian_fn = _lambda.DockerImageFunction(
+            self,
+            "AllowanceGuardianLambda",
+            code=_lambda.DockerImageCode.from_image_asset(
+                str(project_root),
+                file="backend/Dockerfile.lambda",
+                cmd=["backend.lambda_api.allowance_guardian.lambda_handler"],
+            ),
+            environment=guardian_env,
+            log_group=self._lambda_log_group(self, "AllowanceGuardianLambdaLogGroup"),
+            # Matches AllowanceGuardianBot.timeout_minutes (a stale "running"
+            # record is treated as crashed after that long).
+            timeout=Duration.minutes(10),
+            memory_size=512,
+        )
+        guardian_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:GetObject"],
+                resources=[data_bucket.arn_for_objects("accounts/*/person.json")]
+                + [
+                    data_bucket.arn_for_objects(f"{prefix}/*")
+                    for prefix in (
+                        CONTRIBUTION_SCHEDULES_PREFIX,
+                        WRITABLE_ACCOUNTS_PREFIX,
+                        BOTS_PREFIX,
+                    )
+                ],
+            )
+        )
+        self._grant_bucket_access(
+            guardian_fn,
+            bucket=data_bucket,
+            allow_read=False,
+            allow_put=True,
+            allow_list=True,
+            list_prefix=("accounts", CONTRIBUTION_SCHEDULES_PREFIX, WRITABLE_ACCOUNTS_PREFIX),
+            put_prefix=(BOTS_PREFIX,),
+        )
+        events.Rule(
+            self,
+            "MonthlyAllowanceGuardianRun",
+            schedule=events.Schedule.cron(minute="0", hour="4", day="1"),
+            targets=[targets.LambdaFunction(guardian_fn, retry_attempts=0)],
+        )
+        return guardian_fn
+
     def _bedrock_model_id(self) -> str:
         return (
             self.node.try_get_context("bedrock_model_id")
@@ -973,6 +1092,12 @@ class BackendLambdaStack(Stack):
                 # nobody could save a first plan or journal entry.
                 PLANS_PREFIX,
                 DECISION_JOURNAL_PREFIX,
+                # Contribution schedules (#10495): load_schedule →
+                # OwnerDocumentStore.read → S3JSONStorage.load_existing, which
+                # reads a never-saved <owner>.json as empty only when it is a
+                # NoSuchKey; without ListBucket it is a 403 and GET/PUT
+                # /allowance-guardian/{owner}/schedule would fail.
+                CONTRIBUTION_SCHEDULES_PREFIX,
                 # Goals and goal history (#11292, #11299): goals.py write paths
                 # read through S3JSONStorage.load_existing, which needs a
                 # not-yet-created goals/goals.json to be a NoSuchKey rather
@@ -1168,6 +1293,11 @@ class BackendLambdaStack(Stack):
             # bucket-wide Get/PutObject grant below.
             "PLANS_URI": f"s3://{bucket_name}/{PLANS_PREFIX}",
             "DECISION_JOURNAL_URI": f"s3://{bucket_name}/{DECISION_JOURNAL_PREFIX}",
+            # GET/PUT /allowance-guardian/{owner}/schedule (#10495):
+            # schedule.py:load_schedule/save_schedule → OwnerDocumentStore,
+            # covered by the bucket-wide Get/PutObject grant below; the
+            # monthly AllowanceGuardianLambda reads the same documents.
+            "CONTRIBUTION_SCHEDULES_URI": f"s3://{bucket_name}/{CONTRIBUTION_SCHEDULES_PREFIX}",
             "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
             # Goals and goal history (#11292): read by backend/common/goals.py at
             # import; granted by _grant_goals_access below.
@@ -2005,6 +2135,15 @@ class BackendLambdaStack(Stack):
             list_prefixes=lambda_list_prefixes["retirement_readiness"],
         )
 
+        allowance_guardian_fn = self._add_allowance_guardian_lambda(
+            project_root=project_root,
+            data_bucket=data_bucket,
+            env=env,
+            data_branch=data_branch,
+            data_repo=data_repo,
+            jwt_secret=jwt_secret,
+        )
+
         # Scheduled function to email a pension performance report (issue #2758)
         pension_report_code = _lambda.DockerImageCode.from_image_asset(
             str(project_root),
@@ -2274,6 +2413,7 @@ class BackendLambdaStack(Stack):
             "trend-watch": trend_watch_fn,
             "decision-journal": decision_journal_fn,
             "retirement-readiness": retirement_readiness_fn,
+            "allowance-guardian": allowance_guardian_fn,
         }
         for bot_fn in bot_lambdas.values():
             bot_fn.grant_invoke(backend_fn)

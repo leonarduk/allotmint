@@ -50,6 +50,8 @@ BACKEND_LIST_PREFIXES = (
     # missing-vs-denied for backend/common/owner_documents.py.
     "plans",
     "decision_journal",
+    # Contribution schedules (#10495): missing-vs-denied for OwnerDocumentStore.read.
+    "contribution_schedules",
     # Goals (#11292, #11299): missing-vs-denied for load_existing in goals.py.
     "goals",
     # Last-visit records (#11195): missing-vs-denied for backend/common/last_visit.py.
@@ -90,6 +92,10 @@ DECISION_JOURNAL_LIST_PREFIXES = ("plans", "decision_journal", WRITABLE_ACCOUNTS
 # retirement_readiness: owners from plans/, portfolios and the price snapshot
 # like trading_agent (backend/retirement/bot.py, #10510).
 RETIREMENT_READINESS_LIST_PREFIXES = ("accounts", "prices", "plans")
+# allowance_guardian: owner discovery (S3DataProvider.list_plots on accounts/),
+# missing-vs-denied for a never-saved schedule, and the writable transactions
+# store (S3AccountsStore.iter_transaction_documents) (#10495).
+ALLOWANCE_GUARDIAN_LIST_PREFIXES = ("accounts", "contribution_schedules", WRITABLE_ACCOUNTS_PREFIX)
 
 
 def _stack_template() -> dict:
@@ -751,6 +757,7 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
         "TrendWatchLambda",
         "DecisionJournalLambda",
         "RetirementReadinessLambda",
+        "AllowanceGuardianLambda",
     ]
     forbidden = {"s3:DeleteObject", "s3:DeleteObjectVersion"}
 
@@ -1295,6 +1302,10 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # (#11292), which test_backend_lambda_goals_env_points_at_goals_objects checks.
 # LAST_VISIT_PREFIX duplicates backend.common.last_visit.S3_PREFIX (#11195),
 # checked by test_backend_lambda_keeps_last_visit_records_under_their_own_prefix.
+# CONTRIBUTION_SCHEDULES_PREFIX reaches the backend only via
+# CONTRIBUTION_SCHEDULES_URI (#10495); its name matches
+# backend.allowance_guardian.schedule.SCHEDULES_DIRNAME, checked by
+# test_plans_and_decision_journal_live_in_s3.
 _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
     {
         "WRITABLE_ACCOUNTS_PREFIX",
@@ -1308,6 +1319,7 @@ _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
         "DECISION_JOURNAL_PREFIX",
         "GOALS_PREFIX",
         "LAST_VISIT_PREFIX",
+        "CONTRIBUTION_SCHEDULES_PREFIX",
     }
 )
 
@@ -1453,6 +1465,7 @@ def test_bot_lambdas_share_the_bots_storage_prefix() -> None:
         "TrendWatchLambda",
         "DecisionJournalLambda",
         "RetirementReadinessLambda",
+        "AllowanceGuardianLambda",
     ):
         parts = _lambda_env(template, fragment)["BOTS_STORAGE_URI"]["Fn::Join"][1]
         assert parts[0] == "s3://" and parts[-1] == "/bots", fragment
@@ -1470,6 +1483,7 @@ def test_bot_lambdas_can_read_and_write_their_run_records() -> None:
         "TrendWatchLambda",
         "DecisionJournalLambda",
         "RetirementReadinessLambda",
+        "AllowanceGuardianLambda",
     ):
         role = _role_logical_id_for_lambda(template, fragment)
         reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
@@ -1492,6 +1506,7 @@ def test_backend_lambda_can_start_each_bot_lambda() -> None:
         "trend-watch",
         "decision-journal",
         "retirement-readiness",
+        "allowance-guardian",
     ):
         assert bot_id in mapping
     backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
@@ -1714,12 +1729,18 @@ def test_backend_lambda_gets_the_deploy_app_version(monkeypatch) -> None:
             ("decision_journal", "store.py"),
             "JOURNAL_DIRNAME",
         ),
+        (
+            "CONTRIBUTION_SCHEDULES_URI",
+            "CONTRIBUTION_SCHEDULES_PREFIX",
+            ("allowance_guardian", "schedule.py"),
+            "SCHEDULES_DIRNAME",
+        ),
     ],
 )
 def test_plans_and_decision_journal_live_in_s3(
     env_var, constant, backend_file, dirname_constant
 ) -> None:
-    """The backend Lambda keeps plans and journals in S3, not its ephemeral /tmp/data (#11159).
+    """The backend Lambda keeps plans, journals and schedules in S3, not /tmp/data (#11159, #10495).
 
     The URI points at the prefix the backend uses locally, GetObject/PutObject
     come from the bucket-wide grant, and ListBucket on the prefix lets owner
@@ -1888,6 +1909,91 @@ def test_retirement_readiness_runs_quarterly() -> None:
         )
     ]
     assert [rule["ScheduleExpression"] for rule in rules] == ["cron(0 9 1 1,4,7,10 ? *)"]
+
+
+# ---------------------------------------------------------------------------
+# AllowanceGuardianLambda (issue #10495)
+# ---------------------------------------------------------------------------
+
+
+def test_allowance_guardian_lambda_env_points_at_its_stores() -> None:
+    template = _stack_template()
+    env = _lambda_env(template, "AllowanceGuardianLambda")
+    for key, suffix in (
+        ("CONTRIBUTION_SCHEDULES_URI", "/contribution_schedules"),
+        ("BOTS_STORAGE_URI", "/bots"),
+    ):
+        parts = env[key]["Fn::Join"][1]
+        assert parts[0] == "s3://" and parts[-1] == suffix, key
+    assert env["WRITABLE_ACCOUNTS_PREFIX"] == WRITABLE_ACCOUNTS_PREFIX
+    assert env["APP_ENV"] == "aws"
+    assert "DATA_BUCKET" in env and "JWT_SECRET" in env
+    # No MCP server: the bot never asks for explanations (report.run without explain).
+    assert "MCP_SERVER_URL" not in env
+
+
+def test_allowance_guardian_lambda_writes_only_run_records() -> None:
+    """PutObject on bots/* only: never schedules, transactions or accounts (#10495)."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "AllowanceGuardianLambda")
+
+    writes = [str(r) for r in _resources_for_s3_action(template, role, "s3:PutObject")]
+    assert len(writes) == 1 and "'/bots/*']]}" in writes[0], writes
+    assert _s3_actions_for_role(template, role) == {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
+
+
+def test_allowance_guardian_lambda_reads_only_what_its_call_chain_reads() -> None:
+    """GetObject on person.json, schedules, writable accounts and bots/; no bucket-wide read."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "AllowanceGuardianLambda")
+
+    reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
+    for suffix in (
+        "/accounts/*/person.json",
+        "/contribution_schedules/*",
+        f"/{WRITABLE_ACCOUNTS_PREFIX}/*",
+        "/bots/*",
+    ):
+        assert any(f"'{suffix}']]}}" in r for r in reads), (suffix, reads)
+    assert len(reads) == 4, reads
+    assert not any(r.endswith("'/*']]}") for r in reads), reads
+    assert not any("timeseries" in r for r in reads), reads
+
+    conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
+    assert conditions == [_expected_prefix_condition(ALLOWANCE_GUARDIAN_LIST_PREFIXES)], conditions
+
+
+def test_allowance_guardian_lambda_has_no_model_or_invoke_grants() -> None:
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "AllowanceGuardianLambda")
+    actions = [
+        action
+        for resource in template["Resources"].values()
+        if resource.get("Type") == "AWS::IAM::Policy"
+        and {"Ref": role} in resource["Properties"].get("Roles", [])
+        for statement in resource["Properties"]["PolicyDocument"]["Statement"]
+        for action in (
+            [statement["Action"]]
+            if isinstance(statement.get("Action"), str)
+            else statement.get("Action", [])
+        )
+    ]
+    assert not [a for a in actions if a.startswith(("bedrock:", "lambda:"))], actions
+
+
+def test_allowance_guardian_runs_monthly_at_four_utc() -> None:
+    """Matches backend.allowance_guardian.bot.MONTHLY: 04:00 UTC on the 1st."""
+    template = _stack_template()
+    rules = [
+        resource["Properties"]
+        for resource in template["Resources"].values()
+        if resource.get("Type") == "AWS::Events::Rule"
+        and any(
+            "AllowanceGuardianLambda" in str(target.get("Arn"))
+            for target in resource["Properties"].get("Targets", [])
+        )
+    ]
+    assert [rule["ScheduleExpression"] for rule in rules] == ["cron(0 4 1 * ? *)"]
 
 
 # ---------------------------------------------------------------------------

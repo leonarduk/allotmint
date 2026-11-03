@@ -3,6 +3,7 @@ import { loadEnv, type PluginOption } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
 import fs from 'node:fs'
+import { allotmintPlugins } from './vite/allotmintPlugins.ts'
 
 // Local dev instances (e.g. separate worktrees/clones) each run their own
 // backend on a port chosen by scripts/bash/run-local-api.sh or
@@ -37,7 +38,10 @@ function ensureAppBaseUrl(mode: string): void {
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
   const plugins: PluginOption[] = [
-    ...react()
+    ...react(),
+    // Build-time frontend plugins (#6836): resolves `virtual:allotmint-plugins`
+    // from ALLOTMINT_PLUGIN_ENTRIES, or to an empty list when it is unset.
+    allotmintPlugins({ hostRoot: import.meta.dirname })
   ]
 
   // Prerender/PWA plugins were intentionally removed because this app now ships
@@ -60,7 +64,9 @@ export default defineConfig(({ command, mode }) => {
     plugins,
     resolve: {
       alias: {
-        '@': path.resolve(import.meta.dirname, 'src')
+        '@': path.resolve(import.meta.dirname, 'src'),
+        // The only host module frontend plugins may import from (#6836).
+        '@allotmint/host': path.resolve(import.meta.dirname, 'src/plugin-host/api.ts')
       }
     },
     server: {

@@ -76,3 +76,41 @@ That manifest is the source of truth for:
 - route segments stay unique,
 - menu metadata points at valid categories, and
 - standalone lazy routes remain registered through the manifest.
+
+## Build-time plugin pages
+
+Pages can also come from build-time frontend plugins (#6836, see
+[the ADR](decisions/6836-pro-frontend-plugin-packaging.md)). The public build
+has none, so the manifest above is the whole app.
+
+- `frontend/vite/allotmintPlugins.ts` resolves `virtual:allotmint-plugins`.
+  With `ALLOTMINT_PLUGIN_ENTRIES` unset or empty it is
+  `export const plugins = [];`. Otherwise it imports each listed entry file
+  (separated by `:` on POSIX, `;` on Windows; relative paths resolve against
+  the directory Vite runs in). A missing entry, or an entry declaring a
+  `hostApiVersion` other than the host's, fails the build.
+- Each entry's default export is an `AllotmintFrontendPlugin`
+  (`frontend/src/plugin-host/contract.ts`), or an array of them. Plugins import
+  host code only from `@allotmint/host` (`frontend/src/plugin-host/api.ts`).
+  Bare imports such as `react` resolve against the host's `node_modules`.
+- `frontend/src/plugin-host/registry.ts` is the only module allowed to import
+  the virtual module (ESLint enforces this). It appends plugin `pages` to the
+  manifest after the free entries and merges plugin `configDefaults.tabs`
+  into ConfigContext's default tabs. A plugin page whose mode or route segment
+  collides with a free one or another plugin's, or a plugin setting a tab
+  default for a mode it does not own, throws when the app loads.
+
+To try a plugin locally:
+
+```bash
+cd frontend
+ALLOTMINT_PLUGIN_ENTRIES=/abs/path/to/plugin/index.ts npm run dev
+```
+
+Guardrails: `frontend/tests/unit/plugin-host/freeBuildSnapshot.test.tsx` pins
+the free route table, nav order and default tabs;
+`frontend/tests/unit/plugin-host/fixturePlugin.test.tsx` covers the
+plugin-present path with a fixture; and CI's frontend smoke job runs
+`frontend/scripts/verify-plugin-build.mjs`, which builds with the out-of-tree
+fixture in `tests/frontend-plugin-fixture/` and checks the public build never
+contains it.

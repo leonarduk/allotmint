@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { getConfig } from "./api";
+import { assertNoCollisions, pluginTabDefaults } from "./plugin-host/registry";
 
 const LEGACY_BASE_CURRENCY_KEY = "baseCurrency";
 
@@ -99,7 +100,7 @@ export interface RawConfig {
   base_currency?: string | null;
 }
 
-const defaultTabs: TabsConfig = {
+const freeDefaultTabs: TabsConfig = {
   group: true,
   market: true,
   owner: true,
@@ -145,6 +146,12 @@ const defaultTabs: TabsConfig = {
   // fixtures without it keep working. The Bots page (#10477).
   bots: true,
 };
+
+// Build-time frontend plugins (#6836) add defaults for their own tabs; the
+// public build has none, so this equals freeDefaultTabs. A plugin tab key
+// that collides with a free one throws here.
+assertNoCollisions(Object.keys(freeDefaultTabs));
+const defaultTabs: TabsConfig = { ...freeDefaultTabs, ...pluginTabDefaults };
 
 export interface ConfigContextValue extends AppConfig {
   refreshConfig: () => Promise<void>;

@@ -2,6 +2,7 @@ import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { TabsConfig } from '../ConfigContext';
 import type { Mode } from '../modes';
 import { DEFAULT_GROUP_SLUG } from '../utils/groups';
+import { assertNoCollisions, pluginPages } from '../plugin-host/registry';
 
 export type RouteSection = 'user' | 'support' | 'standalone';
 export type MenuSection = Extract<RouteSection, 'user' | 'support'>;
@@ -71,7 +72,7 @@ const routeContext = ({
   group: group ?? selectedGroup ?? '',
 });
 
-export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
+const FREE_ROUTE_REGISTRY: RouteRegistryEntry[] = [
   {
     mode: 'group',
     routeSegment: null,
@@ -469,6 +470,22 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     routePath: '/create-account',
     lazyComponent: lazyPage(() => import('../pages/CreateAccountPage')),
   },
+];
+
+// Build-time frontend plugins (#6836) append their pages after the free
+// entries; the public build has none, so this is FREE_ROUTE_REGISTRY as-is.
+// A plugin page reusing a free mode or route segment throws here.
+assertNoCollisions(
+  FREE_ROUTE_REGISTRY.flatMap((entry) =>
+    entry.routeSegment ? [entry.mode, entry.routeSegment] : [entry.mode]
+  )
+);
+
+// Plugin modes are deliberately outside the free `Mode` union (the whole
+// point is that free code never names them), so they are cast in here.
+export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
+  ...FREE_ROUTE_REGISTRY,
+  ...(pluginPages as readonly RouteRegistryEntry[]),
 ];
 
 export const pageManifest = ROUTE_REGISTRY;

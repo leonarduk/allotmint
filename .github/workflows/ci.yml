@@ -422,6 +422,12 @@ jobs:
             exit 1
           fi
           echo "✓ base href is relative (no absolute http:// or https:// base found)"
+      # Build-time frontend plugins (#6836): the preview build above has no
+      # plugins and must not contain the fixture plugin; a second build with
+      # ALLOTMINT_PLUGIN_ENTRIES pointing outside frontend/ must bundle it.
+      - name: Verify frontend plugin build guard
+        run: node scripts/verify-plugin-build.mjs
+        working-directory: frontend
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
         working-directory: frontend

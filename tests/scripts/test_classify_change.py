@@ -405,6 +405,8 @@ class TestAreasForPath:
     def test_narrow_rules_win_over_the_broader_rules_they_sit_inside(self) -> None:
         # tests/bash/** must not be swallowed by tests/** -> backend.
         assert set(areas_for_path("tests/bash/deploy.bats")) == {"shell"}
+        # The out-of-tree frontend plugin fixture is built by frontend CI.
+        assert set(areas_for_path("tests/frontend-plugin-fixture/index.ts")) == {"frontend"}
         # ...while its general case still lands on backend.
         assert set(areas_for_path("tests/test_app.py")) == {"backend"}
         assert set(areas_for_path("scripts/check_contract_version_sync.py")) == {"backend"}

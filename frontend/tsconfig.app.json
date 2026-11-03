@@ -30,6 +30,9 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@allotmint/host": [
+        "src/plugin-host/api.ts"
       ]
     }
   },

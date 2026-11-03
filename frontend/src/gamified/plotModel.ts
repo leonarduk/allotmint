@@ -364,6 +364,8 @@ export function bedNameFor(accountType: string): string {
 export interface Bed {
   id: string;
   name: string;
+  /** Raw account type ("isa", "sipp"…), for explaining the tax wrapper. */
+  accountType: string;
   icon: string;
   owner: string | null;
   valueGbp: number;
@@ -380,6 +382,7 @@ export function bedFromAccount(account: Account, index: number): Bed {
     // account type for several people.
     id: `${account.owner ?? 'plot'}:${type}`,
     name: bedNameFor(type),
+    accountType: type,
     icon: bedIconFor(type),
     owner: account.owner ?? null,
     valueGbp: account.value_estimate_gbp ?? 0,

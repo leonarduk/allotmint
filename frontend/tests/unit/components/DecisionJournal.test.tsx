@@ -130,6 +130,46 @@ describe('DecisionJournal', () => {
     );
   });
 
+  it('shows the context summary and keeps it out of the reasoning (#10487)', async () => {
+    api.createDecisionDraft.mockResolvedValue({
+      ...draft,
+      snapshot: {
+        ...draft.snapshot,
+        summary: 'AAA.L was sold, taking its weight from 30% to 20%.',
+      },
+    });
+    render(<DecisionJournal owner="alex" />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Log this decision?' })
+    );
+    expect(
+      await screen.findByText(
+        'AAA.L was sold, taking its weight from 30% to 20%.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Context at the time \(AI summary, facts only\)/)
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Your reasoning')).toHaveValue('');
+  });
+
+  it('says why a draft has no context summary', async () => {
+    api.createDecisionDraft.mockResolvedValue({
+      ...draft,
+      snapshot: {
+        ...draft.snapshot,
+        summary_note: 'No context summary: the summary model failed.',
+      },
+    });
+    render(<DecisionJournal owner="alex" />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Log this decision?' })
+    );
+    expect(
+      await screen.findByText('No context summary: the summary model failed.')
+    ).toBeInTheDocument();
+  });
+
   it('cancelling a draft writes nothing', async () => {
     render(<DecisionJournal owner="alex" />);
     fireEvent.click(

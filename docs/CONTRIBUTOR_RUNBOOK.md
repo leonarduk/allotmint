@@ -449,6 +449,12 @@ export CHAT_MODEL=qwen3.5:9b         # any tool-calling model; defaults: qwen3.5
 bash scripts/bash/run-local-api.sh
 ```
 
+A chat turn has no time limit locally. Anywhere else (`app_env` not `local`)
+it stops after 25s and replies "took too long, try a narrower question". On
+AWS, API Gateway's HTTP API cuts the request off at 30s anyway, and the user
+would otherwise see a bare 503 (#7945). `CHAT_TURN_TIMEOUT_SECONDS` overrides
+the limit; `0` turns it off.
+
 To run the MCP server on its own, in the foreground in a separate terminal,
 use its startup script. It loads the same `.env` / `.env.shared` as the
 backend scripts and takes an optional port (default `MCP_SERVER_PORT`, else
@@ -745,16 +751,16 @@ The script runs each check in sequence and prints a `PASS` / `FAIL` / `SKIP` lin
 
 Checks performed:
 
-1. **Deployment environment variables** — validates that `DATA_BUCKET`, `JWT_SECRET`, and `GOOGLE_CLIENT_ID` are set. If AWS credentials are detected, also validates `AWS_REGION` and `GITHUB_DEPLOY_ROLE_ARN`. See "[Deployment environment variables](#deployment-environment-variables-required-for-awsgithub-actions-deployment)" above for details.
+0. **Deployment environment variables** — validates that `DATA_BUCKET`, `JWT_SECRET`, and `GOOGLE_CLIENT_ID` are set. If AWS credentials are detected, also validates `AWS_REGION` and `GITHUB_DEPLOY_ROLE_ARN`. See "[Deployment environment variables](#deployment-environment-variables-required-for-awsgithub-actions-deployment)" above for details.
    - `GITHUB_DEPLOY_ROLE_ARN` is required when deploying with AWS credentials because it is read by CDK at synthesis time (not deploy time) to grant the deploy role permission to invoke Lambda functions and call Cognito APIs. If absent during synthesis, those grants are silently omitted and the deploy succeeds but subsequent workflow steps fail. See `docs/DEPLOY.md` ("Critical: `GITHUB_DEPLOY_ROLE_ARN` environment variable for CDK synth") for details.
-2. **Dependency dry-run** — pip conflict detection before Docker build.
-3. **CDK synth + diff** — confirms the stacks synthesise cleanly and shows what would change (requires `AWS_ACCESS_KEY_ID`, `GITHUB_DEPLOY_ROLE_ARN`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `DATA_BUCKET`).
-4. **IAM permission simulation** — verifies the deploy role has the S3/Lambda/CloudFormation permissions needed by the deploy workflow (requires AWS credentials and `GITHUB_DEPLOY_ROLE_ARN`).
-5. **Backend lint + tests** — `make lint` and `pytest`.
-6. **Frontend lint + tests** — `npm --prefix frontend run lint` and Vitest.
-7. **CDK tests** — `cdk/tests/` pytest suite.
+1. **Dependency dry-run** — pip conflict detection before Docker build.
+2. **CDK synth + diff** — confirms the stacks synthesise cleanly and shows what would change (requires `AWS_ACCESS_KEY_ID`, `GITHUB_DEPLOY_ROLE_ARN`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `DATA_BUCKET`).
+3. **IAM permission simulation** — verifies the deploy role has the S3/Lambda/CloudFormation permissions needed by the deploy workflow (requires AWS credentials and `GITHUB_DEPLOY_ROLE_ARN`).
+4. **Backend lint + tests** — `make lint` and `pytest`.
+5. **Frontend lint + tests** — `npm --prefix frontend run lint` and Vitest.
+6. **CDK tests** — `cdk/tests/` pytest suite.
 
-To run only some checks, set `PRE_DEPLOY_CHECK_SECTIONS` to the section numbers the script prints in its `=== N.` headers. These run 0–6, one lower than the list above. For example, `PRE_DEPLOY_CHECK_SECTIONS=3` runs just the IAM simulation. Both scripts honour it, and `tests/scripts/test_pre_deploy_check_lookup_failure.py` uses it to run the IAM section offline.
+To run only some checks, set `PRE_DEPLOY_CHECK_SECTIONS` to the numbers in the list above, which match the `=== N.` headers the script prints: section 0 is the environment-variable validation and section 6 the CDK tests. For example, `PRE_DEPLOY_CHECK_SECTIONS=3` runs just the IAM simulation. Both scripts honour it, and `tests/scripts/test_pre_deploy_check_lookup_failure.py` uses it to run the IAM section offline.
 
 ### What to expect during the automated deploy job
 

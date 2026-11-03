@@ -356,3 +356,44 @@ def test_remove_goal_missing_raises_404(monkeypatch):
         goals._remove_goal("demo-owner", "Missing")
 
     assert exc.value.status_code == 404
+
+
+def _write_conflict(*_args):
+    raise goals.GoalHistoryWriteConflict("raced")
+
+
+def test_record_progress_write_conflict_becomes_409(monkeypatch, fake_goal_class):
+    """A conditional history write that kept losing races answers 409, not 500 (#11291)."""
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake_goal_class("Car", 10.0, datetime.date(2030, 1, 1))])
+    monkeypatch.setattr(goals, "record_goal_amount", _write_conflict)
+
+    with pytest.raises(HTTPException) as exc:
+        goals._record_progress("owner", "Car", goals.ProgressPayload(amount=1.0, on=datetime.date(2026, 1, 1)))
+
+    assert exc.value.status_code == 409
+
+
+def test_update_goal_history_write_conflict_becomes_409_without_saving(monkeypatch, fake_goal_class):
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [fake_goal_class("Old", 1.0, datetime.date(2030, 1, 1))])
+    monkeypatch.setattr(goals, "rename_goal_history", _write_conflict)
+
+    def fail_save(owner, goals_list):  # pragma: no cover - safety guard
+        pytest.fail("goal should not be saved")
+
+    monkeypatch.setattr(goals, "save_goals", fail_save)
+    payload = goals.GoalPayload(name="New", target_amount=1.0, target_date=datetime.date(2031, 1, 1))
+
+    with pytest.raises(HTTPException) as exc:
+        goals._update_goal("demo-owner", "Old", payload)
+
+    assert exc.value.status_code == 409
+
+
+def test_remove_goal_history_write_conflict_becomes_409(monkeypatch):
+    monkeypatch.setattr(goals, "load_goals", lambda owner: [FakeGoal("Keep", 1.0, datetime.date(2032, 1, 1))])
+    monkeypatch.setattr(goals, "delete_goal", _write_conflict)
+
+    with pytest.raises(HTTPException) as exc:
+        goals._remove_goal("demo-owner", "Keep")
+
+    assert exc.value.status_code == 409

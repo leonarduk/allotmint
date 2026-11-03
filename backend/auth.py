@@ -634,7 +634,11 @@ async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
                 "Local login override and select a user to continue in local/demo mode."
             ),
         )
-    return _user_from_token(token_str)
+    user = _user_from_token(token_str)
+    # Bound for routes that only have the router-level dependency, such as the
+    # group routes: their member lists are filtered as this identity (#10531).
+    current_user.set(user)
+    return user
 
 
 def _iter_override_mappings(request: Request) -> list[Mapping[Any, Callable[..., Any]]]:

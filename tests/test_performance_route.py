@@ -390,11 +390,13 @@ def test_group_metrics_not_found(path, func_name, expected_args, expected_kwargs
 
 
 def test_owner_performance_success(monkeypatch):
-    def fake(owner, *, days, include_cash, pricing_date=None):
+    def fake(owner, *, days, include_cash, pricing_date=None, ledger_cumulative_return=False):
         assert owner == "alice"
         assert days == 30
         assert include_cash is False
         assert pricing_date is None
+        # The route asks for the ledger total-return basis (#10128).
+        assert ledger_cumulative_return is True
         return {
             "total_return": 9.9,
             "reporting_date": "2024-03-01",
@@ -414,7 +416,7 @@ def test_owner_performance_success(monkeypatch):
 
 
 def test_owner_performance_not_found(monkeypatch):
-    def fake(owner, *, days, include_cash, pricing_date=None):
+    def fake(owner, *, days, include_cash, pricing_date=None, ledger_cumulative_return=False):
         assert owner == "missing"
         assert days == 365
         assert include_cash is True

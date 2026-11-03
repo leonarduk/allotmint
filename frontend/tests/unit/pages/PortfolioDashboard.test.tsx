@@ -177,6 +177,30 @@ describe("PortfolioDashboard page", () => {
     });
   });
 
+  describe("total return basis (#10128)", () => {
+    it("says total return is unavailable instead of drawing a 0% line", () => {
+      renderDashboard({
+        data: [
+          { date: "2024-01-01", value: 1000, cumulative_return: null },
+          { date: "2024-02-01", value: 1050, cumulative_return: null },
+        ],
+      });
+
+      expect(screen.getByTestId("total-return-unavailable")).toHaveTextContent(
+        /Total return is unavailable/,
+      );
+      // Only the value chart is drawn.
+      expect(screen.getAllByTestId("line-chart")).toHaveLength(1);
+    });
+
+    it("plots the total return when it is available", () => {
+      renderDashboard();
+
+      expect(screen.queryByTestId("total-return-unavailable")).toBeNull();
+      expect(screen.getByTestId("line-cumulative_return")).toBeInTheDocument();
+    });
+  });
+
   // #8570: benchmark-relative metrics are fractions; no "|x| > 1 means
   // percent" guess, and implausible values are N/A rather than rescaled.
   describe("metric units (#8570)", () => {

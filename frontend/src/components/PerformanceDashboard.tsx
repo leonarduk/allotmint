@@ -38,6 +38,10 @@ import {
   type CumulativeComparisonPoint,
 } from "../lib/benchmarkSeries";
 import {
+  CUMULATIVE_RETURN_BASIS_UNAVAILABLE,
+  withTotalReturn,
+} from "../lib/totalReturnSeries";
+import {
   classifyDrawdown,
   DRAWDOWN_RANGE,
   drawdownNeedsAttention,
@@ -67,6 +71,8 @@ const METRIC_LABEL_CLASS = "text-[var(--surface-muted-color)]";
 // Distinct hue and dash so the benchmark never reads as the portfolio line (#7833).
 const PORTFOLIO_LINE_COLOUR = "#82ca9d";
 const BENCHMARK_LINE_COLOUR = "#f59e0b";
+// The ledger total return (#10128): what the portfolio actually earned, income included.
+const TOTAL_RETURN_LINE_COLOUR = "#60a5fa";
 
 // "Open diagnostics" is developer surface, so it is a plain text link like
 // the page's other secondary actions, never a primary button (#7214).
@@ -113,6 +119,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [reportingDate, setReportingDate] = useState<string | null>(null);
   const [previousDate, setPreviousDate] = useState<string | null>(null);
   const [partialMembers, setPartialMembers] = useState<string[]>([]);
+  // Basis of history[].cumulative_return (#10128): the ledger total return,
+  // or "unavailable" (no ledger, or cash excluded) with the reason.
+  const [cumulativeBasis, setCumulativeBasis] = useState<{
+    basis: string | null;
+    reason: string | null;
+  }>({ basis: null, reason: null });
   // A metric endpoint failing must not blank the whole dashboard -- each of
   // the four performance-metric fetches below is settled independently so
   // the rest of the page still renders with the failed metric(s) shown as
@@ -224,6 +236,10 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
               setReportingDate(perf.reportingDate ?? null);
               setPreviousDate(perf.previousDate ?? null);
               setPartialMembers(perf.partial ? perf.missingMembers ?? [] : []);
+              setCumulativeBasis({
+                basis: perf.cumulativeReturnBasis ?? null,
+                reason: perf.cumulativeReturnUnavailableReason ?? null,
+              });
             },
           ),
       };
@@ -253,6 +269,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setReportingDate(null);
     setPreviousDate(null);
     setPartialMembers([]);
+    setCumulativeBasis({ basis: null, reason: null });
     setDrawdownSeries([]);
     setDrawdownPeak(null);
     setDrawdownTrough(null);
@@ -303,6 +320,9 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   // no overlapping prices; picks the fallback message (#7833).
   const benchmarkFailed = failedMetrics.includes("alpha");
   const perfUnavailable = failedMetrics.includes("performance");
+  // No ledger total return to plot: say why rather than draw a 0% line (#10128).
+  const totalReturnUnavailable =
+    cumulativeBasis.basis === CUMULATIVE_RETURN_BASIS_UNAVAILABLE;
 
   const formatSummaryDate = (value: string | null) => {
     if (!value) return "—";
@@ -731,19 +751,36 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             className={METRIC_LABEL_CLASS}
             style={{ fontSize: "0.8rem", marginTop: 0 }}
           >
-            {t(
-              "dashboard.twrVsCumulative",
-              "Time-weighted return follows the holdings you actually held each day and strips out the timing of deposits and withdrawals, while this chart shows how your current holdings would have performed over the whole period, so the two can differ widely.",
-            )}
+            {t("dashboard.twrVsCumulative")}
           </p>
+          {totalReturnUnavailable && (
+            <p
+              data-testid="total-return-unavailable"
+              style={{ fontSize: "0.8rem", color: "#facc15", marginTop: 0 }}
+            >
+              {cumulativeBasis.reason === "exclude_cash"
+                ? t("dashboard.totalReturnExcludesCash")
+                : t("dashboard.totalReturnNoLedger")}
+            </p>
+          )}
           {comparison.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={comparison}>
+                <LineChart data={withTotalReturn(comparison, data)}>
                   <XAxis dataKey="date" />
                   <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
                   <Tooltip formatter={formatReturnTooltip} />
                   <Legend />
+                  {!totalReturnUnavailable && (
+                    <Line
+                      type="monotone"
+                      dataKey="total_return"
+                      name={t("dashboard.cumulativeTotalReturn")}
+                      stroke={TOTAL_RETURN_LINE_COLOUR}
+                      dot={false}
+                      connectNulls
+                    />
+                  )}
                   <Line
                     type="monotone"
                     dataKey="portfolio"
@@ -774,19 +811,22 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             </>
           ) : (
             <>
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={data}>
-                  <XAxis dataKey="date" />
-                  <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
-                  <Tooltip formatter={formatReturnTooltip} />
-                  <Line
-                    type="monotone"
-                    dataKey="cumulative_return"
-                    stroke={PORTFOLIO_LINE_COLOUR}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {!totalReturnUnavailable && (
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={data}>
+                    <XAxis dataKey="date" />
+                    <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
+                    <Tooltip formatter={formatReturnTooltip} />
+                    <Line
+                      type="monotone"
+                      dataKey="cumulative_return"
+                      name={t("dashboard.cumulativeTotalReturn")}
+                      stroke={TOTAL_RETURN_LINE_COLOUR}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
               <p
                 data-testid="benchmark-series-unavailable"
                 style={{ fontSize: "0.8rem", color: "#facc15", marginTop: "0.25rem" }}

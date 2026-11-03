@@ -108,6 +108,11 @@ _CADENCE_PERIOD = {"daily": timedelta(days=1), "weekly": timedelta(days=7), "mon
 
 
 def _schedule_period(schedule: Schedule) -> timedelta:
+    if schedule.day is not None and schedule.months:
+        # The longest gap between two of the rule's months, e.g. 3 for (1, 4, 7, 10).
+        months = sorted(set(schedule.months))
+        gaps = [(b - a) % 12 or 12 for a, b in zip(months, months[1:] + months[:1])]
+        return _CADENCE_PERIOD["monthly"] * max(gaps)
     if schedule.day is not None:
         return _CADENCE_PERIOD["monthly"]
     if schedule.weekday is not None:

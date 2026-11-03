@@ -2,6 +2,8 @@ import type { ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Link, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
+import type { OwnerSummary } from '../types';
+import { getGroupDisplayName } from '../utils/groups';
 import styles from './plot.module.css';
 import HudBar from './components/HudBar';
 import PlotRail, { type RailItem } from './components/PlotRail';
@@ -54,22 +56,36 @@ function buildRailItems(t: TFunction): readonly RailItem[] {
   ];
 }
 
+/**
+ * Group options share the `<select>` with owner slugs, so they carry a prefix
+ * that no owner slug can collide with (#7190).
+ */
+const GROUP_OPTION_PREFIX = 'group:';
+
 function OwnerPicker() {
   const { t } = useTranslation();
-  const { owners, pickerOwners, owner } = usePlotData();
+  const { owners, pickerOwners, owner, groups, group } = usePlotData();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Writing `?owner=` here (rather than calling the context's `setOwner`
-  // directly) makes the URL the single source of truth: PlotApp already
-  // derives `requestedOwner` from `location.search` and feeds it into
-  // PlotDataProvider, whose `requestedOwner` effect applies it to state. That
-  // existing round trip is what makes a grower change survive a refresh or a
-  // bookmark instead of only living in local component state (#7192).
-  // `replace` (not the default push) so cycling through growers doesn't spam
-  // the back button with one history entry per selection.
+  // Writing `?owner=` / `?group=` here (rather than calling the context's
+  // `setOwner` directly) makes the URL the single source of truth: PlotApp
+  // already derives `requestedOwner`/`requestedGroup` from `location.search`
+  // and feeds them into PlotDataProvider. That round trip is what makes a
+  // grower change survive a refresh or a bookmark instead of only living in
+  // local component state (#7192). `replace` (not the default push) so
+  // cycling through growers doesn't spam the back button with one history
+  // entry per selection. Only one of the two params is ever kept, so the URL
+  // always names exactly one plot.
   const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const { value } = event.target;
     const next = new URLSearchParams(searchParams);
-    next.set('owner', event.target.value);
+    if (value.startsWith(GROUP_OPTION_PREFIX)) {
+      next.delete('owner');
+      next.set('group', value.slice(GROUP_OPTION_PREFIX.length));
+    } else {
+      next.delete('group');
+      next.set('owner', value);
+    }
     setSearchParams(next, { replace: true });
   };
 
@@ -95,7 +111,17 @@ function OwnerPicker() {
     ? [activeOwnerOutsidePicker, ...pickerOwners]
     : pickerOwners;
 
-  if (optionEntries.length < 2) return null;
+  // Same rule for a deep-linked `?group=` that `/groups` doesn't list (yet):
+  // it keeps its own option so the select never shows a different plot's
+  // name than the one on screen.
+  const groupEntries =
+    group && !groups.some((entry) => entry.slug === group)
+      ? [{ slug: group, name: group, members: [] }, ...groups]
+      : groups;
+
+  // Hidden when there is nothing to switch between — one grower and no
+  // group, which is how the picker has always behaved.
+  if (optionEntries.length + groupEntries.length < 2) return null;
   return (
     <div className={styles.railFooter}>
       <label className={styles.railSubtitle} htmlFor="plot-owner">
@@ -104,17 +130,39 @@ function OwnerPicker() {
       <select
         id="plot-owner"
         className={styles.chipButton}
-        value={owner}
+        value={group ? `${GROUP_OPTION_PREFIX}${group}` : owner}
         onChange={handleChange}
       >
-        {optionEntries.map((entry) => (
-          <option key={entry.owner} value={entry.owner}>
-            {entry.full_name || entry.owner}
-          </option>
-        ))}
+        {groupEntries.length > 0 && (
+          <optgroup label={t('plot.app.wholePlot')}>
+            {groupEntries.map((entry) => (
+              <option
+                key={entry.slug}
+                value={`${GROUP_OPTION_PREFIX}${entry.slug}`}
+              >
+                {getGroupDisplayName(entry.slug, entry.name, t)}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {groupEntries.length > 0 ? (
+          <optgroup label={t('plot.app.growers')}>
+            {renderOwnerOptions(optionEntries)}
+          </optgroup>
+        ) : (
+          renderOwnerOptions(optionEntries)
+        )}
       </select>
     </div>
   );
+}
+
+function renderOwnerOptions(entries: readonly OwnerSummary[]) {
+  return entries.map((entry) => (
+    <option key={entry.owner} value={entry.owner}>
+      {entry.full_name || entry.owner}
+    </option>
+  ));
 }
 
 /**
@@ -141,11 +189,16 @@ function PlotNotFound({ basePath }: { basePath: string }) {
 
 function PlotShell() {
   const { t } = useTranslation();
-  const { loading, error, snapshot, owner, refresh } = usePlotData();
+  const { loading, error, snapshot, owner, group, refresh } = usePlotData();
 
-  // Returning to the classic UI keeps the same grower in scope so the two
-  // skins stay in sync rather than dumping the user on a different owner.
-  const classicPath = owner ? `/?owner=${encodeURIComponent(owner)}` : '/';
+  // Returning to the classic UI keeps the same grower (or group, which the
+  // classic dashboard also reads from `?group=`) in scope so the two skins
+  // stay in sync rather than dumping the user on a different plot.
+  const classicPath = group
+    ? `/?group=${encodeURIComponent(group)}`
+    : owner
+      ? `/?owner=${encodeURIComponent(owner)}`
+      : '/';
 
   return (
     <div className={styles.plotRoot}>
@@ -221,10 +274,15 @@ function PlotShell() {
  */
 export default function PlotApp() {
   const location = useLocation();
-  const requestedOwner = new URLSearchParams(location.search).get('owner');
+  const params = new URLSearchParams(location.search);
+  const requestedOwner = params.get('owner');
+  const requestedGroup = params.get('group');
 
   return (
-    <PlotDataProvider requestedOwner={requestedOwner}>
+    <PlotDataProvider
+      requestedOwner={requestedOwner}
+      requestedGroup={requestedGroup}
+    >
       <PlotShell />
     </PlotDataProvider>
   );

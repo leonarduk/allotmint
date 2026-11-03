@@ -438,10 +438,10 @@
     "returnBasisPriceShort": "price only",
     "returnBasisPriceShare": "{{share}} of value on price only",
     "returnBasisUnpriced": "Left out for want of prices: {{holdings}}",
-    "cumulativeReturnPortfolio": "Your portfolio",
+    "cumulativeReturnPortfolio": "Today's holdings",
     "cumulativeReturnBenchmark": "{{ticker}} (benchmark)",
-    "cumulativeReturnBasis": "Both lines use dividends reinvested, the current holdings and the same dates ({{from}} to {{to}}) as Alpha vs {{ticker}}.",
-    "twrVsCumulative": "Time-weighted return follows the holdings you actually held each day and strips out the timing of deposits and withdrawals, while this chart shows how your current holdings would have performed over the whole period, so the two can differ widely.",
+    "cumulativeReturnBasis": "The current-holdings and benchmark lines use dividends reinvested, today's holdings and the same dates ({{from}} to {{to}}) as Alpha vs {{ticker}}.",
+    "twrVsCumulative": "Total return follows the holdings you actually held each day, includes dividends and interest, and strips out the timing of deposits and withdrawals: the same basis as the time-weighted return and the reports. The current-holdings line instead shows how today's holdings would have performed over the whole period, so the two can differ widely.",
     "benchmarkSeriesFailed": "Couldn't load {{ticker}} for comparison, so only your portfolio's value-based cumulative return is shown.",
     "benchmarkSeriesEmpty": "No {{ticker}} prices overlap this period, so only your portfolio's value-based cumulative return is shown.",
     "trackingErrorInfoLabel": "What does Tracking Error mean?",
@@ -473,7 +473,10 @@
       "unconverted": "No stored FX rate on some days for {{holdings}}; those days' moves are unattributed.",
       "noLedger": "No transaction ledger to attribute.",
       "unavailable": "The P&L attribution is unavailable right now."
-    }
+    },
+    "cumulativeTotalReturn": "Total return (incl. dividends and interest)",
+    "totalReturnNoLedger": "Total return is unavailable: it is rebuilt from the transaction ledger, and there are no transactions to rebuild it from.",
+    "totalReturnExcludesCash": "Total return is unavailable with cash excluded: dividends and interest are paid into cash, so leaving cash out would leave them out too."
   },
   "goals": {
     "add": "Add Goal",
@@ -3343,6 +3346,8 @@
     },
     "app": {
       "grower": "Grower",
+      "wholePlot": "Whole plot",
+      "growers": "Growers",
       "notFoundTitle": "Nothing growing here",
       "notFoundBody": "There's no plot screen at this path.",
       "backToPlot": "Back to the plot",
@@ -3562,7 +3567,9 @@
       "inBeds_one": "in {{count}} bed",
       "inBeds_other": "in {{count}} beds",
       "bedGain": "{{gain}} ({{pct}}) since bought",
-      "bedGainUnknown": "Gain unknown: a purchase cost is missing"
+      "bedGainUnknown": "Gain unknown: a purchase cost is missing",
+      "growerBeds": "{{name}}'s beds · {{value}}",
+      "unknownGrower": "Unnamed grower"
     },
     "model": {
       "unnamedBed": "Unnamed bed",

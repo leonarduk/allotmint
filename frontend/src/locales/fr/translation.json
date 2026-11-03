@@ -444,10 +444,10 @@
     "returnBasisPriceShort": "cours uniquement",
     "returnBasisPriceShare": "{{share}} de la valeur au cours uniquement",
     "returnBasisUnpriced": "Exclues faute de cours : {{holdings}}",
-    "cumulativeReturnPortfolio": "Votre portefeuille",
+    "cumulativeReturnPortfolio": "Positions d'aujourd'hui",
     "cumulativeReturnBenchmark": "{{ticker}} (indice de référence)",
-    "cumulativeReturnBasis": "Les deux courbes utilisent les dividendes réinvestis, les positions actuelles et les mêmes dates ({{from}} au {{to}}) que l'alpha vs {{ticker}}.",
-    "twrVsCumulative": "Le rendement pondéré dans le temps suit les positions réellement détenues chaque jour et neutralise le moment des dépôts et des retraits, tandis que ce graphique montre comment vos positions actuelles auraient évolué sur toute la période ; les deux chiffres peuvent donc beaucoup différer.",
+    "cumulativeReturnBasis": "Les courbes des positions actuelles et de l'indice de référence utilisent les dividendes réinvestis, les positions d'aujourd'hui et les mêmes dates ({{from}} au {{to}}) que l'alpha vs {{ticker}}.",
+    "twrVsCumulative": "Le rendement total suit les positions réellement détenues chaque jour, inclut dividendes et intérêts et neutralise le moment des dépôts et des retraits : la même base que le rendement pondéré dans le temps et les rapports. La courbe des positions actuelles montre plutôt comment vos positions d'aujourd'hui auraient évolué sur toute la période ; les deux peuvent donc beaucoup différer.",
     "benchmarkSeriesFailed": "Impossible de charger {{ticker}} pour la comparaison ; seul le rendement cumulé de votre portefeuille, basé sur sa valeur, est affiché.",
     "benchmarkSeriesEmpty": "Aucun cours de {{ticker}} ne couvre cette période ; seul le rendement cumulé de votre portefeuille, basé sur sa valeur, est affiché.",
     "trackingErrorInfoLabel": "Que signifie l'erreur de suivi ?",
@@ -479,7 +479,10 @@
       "unconverted": "Aucun taux de change enregistré certains jours pour {{holdings}} ; les variations de ces jours ne sont pas attribuées.",
       "noLedger": "Aucun registre de transactions à attribuer.",
       "unavailable": "L'attribution du résultat est indisponible pour le moment."
-    }
+    },
+    "cumulativeTotalReturn": "Rendement total (dividendes et intérêts inclus)",
+    "totalReturnNoLedger": "Rendement total indisponible : il est reconstitué à partir du journal des transactions, et il n'y a aucune transaction pour le faire.",
+    "totalReturnExcludesCash": "Rendement total indisponible sans les liquidités : dividendes et intérêts sont versés en liquidités, les exclure les exclurait aussi."
   },
   "goals": {
     "add": "Ajouter un objectif",
@@ -3350,6 +3353,8 @@
     },
     "app": {
       "grower": "Jardinier",
+      "wholePlot": "Tout le potager",
+      "growers": "Jardiniers",
       "notFoundTitle": "Rien ne pousse ici",
       "notFoundBody": "Il n'y a aucun écran du potager à cette adresse.",
       "backToPlot": "Retour au potager",
@@ -3569,7 +3574,9 @@
       "inBeds_one": "dans {{count}} planche",
       "inBeds_other": "dans {{count}} planches",
       "bedGain": "{{gain}} ({{pct}}) depuis l'achat",
-      "bedGainUnknown": "Plus-value inconnue : un coût d'achat manque"
+      "bedGainUnknown": "Plus-value inconnue : un coût d'achat manque",
+      "growerBeds": "Parcelles de {{name}} · {{value}}",
+      "unknownGrower": "Jardinier sans nom"
     },
     "model": {
       "unnamedBed": "Planche sans nom",

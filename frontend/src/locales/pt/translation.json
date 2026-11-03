@@ -444,10 +444,10 @@
     "returnBasisPriceShort": "apenas preço",
     "returnBasisPriceShare": "{{share}} do valor apenas com preço",
     "returnBasisUnpriced": "Excluídas por falta de preços: {{holdings}}",
-    "cumulativeReturnPortfolio": "A sua carteira",
+    "cumulativeReturnPortfolio": "Posições de hoje",
     "cumulativeReturnBenchmark": "{{ticker}} (referência)",
-    "cumulativeReturnBasis": "Ambas as linhas usam dividendos reinvestidos, as posições atuais e as mesmas datas ({{from}} a {{to}}) que o alfa vs {{ticker}}.",
-    "twrVsCumulative": "A rentabilidade ponderada no tempo acompanha as posições que realmente detinha em cada dia e elimina o efeito do momento dos depósitos e levantamentos, enquanto este gráfico mostra como as suas posições atuais teriam evoluído durante todo o período, pelo que os dois valores podem diferir bastante.",
+    "cumulativeReturnBasis": "As linhas das posições atuais e do índice de referência usam dividendos reinvestidos, as posições de hoje e as mesmas datas ({{from}} a {{to}}) que o alfa vs {{ticker}}.",
+    "twrVsCumulative": "A rentabilidade total acompanha as posições que realmente detinha em cada dia, inclui dividendos e juros e elimina o efeito do momento dos depósitos e levantamentos: a mesma base da rentabilidade ponderada no tempo e dos relatórios. A linha das posições atuais mostra, em vez disso, como as suas posições de hoje teriam evoluído durante todo o período, pelo que as duas podem diferir bastante.",
     "benchmarkSeriesFailed": "Não foi possível carregar {{ticker}} para comparação, por isso só é mostrado o retorno acumulado da sua carteira baseado no valor.",
     "benchmarkSeriesEmpty": "Não há preços de {{ticker}} que coincidam com este período, por isso só é mostrado o retorno acumulado da sua carteira baseado no valor.",
     "trackingErrorInfoLabel": "O que significa o erro de acompanhamento?",
@@ -479,7 +479,10 @@
       "unconverted": "Sem taxa de câmbio guardada em alguns dias para {{holdings}}; os movimentos desses dias não são atribuídos.",
       "noLedger": "Não há registo de transações para atribuir.",
       "unavailable": "A atribuição do resultado não está disponível de momento."
-    }
+    },
+    "cumulativeTotalReturn": "Rentabilidade total (incl. dividendos e juros)",
+    "totalReturnNoLedger": "Rentabilidade total indisponível: é reconstruída a partir do registo de transações e não há transações para o fazer.",
+    "totalReturnExcludesCash": "Rentabilidade total indisponível sem o numerário: dividendos e juros são pagos em numerário, por isso excluí-lo excluí-los-ia também."
   },
   "goals": {
     "add": "Adicionar meta",
@@ -3350,6 +3353,8 @@
     },
     "app": {
       "grower": "Cultivador",
+      "wholePlot": "Horta inteira",
+      "growers": "Cultivadores",
       "notFoundTitle": "Nada a crescer aqui",
       "notFoundBody": "Não existe nenhum ecrã da horta neste caminho.",
       "backToPlot": "Voltar à horta",
@@ -3569,7 +3574,9 @@
       "inBeds_one": "em {{count}} canteiro",
       "inBeds_other": "em {{count}} canteiros",
       "bedGain": "{{gain}} ({{pct}}) desde a compra",
-      "bedGainUnknown": "Ganho desconhecido: falta um custo de compra"
+      "bedGainUnknown": "Ganho desconhecido: falta um custo de compra",
+      "growerBeds": "Canteiros de {{name}} · {{value}}",
+      "unknownGrower": "Cultivador sem nome"
     },
     "model": {
       "unnamedBed": "Canteiro sem nome",

@@ -122,8 +122,9 @@ CHAT_HISTORY_PREFIX = "chat"
 PLAN_BRIEFS_PREFIX = "plan_briefs"
 # Stored retirement readiness runs (#10484, backend/retirement/history.py),
 # one JSON document per owner. Covered by the backend Lambda's bucket-wide
-# Get/PutObject grant; without RETIREMENT_READINESS_URI the store falls back
-# to the read-only image and nothing is ever kept (#10509).
+# Get/PutObject grant and the quarterly RetirementReadinessLambda's put_prefix
+# (#10510); without RETIREMENT_READINESS_URI the store falls back to the
+# read-only image and nothing is ever kept (#10509).
 RETIREMENT_READINESS_PREFIX = "retirement_readiness"
 # Investment plans and decision-journal entries, one <owner>.json each (#11159,
 # backend/common/owner_documents.py). The Lambda's data_root is the empty,
@@ -641,6 +642,103 @@ class BackendLambdaStack(Stack):
         )
         return journal_fn
 
+    def _add_retirement_readiness_lambda(
+        self,
+        *,
+        project_root,
+        data_bucket: s3.Bucket,
+        env: str,
+        data_branch: str,
+        data_repo: str | None,
+        jwt_secret: str,
+        list_prefixes: Sequence[str],
+    ) -> _lambda.DockerImageFunction:
+        """Quarterly retirement readiness run (#10510) at 09:00 UTC on 1 Jan/Apr/Jul/Oct.
+
+        Must match ``backend.retirement.bot.QUARTERLY``. Least privilege,
+        audited along lambda_api/retirement_readiness.py:lambda_handler
+        (system_job_context) → bots/runner.py:handle_lambda_event →
+        retirement/bot.py:RetirementReadinessBot.run → readiness.py:run:
+
+        - Run record and settings: bots/runs.py:save_run and
+          bots/settings.py:load_settings under BOTS_STORAGE_URI: GetObject and
+          PutObject on bots/*.
+        - Owners: bot.py:_owners → common/investment_plan.py:plan_owners →
+          owner_documents.py:OwnerDocumentStore.owners →
+          storage.py:list_s3_json_stems: ListBucket on plans/.
+        - Plan: readiness.py:_plan_weights → investment_plan.py:load_plan →
+          S3JSONStorage.load_existing: GetObject on plans/ (read only; ListBucket
+          makes a missing plan a NoSuchKey, reported as "no investment plan").
+        - Reports: retirement/history.py:previous_run (S3JSONStorage.load) and
+          readiness.py:_store → history.py:save_run: Get/PutObject on
+          retirement_readiness/*, the only data prefix it writes.
+        - Forecast and fees: routes/pension.py:forecast_for_owner →
+          _load_dob (accounts/<owner>/person.json) and
+          common/portfolio.py:build_owner_portfolio (owner discovery lists
+          accounts/, the price snapshot under prices/), also reached from
+          retirement/defaults.py:pension_fee: GetObject, ListBucket on
+          accounts/ and prices/ (as for TradingAgentLambda).
+        - Long-history returns and the gilt yield: long_history.py:
+          _read_s3_text and timeseries/boe_rates.py:load_boe_series read the
+          timeseries cache: read-only timeseries grant.
+        - Contribution schedule: allowance_guardian/schedule.py:load_schedule
+          reads the local data root only, so no S3 grant.
+        - Narrative: retirement/agent.py:_default_llm needs MCP_SERVER_URL,
+          which is not set, so the deterministic template is used: no Bedrock
+          or MCP grant.
+
+        Bucket-wide GetObject like the other portfolio-reading jobs
+        (TrendWatchLambda, PensionReportLambda); no DeleteObject.
+        """
+
+        bucket_name = data_bucket.bucket_name
+        readiness_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            "PLANS_URI": f"s3://{bucket_name}/{PLANS_PREFIX}",
+            "RETIREMENT_READINESS_URI": f"s3://{bucket_name}/{RETIREMENT_READINESS_PREFIX}",
+            "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
+            # Same backend.auth import-time SECRET_KEY check as the other jobs.
+            "JWT_SECRET": jwt_secret,
+        }
+        if data_repo:
+            readiness_env["DATA_REPO"] = data_repo
+
+        readiness_fn = _lambda.DockerImageFunction(
+            self,
+            "RetirementReadinessLambda",
+            code=_lambda.DockerImageCode.from_image_asset(
+                str(project_root),
+                file="backend/Dockerfile.lambda",
+                cmd=["backend.lambda_api.retirement_readiness.lambda_handler"],
+            ),
+            environment=readiness_env,
+            log_group=self._lambda_log_group(self, "RetirementReadinessLambdaLogGroup"),
+            # Matches RetirementReadinessBot.timeout_minutes (a stale "running"
+            # record is treated as crashed after that long).
+            timeout=Duration.minutes(15),
+            memory_size=1024,
+        )
+        self._grant_bucket_access(
+            readiness_fn,
+            bucket=data_bucket,
+            allow_read=True,
+            allow_put=True,
+            allow_list=True,
+            list_prefix=list_prefixes,
+            put_prefix=(RETIREMENT_READINESS_PREFIX, BOTS_PREFIX),
+        )
+        self._grant_timeseries_cache_access(readiness_fn, bucket=data_bucket, allow_put=False)
+        events.Rule(
+            self,
+            "QuarterlyRetirementReadinessRun",
+            schedule=events.Schedule.cron(minute="0", hour="9", day="1", month="1,4,7,10"),
+            targets=[targets.LambdaFunction(readiness_fn, retry_attempts=0)],
+        )
+        return readiness_fn
+
     def _bedrock_model_id(self) -> str:
         return (
             self.node.try_get_context("bedrock_model_id")
@@ -960,6 +1058,10 @@ class BackendLambdaStack(Stack):
             # bots_digest discovers owners the same way and reads run records,
             # digest settings and saved digests under bots/ (#10501).
             "bots_digest": ("accounts", BOTS_PREFIX),
+            # retirement_readiness lists plans/ for its owners and reads
+            # portfolios and the price snapshot like trading_agent (#10510; see
+            # _add_retirement_readiness_lambda for the audited call chain).
+            "retirement_readiness": ("accounts", "prices", PLANS_PREFIX),
         }
 
         image_code = _lambda.DockerImageCode.from_image_asset(
@@ -1893,6 +1995,16 @@ class BackendLambdaStack(Stack):
             jwt_secret=jwt_secret,
         )
 
+        retirement_readiness_fn = self._add_retirement_readiness_lambda(
+            project_root=project_root,
+            data_bucket=data_bucket,
+            env=env,
+            data_branch=data_branch,
+            data_repo=data_repo,
+            jwt_secret=jwt_secret,
+            list_prefixes=lambda_list_prefixes["retirement_readiness"],
+        )
+
         # Scheduled function to email a pension performance report (issue #2758)
         pension_report_code = _lambda.DockerImageCode.from_image_asset(
             str(project_root),
@@ -2161,6 +2273,7 @@ class BackendLambdaStack(Stack):
             "data-steward": steward_fn,
             "trend-watch": trend_watch_fn,
             "decision-journal": decision_journal_fn,
+            "retirement-readiness": retirement_readiness_fn,
         }
         for bot_fn in bot_lambdas.values():
             bot_fn.grant_invoke(backend_fn)

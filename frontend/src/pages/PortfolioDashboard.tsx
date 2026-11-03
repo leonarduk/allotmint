@@ -28,7 +28,11 @@ type Props = {
   trackingError: number | null;
   maxDrawdown: number | null;
   volatility: number | null;
-  data: { date: string; value: number; cumulative_return: number }[];
+  /**
+   * `cumulative_return` is the ledger total return (dividends and interest
+   * included), null when there is no ledger to rebuild it from (#10128).
+   */
+  data: { date: string; value: number; cumulative_return: number | null }[];
   owner?: string;
 };
 
@@ -46,6 +50,9 @@ function PortfolioDashboard({
   owner,
 }: Props) {
   const { t } = useTranslation();
+  // No ledger: say so rather than draw a 0% line (#10128).
+  const totalReturnUnavailable =
+    data.length > 0 && !data.some((d) => typeof d.cumulative_return === "number");
   return (
     <>
       <div className="grid grid-cols-2 gap-4 p-4 mb-4 bg-gray-900 border border-gray-700 rounded sm:grid-cols-3 md:grid-cols-5">
@@ -119,19 +126,24 @@ function PortfolioDashboard({
       </ResponsiveContainer>
 
       <h2 className="mt-8">{t('portfolioDashboard.cumulativeReturn')}</h2>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={data}>
-          <XAxis dataKey="date" />
-          <YAxis tickFormatter={(v) => percent(v * 100)} />
-          <Tooltip formatter={(v) => percent(((v as number | undefined) ?? 0) * 100)} />
-          <Line
-            type="monotone"
-            dataKey="cumulative_return"
-            stroke="#82ca9d"
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      {totalReturnUnavailable ? (
+        <p data-testid="total-return-unavailable">{t('dashboard.totalReturnNoLedger')}</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={data}>
+            <XAxis dataKey="date" />
+            <YAxis tickFormatter={(v) => percent(v * 100)} />
+            <Tooltip formatter={(v) => percent(((v as number | undefined) ?? 0) * 100)} />
+            <Line
+              type="monotone"
+              dataKey="cumulative_return"
+              name={t('dashboard.cumulativeTotalReturn')}
+              stroke="#82ca9d"
+              dot={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
       <p className="mt-8">
         <Link
           to={

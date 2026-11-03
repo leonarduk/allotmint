@@ -5,6 +5,7 @@ import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
 import {
   attentionReasonFor,
+  bedsByGrower,
   compareGainPctDesc,
   distinctInstruments,
   formatGbp,
@@ -14,6 +15,7 @@ import {
   cropConditionMeta,
   neediestCrop,
   portfolioAttentionReason,
+  type Bed,
   type Crop,
 } from '../plotModel';
 import { localDateISO } from '../../lib/date';
@@ -149,6 +151,59 @@ function NextJob({ job }: { job: PlotJob | null }) {
   );
 }
 
+/** One bed (account) on the hub's Beds panel. */
+function BedCard({
+  bed,
+  crops,
+  basePath,
+}: {
+  bed: Bed;
+  crops: readonly Crop[];
+  basePath: string;
+}) {
+  const { t } = useTranslation();
+  const gain = bedGain(bed, crops);
+  return (
+    <Link
+      to={`${basePath}/crops?bed=${encodeURIComponent(bed.id)}`}
+      className={`${styles.seedCard} ${styles.seedCardLink}`}
+      aria-label={t('plot.hub.showBedCrops', { name: bed.name })}
+    >
+      <span className={styles.seedTitle}>
+        <span aria-hidden="true">{bed.icon}</span> {bed.name}
+      </span>
+      <span className={styles.seedOwn}>
+        {t('plot.hub.cropCount', { count: bed.cropCount })}
+        {bed.owner ? ` · ${bed.owner}` : ''}
+        {/* #7186 — the bed's own last_updated can lag well behind
+            the portfolio as_of shown above; surfacing it here
+            means a stale bed doesn't hide behind a fresher
+            portfolio-wide date. */}
+        {bed.lastUpdated
+          ? ` · ${t('plot.hub.bedPriced', { date: bed.lastUpdated })}`
+          : ''}
+      </span>
+      <span className={styles.cropValue}>{formatGbp(bed.valueGbp)}</span>
+      {/* Per-bed performance and what the wrapper means (#7209). */}
+      <span
+        className={
+          gain.gainGbp !== null && gain.gainGbp < 0 ? styles.loss : styles.gain
+        }
+      >
+        {gain.gainGbp === null
+          ? t('plot.hub.bedGainUnknown')
+          : t('plot.hub.bedGain', {
+              gain: formatGbp(gain.gainGbp),
+              pct: formatPct(gain.gainPct),
+            })}
+      </span>
+      <span className={styles.seedOwn}>
+        {bedWrapperExplanation(bed.accountType)}
+      </span>
+    </Link>
+  );
+}
+
 /**
  * The hub screen: a glance-able read of the whole allotment — the standout
  * and struggling crops on the stage, the resource meters, and the beds
@@ -165,8 +220,14 @@ export default function PlotHub({ basePath }: { basePath: string }) {
     season,
     dailyTotals,
     today,
+    group,
+    owners,
   } = usePlotData();
   const { crops, beds, resources, cashGbp } = snapshot;
+  const growerName = (slug: string | null) =>
+    owners.find((entry) => entry.owner === slug)?.full_name ||
+    slug ||
+    t('plot.hub.unknownGrower');
   const sunUnknownCount = crops.filter(
     (crop) => crop.freshness === 'unknown'
   ).length;
@@ -413,55 +474,31 @@ export default function PlotHub({ basePath }: { basePath: string }) {
           <p className={styles.sectionNote}>
             {t('plot.hub.noAccounts')}
           </p>
+        ) : group ? (
+          // Group mode (#7190): each grower's beds together under their name.
+          bedsByGrower(beds).map((grower) => (
+            <section
+              key={grower.owner ?? ''}
+              aria-label={growerName(grower.owner)}
+            >
+              <h3 className={styles.panelTitle}>
+                {t('plot.hub.growerBeds', {
+                  name: growerName(grower.owner),
+                  value: formatGbp(grower.valueGbp),
+                })}
+              </h3>
+              <div className={styles.seedGrid}>
+                {grower.beds.map((bed) => (
+                  <BedCard key={bed.id} bed={bed} crops={crops} basePath={basePath} />
+                ))}
+              </div>
+            </section>
+          ))
         ) : (
           <div className={styles.seedGrid}>
-            {beds.map((bed) => {
-              const gain = bedGain(bed, crops);
-              return (
-                <Link
-                  key={bed.id}
-                  to={`${basePath}/crops?bed=${encodeURIComponent(bed.id)}`}
-                  className={`${styles.seedCard} ${styles.seedCardLink}`}
-                  aria-label={t('plot.hub.showBedCrops', { name: bed.name })}
-                >
-                  <span className={styles.seedTitle}>
-                    <span aria-hidden="true">{bed.icon}</span> {bed.name}
-                  </span>
-                  <span className={styles.seedOwn}>
-                    {t('plot.hub.cropCount', { count: bed.cropCount })}
-                    {bed.owner ? ` · ${bed.owner}` : ''}
-                    {/* #7186 — the bed's own last_updated can lag well behind
-                        the portfolio as_of shown above; surfacing it here
-                        means a stale bed doesn't hide behind a fresher
-                        portfolio-wide date. */}
-                    {bed.lastUpdated
-                      ? ` · ${t('plot.hub.bedPriced', { date: bed.lastUpdated })}`
-                      : ''}
-                  </span>
-                  <span className={styles.cropValue}>
-                    {formatGbp(bed.valueGbp)}
-                  </span>
-                  {/* Per-bed performance and what the wrapper means (#7209). */}
-                  <span
-                    className={
-                      gain.gainGbp !== null && gain.gainGbp < 0
-                        ? styles.loss
-                        : styles.gain
-                    }
-                  >
-                    {gain.gainGbp === null
-                      ? t('plot.hub.bedGainUnknown')
-                      : t('plot.hub.bedGain', {
-                          gain: formatGbp(gain.gainGbp),
-                          pct: formatPct(gain.gainPct),
-                        })}
-                  </span>
-                  <span className={styles.seedOwn}>
-                    {bedWrapperExplanation(bed.accountType)}
-                  </span>
-                </Link>
-              );
-            })}
+            {beds.map((bed) => (
+              <BedCard key={bed.id} bed={bed} crops={crops} basePath={basePath} />
+            ))}
           </div>
         )}
       </section>

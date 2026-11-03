@@ -384,7 +384,14 @@ export interface PerformancePoint {
   value: number;
   daily_return?: number | null;
   weekly_return?: number | null;
+  /**
+   * Ledger total return since the first history day: price moves plus
+   * dividends and interest, net of deposits and withdrawals (the basis of
+   * the time-weighted return and the reports). Null when unavailable (#10128).
+   */
   cumulative_return?: number | null;
+  /** The old price-only return of today's holdings, which leaves income out (#10128). */
+  price_return?: number | null;
   running_max?: number;
   drawdown?: number | null;
 }
@@ -412,6 +419,10 @@ export interface PerformanceResponse {
    */
   partial?: boolean;
   missingMembers?: string[];
+  /** "ledger_total_return", or "unavailable" when there is no ledger or cash is excluded (#10128). */
+  cumulativeReturnBasis?: string | null;
+  /** "no_ledger" or "exclude_cash" when cumulativeReturnBasis is "unavailable". */
+  cumulativeReturnUnavailableReason?: string | null;
 }
 
 export interface HoldingValue {

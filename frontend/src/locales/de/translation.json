@@ -3299,6 +3299,8 @@
     },
     "app": {
       "grower": "Gärtner",
+      "wholePlot": "Ganzer Garten",
+      "growers": "Gärtner",
       "notFoundTitle": "Hier wächst nichts",
       "notFoundBody": "Unter diesem Pfad gibt es keinen Garten-Bildschirm.",
       "backToPlot": "Zurück zum Garten",
@@ -3517,7 +3519,9 @@
       "inBeds_one": "in {{count}} Beet",
       "inBeds_other": "in {{count}} Beeten",
       "bedGain": "{{gain}} ({{pct}}) seit dem Kauf",
-      "bedGainUnknown": "Gewinn unbekannt: ein Kaufpreis fehlt"
+      "bedGainUnknown": "Gewinn unbekannt: ein Kaufpreis fehlt",
+      "growerBeds": "Beete von {{name}} · {{value}}",
+      "unknownGrower": "Unbenannter Gärtner"
     },
     "model": {
       "unnamedBed": "Unbenanntes Beet",

@@ -13,12 +13,14 @@ import {
   completeQuest,
   completeTrailTask,
   getAllowances,
+  getGroupPortfolio,
   getOwners,
   getPortfolio,
   getQuests,
   getTrailTasks,
 } from '../api';
 import type {
+  GroupSummary,
   OwnerSummary,
   Portfolio,
   QuestResponse,
@@ -30,6 +32,7 @@ import { useAuth } from '../AuthContext';
 import { pickDefaultOwner } from '../utils/owners';
 import {
   buildPlotSnapshot,
+  plotPortfolioFromGroup,
   type AllowanceMap,
   type PlotSnapshot,
 } from './plotModel';
@@ -83,6 +86,17 @@ export interface PlotDataValue {
    * another grower's data is on screen (#7192).
    */
   pickerOwners: OwnerSummary[];
+  /**
+   * Groups the picker offers as one shared plot ("At a glance", "Adults"…),
+   * from `/groups` (#7190). Empty while `/groups` is in flight or failed.
+   */
+  groups: GroupSummary[];
+  /**
+   * The group whose combined plot is on screen, or null in per-grower mode.
+   * While set, the snapshot comes from `/portfolio-group/{slug}` and `owner`
+   * is not what is shown (#7190).
+   */
+  group: string | null;
   setOwner: (owner: string) => void;
   snapshot: PlotSnapshot;
   chores: Chore[];
@@ -124,6 +138,8 @@ const plotDataContext = createContext<PlotDataValue>({
   owner: '',
   owners: [],
   pickerOwners: [],
+  groups: [],
+  group: null,
   setOwner: () => {},
   snapshot: EMPTY_SNAPSHOT,
   chores: [],
@@ -231,19 +247,80 @@ async function loadProgress(): Promise<ProgressState> {
   }
 }
 
+type AllowanceOutcome =
+  | { ok: true; value: Awaited<ReturnType<typeof getAllowances>> }
+  | { ok: false };
+
+interface ScopeData {
+  portfolio: Portfolio;
+  allowanceOutcome: AllowanceOutcome;
+  progress: ProgressState;
+}
+
+/**
+ * Load everything one plot needs: a grower's portfolio and allowances, or a
+ * group's combined portfolio (#7190).
+ *
+ * Tax allowances are per person and there is no group endpoint for them, so
+ * group mode reports them as unavailable: the FEED meter and the "Feed the
+ * beds" goals are left out rather than showing one member's headroom as the
+ * household's. `/trail` is the signed-in user's own progress in both modes
+ * (#7191), which the HUD already labels "Your progress".
+ */
+async function loadScope(
+  owner: string,
+  group: string | null
+): Promise<ScopeData> {
+  if (group) {
+    const [groupPortfolio, progress] = await Promise.all([
+      getGroupPortfolio(group),
+      loadProgress(),
+    ]);
+    return {
+      portfolio: plotPortfolioFromGroup(groupPortfolio),
+      allowanceOutcome: { ok: false },
+      progress,
+    };
+  }
+  const [portfolio, allowanceOutcome, progress] = await Promise.all([
+    getPortfolio(owner),
+    // A rejected allowances fetch (e.g. the backend's 402 billing gate) is
+    // distinct from a genuine 200-with-empty-payload response: the former
+    // must surface a "temporarily unavailable" notice, the latter keeps
+    // today's "no allowances set up" copy. Tagging the outcome here — rather
+    // than collapsing both to `null` via `.catch(() => null)` — is what lets
+    // the rest of the HUD tell the two apart (#7005).
+    getAllowances(owner).then(
+      (value): AllowanceOutcome => ({ ok: true, value }),
+      (): AllowanceOutcome => ({ ok: false })
+    ),
+    loadProgress(),
+  ]);
+  return { portfolio: portfolio as Portfolio, allowanceOutcome, progress };
+}
+
 interface PlotDataProviderProps {
   /**
    * Owner to show; when omitted the signed-in user's owner is used, falling
    * back to the first owner from /owners (#10753).
    */
   requestedOwner?: string | null;
+  /**
+   * Group to show as one combined plot (`?group=`, #7190). When set it wins
+   * over the owner; when absent the plot is per grower, exactly as before.
+   */
+  requestedGroup?: string | null;
   children: ReactNode;
 }
 
 export function PlotDataProvider({
   requestedOwner,
+  requestedGroup,
   children,
 }: PlotDataProviderProps) {
+  // Held in state, like `owner`, so moving between Plot screens (whose rail
+  // links carry no query string) keeps the group on screen (#7190).
+  const [group, setGroup] = useState<string | null>(requestedGroup || null);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   // Discovery status is tracked apart from the list: an empty list and a
   // failed request both leave `owners` empty, and only one of them should
@@ -270,9 +347,18 @@ export function PlotDataProvider({
 
   // A `?owner=` change (deep link, or the classic UI's owner selector) wins
   // over whatever the provider previously settled on.
+  // `?group=` wins over `?owner=`; an explicit `?owner=` on its own leaves
+  // group mode (#7190).
   useEffect(() => {
-    if (requestedOwner) setOwner(requestedOwner);
-  }, [requestedOwner]);
+    if (requestedGroup) {
+      setGroup(requestedGroup);
+      return;
+    }
+    if (requestedOwner) {
+      setOwner(requestedOwner);
+      setGroup(null);
+    }
+  }, [requestedOwner, requestedGroup]);
 
   useEffect(() => {
     let cancelled = false;
@@ -315,7 +401,10 @@ export function PlotDataProvider({
   // fetch, slug computation, and fallback logic all live in
   // `useGroupedOwners` so this provider only has to consume the resulting
   // option list (#7189).
-  const pickerOwners = useGroupedOwners(owners, reloadToken);
+  const { pickerOwners, pickerGroups: groups } = useGroupedOwners(
+    owners,
+    reloadToken
+  );
 
   // Everything below is scoped to one grower. Dropping it whenever the
   // grower changes (and whenever a load fails) stops the HUD from showing the
@@ -335,21 +424,28 @@ export function PlotDataProvider({
   const loadedOwnerRef = useRef<string | null>(null);
 
   // Only the no-owner branch below cares about discovery status. Collapsing it
-  // to a constant once an owner is known keeps a refresh (which cycles
-  // ownersStatus pending -> ready) from re-running the load twice.
-  const discoveryOutcome = owner ? 'has-owner' : ownersStatus;
+  // to a constant once an owner (or a group, which needs no owner) is known
+  // keeps a refresh (which cycles ownersStatus pending -> ready) from
+  // re-running the load twice.
+  const discoveryOutcome = owner || group ? 'has-owner' : ownersStatus;
+  // The owner only matters to the load outside group mode, so a default owner
+  // settling while a group is on screen doesn't refetch the group (#7190).
+  const loadOwner = group ? '' : owner;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    if (loadedOwnerRef.current !== owner) {
+    // A group and a grower are different plots: switching between them
+    // clears the old figures just like switching growers does.
+    const scopeKey = group ? `group:${group}` : loadOwner;
+    if (loadedOwnerRef.current !== scopeKey) {
       clearOwnerScopedState();
-      loadedOwnerRef.current = owner;
+      loadedOwnerRef.current = scopeKey;
     }
 
-    if (!owner) {
+    if (!loadOwner && !group) {
       // Only stop the spinner once /owners has actually resolved; while it is
       // still in flight there is nothing to report yet.
       if (discoveryOutcome === 'pending') return () => {};
@@ -362,23 +458,11 @@ export function PlotDataProvider({
       return () => {};
     }
 
-    Promise.all([
-      getPortfolio(owner),
-      // A rejected allowances fetch (e.g. the backend's 402 billing gate) is
-      // distinct from a genuine 200-with-empty-payload response: the former
-      // must surface a "temporarily unavailable" notice, the latter keeps
-      // today's "no allowances set up" copy. Tagging the outcome here — rather
-      // than collapsing both to `null` via `.catch(() => null)` — is what lets
-      // the rest of the HUD tell the two apart (#7005).
-      getAllowances(owner).then(
-        (value) => ({ ok: true as const, value }),
-        () => ({ ok: false as const })
-      ),
-      loadProgress(),
-    ])
-      .then(([portfolioResult, allowanceOutcome, progressResult]) => {
+    loadScope(loadOwner, group)
+      .then((loaded) => {
         if (cancelled) return;
-        setPortfolio(portfolioResult as Portfolio);
+        const { allowanceOutcome, progress: progressResult } = loaded;
+        setPortfolio(loaded.portfolio);
         setAllowances(
           allowanceOutcome.ok
             ? ((allowanceOutcome.value.allowances as
@@ -408,7 +492,7 @@ export function PlotDataProvider({
     return () => {
       cancelled = true;
     };
-  }, [owner, discoveryOutcome, reloadToken, clearOwnerScopedState]);
+  }, [loadOwner, group, discoveryOutcome, reloadToken, clearOwnerScopedState]);
 
   // Each response is a whole server-side snapshot, so two in flight at once
   // resolve last-write-wins and an out-of-order pair can un-tick a chore that
@@ -466,6 +550,8 @@ export function PlotDataProvider({
       owner,
       owners,
       pickerOwners,
+      groups,
+      group,
       setOwner,
       snapshot,
       chores: progress.chores,
@@ -484,6 +570,8 @@ export function PlotDataProvider({
       owner,
       owners,
       pickerOwners,
+      groups,
+      group,
       snapshot,
       progress.chores,
       progress.source,

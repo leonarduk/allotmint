@@ -4,7 +4,8 @@ import type { GroupSummary, OwnerSummary } from '../types';
 
 /**
  * Filters `owners` down to whoever actually belongs to a configured group
- * (the real household), for the grower *picker* to render.
+ * (the real household), for the grower *picker* to render, and returns the
+ * groups the picker can offer as whole-plot views (#7190).
  *
  * `/groups` defines the real household membership (e.g. "adults",
  * "children"); it is what keeps accounts with no household membership —
@@ -34,7 +35,7 @@ import type { GroupSummary, OwnerSummary } from '../types';
 export function useGroupedOwners(
   owners: OwnerSummary[],
   reloadToken: number
-): OwnerSummary[] {
+): { pickerOwners: OwnerSummary[]; pickerGroups: GroupSummary[] } {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [groupsStatus, setGroupsStatus] = useState<
     'pending' | 'ready' | 'error'
@@ -77,7 +78,7 @@ export function useGroupedOwners(
   // The picker's option list: real owners only, with a fall back to the full
   // `owners` list whenever grouping data can't narrow it down (`/groups`
   // failed, or none of the current owners matched any group).
-  return useMemo(() => {
+  const pickerOwners = useMemo(() => {
     if (groupsStatus === 'pending') return [];
     if (groupedOwnerSlugs.size === 0) return owners;
     const filtered = owners.filter((entry) =>
@@ -85,4 +86,16 @@ export function useGroupedOwners(
     );
     return filtered.length > 0 ? filtered : owners;
   }, [owners, groupedOwnerSlugs, groupsStatus]);
+
+  // Groups the picker can offer as a whole-plot view (#7190): only those with
+  // at least one member among the owners this caller can see, so a group the
+  // picker would render empty is never offered.
+  const pickerGroups = useMemo(() => {
+    const known = new Set(owners.map((entry) => entry.owner));
+    return groups.filter((group) =>
+      group.members.some((member) => known.has(member))
+    );
+  }, [groups, owners]);
+
+  return { pickerOwners, pickerGroups };
 }

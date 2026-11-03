@@ -3299,6 +3299,8 @@
     },
     "app": {
       "grower": "Coltivatore",
+      "wholePlot": "Orto intero",
+      "growers": "Coltivatori",
       "notFoundTitle": "Qui non cresce niente",
       "notFoundBody": "Non esiste nessuna schermata dell'orto a questo percorso.",
       "backToPlot": "Torna all'orto",
@@ -3517,7 +3519,9 @@
       "inBeds_one": "in {{count}} aiuola",
       "inBeds_other": "in {{count}} aiuole",
       "bedGain": "{{gain}} ({{pct}}) dall'acquisto",
-      "bedGainUnknown": "Guadagno sconosciuto: manca un costo d'acquisto"
+      "bedGainUnknown": "Guadagno sconosciuto: manca un costo d'acquisto",
+      "growerBeds": "Aiuole di {{name}} · {{value}}",
+      "unknownGrower": "Coltivatore senza nome"
     },
     "model": {
       "unnamedBed": "Aiuola senza nome",

@@ -3299,6 +3299,8 @@
     },
     "app": {
       "grower": "Cultivador",
+      "wholePlot": "Huerto completo",
+      "growers": "Cultivadores",
       "notFoundTitle": "Aquí no crece nada",
       "notFoundBody": "No hay ninguna pantalla del huerto en esta ruta.",
       "backToPlot": "Volver al huerto",
@@ -3517,7 +3519,9 @@
       "inBeds_one": "en {{count}} bancal",
       "inBeds_other": "en {{count}} bancales",
       "bedGain": "{{gain}} ({{pct}}) desde la compra",
-      "bedGainUnknown": "Ganancia desconocida: falta un coste de compra"
+      "bedGainUnknown": "Ganancia desconocida: falta un coste de compra",
+      "growerBeds": "Bancales de {{name}} · {{value}}",
+      "unknownGrower": "Cultivador sin nombre"
     },
     "model": {
       "unnamedBed": "Bancal sin nombre",

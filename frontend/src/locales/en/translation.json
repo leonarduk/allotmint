@@ -3267,6 +3267,8 @@
     },
     "app": {
       "grower": "Grower",
+      "wholePlot": "Whole plot",
+      "growers": "Growers",
       "notFoundTitle": "Nothing growing here",
       "notFoundBody": "There's no plot screen at this path.",
       "backToPlot": "Back to the plot",
@@ -3476,7 +3478,9 @@
       "inBeds_one": "in {{count}} bed",
       "inBeds_other": "in {{count}} beds",
       "bedGain": "{{gain}} ({{pct}}) since bought",
-      "bedGainUnknown": "Gain unknown: a purchase cost is missing"
+      "bedGainUnknown": "Gain unknown: a purchase cost is missing",
+      "growerBeds": "{{name}}'s beds · {{value}}",
+      "unknownGrower": "Unnamed grower"
     },
     "model": {
       "unnamedBed": "Unnamed bed",

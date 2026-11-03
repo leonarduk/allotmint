@@ -41,6 +41,7 @@ const { mocks } = vi.hoisted(() => ({
   mocks: {
     getOwners: vi.fn(),
     getGroups: vi.fn(),
+    getGroupPortfolio: vi.fn(),
     getPortfolio: vi.fn(),
     getAllowances: vi.fn(),
     getTrailTasks: vi.fn(),
@@ -135,11 +136,11 @@ describe('Plot grower picker group filtering (#7189)', () => {
     renderPlot();
 
     const picker = await screen.findByLabelText('Grower');
-    const optionLabels = Array.from(picker.querySelectorAll('option')).map(
-      (opt) => opt.textContent
-    );
+    const optionLabels = Array.from(
+      picker.querySelectorAll('optgroup[label="Growers"] option')
+    ).map((opt) => opt.textContent);
     expect(optionLabels).toEqual(['Alex Leonard', 'Joe Leonard', 'Steve Leonard']);
-    expect(optionLabels).not.toContain('Demo Account');
+    expect(picker.textContent).not.toContain('Demo Account');
   });
 
   it('falls back to every owner when /groups fails', async () => {
@@ -420,5 +421,95 @@ describe('Plot default grower (#10753)', () => {
       expect(screen.getByLabelText('Grower')).toHaveValue('joe')
     );
     expect(mocks.getPortfolio).not.toHaveBeenCalledWith('steve');
+  });
+});
+
+describe('Plot group view (#7190)', () => {
+  const GROUP_PORTFOLIO = {
+    slug: 'all',
+    name: 'At a glance',
+    as_of: '2026-08-24',
+    members: ['alex', 'joe', 'steve'],
+    total_value_estimate_gbp: 3_000,
+    accounts: [
+      {
+        owner: 'alex',
+        account_type: 'isa',
+        currency: 'GBP',
+        value_estimate_gbp: 1_000,
+        holdings: [],
+      },
+      {
+        owner: 'steve',
+        account_type: 'isa',
+        currency: 'GBP',
+        value_estimate_gbp: 2_000,
+        holdings: [],
+      },
+    ],
+    members_summary: [
+      { owner: 'alex', total_value_estimate_gbp: 1_000, trades_this_month: 1, trades_remaining: 9 },
+      { owner: 'steve', total_value_estimate_gbp: 2_000, trades_this_month: 2, trades_remaining: 8 },
+    ],
+  };
+
+  beforeEach(() => {
+    mocks.getGroupPortfolio.mockResolvedValue(GROUP_PORTFOLIO);
+  });
+
+  it('offers "At a glance" in the picker alongside the growers', async () => {
+    renderPlot();
+
+    const picker = await screen.findByLabelText('Grower');
+    const groupOptions = Array.from(
+      picker.querySelectorAll('optgroup[label="Whole plot"] option')
+    ).map((opt) => [opt.getAttribute('value'), opt.textContent]);
+    expect(groupOptions).toEqual([['group:all', 'At a glance']]);
+  });
+
+  it('loads the group portfolio, writes ?group= and shows each grower’s beds', async () => {
+    renderPlot();
+
+    fireEvent.change(await screen.findByLabelText('Grower'), {
+      target: { value: 'group:all' },
+    });
+
+    await waitFor(() => expect(mocks.getGroupPortfolio).toHaveBeenCalledWith('all'));
+    await waitFor(() => expect(probe().dataset.search).toBe('?group=all'));
+    expect(probe().dataset.navType).toBe('REPLACE');
+    expect(
+      await screen.findByRole('heading', { name: /Alex Leonard's beds/ })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Steve Leonard's beds/ })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Grower')).toHaveValue('group:all');
+  });
+
+  it('deep-links ?group=all without loading any single grower', async () => {
+    renderPlot('/plot?group=all');
+
+    await waitFor(() => expect(mocks.getGroupPortfolio).toHaveBeenCalledWith('all'));
+    await screen.findByRole('heading', { name: /Steve Leonard's beds/ });
+    expect(mocks.getPortfolio).not.toHaveBeenCalled();
+    // Tax allowances are per person: group mode never fetches one grower's.
+    expect(mocks.getAllowances).not.toHaveBeenCalled();
+    expect(mocks.getGroupPortfolio).toHaveBeenCalledTimes(1);
+  });
+
+  it('switching back to a grower leaves group mode', async () => {
+    renderPlot('/plot?group=all');
+    await screen.findByRole('heading', { name: /Steve Leonard's beds/ });
+
+    fireEvent.change(screen.getByLabelText('Grower'), {
+      target: { value: 'joe' },
+    });
+
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('joe'));
+    await waitFor(() => expect(probe().dataset.search).toBe('?owner=joe'));
+    expect(screen.getByLabelText('Grower')).toHaveValue('joe');
+    expect(
+      screen.queryByRole('heading', { name: /Steve Leonard's beds/ })
+    ).toBeNull();
   });
 });

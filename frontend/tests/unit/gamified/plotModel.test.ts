@@ -22,6 +22,8 @@ import {
   isStillInPropagator,
   levelFromXp,
   neediestCrop,
+  bedsByGrower,
+  plotPortfolioFromGroup,
   portfolioAttentionReason,
   resourcesFromPlot,
   vigourFor,
@@ -29,7 +31,7 @@ import {
   yieldLevelFor,
   type Crop,
 } from '@/gamified/plotModel';
-import type { Portfolio } from '@/types';
+import type { GroupPortfolio, Portfolio } from '@/types';
 
 const portfolio: Portfolio = {
   owner: 'steve',
@@ -1286,5 +1288,100 @@ describe('yield (#7019)', () => {
   it('bands yield into a 0-5 trait level', () => {
     expect([0, 0.5, 1.5, 3, 5, 8].map(yieldLevelFor)).toEqual([0, 1, 2, 3, 4, 5]);
     expect(yieldLevelFor(Number.NaN)).toBe(0);
+  });
+});
+
+describe('group plot (#7190)', () => {
+  const holding = (ticker: string, value: number, cost: number) => ({
+    ticker,
+    name: ticker,
+    units: 1,
+    market_value_gbp: value,
+    cost_basis_gbp: cost,
+    gain_gbp: value - cost,
+  });
+  const group: GroupPortfolio = {
+    slug: 'all',
+    name: 'At a glance',
+    as_of: '2026-08-24',
+    members: ['alex', 'steve'],
+    total_value_estimate_gbp: 4_000,
+    accounts: [
+      {
+        owner: 'steve',
+        account_type: 'isa',
+        currency: 'GBP',
+        value_estimate_gbp: 3_000,
+        holdings: [holding('VWRL.L', 3_000, 2_000)],
+      },
+      {
+        owner: 'alex',
+        account_type: 'isa',
+        currency: 'GBP',
+        value_estimate_gbp: 1_000,
+        holdings: [holding('VWRL.L', 1_000, 900)],
+      },
+    ],
+    members_summary: [
+      { owner: 'alex', total_value_estimate_gbp: 1_000, trades_this_month: 1, trades_remaining: 9 },
+      { owner: 'steve', total_value_estimate_gbp: 3_000, trades_this_month: 4, trades_remaining: 6 },
+    ],
+  };
+
+  it('aggregates plot value, gain, star shares and trades across members', () => {
+    const snapshot = buildPlotSnapshot({ portfolio: plotPortfolioFromGroup(group) });
+
+    expect(snapshot.plotValueGbp).toBe(4_000);
+    expect(snapshot.totalGainGbp).toBe(1_100);
+    expect(snapshot.crops.map((crop) => crop.share)).toEqual([0.75, 0.25]);
+    const water = snapshot.resources.find((resource) => resource.id === 'water');
+    expect(water?.display).toBe('15 / 20');
+    expect(snapshot.owner).toBe('');
+  });
+
+  it('keeps each member’s same-type bed separate and owned', () => {
+    const snapshot = buildPlotSnapshot({ portfolio: plotPortfolioFromGroup(group) });
+
+    expect(snapshot.beds.map((bed) => [bed.id, bed.owner])).toEqual([
+      ['steve:isa', 'steve'],
+      ['alex:isa', 'alex'],
+    ]);
+    expect(new Set(snapshot.crops.map((crop) => crop.bedId))).toEqual(
+      new Set(['steve:isa', 'alex:isa'])
+    );
+  });
+
+  it('falls back to the group-level trade counts without members_summary', () => {
+    const plot = plotPortfolioFromGroup({
+      ...group,
+      members_summary: undefined,
+      trades_this_month: 2,
+      trades_remaining: 3,
+    });
+    expect([plot.trades_this_month, plot.trades_remaining]).toEqual([2, 3]);
+  });
+
+  it('groups beds by grower in first-seen order', () => {
+    const snapshot = buildPlotSnapshot({
+      portfolio: plotPortfolioFromGroup({
+        ...group,
+        accounts: [
+          group.accounts[0],
+          group.accounts[1],
+          { ...group.accounts[0], account_type: 'sipp', value_estimate_gbp: 500 },
+        ],
+      }),
+    });
+
+    expect(
+      bedsByGrower(snapshot.beds).map((grower) => [
+        grower.owner,
+        grower.beds.map((bed) => bed.id),
+        grower.valueGbp,
+      ])
+    ).toEqual([
+      ['steve', ['steve:isa', 'steve:sipp'], 3_500],
+      ['alex', ['alex:isa'], 1_000],
+    ]);
   });
 });

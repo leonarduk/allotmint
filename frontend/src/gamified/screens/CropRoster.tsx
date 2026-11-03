@@ -49,7 +49,9 @@ const SORTS: {
 /** The collection screen: every holding as a crop tile, searchable and sortable. */
 export default function CropRoster({ basePath }: { basePath: string }) {
   const { t } = useTranslation();
-  const { snapshot, owner } = usePlotData();
+  const { snapshot, owner, group } = usePlotData();
+  // Favourites are kept per plot: a group's list is its own (#7190).
+  const favouritesKey = group ? `group:${group}` : owner;
   const [searchParams, setSearchParams] = useSearchParams();
   const [sort, setSort] = useState<SortKey>('value');
   // The bed (account) filter is mirrored in the `bed` query param so other
@@ -91,18 +93,18 @@ export default function CropRoster({ basePath }: { basePath: string }) {
   // Favourites are namespaced per grower, so they reload when the owner
   // selector changes rather than leaking across portfolios.
   useEffect(() => {
-    setFavourites(loadFavourites(owner));
-  }, [owner]);
+    setFavourites(loadFavourites(favouritesKey));
+  }, [favouritesKey]);
 
   const handleToggleFavourite = useCallback(
     (ticker: string) => {
       setFavourites((current) => {
         const next = toggleFavourite(current, ticker);
-        saveFavourites(owner, next);
+        saveFavourites(favouritesKey, next);
         return next;
       });
     },
-    [owner]
+    [favouritesKey]
   );
 
   // The Vigour sort is only offered when at least two crops carry a real
@@ -252,6 +254,8 @@ export default function CropRoster({ basePath }: { basePath: string }) {
               onClick={() => setBedFilter(bed.id)}
             >
               <span aria-hidden="true">{bed.icon}</span> {bed.name}
+              {/* A group plot holds several people's ISAs (#7190). */}
+              {group && bed.owner ? ` · ${bed.owner}` : ''}
             </button>
           ))}
           <button

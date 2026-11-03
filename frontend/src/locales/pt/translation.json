@@ -3274,6 +3274,8 @@
     },
     "app": {
       "grower": "Cultivador",
+      "wholePlot": "Horta inteira",
+      "growers": "Cultivadores",
       "notFoundTitle": "Nada a crescer aqui",
       "notFoundBody": "Não existe nenhum ecrã da horta neste caminho.",
       "backToPlot": "Voltar à horta",
@@ -3483,7 +3485,9 @@
       "inBeds_one": "em {{count}} canteiro",
       "inBeds_other": "em {{count}} canteiros",
       "bedGain": "{{gain}} ({{pct}}) desde a compra",
-      "bedGainUnknown": "Ganho desconhecido: falta um custo de compra"
+      "bedGainUnknown": "Ganho desconhecido: falta um custo de compra",
+      "growerBeds": "Canteiros de {{name}} · {{value}}",
+      "unknownGrower": "Cultivador sem nome"
     },
     "model": {
       "unnamedBed": "Canteiro sem nome",

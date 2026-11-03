@@ -8,7 +8,7 @@
  * portfolio, trail or allowance figure from the API.
  */
 
-import type { Account, Holding, Portfolio } from '../types';
+import type { Account, GroupPortfolio, Holding, Portfolio } from '../types';
 import { isCostBasisUnreliable } from '../lib/costBasis';
 import { isCashInstrument } from '../lib/instruments';
 import { pricingFreshness } from '../lib/pricingFreshness';
@@ -391,6 +391,59 @@ export function bedFromAccount(account: Account, index: number): Bed {
     currency: account.currency ?? 'GBP',
     lastUpdated: account.last_updated ?? null,
   };
+}
+
+/**
+ * Fold a `/portfolio-group/{slug}` response into the per-owner `Portfolio`
+ * shape the snapshot builder takes (#7190). The backend has already merged
+ * every member's accounts (each tagged with its `owner`) and summed the plot
+ * value, so this only renames fields: nothing is re-aggregated here except the
+ * trade counts, which the group payload reports per member.
+ *
+ * `owner` is left empty on purpose: a group plot has no single grower.
+ */
+export function plotPortfolioFromGroup(group: GroupPortfolio): Portfolio {
+  const members = group.members_summary ?? [];
+  const sumTrades = (key: 'trades_this_month' | 'trades_remaining') =>
+    members.length > 0
+      ? members.reduce((sum, member) => sum + (member[key] ?? 0), 0)
+      : (group[key] ?? 0);
+  return {
+    owner: '',
+    as_of: group.as_of,
+    trades_this_month: sumTrades('trades_this_month'),
+    trades_remaining: sumTrades('trades_remaining'),
+    total_value_estimate_gbp: group.total_value_estimate_gbp,
+    total_value_estimate_currency: group.total_value_estimate_currency,
+    accounts: group.accounts,
+  };
+}
+
+/** One grower's beds, for the Beds panel in group mode (#7190). */
+export interface GrowerBeds {
+  /** Owner slug; null for beds the API did not tag with an owner. */
+  owner: string | null;
+  beds: Bed[];
+  valueGbp: number;
+}
+
+/**
+ * Beds grouped by grower, in first-seen order, so a group plot shows each
+ * person's beds together. A single-owner plot yields one entry.
+ */
+export function bedsByGrower(beds: readonly Bed[]): GrowerBeds[] {
+  const groups = new Map<string | null, GrowerBeds>();
+  for (const bed of beds) {
+    const entry = groups.get(bed.owner) ?? {
+      owner: bed.owner,
+      beds: [],
+      valueGbp: 0,
+    };
+    entry.beds.push(bed);
+    entry.valueGbp += bed.valueGbp;
+    groups.set(bed.owner, entry);
+  }
+  return [...groups.values()];
 }
 
 /**

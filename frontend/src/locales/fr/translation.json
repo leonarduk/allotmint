@@ -3274,6 +3274,8 @@
     },
     "app": {
       "grower": "Jardinier",
+      "wholePlot": "Tout le potager",
+      "growers": "Jardiniers",
       "notFoundTitle": "Rien ne pousse ici",
       "notFoundBody": "Il n'y a aucun écran du potager à cette adresse.",
       "backToPlot": "Retour au potager",
@@ -3483,7 +3485,9 @@
       "inBeds_one": "dans {{count}} planche",
       "inBeds_other": "dans {{count}} planches",
       "bedGain": "{{gain}} ({{pct}}) depuis l'achat",
-      "bedGainUnknown": "Plus-value inconnue : un coût d'achat manque"
+      "bedGainUnknown": "Plus-value inconnue : un coût d'achat manque",
+      "growerBeds": "Parcelles de {{name}} · {{value}}",
+      "unknownGrower": "Jardinier sans nom"
     },
     "model": {
       "unnamedBed": "Planche sans nom",

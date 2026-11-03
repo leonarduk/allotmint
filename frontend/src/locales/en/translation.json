@@ -2555,7 +2555,20 @@
     "importUpdated_other": "Recorded a cost for {{count}} holdings.",
     "importSkipped_one": "{{count}} row skipped.",
     "importSkipped_other": "{{count}} rows skipped.",
-    "importSkippedRow": "Line {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Line {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "est.",
+    "estimateTitle": "Estimated cost: the market price on {{date}}, not a purchase price. Gain/loss is measured from that day.",
+    "estimateTitleNoDate": "Estimated cost: a market price, not a purchase price. Gain/loss is measured from the day it was set.",
+    "estimateIncluded_one": "Includes {{count}} holding whose cost is an estimate (a market price, not a purchase price)",
+    "estimateIncluded_other": "Includes {{count}} holdings whose cost is an estimate (a market price, not a purchase price)",
+    "useCurrentPrice": "Use current price as cost",
+    "useCurrentPriceHelp": "Purchase price lost? Record today's price as an estimated cost so gain/loss counts from today. It is always shown as an estimate, never as a purchase price.",
+    "useCurrentPriceConfirm": "Record today's price as an estimated cost for {{ticker}}? It is not what you paid: gain/loss will count from today, and the cost is marked as an estimate everywhere.",
+    "recordEstimate": "Record estimate",
+    "cancelEstimate": "Cancel",
+    "estimateFailed": "Could not record the estimate: {{message}}",
+    "estimatedCount_one": "{{count}} holding uses an estimated cost: the market price on the day it was set, not a purchase price.",
+    "estimatedCount_other": "{{count}} holdings use an estimated cost: the market price on the day it was set, not a purchase price."
   },
   "portfolioSentence": {
     "valueOnly": "Your portfolio is worth {{value}}.",
@@ -2580,7 +2593,9 @@
     "totalValue": "Total value",
     "gainLoss": "Gain/loss",
     "excludesNoFx_one": "Excludes {{count}} holding with no FX rate",
-    "excludesNoFx_other": "Excludes {{count}} holdings with no FX rate"
+    "excludesNoFx_other": "Excludes {{count}} holdings with no FX rate",
+    "includesEstimated_one": "Includes {{count}} holding with an estimated cost (gain since the estimate, not since purchase)",
+    "includesEstimated_other": "Includes {{count}} holdings with an estimated cost (gain since the estimate, not since purchase)"
   },
   "performanceDiagnostics": {
     "sameDay": "same day",

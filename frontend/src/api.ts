@@ -4012,6 +4012,34 @@ export const importCostBasisCsv = (
   );
 };
 
+/** What POST /holdings/cost-basis/estimate recorded (#10095). */
+export interface CostEstimateResponse {
+  owner: string;
+  account: string;
+  ticker: string;
+  units: number;
+  price_gbp: number;
+  cost_basis_gbp: number;
+  cost_basis_source: "estimate";
+  estimate_date: string;
+}
+
+/**
+ * "Use current price as cost": record today's price as the *estimated* cost
+ * of a holding whose purchase price is lost. Stored and shown as an
+ * estimate, never as a recorded purchase price.
+ */
+export const estimateCostBasis = (
+  owner: string,
+  account: string,
+  ticker: string,
+): Promise<CostEstimateResponse> =>
+  fetchJson<CostEstimateResponse>(`${API_BASE}/holdings/cost-basis/estimate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ owner, account, ticker }),
+  });
+
 // Statement reconciliation (#10474). Amounts are integer pence (`*_minor`).
 
 export type StatementDiffKind =

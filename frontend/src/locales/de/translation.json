@@ -2562,7 +2562,20 @@
     "importUpdated_other": "Einstandskosten für {{count}} Positionen erfasst.",
     "importSkipped_one": "{{count}} Zeile übersprungen.",
     "importSkipped_other": "{{count}} Zeilen übersprungen.",
-    "importSkippedRow": "Zeile {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Zeile {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "gesch.",
+    "estimateTitle": "Geschätzte Kosten: der Marktpreis am {{date}}, kein Kaufpreis. Gewinn/Verlust wird ab diesem Tag gemessen.",
+    "estimateTitleNoDate": "Geschätzte Kosten: ein Marktpreis, kein Kaufpreis. Gewinn/Verlust wird ab dem Tag gemessen, an dem sie festgelegt wurden.",
+    "estimateIncluded_one": "Enthält {{count}} Position mit geschätzten Kosten (ein Marktpreis, kein Kaufpreis)",
+    "estimateIncluded_other": "Enthält {{count}} Positionen mit geschätzten Kosten (ein Marktpreis, kein Kaufpreis)",
+    "useCurrentPrice": "Aktuellen Preis als Kosten verwenden",
+    "useCurrentPriceHelp": "Kaufpreis unbekannt? Den heutigen Preis als geschätzte Kosten erfassen, damit Gewinn/Verlust ab heute zählt. Er wird immer als Schätzung angezeigt, nie als Kaufpreis.",
+    "useCurrentPriceConfirm": "Den heutigen Preis als geschätzte Kosten für {{ticker}} erfassen? Das ist nicht, was Sie bezahlt haben: Gewinn/Verlust zählt ab heute, und die Kosten werden überall als Schätzung markiert.",
+    "recordEstimate": "Schätzung erfassen",
+    "cancelEstimate": "Abbrechen",
+    "estimateFailed": "Schätzung konnte nicht erfasst werden: {{message}}",
+    "estimatedCount_one": "{{count}} Position verwendet geschätzte Kosten: den Marktpreis am Tag der Festlegung, keinen Kaufpreis.",
+    "estimatedCount_other": "{{count}} Positionen verwenden geschätzte Kosten: den Marktpreis am Tag der Festlegung, keinen Kaufpreis."
   },
   "portfolioSentence": {
     "valueOnly": "Ihr Portfolio ist {{value}} wert.",
@@ -2587,7 +2600,9 @@
     "totalValue": "Gesamtwert",
     "gainLoss": "Gewinn/Verlust",
     "excludesNoFx_one": "Ohne {{count}} Position ohne Wechselkurs",
-    "excludesNoFx_other": "Ohne {{count}} Positionen ohne Wechselkurs"
+    "excludesNoFx_other": "Ohne {{count}} Positionen ohne Wechselkurs",
+    "includesEstimated_one": "Enthält {{count}} Position mit geschätzten Kosten (Gewinn seit der Schätzung, nicht seit dem Kauf)",
+    "includesEstimated_other": "Enthält {{count}} Positionen mit geschätzten Kosten (Gewinn seit der Schätzung, nicht seit dem Kauf)"
   },
   "performanceDiagnostics": {
     "sameDay": "am selben Tag",

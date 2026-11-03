@@ -734,5 +734,26 @@ def test_cost_basis_unreliable_sources_contents():
     assert holding_utils.COST_BASIS_UNRELIABLE_SOURCES == frozenset({"unknown", "book_suspect"})
     assert holding_utils.is_cost_basis_unreliable("book_suspect")
     assert holding_utils.is_cost_basis_unreliable("unknown")
-    for source in ("book", "derived", "cash", "none", None):
+    # "estimate" (#10095) is a third state, shown with its gain but marked.
+    for source in ("book", "derived", "estimate", "cash", "none", None):
         assert not holding_utils.is_cost_basis_unreliable(source)
+
+
+# ─────── "use current price as cost" estimate (#10095) ───────
+def test_enrich_holding_keeps_an_estimated_cost_tagged_as_estimate(monkeypatch):
+    """A rebuilt holding tagged "estimate" must never be re-tagged "book"; its gain since the estimate is shown."""
+    _patch_enrich_env(monkeypatch, current_price=2.5)
+    holding = {
+        TICKER: "AAA.L",
+        UNITS: 10,
+        COST_BASIS_GBP: 20.0,
+        "cost_basis_source": "estimate",
+        "cost_basis_estimate_date": "2026-10-01",
+    }
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 6), price_cache={})
+
+    assert out["cost_basis_source"] == "estimate"
+    assert out["cost_basis_estimate_date"] == "2026-10-01"
+    assert out["gain_gbp"] == 5.0
+    assert out["gain_pct"] == pytest.approx(25.0)

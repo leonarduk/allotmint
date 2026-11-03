@@ -2562,7 +2562,20 @@
     "importUpdated_other": "Costo registrato per {{count}} posizioni.",
     "importSkipped_one": "{{count}} riga ignorata.",
     "importSkipped_other": "{{count}} righe ignorate.",
-    "importSkippedRow": "Riga {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Riga {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "stim.",
+    "estimateTitle": "Costo stimato: il prezzo di mercato del {{date}}, non un prezzo di acquisto. Il guadagno/la perdita si misura da quel giorno.",
+    "estimateTitleNoDate": "Costo stimato: un prezzo di mercato, non un prezzo di acquisto. Il guadagno/la perdita si misura dal giorno in cui è stato fissato.",
+    "estimateIncluded_one": "Include {{count}} posizione il cui costo è una stima (un prezzo di mercato, non un prezzo di acquisto)",
+    "estimateIncluded_other": "Include {{count}} posizioni il cui costo è una stima (un prezzo di mercato, non un prezzo di acquisto)",
+    "useCurrentPrice": "Usa il prezzo attuale come costo",
+    "useCurrentPriceHelp": "Prezzo di acquisto perso? Registra il prezzo di oggi come costo stimato, così guadagno/perdita contano da oggi. È sempre mostrato come stima, mai come prezzo di acquisto.",
+    "useCurrentPriceConfirm": "Registrare il prezzo di oggi come costo stimato per {{ticker}}? Non è quanto hai pagato: guadagno/perdita conteranno da oggi e il costo sarà indicato ovunque come stima.",
+    "recordEstimate": "Registra stima",
+    "cancelEstimate": "Annulla",
+    "estimateFailed": "Impossibile registrare la stima: {{message}}",
+    "estimatedCount_one": "{{count}} posizione usa un costo stimato: il prezzo di mercato del giorno in cui è stato fissato, non un prezzo di acquisto.",
+    "estimatedCount_other": "{{count}} posizioni usano un costo stimato: il prezzo di mercato del giorno in cui è stato fissato, non un prezzo di acquisto."
   },
   "portfolioSentence": {
     "valueOnly": "Il tuo portafoglio vale {{value}}.",
@@ -2587,7 +2600,9 @@
     "totalValue": "Valore totale",
     "gainLoss": "Guadagno/perdita",
     "excludesNoFx_one": "Esclude {{count}} posizione senza tasso di cambio",
-    "excludesNoFx_other": "Esclude {{count}} posizioni senza tasso di cambio"
+    "excludesNoFx_other": "Esclude {{count}} posizioni senza tasso di cambio",
+    "includesEstimated_one": "Include {{count}} posizione con costo stimato (guadagno dalla stima, non dall'acquisto)",
+    "includesEstimated_other": "Include {{count}} posizioni con costo stimato (guadagno dalla stima, non dall'acquisto)"
   },
   "performanceDiagnostics": {
     "sameDay": "stesso giorno",

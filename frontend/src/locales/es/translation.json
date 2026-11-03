@@ -2562,7 +2562,20 @@
     "importUpdated_other": "Se registró el coste de {{count}} posiciones.",
     "importSkipped_one": "{{count}} fila omitida.",
     "importSkipped_other": "{{count}} filas omitidas.",
-    "importSkippedRow": "Línea {{line}} ({{ticker}}): {{reason}}"
+    "importSkippedRow": "Línea {{line}} ({{ticker}}): {{reason}}",
+    "estimateBadge": "est.",
+    "estimateTitle": "Coste estimado: el precio de mercado del {{date}}, no un precio de compra. La ganancia/pérdida se mide desde ese día.",
+    "estimateTitleNoDate": "Coste estimado: un precio de mercado, no un precio de compra. La ganancia/pérdida se mide desde el día en que se fijó.",
+    "estimateIncluded_one": "Incluye {{count}} posición cuyo coste es una estimación (un precio de mercado, no un precio de compra)",
+    "estimateIncluded_other": "Incluye {{count}} posiciones cuyo coste es una estimación (un precio de mercado, no un precio de compra)",
+    "useCurrentPrice": "Usar el precio actual como coste",
+    "useCurrentPriceHelp": "¿Se perdió el precio de compra? Registre el precio de hoy como coste estimado para que la ganancia/pérdida cuente desde hoy. Siempre se muestra como estimación, nunca como precio de compra.",
+    "useCurrentPriceConfirm": "¿Registrar el precio de hoy como coste estimado de {{ticker}}? No es lo que pagó: la ganancia/pérdida contará desde hoy y el coste se marcará como estimación en todas partes.",
+    "recordEstimate": "Registrar estimación",
+    "cancelEstimate": "Cancelar",
+    "estimateFailed": "No se pudo registrar la estimación: {{message}}",
+    "estimatedCount_one": "{{count}} posición usa un coste estimado: el precio de mercado del día en que se fijó, no un precio de compra.",
+    "estimatedCount_other": "{{count}} posiciones usan un coste estimado: el precio de mercado del día en que se fijó, no un precio de compra."
   },
   "portfolioSentence": {
     "valueOnly": "Su cartera vale {{value}}.",
@@ -2587,7 +2600,9 @@
     "totalValue": "Valor total",
     "gainLoss": "Ganancia/pérdida",
     "excludesNoFx_one": "Excluye {{count}} posición sin tipo de cambio",
-    "excludesNoFx_other": "Excluye {{count}} posiciones sin tipo de cambio"
+    "excludesNoFx_other": "Excluye {{count}} posiciones sin tipo de cambio",
+    "includesEstimated_one": "Incluye {{count}} posición con coste estimado (ganancia desde la estimación, no desde la compra)",
+    "includesEstimated_other": "Incluye {{count}} posiciones con coste estimado (ganancia desde la estimación, no desde la compra)"
   },
   "performanceDiagnostics": {
     "sameDay": "el mismo día",

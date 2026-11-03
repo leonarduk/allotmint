@@ -74,16 +74,25 @@ def _tilde_pins(paths: tuple[Path, ...]) -> dict[str, dict[str, list[str]]]:
 
 
 def _tilde_pin_mismatches(root: dict[str, dict[str, list[str]]], backend: dict[str, dict[str, list[str]]]) -> list[str]:
-    """One line per package ``~=``-pinned on both sides with different specifiers."""
+    """One line per package ``~=``-pinned on both sides that is not one single pin.
+
+    Each side must resolve to exactly one specifier, and the two must agree.
+    Comparing the sets of specifiers would pass a package pinned to two
+    versions on each side (#11402), so a side that disagrees with itself is
+    reported too, even when the other side carries the same two pins.
+    """
 
     def describe(specs: dict[str, list[str]]) -> str:
         return ", ".join(f"{spec} ({', '.join(files)})" for spec, files in sorted(specs.items()))
 
-    return [
-        f"{name}: root={describe(root[name])} backend={describe(backend[name])}"
-        for name in sorted(root.keys() & backend.keys())
-        if set(root[name]) != set(backend[name])
-    ]
+    mismatches = []
+    for name in sorted(root.keys() & backend.keys()):
+        split = [side for side, specs in (("root", root[name]), ("backend", backend[name])) if len(specs) > 1]
+        if not split and root[name].keys() == backend[name].keys():
+            continue
+        note = f" [{' and '.join(split)} pinned to more than one version]" if split else ""
+        mismatches.append(f"{name}: root={describe(root[name])} backend={describe(backend[name])}{note}")
+    return mismatches
 
 
 def _pinned_version(path: Path, package: str) -> str:
@@ -165,6 +174,29 @@ class RequirementsConsistencyTests(unittest.TestCase):
                 "starlette: root=~=0.41.3 (requirements.txt) backend=~=0.47.2 (backend/requirements.txt)",
             ],
         )
+
+    def test_tilde_pin_check_reports_a_side_pinned_to_two_versions(self) -> None:
+        # Both sides carry the same two pins, so the sets match; each side
+        # still disagrees with itself (#11402).
+        root = {"starlette": {"~=0.41.3": ["requirements.txt"], "~=0.47.2": ["requirements-dev.txt"]}}
+        backend = {
+            "starlette": {"~=0.41.3": ["backend/requirements.txt"], "~=0.47.2": ["backend/requirements-test.txt"]}
+        }
+
+        self.assertEqual(
+            _tilde_pin_mismatches(root, backend),
+            [
+                "starlette: root=~=0.41.3 (requirements.txt), ~=0.47.2 (requirements-dev.txt) "
+                "backend=~=0.41.3 (backend/requirements.txt), ~=0.47.2 (backend/requirements-test.txt) "
+                "[root and backend pinned to more than one version]"
+            ],
+        )
+
+    def test_tilde_pin_check_accepts_the_same_pin_repeated_on_one_side(self) -> None:
+        root = {"pytest": {"~=9.2.0": ["requirements.txt", "requirements-dev.txt"]}}
+        backend = {"pytest": {"~=9.2.0": ["backend/requirements-test.txt"]}}
+
+        self.assertEqual(_tilde_pin_mismatches(root, backend), [])
 
     def test_tilde_pins_parse_extras_markers_and_normalise_names(self) -> None:
         pins = _tilde_pins((ROOT_REQUIREMENTS,))

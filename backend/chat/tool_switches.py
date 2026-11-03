@@ -31,7 +31,7 @@ TREND_WATCH_TOOLS: FrozenSet[str] = frozenset(
         "get_instrument_fundamentals",
         "get_instrument_valuation",
         "get_peer_comparison",
-        "get_instrument_timeseries",
+        "get_instrument",
         "get_portfolio",
         "get_transactions",
         "search_web",

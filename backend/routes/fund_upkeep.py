@@ -81,10 +81,9 @@ def owner_all_in_cost(owner: str, request: Request, user: Optional[str] = Depend
 def group_all_in_cost(slug: str, request: Request):
     """All-in cost of a group portfolio.
 
-    Same access as every ``/portfolio-group/{slug}/*`` route (including the
-    full group holdings at ``/portfolio-group/{slug}``): any authenticated
-    user, via the router-level auth dependency. The app has no per-group
-    membership check yet; adding one belongs on all group routes together.
+    Same access as every ``/portfolio-group/{slug}/*`` route: the group's
+    members are only the owners the caller may see, and a group with none is
+    404 (``group_portfolio.list_groups``, #10531).
     """
     try:
         portfolio = cached_group_portfolio(slug, None, lambda: group_portfolio.build_group_portfolio(slug))

@@ -21,6 +21,7 @@ from typing import Any, Callable, Iterable, Mapping, Optional
 
 import pandas as pd
 
+from backend.common.core_optional import missing_package
 from backend.common.holdings_rebuild import transaction_quantity
 from backend.common.investment_plan import InvestmentPlan
 from backend.decision_journal.prices import SeriesLoader, load_return_series
@@ -43,6 +44,14 @@ QUALIFYING_TRADE_TYPES = frozenset({"BUY", "SELL"})
 #: The daily run lists unlogged trades from this far back.
 LOOKBACK_DAYS = 30
 _TECHNICALS_WINDOW_DAYS = 400
+#: ticker -> valuation profile (``allotmint_pro.screener.valuation.instrument_valuation``).
+ValuationLoader = Callable[[str], Any]
+#: Valuation-profile sections and the fields of each a snapshot keeps.
+_VALUATION_FIELDS: dict[str, tuple[str, ...]] = {
+    "valuation": ("pe_ratio", "forward_pe", "pb_ratio", "ev_ebitda"),
+    "income": ("dividend_yield", "payout_ratio"),
+    "nav": ("premium_discount", "status"),
+}
 
 
 class ContextTools:
@@ -323,20 +332,73 @@ def _latest_trend_watch(owner: str) -> Optional[dict[str, Any]]:
         return None
 
 
+def _pro_valuation_loader() -> Optional[ValuationLoader]:
+    """The screener's valuation profile, or ``None`` without allotmint-pro installed."""
+    try:
+        from allotmint_pro.screener.valuation import instrument_valuation
+    except ModuleNotFoundError as exc:
+        if not missing_package(exc):
+            raise
+        return None
+    return instrument_valuation
+
+
+def _valuation_block(profile: Mapping[str, Any]) -> Optional[dict[str, Any]]:
+    """The multiples, income and NAV figures of a valuation profile; ``None`` when it has none."""
+    block: dict[str, Any] = {}
+    for section, fields in _VALUATION_FIELDS.items():
+        values = profile.get(section) or {}
+        prefix = "nav_" if section == "nav" else ""
+        block.update({f"{prefix}{key}": values.get(key) for key in fields if values.get(key) is not None})
+    if not block:
+        return None
+    quality = profile.get("data_quality") or {}
+    extra = {"price": profile.get("price"), "price_currency": profile.get("price_currency")}
+    extra["price_as_of"] = quality.get("price_last_date")
+    return {**block, **{key: value for key, value in extra.items() if value is not None}}
+
+
+def _valuation(ticker: str, load: ValuationLoader) -> Optional[dict[str, Any]]:
+    """A compact valuation block for ``ticker``, or ``None`` when there is no data or it can't be read.
+
+    Valuation is optional context, so a provider failure leaves it out of the
+    snapshot rather than blocking the draft.
+    """
+    try:
+        profile = load(ticker)
+    except Exception as exc:  # noqa: BLE001 - optional context; the draft goes ahead without it
+        logger.warning(
+            "Could not load the valuation for %s (%s); leaving it out of the snapshot",
+            sanitise_log_value(ticker),
+            sanitise_log_value(type(exc).__name__),
+        )
+        return None
+    data = profile.model_dump() if hasattr(profile, "model_dump") else profile
+    return _valuation_block(data) if isinstance(data, Mapping) else None
+
+
 def default_context_tools(
     owner: str,
     accounts_root: Optional[Path],
     *,
     load_series: SeriesLoader = load_return_series,
+    load_valuation: Optional[ValuationLoader] = None,
     today: Optional[date] = None,
 ) -> ContextTools:
-    """Local read-only providers; ``get_instrument_valuation`` has none yet, so it is left out of snapshots."""
+    """Local read-only providers.
+
+    ``get_instrument_valuation`` reads the screener's valuation profile
+    (``load_valuation``, defaulting to allotmint-pro's); without one it has no
+    provider, so the snapshot carries no valuation.
+    """
     day = today or date.today()
-    return ContextTools(
-        {
-            "get_allocation": lambda: _allocation(owner, accounts_root),
-            "get_live_prices": lambda tickers: _latest_prices(tickers, load_series, day),
-            "get_instrument_technicals": lambda ticker: _technicals(ticker, load_series, day),
-            "get_trend_watch_flag": lambda ticker, on: trend_watch_flag(_latest_trend_watch(owner), ticker, on),
-        }
-    )
+    providers: dict[str, Callable[..., Any]] = {
+        "get_allocation": lambda: _allocation(owner, accounts_root),
+        "get_live_prices": lambda tickers: _latest_prices(tickers, load_series, day),
+        "get_instrument_technicals": lambda ticker: _technicals(ticker, load_series, day),
+        "get_trend_watch_flag": lambda ticker, on: trend_watch_flag(_latest_trend_watch(owner), ticker, on),
+    }
+    valuation_loader = load_valuation or _pro_valuation_loader()
+    if valuation_loader is not None:
+        providers["get_instrument_valuation"] = lambda ticker: _valuation(ticker, valuation_loader)
+    return ContextTools(providers)

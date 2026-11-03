@@ -304,7 +304,9 @@ describe("ChatPanel", () => {
 
   it.each([
     [400, /couldn't process that conversation/i],
-    [503, /isn't available/i],
+    // A code-less 503/504 on AWS is usually the API Gateway's 30s ceiling (#7945).
+    [503, /isn't available right now, or your question took too long.*narrower question/i],
+    [504, /took too long to respond\. Try a narrower question/i],
     [502, /couldn't reach its AI service/i],
     [429, /too quickly/i],
     [500, /server error/i],
@@ -365,7 +367,7 @@ describe("ChatPanel", () => {
     await user.type(screen.getByLabelText(/chat message/i), "hi");
     await user.click(screen.getByRole("button", { name: /send/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/took too long/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/took too long.*narrower question/i);
   });
 
   it("drops a failed message from history and restores it for retry (#7897)", async () => {

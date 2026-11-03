@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
+from backend import auth as auth_module
 from backend.agent import trading_agent
 from backend.agent.models import TradingSignal
 from backend.auth import decode_token, is_demo_request
@@ -177,11 +178,16 @@ def get_opportunities(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required",
             )
-        elif not decode_token(token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
-            )
+        else:
+            user = decode_token(token)
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication credentials",
+                )
+            # With auth enabled the group is filtered as the signed-in user,
+            # as on the other group routes (#10531).
+            auth_module.current_user.set(user)
         # The group's members depend on the caller (demo scope, and viewer
         # filtering under ENFORCE_OWNER_ACCESS, #11087), so the cached
         # response must too -- same scope as the group portfolio cache.

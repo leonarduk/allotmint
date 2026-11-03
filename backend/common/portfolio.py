@@ -17,7 +17,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend import auth as auth_module
 from backend.common.account_models import OwnerSummaryRecord
 from backend.common.approvals import load_approvals
 from backend.common.authz import identity_can_access_owner
@@ -27,6 +26,7 @@ from backend.common.data_loader import (
     PLOTS_PREFIX,
     list_plots,
     load_account_record,
+    request_listing_user,
     resolve_paths,
 )
 from backend.common.holding_utils import enrich_holding
@@ -400,10 +400,9 @@ def _owner_plots(accounts_root: Optional[Path]) -> List[OwnerSummaryRecord]:
     ``system_job_context`` job with no request identity still lists everyone.
     """
 
-    if config.disable_auth is False:
-        identity = auth_module.request_identity()
-        if identity is not None:
-            return list_plots(accounts_root, current_user=identity)
+    user = request_listing_user()
+    if user is not None:
+        return list_plots(accounts_root, current_user=user)
     return list_plots(accounts_root)
 
 

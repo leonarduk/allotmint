@@ -1,6 +1,10 @@
 """Admin on/off switches for the chat assistant's tools (``mcp.mcp_tools`` in config.yaml).
 
-Every tool, MCP or local, is on unless the admin config sets it to false. The
+Every tool, MCP or local, is on unless the admin config sets it to false. MCP
+tools also belong to a toolset (:data:`TOOLSETS`) switched by ``mcp.mcp_toolsets``:
+a tool is on only if its toolset is on *and* its own switch is not false, so a
+per-tool ``true`` never re-enables a tool whose toolset is off. Old switch keys of
+tools merged in allotmint-pro#249 still apply (:data:`LEGACY_TOOL_NAMES`). The
 chat agents drop switched-off tools from the list the model sees and refuse a
 call to one, so the switch holds even when the MCP server runs elsewhere (its own
 Lambda with its own config.yaml) and does not see the admin page's change.
@@ -13,7 +17,7 @@ number of calls, and a record of every call made, for the evidence it reports.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, TypeVar
+from typing import Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Tuple, TypeVar
 
 from backend import config_module
 
@@ -36,9 +40,94 @@ TREND_WATCH_TOOLS: FrozenSet[str] = frozenset(
 )
 
 
-def tool_enabled(name: str) -> bool:
+# Mirrors allotmint-pro's ``allotmint_pro/mcp_server/tool_switches.py`` (pro#252),
+# which owns these lists and enforces them on the MCP server itself. allotmint does
+# not import the MCP server package, so keep this copy in step when pro's changes;
+# a tool missing here is simply listed without a toolset (its toolset switch then
+# only takes effect on the MCP server).
+TOOLSETS: Dict[str, Tuple[str, ...]] = {
+    "portfolio": (
+        "list_owners",
+        "get_portfolio",
+        "get_account",
+        "get_transactions",
+        "summarise_transactions",
+        "get_pension_forecast",
+        "get_allocation",
+        "get_investment_plan",
+        "backtest_portfolio",
+    ),
+    "market": (
+        "get_live_prices",
+        "get_instrument",
+        "get_data_freshness",
+        "get_data_coverage",
+        "get_data_quality_report",
+        "get_instrument_fundamentals",
+        "get_instrument_valuation",
+        "get_instrument_technicals",
+        "screen_instruments",
+        "screen_portfolio_valuations",
+        "screen_portfolio_technicals",
+        "screen_risk_adjusted",
+        "get_peer_comparison",
+        "get_fund_facts",
+        "get_fx_history",
+        "get_market_rates",
+        "get_credit_spreads",
+        "get_credit_risk",
+    ),
+    "triggers": ("list_price_triggers", "create_price_trigger", "update_price_trigger", "delete_price_trigger"),
+    "admin": ("list_data_files", "read_data_file", "create_github_issue", "add_instrument"),
+    "web": ("search_web", "fetch_web_page"),
+}
+
+TOOLSET_OF: Dict[str, str] = {tool: toolset for toolset, names in TOOLSETS.items() for tool in names}
+
+# Old switch key -> the tool it was merged into (allotmint-pro#249).
+LEGACY_TOOL_NAMES: Dict[str, str] = {
+    "get_group_portfolio": "get_portfolio",
+    "list_owner_groups": "list_owners",
+    "get_instrument_metadata": "get_instrument",
+    "get_instrument_timeseries": "get_instrument",
+}
+
+
+def migrate_legacy_tool_switches(switches: Mapping[str, bool]) -> Dict[str, bool]:
+    """``switches`` with old names of merged tools folded into the tools they became.
+
+    Same rules as allotmint-pro's MCP server: an explicit key for the new tool
+    wins over its old keys; otherwise the merged tool is off if *any* of its old
+    keys is false, so a merge never switches back on a capability an admin
+    switched off.
+    """
+    result = {name: value for name, value in switches.items() if name not in LEGACY_TOOL_NAMES}
+    for old, value in switches.items():
+        new = LEGACY_TOOL_NAMES.get(old)
+        if new is None or new in switches:
+            continue
+        result[new] = result.get(new, True) and value is not False
+    return result
+
+
+def tool_switch_map() -> Dict[str, bool]:
+    """The admin config's ``mcp_tools`` map with legacy names migrated; missing names are on."""
     switches = getattr(config_module.config, "mcp_tools", None) or {}
-    return switches.get(name, True) is not False
+    return migrate_legacy_tool_switches(switches)
+
+
+def toolset_switch_map() -> Dict[str, bool]:
+    """The admin config's ``mcp_toolsets`` map (toolset name -> enabled); missing names are on."""
+    return dict(getattr(config_module.config, "mcp_toolsets", None) or {})
+
+
+def tool_enabled(name: str) -> bool:
+    """True unless ``name``'s toolset or its own switch is off (an old name counts as its merged tool)."""
+    canonical = LEGACY_TOOL_NAMES.get(name, name)
+    toolset = TOOLSET_OF.get(canonical)
+    if toolset is not None and toolset_switch_map().get(toolset, True) is False:
+        return False
+    return tool_switch_map().get(canonical, True) is not False
 
 
 def enabled_tools(tools: Iterable[T]) -> List[T]:

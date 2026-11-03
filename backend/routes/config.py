@@ -205,20 +205,28 @@ async def _list_mcp_server_tools(mcp_server_url: str) -> List[Dict[str, Any]]:
 
 @router.get("/mcp-tools")
 async def read_mcp_tools() -> Dict[str, Any]:
-    """Every chat assistant tool with its admin on/off switch (``mcp.mcp_tools``).
+    """Every chat assistant tool with its admin on/off switch (``mcp.mcp_tools``), plus the toolsets.
 
     Tools come from the MCP server's listing plus every local tool the chat
     backend can offer (``local_tool_summaries``, #8504). The MCP server hides
     tools that are switched off, so names already in the config are added
-    back; every tool is on unless the config says false. ``not_configured`` is the MCP server's reason a listed
+    back; old names of merged tools are folded into the tools they became
+    (``LEGACY_TOOL_NAMES``, #8587), so they never show up as rows of their own.
+    ``enabled`` is the tool's own switch (on unless the config says false);
+    ``toolset`` is the MCP toolset it belongs to, or ``None`` for local tools
+    and tools allotmint does not know. ``toolsets`` lists every toolset with its
+    ``mcp.mcp_toolsets`` switch; a tool is only usable when both are on.
+    ``not_configured`` is the MCP server's reason a listed
     tool cannot work yet (e.g. a missing API key), else ``None``. ``mcp_error``
     is set when the MCP server could not be listed, in which case only the
     configured and local tools are returned.
     """
     from backend.chat.local_tools import local_tool_summaries
+    from backend.chat.tool_switches import TOOLSET_OF, TOOLSETS, tool_switch_map, toolset_switch_map
 
     cfg = config_module.config
-    switches: Dict[str, bool] = dict(getattr(cfg, "mcp_tools", None) or {})
+    switches = tool_switch_map()
+    toolset_switches = toolset_switch_map()
     tools: Dict[str, Dict[str, Any]] = {}
     mcp_error = None
     if cfg.mcp_server_url:
@@ -238,11 +246,35 @@ async def read_mcp_tools() -> Dict[str, Any]:
         tools.setdefault(name, {"name": name, "description": ""})
     return {
         "tools": [
-            {**tool, "enabled": switches.get(name, True) is not False, "not_configured": tool.get("not_configured")}
+            {
+                **tool,
+                "toolset": TOOLSET_OF.get(name),
+                "enabled": switches.get(name, True) is not False,
+                "not_configured": tool.get("not_configured"),
+            }
             for name, tool in sorted(tools.items())
         ],
+        "toolsets": [{"name": name, "enabled": toolset_switches.get(name, True) is not False} for name in TOOLSETS],
         "mcp_error": mcp_error,
     }
+
+
+def _migrate_legacy_mcp_tools(incoming: Dict[str, Any], merged: Dict[str, Any]) -> None:
+    """Fold old names of merged tools in the saved ``mcp.mcp_tools`` into their new names (#8587).
+
+    Only when the payload sets ``mcp.mcp_tools``: ``deep_merge`` keeps keys the
+    payload leaves out, so without this the old keys stored on disk would be
+    written back on every save of the admin page.
+    """
+    from backend.chat.tool_switches import migrate_legacy_tool_switches
+
+    incoming_mcp = incoming.get("mcp")
+    merged_mcp = merged.get("mcp")
+    if not isinstance(incoming_mcp, dict) or not isinstance(merged_mcp, dict):
+        return
+    if not isinstance(incoming_mcp.get("mcp_tools"), dict) or not isinstance(merged_mcp.get("mcp_tools"), dict):
+        return
+    merged_mcp["mcp_tools"] = migrate_legacy_tool_switches(merged_mcp["mcp_tools"])
 
 
 @write_router.put("")
@@ -279,6 +311,7 @@ def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
             _normalise_config_structure(incoming_payload), existing_data
         )
         deep_merge(data, incoming)
+        _migrate_legacy_mcp_tools(incoming, data)
         # A stale top-level duplicate of a routed key is dead (the section
         # wins on load), so drop it rather than leave it contradicting the
         # value just saved.

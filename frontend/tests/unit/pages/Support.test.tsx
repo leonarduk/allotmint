@@ -549,6 +549,64 @@ describe("Support page", () => {
     expect(mockUpdateConfig).toHaveBeenCalledWith({ mcp_github_repo: "octo/new-repo" });
   });
 
+  it("groups MCP tools by toolset with a toggle per toolset (#8587)", async () => {
+    mockGetMcpTools.mockResolvedValue({
+      tools: [
+        { name: "create_price_trigger", description: "", enabled: true, toolset: "triggers" },
+        { name: "get_portfolio", description: "Portfolio", enabled: true, toolset: "portfolio" },
+        { name: "navigate_to_page", description: "Open a page", enabled: true, toolset: null },
+      ],
+      toolsets: [
+        { name: "portfolio", enabled: true },
+        { name: "triggers", enabled: false },
+      ],
+      mcp_error: null,
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    const portfolio = await screen.findByRole("group", { name: "portfolio toolset" });
+    expect(within(portfolio).getByLabelText("get_portfolio")).toBeEnabled();
+    const triggers = screen.getByRole("group", { name: "triggers toolset" });
+    expect(within(triggers).getByLabelText("triggers toolset")).not.toBeChecked();
+    // A tool keeps its own switch, but cannot be used while its toolset is off.
+    const trigger = within(triggers).getByLabelText("create_price_trigger");
+    expect(trigger).toBeChecked();
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAccessibleDescription(en.support.config.mcpToolsetOff);
+    const other = screen.getByRole("group", { name: en.support.config.mcpOtherTools });
+    expect(within(other).getByLabelText("navigate_to_page")).toBeEnabled();
+  });
+
+  it("saves a toolset switch together with the tool switches", async () => {
+    mockUpdateConfig.mockResolvedValue(undefined);
+    mockGetMcpTools.mockResolvedValue({
+      tools: [{ name: "get_portfolio", description: "", enabled: true, toolset: "portfolio" }],
+      toolsets: [
+        { name: "portfolio", enabled: true },
+        { name: "web", enabled: true },
+      ],
+      mcp_error: null,
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    await act(async () => {
+      await userEvent.click(await screen.findByLabelText("portfolio toolset"));
+    });
+    expect(screen.getByLabelText("get_portfolio")).toBeDisabled();
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.support.config.save }));
+    });
+
+    expect(mockUpdateConfig).toHaveBeenCalledWith({
+      mcp: {
+        mcp_tools: { get_portfolio: true },
+        mcp_toolsets: { portfolio: false, web: true },
+      },
+    });
+  });
+
   it("shows why the MCP tool list is incomplete", async () => {
     mockGetMcpTools.mockResolvedValue({ tools: [], mcp_error: "MCP_SERVER_URL is not set" });
     render(<Support />, { wrapper: MemoryRouter });

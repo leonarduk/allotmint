@@ -303,6 +303,10 @@ class Config:
     # Every tool is on unless set to false here; allotmint-pro's MCP server and
     # the chat agents both honour it (see backend/chat/tool_switches.py).
     mcp_tools: Dict[str, bool] = field(default_factory=dict)
+    # Toolset on/off switches (``mcp.mcp_toolsets``): toolset name -> enabled,
+    # missing names on. A tool is on only if its toolset is on and its own
+    # ``mcp_tools`` switch is not false (allotmint-pro#252, #8587).
+    mcp_toolsets: Dict[str, bool] = field(default_factory=dict)
     # Target owner/repo for allotmint-pro's create_github_issue MCP tool.
     mcp_github_repo: Optional[str] = None
     bedrock_model_id: str = "amazon.nova-lite-v1:0"
@@ -383,18 +387,33 @@ def _parse_error_summary(val: Any) -> Optional[dict]:
     return None
 
 
-def _parse_mcp_tools(val: Any) -> Dict[str, bool]:
-    """Validate ``mcp.mcp_tools``: a map of tool name to boolean (missing names are on)."""
+def _parse_mcp_switches(val: Any, key: str, item: str) -> Dict[str, bool]:
+    """Validate an ``mcp.<key>`` map of ``item`` name to boolean (missing names are on)."""
     if val is None:
         return {}
+    message = f"'{key}' must be a mapping of {item} name to true/false"
     if not isinstance(val, dict):
-        raise ConfigValidationError("'mcp_tools' must be a mapping of tool name to true/false")
+        raise ConfigValidationError(message)
     switches: Dict[str, bool] = {}
     for name, enabled in val.items():
         if not isinstance(name, str) or not name.strip() or not isinstance(enabled, bool):
-            raise ConfigValidationError("'mcp_tools' must be a mapping of tool name to true/false")
+            raise ConfigValidationError(message)
         switches[name.strip()] = enabled
     return switches
+
+
+def _parse_mcp_tools(val: Any) -> Dict[str, bool]:
+    """Validate ``mcp.mcp_tools``: a map of tool name to boolean (missing names are on)."""
+    return _parse_mcp_switches(val, "mcp_tools", "tool")
+
+
+def _parse_mcp_toolsets(val: Any) -> Dict[str, bool]:
+    """Validate ``mcp.mcp_toolsets``: a map of toolset name to boolean (missing names are on).
+
+    Names are not checked against a list: allotmint-pro's MCP server owns the
+    toolsets and ignores (with a warning) any it does not know.
+    """
+    return _parse_mcp_switches(val, "mcp_toolsets", "toolset")
 
 
 def _parse_hh_mm(value: Any, *, key: str, default: str) -> str:
@@ -697,6 +716,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
 
     mcp_server_url = os.getenv("MCP_SERVER_URL", "").strip() or None
     mcp_tools = _parse_mcp_tools(data.get("mcp_tools"))
+    mcp_toolsets = _parse_mcp_toolsets(data.get("mcp_toolsets"))
     mcp_github_repo = str(data.get("mcp_github_repo") or "").strip() or None
     bedrock_model_id = os.getenv("BEDROCK_MODEL_ID", "").strip() or "amazon.nova-lite-v1:0"
     chat_provider = os.getenv("CHAT_PROVIDER", "").strip().lower() or None
@@ -852,6 +872,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         aws_ui_auth=aws_ui_auth,
         mcp_server_url=mcp_server_url,
         mcp_tools=mcp_tools,
+        mcp_toolsets=mcp_toolsets,
         mcp_github_repo=mcp_github_repo,
         bedrock_model_id=bedrock_model_id,
         chat_provider=chat_provider,

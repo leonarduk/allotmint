@@ -444,10 +444,10 @@
     "returnBasisPriceShort": "solo prezzo",
     "returnBasisPriceShare": "{{share}} del valore solo a prezzo",
     "returnBasisUnpriced": "Escluse per mancanza di prezzi: {{holdings}}",
-    "cumulativeReturnPortfolio": "Il tuo portafoglio",
+    "cumulativeReturnPortfolio": "Posizioni di oggi",
     "cumulativeReturnBenchmark": "{{ticker}} (benchmark)",
-    "cumulativeReturnBasis": "Entrambe le linee usano dividendi reinvestiti, le posizioni attuali e le stesse date ({{from}} - {{to}}) dell'alpha vs {{ticker}}.",
-    "twrVsCumulative": "Il rendimento ponderato nel tempo segue le posizioni effettivamente detenute ogni giorno ed esclude l'effetto della tempistica di versamenti e prelievi, mentre questo grafico mostra come si sarebbero comportate le posizioni attuali nell'intero periodo, quindi i due valori possono differire molto.",
+    "cumulativeReturnBasis": "Le linee delle posizioni attuali e del benchmark usano dividendi reinvestiti, le posizioni di oggi e le stesse date ({{from}} - {{to}}) dell'alpha vs {{ticker}}.",
+    "twrVsCumulative": "Il rendimento totale segue le posizioni effettivamente detenute ogni giorno, include dividendi e interessi ed esclude l'effetto della tempistica di versamenti e prelievi: la stessa base del rendimento ponderato nel tempo e dei report. La linea delle posizioni attuali mostra invece come si sarebbero comportate le posizioni di oggi nell'intero periodo, quindi le due possono differire molto.",
     "benchmarkSeriesFailed": "Impossibile caricare {{ticker}} per il confronto, quindi viene mostrato solo il rendimento cumulato del tuo portafoglio basato sul valore.",
     "benchmarkSeriesEmpty": "Nessun prezzo di {{ticker}} copre questo periodo, quindi viene mostrato solo il rendimento cumulato del tuo portafoglio basato sul valore.",
     "trackingErrorInfoLabel": "Cosa significa l'errore di tracciamento?",
@@ -479,7 +479,10 @@
       "unconverted": "Nessun tasso di cambio memorizzato in alcuni giorni per {{holdings}}; i movimenti di quei giorni non sono attribuiti.",
       "noLedger": "Nessun registro delle transazioni da attribuire.",
       "unavailable": "L'attribuzione del risultato non è disponibile al momento."
-    }
+    },
+    "cumulativeTotalReturn": "Rendimento totale (incl. dividendi e interessi)",
+    "totalReturnNoLedger": "Rendimento totale non disponibile: viene ricostruito dal registro delle transazioni e non ci sono transazioni da cui ricostruirlo.",
+    "totalReturnExcludesCash": "Rendimento totale non disponibile escludendo la liquidità: dividendi e interessi sono accreditati in liquidità, quindi escluderla escluderebbe anche loro."
   },
   "goals": {
     "add": "Aggiungi obiettivo",

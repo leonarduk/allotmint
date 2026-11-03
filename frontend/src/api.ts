@@ -1166,6 +1166,8 @@ export const getPerformance = (
       next_value: number;
     }[];
     unconverted_holdings?: UnconvertedHolding[];
+    cumulative_return_basis?: string | null;
+    cumulative_return_unavailable_reason?: string | null;
   }>(
     `${API_BASE}/performance/${owner}?${params.toString()}`,
   );
@@ -1192,6 +1194,8 @@ export const getPerformance = (
         previousValue: issue.previous_value,
         nextValue: issue.next_value,
       })) ?? [],
+    cumulativeReturnBasis: p.cumulative_return_basis ?? null,
+    cumulativeReturnUnavailableReason: p.cumulative_return_unavailable_reason ?? null,
   }));
 };
 
@@ -1385,6 +1389,8 @@ export const getGroupPerformance = (
       next_value: number;
     }[];
     unconverted_holdings?: UnconvertedHolding[];
+    cumulative_return_basis?: string | null;
+    cumulative_return_unavailable_reason?: string | null;
   }>(
     `${API_BASE}/performance-group/${slug}?${params.toString()}`,
   );
@@ -1436,6 +1442,8 @@ export const getGroupPerformance = (
         })) ?? [],
       partial: Boolean(t?.partial || x?.partial),
       missingMembers,
+      cumulativeReturnBasis: p.cumulative_return_basis ?? null,
+      cumulativeReturnUnavailableReason: p.cumulative_return_unavailable_reason ?? null,
     };
   });
 };

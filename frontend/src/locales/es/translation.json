@@ -444,10 +444,10 @@
     "returnBasisPriceShort": "solo precio",
     "returnBasisPriceShare": "{{share}} del valor solo con precio",
     "returnBasisUnpriced": "Excluidas por falta de precios: {{holdings}}",
-    "cumulativeReturnPortfolio": "Su cartera",
+    "cumulativeReturnPortfolio": "Posiciones de hoy",
     "cumulativeReturnBenchmark": "{{ticker}} (referencia)",
-    "cumulativeReturnBasis": "Ambas líneas usan dividendos reinvertidos, las posiciones actuales y las mismas fechas ({{from}} a {{to}}) que el alfa frente a {{ticker}}.",
-    "twrVsCumulative": "La rentabilidad ponderada en el tiempo sigue las posiciones que realmente tenía cada día y elimina el efecto del momento de los depósitos y retiradas, mientras que este gráfico muestra cómo habrían evolucionado sus posiciones actuales durante todo el periodo, por lo que ambas cifras pueden diferir mucho.",
+    "cumulativeReturnBasis": "Las líneas de posiciones actuales y del índice de referencia usan dividendos reinvertidos, las posiciones de hoy y las mismas fechas ({{from}} a {{to}}) que el alfa frente a {{ticker}}.",
+    "twrVsCumulative": "La rentabilidad total sigue las posiciones que realmente tenía cada día, incluye dividendos e intereses y elimina el efecto del momento de los depósitos y retiradas: la misma base que la rentabilidad ponderada en el tiempo y los informes. La línea de posiciones actuales muestra en cambio cómo habrían evolucionado sus posiciones de hoy durante todo el periodo, por lo que ambas pueden diferir mucho.",
     "benchmarkSeriesFailed": "No se pudo cargar {{ticker}} para comparar, así que solo se muestra el retorno acumulado de su cartera basado en su valor.",
     "benchmarkSeriesEmpty": "No hay precios de {{ticker}} que coincidan con este periodo, así que solo se muestra el retorno acumulado de su cartera basado en su valor.",
     "trackingErrorInfoLabel": "¿Qué significa el error de seguimiento?",
@@ -479,7 +479,10 @@
       "unconverted": "No hay tipo de cambio almacenado algunos días para {{holdings}}; los movimientos de esos días quedan sin atribuir.",
       "noLedger": "No hay registro de transacciones que atribuir.",
       "unavailable": "La atribución del resultado no está disponible en este momento."
-    }
+    },
+    "cumulativeTotalReturn": "Rentabilidad total (incl. dividendos e intereses)",
+    "totalReturnNoLedger": "Rentabilidad total no disponible: se reconstruye a partir del registro de transacciones y no hay transacciones con las que hacerlo.",
+    "totalReturnExcludesCash": "Rentabilidad total no disponible sin efectivo: los dividendos y los intereses se abonan en efectivo, así que al excluirlo también quedarían fuera."
   },
   "goals": {
     "add": "Agregar objetivo",

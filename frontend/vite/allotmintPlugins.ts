@@ -93,12 +93,20 @@ export function assertHostApiVersion(
 }
 
 function readEntry(entry: string): string {
-  if (!fs.existsSync(entry) || !fs.statSync(entry).isFile()) {
-    throw new Error(
-      `${PLUGIN_ENTRIES_ENV} lists ${entry}, which does not exist or is not a file.`
-    );
+  // Read directly rather than check-then-read: a separate existence check can
+  // go stale before the read (CodeQL js/file-system-race).
+  try {
+    return fs.readFileSync(entry, 'utf-8');
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'EISDIR' || code === 'ENOTDIR') {
+      throw new Error(
+        `${PLUGIN_ENTRIES_ENV} lists ${entry}, which does not exist or is not a file.`,
+        { cause: error }
+      );
+    }
+    throw error;
   }
-  return fs.readFileSync(entry, 'utf-8');
 }
 
 /** Source of `virtual:allotmint-plugins` for these entries. */

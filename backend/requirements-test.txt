@@ -4,7 +4,7 @@
 # backend/requirements.txt from the root requirements.txt pins.
 pytest~=9.2.0
 pytest-cov~=7.1.0
-pytest-asyncio~=1.4.0
+pytest-asyncio~=1.4.1
 # jsonschema is used by tests/contracts/test_api_response_contracts.py for API
 # contract validation. It's no longer pinned here: backend/requirements.txt
 # mirrors it from the root requirements.txt (see tests/test_requirements_consistency.py),

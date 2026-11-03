@@ -504,6 +504,14 @@ checks already run. When it is on:
   - **Demo tokens:** confined in every mode.
 
   (#11351)
+- **Alerts feed.** Alerts about one owner's portfolio (cost-basis moves,
+  trade imports, nudges, drift) carry `owner` when they are published.
+  `GET /alerts/` drops those whose owner the caller may not see, by the
+  `/owners` rule (`list_plots(current_user=<caller>)`, plus the caller's own
+  identity for alerts keyed by it). Alerts with no `owner` (price triggers,
+  agent signals, job failures) are shown to everyone. Alerts stored before
+  owners were recorded have no `owner` either, so they stay visible until the
+  `MAX_STORED_ALERTS` cap ages them out. SNS delivery is unchanged. (#11359)
 - **Nudges.** `POST /nudges/subscribe` and `POST /nudges/snooze` run
   `ensure_owner_access` on the body's `user`, with the same caller as the
   per-owner routes. A nudge's `user` is usually an owner id but may be the

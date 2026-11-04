@@ -26,6 +26,7 @@ from backend.fund_upkeep import bot, charges_agent, proposals
 from backend.fund_upkeep.all_in_cost import compute_all_in_cost
 from backend.routes import get_active_user
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
+from backend.routes._group_errors import raise_group_not_found
 from backend.routes.transactions import load_all_transactions, resolve_writable_store
 from backend.timeseries.cache import cache_only
 
@@ -88,7 +89,7 @@ def group_all_in_cost(slug: str, request: Request):
     try:
         portfolio = cached_group_portfolio(slug, None, lambda: group_portfolio.build_group_portfolio(slug))
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
     owners = {str(a.get("owner") or "").lower() for a in portfolio.get("accounts") or []}
     with cache_only():
         return compute_all_in_cost(portfolio, _transactions(request, owners))

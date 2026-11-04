@@ -43,6 +43,7 @@ from backend.common.portfolio_cache import cached_group_portfolio, invalidate_gr
 from backend.config import config, demo_identity
 from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
+from backend.routes._group_errors import raise_group_not_found
 from backend.timeseries.cache import cache_only
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import resolve_date_range
@@ -740,9 +741,9 @@ def portfolio_group(slug: str, as_of: str | None = None):
     try:
         pricing_date = _resolve_pricing_date(as_of)
         return _build_group_portfolio(slug, pricing_date)
-    except Exception as e:
-        logger.warning("Failed to load group %s: %s", sanitise_log_value(slug), sanitise_log_value(e))
-        raise HTTPException(status_code=404, detail="Group not found")
+    except Exception as exc:
+        logger.warning("Failed to load group %s: %s", sanitise_log_value(slug), sanitise_log_value(exc))
+        raise_group_not_found(exc)
 
 
 # --------------------------------------------------------------
@@ -785,7 +786,7 @@ def group_instruments(
         pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
 
     owner_filters = _normalise_filter_values(owner)
     account_type_filters = _normalise_filter_values(account_type)
@@ -816,7 +817,7 @@ def group_sectors(slug: str, as_of: str | None = None):
         pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
     with cache_only():
         return portfolio_utils.aggregate_by_sector(gp)
 
@@ -827,7 +828,7 @@ def group_regions(slug: str, as_of: str | None = None):
         pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
     with cache_only():
         return portfolio_utils.aggregate_by_region(gp)
 
@@ -839,7 +840,7 @@ def group_currencies(slug: str, as_of: str | None = None):
         pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
     with cache_only():
         return portfolio_utils.aggregate_by_currency(gp)
 
@@ -851,7 +852,7 @@ def group_look_through(slug: str, as_of: str | None = None):
         pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
     with cache_only():
         return look_through.compute_look_through(gp)
 
@@ -862,7 +863,7 @@ def group_exposure(slug: str, as_of: str | None = None):
     try:
         gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
     return group_portfolio.aggregate_group_exposure(gp)
 
 
@@ -930,13 +931,13 @@ def group_movers(
         raise HTTPException(status_code=400, detail="Invalid days")
     try:
         summaries = instrument_api.instrument_summaries_for_group(slug)
-    except Exception as e:
+    except Exception as exc:
         logger.warning(
             "Failed to load instrument summaries for group %s: %s",
             sanitise_log_value(slug),
-            sanitise_log_value(e),
+            sanitise_log_value(exc),
         )
-        raise HTTPException(status_code=404, detail="Group not found")
+        raise_group_not_found(exc)
 
     tickers, weight_map, market_values = _calculate_weights_and_market_values(summaries)
     total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)

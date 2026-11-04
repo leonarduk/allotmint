@@ -16,6 +16,7 @@ from backend.common import instrument_api
 from backend.common.portfolio_cache import access_scope
 from backend.common.ttl_cache import TTLCache
 from backend.config import config
+from backend.routes._group_errors import raise_group_not_found
 from backend.routes.portfolio import _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS
 from backend.routes.portfolio import _calculate_weights_and_market_values, _enrich_movers_with_market_values
 from backend.timeseries.cache import cache_only
@@ -90,7 +91,7 @@ def _group_opportunities(
     try:
         summaries = instrument_api.instrument_summaries_for_group(slug)
     except Exception as exc:  # pragma: no cover - defensive logging handled upstream
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
 
     tickers, weight_map, market_values = _calculate_weights_and_market_values(summaries)
     if not tickers:

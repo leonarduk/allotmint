@@ -127,6 +127,38 @@ describe("InstrumentDetail", () => {
     expect(await screen.findByTestId("instrument-ongoing-charge")).toHaveTextContent(text);
   });
 
+  it("shows the full name and sector in the header when provided", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({ prices: [], positions: [], currency: null });
+    mockGetInstrumentIntraday.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter>
+        <InstrumentDetail
+          ticker="SGLN.L"
+          name="iShares Physical Gold ETC"
+          sector="Commodities"
+          onClose={() => {}}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "iShares Physical Gold ETC" })).toBeInTheDocument();
+    expect(screen.getByTestId("instrument-sector")).toHaveTextContent("Commodities");
+  });
+
+  it("omits the sector when none is known", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({ prices: [], positions: [], currency: null });
+    mockGetInstrumentIntraday.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("instrument-sector")).not.toBeInTheDocument();
+  });
+
   it("links from the drawer to the full research page", async () => {
     mockGetInstrumentDetail.mockResolvedValue({ prices: [], positions: [], currency: null });
     mockGetInstrumentIntraday.mockResolvedValue([]);

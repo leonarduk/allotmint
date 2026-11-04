@@ -1453,6 +1453,7 @@ export interface AnalyticsFunnelSummary {
 export interface TradingSignal {
   ticker: string;
   name?: string;
+  sector?: string | null;
   action: 'buy' | 'sell' | 'BUY' | 'SELL';
   reason: string;
   confidence?: number;

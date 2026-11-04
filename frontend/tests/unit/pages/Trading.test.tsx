@@ -107,6 +107,27 @@ describe('Trading page', () => {
     expect(detail).toHaveTextContent('cheap');
   });
 
+  it('shows the full name and sector when hovering the ticker', async () => {
+    mockFetchState({
+      data: [{ ...sampleSignal, ticker: 'BBAI.N', name: 'BigBear.ai Holdings', sector: 'Technology' }],
+    });
+
+    render(<Trading />);
+
+    expect(await screen.findByRole('button', { name: 'BBAI.N' })).toHaveAttribute(
+      'title',
+      'BigBear.ai Holdings — Technology'
+    );
+  });
+
+  it('omits the ticker hover text when there is no name or sector beyond the ticker', async () => {
+    mockFetchState({ data: [sampleSignal] });
+
+    render(<Trading />);
+
+    expect(await screen.findByRole('button', { name: 'AAA' })).not.toHaveAttribute('title');
+  });
+
   it('shows the trend-watch panel even when the signals call fails', async () => {
     mockFetchState({ error: new Error('down') });
 

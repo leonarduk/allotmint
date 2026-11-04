@@ -56,6 +56,7 @@ type Props = {
   name: string;
   currency?: string;
   instrument_type?: string | null;
+  sector?: string | null;
   signal?: TradingSignal;
   onClose?: () => void;
   variant?: Variant;
@@ -523,6 +524,7 @@ export function InstrumentDetail({
   name,
   currency: currencyProp,
   instrument_type, // ← comes from props now
+  sector,
   signal,
   onClose,
   variant = "drawer",
@@ -970,6 +972,12 @@ export function InstrumentDetail({
       </div>
       <div style={{ fontSize: "0.85rem", color: palette.muted }}>
         {ticker} • {displayCurrency} • {translateInstrumentType(t, instrument_type)} • {" "}
+        {sector && (
+          <>
+            <span data-testid="instrument-sector">{sector}</span>
+            {" • "}
+          </>
+        )}
         {data && (
           <>
             <span data-testid="instrument-ongoing-charge">

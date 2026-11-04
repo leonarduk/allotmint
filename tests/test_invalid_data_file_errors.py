@@ -231,7 +231,17 @@ def corrupt_alex_root(tmp_path, monkeypatch) -> Path:
     portfolio_cache.invalidate_group_portfolios()
 
 
-@pytest.mark.parametrize("path", ["/portfolio-group/all", "/portfolio/alex"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/portfolio-group/all",
+        "/portfolio/alex",
+        # These two go through instrument_api.instrument_summaries_for_group,
+        # not the group builder: pin that it propagates InvalidPayload too.
+        "/portfolio-group/all/movers?days=1",
+        "/opportunities?group=all&days=1",
+    ],
+)
 def test_real_corrupt_file_is_named_end_to_end(corrupt_alex_root, path) -> None:
     # Built after the fixture: create_app caches accounts_root in app.state.
     client = TestClient(create_app())

@@ -741,6 +741,8 @@ def portfolio_group(slug: str, as_of: str | None = None):
     try:
         pricing_date = _resolve_pricing_date(as_of)
         return _build_group_portfolio(slug, pricing_date)
+    except data_loader.InvalidPayload:
+        raise  # the app-wide handler logs it with the path and answers 500 (#11428)
     except Exception as exc:
         logger.warning("Failed to load group %s: %s", sanitise_log_value(slug), sanitise_log_value(exc))
         raise_group_not_found(exc)
@@ -931,6 +933,8 @@ def group_movers(
         raise HTTPException(status_code=400, detail="Invalid days")
     try:
         summaries = instrument_api.instrument_summaries_for_group(slug)
+    except data_loader.InvalidPayload:
+        raise  # the app-wide handler logs it with the path and answers 500 (#11428)
     except Exception as exc:
         logger.warning(
             "Failed to load instrument summaries for group %s: %s",

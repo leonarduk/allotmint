@@ -81,6 +81,13 @@ class TestSafeJsonLoad:
         assert exc.source == "alex/isa.json"
         assert exc.reason is not None and exc.reason.startswith("line 3 column 1:")
 
+    def test_empty_s3_body_is_labelled(self) -> None:
+        with pytest.raises(InvalidPayload) as exc_info:
+            _parse_json_body(io.BytesIO(b"  \n"), "s3://bucket/accounts/alex/isa.json")
+
+        assert exc_info.value.source == "alex/isa.json"
+        assert exc_info.value.reason == "empty file"
+
     def test_local_provider_keeps_the_source_label(self, tmp_path: Path) -> None:
         _write_conflicted_account(tmp_path)
 
@@ -160,6 +167,19 @@ def test_log_line_carries_the_full_path_and_position(client, monkeypatch) -> Non
     client.get("/portfolio-group/all")
 
     assert any("/srv/data/accounts/alex/isa.json" in line and "line 5 column 1" in line for line in logged)
+
+
+def test_catch_all_group_route_logs_the_corrupt_file_once(client, monkeypatch) -> None:
+    # portfolio_group catches bare Exception and logs it; the app-wide handler
+    # already logs InvalidPayload with the path, so the route must not as well.
+    route_logged: list[str] = []
+    monkeypatch.setattr(portfolio_routes.logger, "warning", lambda msg, *a, **k: route_logged.append(msg))
+    monkeypatch.setattr(portfolio_routes, "_build_group_portfolio", _raise_corrupt)
+
+    resp = client.get("/portfolio-group/all")
+
+    assert resp.status_code == 500
+    assert route_logged == []
 
 
 def test_owner_portfolio_reports_the_corrupt_file(client, monkeypatch) -> None:

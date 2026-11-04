@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+import backend.app as app_module
 from backend.app import create_app
 from backend.common import group_portfolio, instrument_api, portfolio_utils
 from backend.common import portfolio as portfolio_mod
@@ -59,6 +60,17 @@ class TestSafeJsonLoad:
         with pytest.raises(ValueError):
             _safe_json_load(path)
 
+    def test_empty_file_is_labelled(self, tmp_path: Path) -> None:
+        path = tmp_path / "alex" / "isa.json"
+        path.parent.mkdir(parents=True)
+        path.write_text("  \n", encoding="utf-8")
+
+        with pytest.raises(InvalidPayload) as exc_info:
+            _safe_json_load(path)
+
+        assert exc_info.value.source == "alex/isa.json"
+        assert exc_info.value.reason == "empty file"
+
     def test_s3_body_is_labelled_like_a_local_file(self) -> None:
         body = io.BytesIO(b'{\n  "owner": "alex",\n<<<<<<< Updated upstream\n}')
 
@@ -84,6 +96,7 @@ class TestSafeJsonLoad:
         "/portfolio-group/all",
         "/portfolio-group/all/sectors",
         "/portfolio-group/all/regions",
+        "/portfolio-group/all/instruments",
     ],
 )
 def test_group_routes_report_the_corrupt_file(client, monkeypatch, path) -> None:
@@ -123,6 +136,30 @@ def test_opportunities_group_route_reports_the_corrupt_file(client, monkeypatch)
 
     assert resp.status_code == 500
     assert resp.json() == {"detail": _EXPECTED_DETAIL}
+
+
+def test_group_movers_route_reports_the_corrupt_file(client, monkeypatch) -> None:
+    # Like /opportunities, /movers catches bare Exception around the summaries.
+    monkeypatch.setattr(instrument_api, "instrument_summaries_for_group", _raise_corrupt)
+
+    resp = client.get("/portfolio-group/corrupt-movers/movers", params={"days": 1})
+
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": _EXPECTED_DETAIL}
+
+
+def test_log_line_carries_the_full_path_and_position(client, monkeypatch) -> None:
+    logged: list[str] = []
+
+    def _capture(msg, *args, **_kwargs):
+        logged.append(msg % args)
+
+    monkeypatch.setattr(app_module.logger, "warning", _capture)
+    monkeypatch.setattr(portfolio_routes, "_build_group_portfolio", _raise_corrupt)
+
+    client.get("/portfolio-group/all")
+
+    assert any("/srv/data/accounts/alex/isa.json" in line and "line 5 column 1" in line for line in logged)
 
 
 def test_owner_portfolio_reports_the_corrupt_file(client, monkeypatch) -> None:

@@ -90,7 +90,7 @@ def _group_opportunities(
 
     try:
         summaries = instrument_api.instrument_summaries_for_group(slug)
-    except Exception as exc:  # pragma: no cover - defensive logging handled upstream
+    except Exception as exc:
         raise_group_not_found(exc)
 
     tickers, weight_map, market_values = _calculate_weights_and_market_values(summaries)

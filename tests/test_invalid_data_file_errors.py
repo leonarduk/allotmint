@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 import backend.app as app_module
 from backend.app import create_app
-from backend.common import group_portfolio, instrument_api, portfolio_utils
+from backend.common import group_portfolio, instrument_api, portfolio_cache, portfolio_utils
 from backend.common import portfolio as portfolio_mod
 from backend.common.data_providers import InvalidPayload, LocalDataProvider, _parse_json_body, _safe_json_load
 from backend.config import config
@@ -177,6 +177,58 @@ def test_response_never_carries_the_server_path(client, monkeypatch) -> None:
     resp = client.get("/portfolio-group/all")
 
     assert "/srv/data" not in resp.text
+
+
+@pytest.fixture
+def corrupt_alex_root(tmp_path, monkeypatch) -> Path:
+    """Real files: steve is valid, alex's ISA carries a committed conflict marker.
+
+    Nothing in the load chain is stubbed (``_safe_json_load`` -> ``load_account``
+    -> ``build_owner_portfolio`` / ``build_group_portfolio``), only price lookups,
+    since there is no price history offline.
+    """
+    monkeypatch.delenv("DATA_BUCKET", raising=False)
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(instrument_api, "_price_and_changes", lambda ticker: {})
+    monkeypatch.setattr(portfolio_utils, "_window_closes", lambda *a, **k: None)
+    portfolio_cache.invalidate_group_portfolios()
+    for owner in ("steve", "alex"):
+        (tmp_path / owner).mkdir()
+        (tmp_path / owner / "person.json").write_text(json.dumps({"owner": owner}))
+    steve_isa = {
+        "owner": "steve",
+        "account_type": "ISA",
+        "currency": "GBP",
+        "holdings": [{"ticker": "CASH.GBP", "units": 100.0, "cost_basis_gbp": 100.0}],
+    }
+    (tmp_path / "steve" / "isa.json").write_text(json.dumps(steve_isa))
+    (tmp_path / "alex" / "isa.json").write_text(
+        '{\n  "owner": "alex",\n  "account_type": "ISA",\n  "currency": "GBP",\n'
+        '<<<<<<< Updated upstream\n  "holdings": []\n}\n'
+    )
+    yield tmp_path
+    portfolio_cache.invalidate_group_portfolios()
+
+
+@pytest.mark.parametrize("path", ["/portfolio-group/all", "/portfolio/alex"])
+def test_real_corrupt_file_is_named_end_to_end(corrupt_alex_root, path) -> None:
+    # Built after the fixture: create_app caches accounts_root in app.state.
+    client = TestClient(create_app())
+
+    resp = client.get(path)
+
+    assert resp.status_code == 500, resp.text
+    detail = resp.json()["detail"]
+    assert detail.startswith("Data file is invalid: alex/isa.json (line 5 column 1:")
+    assert str(corrupt_alex_root) not in resp.text
+
+
+def test_real_corrupt_file_leaves_other_groups_loading(corrupt_alex_root) -> None:
+    # adults = lucy + steve; neither file is broken, so it still loads.
+    resp = TestClient(create_app()).get("/portfolio-group/adults")
+
+    assert resp.status_code == 200, resp.text
 
 
 def test_unknown_group_is_still_not_found(client, monkeypatch) -> None:

@@ -30,10 +30,14 @@ class ProviderUnavailable(RuntimeError):
 class InvalidPayload(ValueError):
     """Raised when provider data exists but cannot be parsed or is empty.
 
-    ``source`` is a short, response-safe label for the file (``<owner>/<file>.json``,
-    never an absolute path) and ``reason`` the parser's own message, so a route can
-    tell the caller which file is broken without leaking server paths (#11428).
-    It stays a ``ValueError`` because loaders catch that to skip one bad file.
+    ``source`` is a short, response-safe label for the file -- its immediate
+    parent directory and name, which for an account file is
+    ``<owner>/<file>.json``; never an absolute path -- and ``reason`` the
+    parser's own message, so a route can tell the caller which file is broken
+    without leaking server paths (#11428). It is the one signal for an unreadable
+    data file: ``raise_group_not_found`` re-raises it and maps every other error
+    to 404. It stays a ``ValueError`` because loaders catch that to skip one bad
+    file.
     """
 
     def __init__(self, message: str, *, source: str | None = None, reason: str | None = None) -> None:
@@ -43,9 +47,11 @@ class InvalidPayload(ValueError):
 
 
 def _source_label(path: PurePath) -> str:
-    """Return ``<parent>/<name>`` for *path* -- e.g. ``alex/isa.json``.
+    """Return the immediate parent directory and name of *path*.
 
-    Takes a local ``Path`` or a ``PurePosixPath`` of an S3 URI alike.
+    ``accounts/alex/isa.json`` -> ``alex/isa.json``; a file with no parent
+    gives just its name. Takes a local ``Path`` or a ``PurePosixPath`` of an
+    S3 URI alike.
     """
 
     return f"{path.parent.name}/{path.name}" if path.parent.name else path.name

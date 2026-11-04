@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -42,8 +42,11 @@ class InvalidPayload(ValueError):
         self.reason = reason
 
 
-def _source_label(path: Path) -> str:
-    """Return ``<parent>/<name>`` for *path* -- e.g. ``alex/isa.json``."""
+def _source_label(path: PurePath) -> str:
+    """Return ``<parent>/<name>`` for *path* -- e.g. ``alex/isa.json``.
+
+    Takes a local ``Path`` or a ``PurePosixPath`` of an S3 URI alike.
+    """
 
     return f"{path.parent.name}/{path.name}" if path.parent.name else path.name
 
@@ -211,7 +214,7 @@ def _safe_json_load(path: Path) -> Dict[str, Any]:
 
 
 def _parse_json_body(body: Any, source: str) -> Dict[str, Any]:
-    label = "/".join(source.rsplit("/", 2)[-2:])
+    label = _source_label(PurePosixPath(source))
     txt = body.read().decode("utf-8-sig").strip() if body else ""
     if not txt:
         raise InvalidPayload(f"Empty JSON file: {source}", source=label, reason="empty file")

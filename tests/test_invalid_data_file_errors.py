@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
@@ -9,9 +10,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.common import group_portfolio, instrument_api, portfolio_utils
 from backend.common import portfolio as portfolio_mod
-from backend.common import portfolio_utils
-from backend.common.data_providers import InvalidPayload, LocalDataProvider, _safe_json_load
+from backend.common.data_providers import InvalidPayload, LocalDataProvider, _parse_json_body, _safe_json_load
+from backend.config import config
 from backend.routes import portfolio as portfolio_routes
 
 _CORRUPT = InvalidPayload(
@@ -57,6 +59,16 @@ class TestSafeJsonLoad:
         with pytest.raises(ValueError):
             _safe_json_load(path)
 
+    def test_s3_body_is_labelled_like_a_local_file(self) -> None:
+        body = io.BytesIO(b'{\n  "owner": "alex",\n<<<<<<< Updated upstream\n}')
+
+        with pytest.raises(InvalidPayload) as exc_info:
+            _parse_json_body(body, "s3://bucket/accounts/alex/isa.json")
+
+        exc = exc_info.value
+        assert exc.source == "alex/isa.json"
+        assert exc.reason is not None and exc.reason.startswith("line 3 column 1:")
+
     def test_local_provider_keeps_the_source_label(self, tmp_path: Path) -> None:
         _write_conflicted_account(tmp_path)
 
@@ -87,6 +99,27 @@ def test_group_performance_route_reports_the_corrupt_file(client, monkeypatch) -
     monkeypatch.setattr(portfolio_utils, "compute_group_max_drawdown", _raise_corrupt)
 
     resp = client.get("/performance-group/all/max-drawdown")
+
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": _EXPECTED_DETAIL}
+
+
+def test_fund_upkeep_group_route_reports_the_corrupt_file(client, monkeypatch) -> None:
+    # Unique slug: cached_group_portfolio would otherwise serve a cached build.
+    monkeypatch.setattr(group_portfolio, "build_group_portfolio", _raise_corrupt)
+
+    resp = client.get("/fund-upkeep/group/corrupt-upkeep/all-in-cost")
+
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": _EXPECTED_DETAIL}
+
+
+def test_opportunities_group_route_reports_the_corrupt_file(client, monkeypatch) -> None:
+    # This route catches bare Exception, the widest net to regress back to 404.
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(instrument_api, "instrument_summaries_for_group", _raise_corrupt)
+
+    resp = client.get("/opportunities", params={"group": "corrupt-opportunities", "days": 1})
 
     assert resp.status_code == 500
     assert resp.json() == {"detail": _EXPECTED_DETAIL}

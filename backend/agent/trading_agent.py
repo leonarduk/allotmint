@@ -18,6 +18,7 @@ from backend import alerts as alert_utils
 from backend.common import indicators, prices
 from backend.common.alerts import publish_alert
 from backend.common.core_optional import CoreFeatureUnavailableError
+from backend.common.instruments import get_instrument_meta
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     compute_owner_performance,
@@ -387,6 +388,34 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
         signals.append(entry)
 
     return signals
+
+
+def attach_instrument_meta(signals: Iterable[Dict]) -> None:
+    """Add the instrument's display ``name`` and ``sector`` to each signal.
+
+    Reads the stored instrument metadata only (no live lookup). A ticker with
+    no metadata, or whose metadata fails to load, keeps its signal as-is: the
+    name/sector are display hints and must not stop signals being returned.
+    """
+    for sig in signals:
+        ticker = sig.get("ticker")
+        if not ticker:
+            continue
+        try:
+            meta = get_instrument_meta(ticker)
+        except Exception as exc:
+            logger.warning(
+                "Instrument metadata unavailable for %s: %s",
+                sanitise_log_value(ticker),
+                sanitise_log_value(exc),
+            )
+            continue
+        name = meta.get("name")
+        if name and not sig.get("name"):
+            sig["name"] = name
+        sector = meta.get("sector")
+        if sector and not sig.get("sector"):
+            sig["sector"] = sector
 
 
 def format_signal_message(action: str, ticker: str, reason: str, checks_skipped: Optional[Sequence[str]] = None) -> str:

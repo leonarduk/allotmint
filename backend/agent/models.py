@@ -22,11 +22,15 @@ class TradingSignal(BaseModel):
             skipped because ``allotmint-pro`` is not installed, e.g.
             ``["compliance", "fundamental_screen"]``. Empty when every
             applicable check ran.
+        name: Optional display name of the instrument.
+        sector: Optional sector of the instrument.
     """
 
     ticker: str
     action: Literal["BUY", "SELL"]
     reason: str
+    name: Optional[str] = None
+    sector: Optional[str] = None
     confidence: Optional[float] = None
     rationale: Optional[str] = None
     factors: Optional[List[str]] = None

@@ -86,6 +86,7 @@ def signals(notify_email: bool = False, notify_telegram: bool = False) -> List[T
                 # sanitise_log_value's CRLF stripping (#5260).
                 logger.warning("Telegram send failed: %s", sanitise_log_value(redact_token(str(exc))))
 
+    trading_agent.attach_instrument_meta(raw_signals)
     return [TradingSignal.model_validate(sig) for sig in raw_signals]
 
 
@@ -103,4 +104,5 @@ def signals_report() -> TradingSignalsReport:
 
     blocked: List[dict] = []
     raw_signals = trading_agent.run(notify=False, blocked=blocked)
+    trading_agent.attach_instrument_meta(raw_signals)
     return TradingSignalsReport.model_validate({"signals": raw_signals, "blocked": blocked})

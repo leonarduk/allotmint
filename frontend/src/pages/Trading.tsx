@@ -46,6 +46,14 @@ const THRESHOLDS: {
 
 type ThresholdTip = { label: string; text: string; to: string };
 
+/** Hover text for a signal's ticker: the instrument's full name and sector. */
+function instrumentTooltip(signal: Pick<TradingSignal, 'ticker' | 'name' | 'sector'>): string | undefined {
+  const parts = [signal.name, signal.sector].filter(
+    (part): part is string => Boolean(part && part.trim() && part !== signal.ticker)
+  );
+  return parts.length ? parts.join(' — ') : undefined;
+}
+
 export default function Trading() {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<TradingSignal | null>(null);
@@ -346,6 +354,7 @@ export default function Trading() {
                             type="button"
                             className={tableStyles.clickable}
                             onClick={() => setSelected(s)}
+                            title={instrumentTooltip(s)}
                           >
                             {s.ticker}
                           </button>
@@ -423,6 +432,7 @@ export default function Trading() {
                 name={selected.name ?? selected.ticker}
                 currency={selected.currency ?? undefined}
                 instrument_type={selected.instrument_type}
+                sector={selected.sector}
                 signal={selected}
                 onClose={() => setSelected(null)}
               />

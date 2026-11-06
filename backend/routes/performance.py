@@ -16,6 +16,7 @@ from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.common.portfolio_cache import sharing_performance_inputs
 from backend.config import config
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
+from backend.routes._group_errors import raise_group_not_found
 from backend.utils.pricing_dates import PricingDateCalculator
 
 router = APIRouter(tags=["performance"])
@@ -316,7 +317,7 @@ def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365, as_of: st
         response.update(breakdown)
         return response
     except (FileNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
 
 
 @router.get("/performance-group/{slug}/tracking-error")
@@ -337,7 +338,7 @@ def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365, 
         response.update(breakdown)
         return response
     except (FileNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
 
 
 @router.get("/performance-group/{slug}/max-drawdown")
@@ -357,7 +358,7 @@ def group_max_drawdown(slug: str, days: int = 365, as_of: str | None = None):
         response.update(breakdown)
         return response
     except (FileNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
 
 
 @router.get("/performance-group/{slug}")
@@ -387,7 +388,7 @@ def group_performance(
             ledger_cumulative_return=True,
         )
     except (FileNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
     return {"group": slug, **result}
 
 
@@ -412,7 +413,7 @@ def group_risk_return(slug: str, days: int = 365, as_of: str | None = None):
     try:
         result = risk_return.compute_group_risk_return(slug, days, pricing_date=_resolve_as_of(as_of))
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
     return {**result, "risk_free_rate": config.risk_free_rate or 0.0}
 
 
@@ -456,7 +457,7 @@ def group_twr(slug: str, days: int = 365, as_of: str | None = None):
             "missing_members": missing_members,
         }
     except (FileNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
 
 
 @router.get("/performance-group/{slug}/xirr")
@@ -483,7 +484,7 @@ def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
             "missing_members": missing_members,
         }
     except (FileNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=404, detail="Group not found") from exc
+        raise_group_not_found(exc)
 
 
 @router.get("/performance/{owner}")

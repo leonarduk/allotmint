@@ -30,6 +30,7 @@ from backend.bootstrap import (
     register_routers,
 )
 from backend.common.core_optional import CoreFeatureUnavailableError
+from backend.common.data_providers import InvalidPayload
 from backend.common.request_metrics import health_summary, runtime_snapshot
 from backend.config import reload_config
 from backend.integrations.moneyhub_api import MoneyhubNotConfiguredError
@@ -59,6 +60,26 @@ async def core_feature_unavailable_handler(_request: Request, exc: CoreFeatureUn
     return JSONResponse(status_code=402, content={"detail": str(exc)})
 
 
+async def invalid_payload_handler(request: Request, exc: InvalidPayload) -> JSONResponse:
+    """Name the unreadable data file instead of a misleading 404 or a bare 500 (#11428).
+
+    The log line carries the full path; the response only the ``<owner>/<file>``
+    label, so no server path leaks. 500, not 502: the frontend retries 502-504
+    as transient (``frontend/src/api.ts``), and a broken file never heals itself.
+    """
+    logger.warning(
+        "Data file is invalid: %s",
+        sanitise_log_value(str(exc)),
+        extra={"event": "data.invalid_payload", "path": sanitise_log_value(request.url.path)},
+    )
+    detail = "Data file is invalid"
+    if exc.source:
+        detail = f"{detail}: {exc.source}"
+        if exc.reason:
+            detail = f"{detail} ({exc.reason})"
+    return JSONResponse(status_code=500, content={"detail": detail})
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
 
@@ -82,6 +103,7 @@ def create_app() -> FastAPI:
     )
     app.add_exception_handler(MoneyhubNotConfiguredError, moneyhub_not_configured_handler)
     app.add_exception_handler(CoreFeatureUnavailableError, core_feature_unavailable_handler)
+    app.add_exception_handler(InvalidPayload, invalid_payload_handler)
 
     admin_emails_raw = os.getenv("ADMIN_EMAILS", "")
     admin_set: frozenset[str] = (

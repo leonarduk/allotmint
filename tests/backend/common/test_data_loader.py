@@ -11,6 +11,7 @@ import backend.common.data_loader as data_loader
 from backend.common.account_models import OwnerSummaryRecord
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,
+    InvalidPayload,
     ResolvedPaths,
     _build_owner_summary,
     _extract_account_names,
@@ -185,7 +186,8 @@ class TestLoadPersonMeta:
         person_path = owner_dir / "person.json"
         person_path.write_text("{invalid")
 
-        with pytest.raises(json.JSONDecodeError):
+        # A decode error surfaces as InvalidPayload naming the file (#11428).
+        with pytest.raises(InvalidPayload):
             _safe_json_load(person_path)
 
         meta = load_person_meta("alice", data_root=tmp_path)

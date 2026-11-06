@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -28,7 +28,33 @@ class ProviderUnavailable(RuntimeError):
 
 
 class InvalidPayload(ValueError):
-    """Raised when provider data exists but cannot be parsed or is empty."""
+    """Raised when provider data exists but cannot be parsed or is empty.
+
+    ``source`` is a short, response-safe label for the file -- its immediate
+    parent directory and name, which for an account file is
+    ``<owner>/<file>.json``; never an absolute path -- and ``reason`` the
+    parser's own message, so a route can tell the caller which file is broken
+    without leaking server paths (#11428). It is the one signal for an unreadable
+    data file: ``raise_group_not_found`` re-raises it and maps every other error
+    to 404. It stays a ``ValueError`` because loaders catch that to skip one bad
+    file.
+    """
+
+    def __init__(self, message: str, *, source: str | None = None, reason: str | None = None) -> None:
+        super().__init__(message)
+        self.source = source
+        self.reason = reason
+
+
+def _source_label(path: PurePath) -> str:
+    """Return the immediate parent directory and name of *path*.
+
+    ``accounts/alex/isa.json`` -> ``alex/isa.json``; a file with no parent
+    gives just its name. Takes a local ``Path`` or a ``PurePosixPath`` of an
+    S3 URI alike.
+    """
+
+    return f"{path.parent.name}/{path.name}" if path.parent.name else path.name
 
 
 @dataclass(frozen=True)
@@ -55,10 +81,8 @@ class LocalDataProvider:
             path = safe_join(root, owner, f"{account}.json")
         except ValueError as exc:
             raise MissingData(f"Invalid path for owner={owner!r} account={account!r}") from exc
-        try:
-            data = _safe_json_load(path)
-        except (json.JSONDecodeError, InvalidPayload) as exc:
-            raise InvalidPayload(f"Invalid JSON file: {path}") from exc
+        # _safe_json_load raises InvalidPayload carrying the path and a source label.
+        data = _safe_json_load(path)
         return AccountObject(owner=owner, account=account, data=data)
 
     def load_person_meta(self, owner: str, root: Path) -> OwnerMetadata:
@@ -70,10 +94,7 @@ class LocalDataProvider:
             raise MissingData(f"Invalid path for owner={owner!r}") from exc
         if not path.exists():
             raise MissingData(str(path))
-        try:
-            data = _safe_json_load(path)
-        except (json.JSONDecodeError, InvalidPayload) as exc:
-            raise InvalidPayload(f"Invalid JSON file: {path}") from exc
+        data = _safe_json_load(path)
         return OwnerMetadata(owner=owner, metadata=_extract_person_meta(data))
 
     def list_plots(self, current_user: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -184,23 +205,30 @@ def _safe_json_load(path: Path) -> Dict[str, Any]:
     """Load JSON from *path*, raising MissingData if absent and InvalidPayload if unreadable."""
     if not path.exists():
         raise MissingData(str(path))
+    source = _source_label(path)
     if path.stat().st_size == 0:
-        raise InvalidPayload(f"Empty JSON file: {path}")
+        raise InvalidPayload(f"Empty JSON file: {path}", source=source, reason="empty file")
     with open(path, "r", encoding="utf-8-sig") as handle:
         txt = handle.read().strip()
     if not txt:
-        raise InvalidPayload(f"Empty JSON file: {path}")
-    return json.loads(txt)
-
-
-def _parse_json_body(body: Any, source: str) -> Dict[str, Any]:
-    txt = body.read().decode("utf-8-sig").strip() if body else ""
-    if not txt:
-        raise InvalidPayload(f"Empty JSON file: {source}")
+        raise InvalidPayload(f"Empty JSON file: {path}", source=source, reason="empty file")
     try:
         return json.loads(txt)
     except json.JSONDecodeError as exc:
-        raise InvalidPayload(f"Invalid JSON file: {source}") from exc
+        reason = f"line {exc.lineno} column {exc.colno}: {exc.msg}"
+        raise InvalidPayload(f"Invalid JSON in {path}: {reason}", source=source, reason=reason) from exc
+
+
+def _parse_json_body(body: Any, source: str) -> Dict[str, Any]:
+    label = _source_label(PurePosixPath(source))
+    txt = body.read().decode("utf-8-sig").strip() if body else ""
+    if not txt:
+        raise InvalidPayload(f"Empty JSON file: {source}", source=label, reason="empty file")
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError as exc:
+        reason = f"line {exc.lineno} column {exc.colno}: {exc.msg}"
+        raise InvalidPayload(f"Invalid JSON file: {source}", source=label, reason=reason) from exc
 
 
 def _extract_person_meta(data: Dict[str, Any]) -> Dict[str, Any]:

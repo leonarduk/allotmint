@@ -55,7 +55,7 @@ google-auth~=2.62.0
 redis~=8.1.0
 python-json-logger~=4.2.0
 annotated-types~=0.8.0
-anyio~=4.15.1
+anyio~=4.16.0
 # Bump together with the boto3 floor above, to the same patch version.
 botocore~=1.43.123
 curl-cffi>=0.17.0,<0.18  # yfinance~=1.5.1 requires curl_cffi>=0.15
